@@ -90,7 +90,6 @@
       font-size: 14px;
       text-align: center;
     }
-    .status-info { background: #e8f4fd; color: #007aff; }
     .status-success { background: #e8f9e8; color: #34c759; }
     .status-error { background: #fde8e8; color: #ff3b30; }
     .status-loading { background: #f2f2f7; color: #636366; }
@@ -137,7 +136,6 @@
   <p id="header-user">Visser Inspecties</p>
 </div>
 
-<!-- Login scherm -->
 <div id="login-screen">
   <h2>Inloggen vereist</h2>
   <p>Log in met je Microsoft-account om foto's te uploaden naar OneDrive.</p>
@@ -145,7 +143,6 @@
   <div id="login-status"></div>
 </div>
 
-<!-- App scherm -->
 <div id="app-screen">
   <div class="container">
 
@@ -192,83 +189,148 @@
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/msal.js/2.38.3/msal-browser.min.js"></script>
 <script>
-const CLIENT_ID  = '984fd1fb-3d68-4c94-aff2-47f699fb5dae';
-const TENANT_ID  = 'fdf237c9-bf46-47fa-ab3d-a8834a73e284';
-const BASE_PATH  = '0_In Behandeling/ERKEND ENERGIELABEL';
-const SCOPES     = ['Files.ReadWrite', 'offline_access'];
-
-const msalConfig = {
-  auth: {
-    clientId: CLIENT_ID,
-    authority: `https://login.microsoftonline.com/${TENANT_ID}`,
-    redirectUri: window.location.href.split('?')[0].split('#')[0]
-  },
-  cache: { cacheLocation: 'localStorage', storeAuthStateInCookie: true }
-};
-
-const msalInstance = new msal.PublicClientApplication(msalConfig);
+const CLIENT_ID = '984fd1fb-3d68-4c94-aff2-47f699fb5dae';
+const TENANT_ID = 'fdf237c9-bf46-47fa-ab3d-a8834a73e284';
+const REDIRECT  = 'https://visserinspecties.github.io/foto-upload/foto-upload.html';
+const BASE_PATH = '0_In Behandeling/ERKEND ENERGIELABEL';
+const SCOPES    = ['https://graph.microsoft.com/Files.ReadWrite', 'offline_access'];
 
 let accessToken = null;
 let fotoTeller  = 0;
 let huidigPad   = null;
 
-// ── Init ──────────────────────────────────────────────────────
-async function init() {
-  await msalInstance.initialize();
-
-  // Redirect afhandelen
-  try {
-    const result = await msalInstance.handleRedirectPromise();
-    if (result) {
-      accessToken = result.accessToken;
-    }
-  } catch(e) {
-    console.error(e);
-  }
-
-  const accounts = msalInstance.getAllAccounts();
-  if (accounts.length > 0) {
-    msalInstance.setActiveAccount(accounts[0]);
-    document.getElementById('header-user').textContent = accounts[0].username;
-    toonApp();
-    laadProjecten();
-  } else {
-    toonLogin();
-  }
+// ── PKCE helpers ──────────────────────────────────────────────
+function base64url(buffer) {
+  return btoa(String.fromCharCode(...new Uint8Array(buffer)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+async function generatePKCE() {
+  const verifier = base64url(crypto.getRandomValues(new Uint8Array(32)));
+  const digest   = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+  return { verifier, challenge: base64url(digest) };
 }
 
 // ── Login ─────────────────────────────────────────────────────
 async function login() {
-  document.getElementById('login-status').innerHTML = '<div class="status status-loading"><span class="spinner"></span> Doorsturen naar Microsoft...</div>';
-  await msalInstance.loginRedirect({ scopes: SCOPES });
+  const { verifier, challenge } = await generatePKCE();
+  const state = base64url(crypto.getRandomValues(new Uint8Array(8)));
+  sessionStorage.setItem('pkce_verifier', verifier);
+  sessionStorage.setItem('oauth_state', state);
+
+  const params = new URLSearchParams({
+    client_id:             CLIENT_ID,
+    response_type:         'code',
+    redirect_uri:          REDIRECT,
+    scope:                 SCOPES.join(' '),
+    state,
+    code_challenge:        challenge,
+    code_challenge_method: 'S256',
+    prompt:                'select_account'
+  });
+
+  window.location.href = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize?${params}`;
 }
 
-function uitloggen() {
-  msalInstance.logoutRedirect();
+// ── Token ophalen via code ────────────────────────────────────
+async function tokenViaCode(code) {
+  const verifier = sessionStorage.getItem('pkce_verifier');
+  const resp = await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id:     CLIENT_ID,
+      grant_type:    'authorization_code',
+      code,
+      redirect_uri:  REDIRECT,
+      code_verifier: verifier,
+      scope:         SCOPES.join(' ')
+    })
+  });
+  const data = await resp.json();
+  if (!data.access_token) throw new Error('Token mislukt: ' + JSON.stringify(data));
+  accessToken = data.access_token;
+  if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token);
+  sessionStorage.removeItem('pkce_verifier');
+  sessionStorage.removeItem('oauth_state');
+  // URL opschonen
+  window.history.replaceState({}, '', REDIRECT);
 }
 
-// ── Token ophalen ─────────────────────────────────────────────
+// ── Token vernieuwen ──────────────────────────────────────────
+async function refreshToken() {
+  const rt = localStorage.getItem('refresh_token');
+  if (!rt) throw new Error('Niet ingelogd');
+  const resp = await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id:     CLIENT_ID,
+      grant_type:    'refresh_token',
+      refresh_token: rt,
+      scope:         SCOPES.join(' ')
+    })
+  });
+  const data = await resp.json();
+  if (!data.access_token) throw new Error('Refresh mislukt');
+  accessToken = data.access_token;
+  if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token);
+}
+
 async function getToken() {
-  const account = msalInstance.getActiveAccount();
-  try {
-    const result = await msalInstance.acquireTokenSilent({ scopes: SCOPES, account });
-    return result.accessToken;
-  } catch(e) {
-    const result = await msalInstance.acquireTokenRedirect({ scopes: SCOPES, account });
-    return null;
-  }
+  if (accessToken) return accessToken;
+  await refreshToken();
+  return accessToken;
 }
 
-// ── UI wisselen ───────────────────────────────────────────────
-function toonApp()   { document.getElementById('login-screen').style.display = 'none'; document.getElementById('app-screen').style.display = 'block'; }
-function toonLogin() { document.getElementById('login-screen').style.display = 'flex'; document.getElementById('app-screen').style.display = 'none'; }
+// ── Uitloggen ─────────────────────────────────────────────────
+function uitloggen() {
+  localStorage.removeItem('refresh_token');
+  accessToken = null;
+  toonLogin();
+}
+
+// ── UI ────────────────────────────────────────────────────────
+function toonApp()   { document.getElementById('login-screen').style.display = 'none';  document.getElementById('app-screen').style.display = 'block'; }
+function toonLogin() { document.getElementById('login-screen').style.display = 'flex';  document.getElementById('app-screen').style.display = 'none'; }
+
+// ── Init ──────────────────────────────────────────────────────
+async function init() {
+  const params = new URLSearchParams(window.location.search);
+  const code   = params.get('code');
+  const state  = params.get('state');
+
+  if (code && state === sessionStorage.getItem('oauth_state')) {
+    try {
+      await tokenViaCode(code);
+      toonApp();
+      laadProjecten();
+      return;
+    } catch(e) {
+      setStatus('❌ Inloggen mislukt: ' + e.message, 'error');
+      toonLogin();
+      return;
+    }
+  }
+
+  // Refresh token aanwezig?
+  if (localStorage.getItem('refresh_token')) {
+    try {
+      await refreshToken();
+      toonApp();
+      laadProjecten();
+      return;
+    } catch(e) {
+      localStorage.removeItem('refresh_token');
+    }
+  }
+
+  toonLogin();
+}
 
 // ── Mappen ophalen ────────────────────────────────────────────
 async function getMappen(pad) {
   const token = await getToken();
-  if (!token) return [];
   const url = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(pad)}:/children?$select=name,folder&$top=200`;
   const resp = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
   const data = await resp.json();
@@ -276,19 +338,15 @@ async function getMappen(pad) {
   return data.value.filter(i => i.folder).map(i => i.name).sort();
 }
 
-// ── Projecten laden ───────────────────────────────────────────
 async function laadProjecten() {
   try {
     const projecten = await getMappen(BASE_PATH);
     const sel = document.getElementById('sel-project');
     sel.innerHTML = '<option value="">— kies project —</option>';
     projecten.forEach(p => { const o = document.createElement('option'); o.value = p; o.textContent = p; sel.appendChild(o); });
-  } catch(e) {
-    setStatus('❌ Projecten laden mislukt: ' + e.message, 'error');
-  }
+  } catch(e) { setStatus('❌ Projecten laden mislukt: ' + e.message, 'error'); }
 }
 
-// ── Straten laden ─────────────────────────────────────────────
 async function laadStraten() {
   const project = document.getElementById('sel-project').value;
   const selS = document.getElementById('sel-straat');
@@ -305,7 +363,6 @@ async function laadStraten() {
   } catch(e) { setStatus('❌ ' + e.message, 'error'); }
 }
 
-// ── Nummers laden ─────────────────────────────────────────────
 async function laadNummers() {
   const project = document.getElementById('sel-project').value;
   const straat  = document.getElementById('sel-straat').value;
@@ -321,7 +378,6 @@ async function laadNummers() {
   } catch(e) { setStatus('❌ ' + e.message, 'error'); }
 }
 
-// ── Pad updaten ───────────────────────────────────────────────
 function updatePad() {
   const project = document.getElementById('sel-project').value;
   const straat  = document.getElementById('sel-straat').value;
@@ -346,14 +402,13 @@ function resetKnop() {
   btn.disabled = true; btn.className = 'btn btn-disabled';
 }
 
-// ── Camera & upload ───────────────────────────────────────────
 function maakFoto() { document.getElementById('camera-input').click(); }
 
 async function uploadFoto(input) {
   if (!input.files || !input.files[0]) return;
   const file = input.files[0];
   input.value = '';
-  const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const ts   = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const naam = `foto_${ts}.jpg`;
   setStatus('<span class="spinner"></span> Uploaden...', 'loading');
   try {
@@ -371,7 +426,6 @@ async function uploadFoto(input) {
   } catch(e) { setStatus('❌ Upload mislukt: ' + e.message, 'error'); }
 }
 
-// ── Status ────────────────────────────────────────────────────
 function setStatus(msg, type) {
   const el = document.getElementById('status');
   el.innerHTML = msg ? `<div class="status status-${type}">${msg}</div>` : '';
