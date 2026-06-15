@@ -190,8 +190,8 @@
 </div>
 
 <script>
-const CLIENT_ID = '984fd1fb-3d68-4c94-aff2-47f699fb5dae';
-const TENANT_ID = 'fdf237c9-bf46-47fa-ab3d-a8834a73e284';
+const CLIENT_ID = 'fdf237c9-bf46-47fa-ab3d-a8834a73e284';
+const TENANT_ID = '984fd1fb-3d68-4c94-aff2-47f699fb5dae';
 const REDIRECT  = 'https://visserinspecties.github.io/foto-upload/foto-upload.html';
 const BASE_PATH = '0_In Behandeling/ERKEND ENERGIELABEL';
 const SCOPES    = ['https://graph.microsoft.com/Files.ReadWrite', 'offline_access'];
@@ -229,13 +229,13 @@ async function login() {
     prompt:                'select_account'
   });
 
-  window.location.href = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize?${params}`;
+  window.location.href = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params}`;
 }
 
 // ── Token ophalen via code ────────────────────────────────────
 async function tokenViaCode(code) {
   const verifier = sessionStorage.getItem('pkce_verifier');
-  const resp = await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`, {
+  const resp = await fetch(`https://login.microsoftonline.com/common/oauth2/v2.0/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -261,7 +261,7 @@ async function tokenViaCode(code) {
 async function refreshToken() {
   const rt = localStorage.getItem('refresh_token');
   if (!rt) throw new Error('Niet ingelogd');
-  const resp = await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`, {
+  const resp = await fetch(`https://login.microsoftonline.com/common/oauth2/v2.0/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
