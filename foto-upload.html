@@ -42,7 +42,7 @@
     #login-screen h2 { font-size:22px; font-weight:700; margin-bottom:8px; }
     #login-screen p { color:#636366; margin-bottom:32px; font-size:15px; }
     #app-screen { display:none; }
-    #debug { font-size:11px; color:#8e8e93; padding:8px; word-break:break-all; }
+    .hint { font-size:12px; color:#8e8e93; margin-top:6px; font-style:italic; }
   </style>
 </head>
 <body>
@@ -56,47 +56,82 @@
   <p>Log in met je Microsoft-account om foto's te uploaden naar OneDrive.</p>
   <button class="btn btn-primary" style="max-width:280px" onclick="login()">🔐 Inloggen met Microsoft</button>
   <div id="login-status"></div>
-  <div id="debug"></div>
+  <div id="debug" style="font-size:11px;color:#8e8e93;padding:8px;word-break:break-all;"></div>
 </div>
 
 <div id="app-screen">
   <div class="container">
+
+    <!-- Niveau 1: Hoofdmap -->
     <div class="card">
-      <label>Project</label>
-      <select id="sel-project" onchange="laadStraten()"><option value="">— laden... —</option></select>
+      <label>Hoofdmap</label>
+      <select id="sel-hoofd" onchange="laadNiveau(1)">
+        <option value="">— laden... —</option>
+      </select>
     </div>
-    <div class="card">
-      <label>Straat</label>
-      <select id="sel-straat" disabled onchange="laadNummers()"><option value="">— kies eerst project —</option></select>
+
+    <!-- Niveau 2 -->
+    <div class="card" id="card-2" style="display:none">
+      <label id="lbl-2">Map</label>
+      <select id="sel-2" onchange="laadNiveau(2)">
+        <option value="">— kies hierboven eerst —</option>
+      </select>
+      <p class="hint">Laat leeg om hier foto's op te slaan</p>
     </div>
-    <div class="card">
-      <label>Huisnummer</label>
-      <select id="sel-nummer" disabled onchange="updatePad()"><option value="">— kies eerst straat —</option></select>
+
+    <!-- Niveau 3 -->
+    <div class="card" id="card-3" style="display:none">
+      <label id="lbl-3">Map</label>
+      <select id="sel-3" onchange="laadNiveau(3)">
+        <option value="">— kies hierboven eerst —</option>
+      </select>
+      <p class="hint">Laat leeg om hier foto's op te slaan</p>
     </div>
+
+    <!-- Niveau 4 -->
+    <div class="card" id="card-4" style="display:none">
+      <label id="lbl-4">Map</label>
+      <select id="sel-4" onchange="updatePad()">
+        <option value="">— kies hierboven eerst —</option>
+      </select>
+      <p class="hint">Laat leeg om hier foto's op te slaan</p>
+    </div>
+
+    <!-- Doelmap -->
     <div class="card">
       <label>Doelmap</label>
       <div class="path-display" id="pad-display">Nog geen selectie</div>
     </div>
+
+    <!-- Teller -->
     <div class="foto-teller" id="teller-card" style="display:none">
       <div class="getal" id="foto-teller">0</div>
       <div class="sublabel">foto's geüpload naar deze map</div>
     </div>
+
     <button class="btn btn-disabled" id="btn-foto" disabled onclick="maakFoto()">📷 Foto maken</button>
     <button class="btn btn-secondary" onclick="uitloggen()">Uitloggen</button>
+
     <input type="file" id="camera-input" accept="image/*" capture="environment" onchange="uploadFoto(this)">
     <div id="status"></div>
   </div>
 </div>
 
 <script>
-const CLIENT_ID = 'fdf237c9-bf46-47fa-ab3d-a8834a73e284';
-const REDIRECT  = 'https://visserinspecties.github.io/foto-upload/foto-upload.html';
-const BASE_PATH = '0_In Behandeling/ERKEND ENERGIELABEL';
-const SCOPE     = 'https://graph.microsoft.com/Files.ReadWrite offline_access';
+const CLIENT_ID  = 'fdf237c9-bf46-47fa-ab3d-a8834a73e284';
+const TENANT_ID  = '984fd1fb-3d68-4c94-aff2-47f699fb5dae';
+const REDIRECT   = 'https://visserinspecties.github.io/foto-upload/foto-upload.html';
+const ROOT_PATH  = '0_In Behandeling';
+const SCOPE      = 'https://graph.microsoft.com/Files.ReadWrite offline_access';
+
+// Mapnamen per niveau (voor het label)
+const NIVEAU_LABELS = ['Hoofdmap', 'Submap', 'Straat', 'Huisnummer'];
 
 let accessToken = null;
 let fotoTeller  = 0;
 let huidigPad   = null;
+// Geselecteerde paden per niveau [0=hoofd, 1, 2, 3]
+let gekozenPad  = ['', '', '', ''];
 
 // ── PKCE ──────────────────────────────────────────────────────
 function b64url(buf) {
@@ -106,91 +141,56 @@ function b64url(buf) {
 async function maakPKCE() {
   const verifier  = b64url(crypto.getRandomValues(new Uint8Array(32)));
   const digest    = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
-  const challenge = b64url(digest);
-  return { verifier, challenge };
+  return { verifier, challenge: b64url(digest) };
 }
 
-// ── Login starten ─────────────────────────────────────────────
+// ── Login ─────────────────────────────────────────────────────
 async function login() {
   const { verifier, challenge } = await maakPKCE();
-  // Sla verifier op in ALLE beschikbare storage
   try { localStorage.setItem('pkce_v', verifier); } catch(e){}
   try { sessionStorage.setItem('pkce_v', verifier); } catch(e){}
-  // Zet ook in cookie als fallback
   document.cookie = `pkce_v=${verifier};path=/;max-age=300;SameSite=Lax`;
-
   const params = new URLSearchParams({
-    client_id:             CLIENT_ID,
-    response_type:         'code',
-    redirect_uri:          REDIRECT,
-    scope:                 SCOPE,
-    code_challenge:        challenge,
-    code_challenge_method: 'S256',
-    prompt:                'select_account'
+    client_id: CLIENT_ID, response_type: 'code', redirect_uri: REDIRECT,
+    scope: SCOPE, code_challenge: challenge, code_challenge_method: 'S256',
+    prompt: 'select_account'
   });
-  window.location.href = `https://login.microsoftonline.com/984fd1fb-3d68-4c94-aff2-47f699fb5dae/oauth2/v2.0/authorize?${params}`;
+  window.location.href = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize?${params}`;
 }
 
-// ── Verifier ophalen (uit elke beschikbare bron) ──────────────
 function getVerifier() {
   let v = null;
   try { v = localStorage.getItem('pkce_v'); } catch(e){}
   if (!v) { try { v = sessionStorage.getItem('pkce_v'); } catch(e){} }
-  if (!v) {
-    const m = document.cookie.match(/pkce_v=([^;]+)/);
-    if (m) v = m[1];
-  }
+  if (!v) { const m = document.cookie.match(/pkce_v=([^;]+)/); if (m) v = m[1]; }
   return v;
 }
 
-// ── Token ophalen via code ────────────────────────────────────
 async function tokenViaCode(code) {
   const verifier = getVerifier();
-  const dbg = document.getElementById('debug');
-
-  if (!verifier) {
-    if (dbg) dbg.textContent = 'Geen PKCE verifier gevonden. Probeer opnieuw in te loggen.';
-    throw new Error('Geen PKCE verifier');
-  }
-
-  const body = new URLSearchParams({
-    client_id:     CLIENT_ID,
-    grant_type:    'authorization_code',
-    code,
-    redirect_uri:  REDIRECT,
-    code_verifier: verifier,
-    scope:         SCOPE
-  });
-
-  const resp = await fetch('https://login.microsoftonline.com/984fd1fb-3d68-4c94-aff2-47f699fb5dae/oauth2/v2.0/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body
+  if (!verifier) throw new Error('Geen PKCE verifier — probeer opnieuw in te loggen.');
+  const resp = await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`, {
+    method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body: new URLSearchParams({ client_id:CLIENT_ID, grant_type:'authorization_code',
+      code, redirect_uri:REDIRECT, code_verifier:verifier, scope:SCOPE })
   });
   const data = await resp.json();
-
-  if (!data.access_token) {
-    if (dbg) dbg.textContent = JSON.stringify(data);
-    throw new Error(data.error_description || 'Token mislukt');
-  }
-
+  if (!data.access_token) throw new Error(data.error_description || 'Token mislukt');
   accessToken = data.access_token;
   if (data.refresh_token) localStorage.setItem('rt', data.refresh_token);
-  // Opruimen
   try { localStorage.removeItem('pkce_v'); } catch(e){}
   try { sessionStorage.removeItem('pkce_v'); } catch(e){}
   document.cookie = 'pkce_v=;path=/;max-age=0';
   window.history.replaceState({}, '', REDIRECT);
 }
 
-// ── Token vernieuwen ──────────────────────────────────────────
 async function refreshAccessToken() {
   const rt = localStorage.getItem('rt');
   if (!rt) throw new Error('Niet ingelogd');
-  const resp = await fetch('https://login.microsoftonline.com/984fd1fb-3d68-4c94-aff2-47f699fb5dae/oauth2/v2.0/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ client_id: CLIENT_ID, grant_type: 'refresh_token', refresh_token: rt, scope: SCOPE })
+  const resp = await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`, {
+    method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body: new URLSearchParams({ client_id:CLIENT_ID, grant_type:'refresh_token',
+      refresh_token:rt, scope:SCOPE })
   });
   const data = await resp.json();
   if (!data.access_token) throw new Error('Refresh mislukt');
@@ -204,126 +204,106 @@ async function getToken() {
   return accessToken;
 }
 
-function uitloggen() {
-  localStorage.removeItem('rt');
-  accessToken = null;
-  toonLogin();
-}
-
-// ── UI ────────────────────────────────────────────────────────
+function uitloggen() { localStorage.removeItem('rt'); accessToken = null; toonLogin(); }
 function toonApp()   { document.getElementById('login-screen').style.display='none';  document.getElementById('app-screen').style.display='block'; }
 function toonLogin() { document.getElementById('login-screen').style.display='flex';  document.getElementById('app-screen').style.display='none'; }
 
 // ── Init ──────────────────────────────────────────────────────
 async function init() {
   const params = new URLSearchParams(window.location.search);
-  const code   = params.get('code');
-  const error  = params.get('error');
-
-  if (error) {
-    document.getElementById('debug').textContent = params.get('error_description') || error;
-    toonLogin();
-    return;
-  }
-
+  const code = params.get('code'), error = params.get('error');
+  if (error) { document.getElementById('debug').textContent = params.get('error_description')||error; toonLogin(); return; }
   if (code) {
-    try {
-      await tokenViaCode(code);
-      toonApp();
-      laadProjecten();
-      return;
-    } catch(e) {
-      document.getElementById('login-status').innerHTML = `<div class="status status-error">❌ ${e.message}</div>`;
-      toonLogin();
-      return;
-    }
+    try { await tokenViaCode(code); toonApp(); laadHoofdmappen(); return; }
+    catch(e) { document.getElementById('login-status').innerHTML=`<div class="status status-error">❌ ${e.message}</div>`; toonLogin(); return; }
   }
-
   if (localStorage.getItem('rt')) {
-    try {
-      await refreshAccessToken();
-      toonApp();
-      laadProjecten();
-      return;
-    } catch(e) {
-      localStorage.removeItem('rt');
-    }
+    try { await refreshAccessToken(); toonApp(); laadHoofdmappen(); return; }
+    catch(e) { localStorage.removeItem('rt'); }
   }
-
   toonLogin();
 }
 
-// ── Graph API ─────────────────────────────────────────────────
+// ── Graph: mappen ophalen ─────────────────────────────────────
 async function getMappen(pad) {
   const token = await getToken();
   const url = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(pad)}:/children?$select=name,folder&$top=200`;
-  const resp = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+  const resp = await fetch(url, { headers:{ Authorization:'Bearer '+token } });
   const data = await resp.json();
   if (!data.value) throw new Error(JSON.stringify(data.error));
-  return data.value.filter(i => i.folder).map(i => i.name).sort();
+  return data.value.filter(i=>i.folder).map(i=>i.name).sort();
 }
 
-async function laadProjecten() {
+// ── Hoofdmappen laden ─────────────────────────────────────────
+async function laadHoofdmappen() {
   try {
-    const list = await getMappen(BASE_PATH);
-    const sel = document.getElementById('sel-project');
-    sel.innerHTML = '<option value="">— kies project —</option>';
-    list.forEach(p => { const o=document.createElement('option'); o.value=p; o.textContent=p; sel.appendChild(o); });
-  } catch(e) { setStatus('❌ Projecten laden mislukt: '+e.message,'error'); }
+    const lijst = await getMappen(ROOT_PATH);
+    const sel = document.getElementById('sel-hoofd');
+    sel.innerHTML = '<option value="">— kies map —</option>';
+    lijst.forEach(n => { const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o); });
+  } catch(e) { setStatus('❌ Laden mislukt: '+e.message,'error'); }
 }
 
-async function laadStraten() {
-  const project = document.getElementById('sel-project').value;
-  const selS = document.getElementById('sel-straat');
-  const selN = document.getElementById('sel-nummer');
-  selS.innerHTML='<option value="">— laden... —</option>'; selS.disabled=true;
-  selN.innerHTML='<option value="">— kies eerst straat —</option>'; selN.disabled=true;
-  resetKnop();
-  if (!project) return;
-  try {
-    const list = await getMappen(`${BASE_PATH}/${project}`);
-    selS.innerHTML='<option value="">— kies straat —</option>';
-    list.forEach(s => { const o=document.createElement('option'); o.value=s; o.textContent=s; selS.appendChild(o); });
-    selS.disabled=false;
-  } catch(e) { setStatus('❌ '+e.message,'error'); }
+// ── Niveau laden ──────────────────────────────────────────────
+async function laadNiveau(niveau) {
+  // Waarde van het huidige niveau opslaan
+  const selIds = ['sel-hoofd','sel-2','sel-3','sel-4'];
+  gekozenPad[niveau-1] = document.getElementById(selIds[niveau-1]).value;
+
+  // Alles daarna resetten
+  for (let i = niveau; i < 4; i++) {
+    gekozenPad[i] = '';
+    const card = document.getElementById('card-'+(i+1));
+    const sel  = document.getElementById('sel-'+(i+1));
+    if (card) { card.style.display='none'; }
+    if (sel)  { sel.innerHTML='<option value="">— kies hierboven eerst —</option>'; }
+  }
+
+  // Huidig pad opbouwen
+  const gekozenDelen = gekozenPad.filter(p=>p!=='');
+  const huidigePadStr = ROOT_PATH + (gekozenDelen.length ? '/' + gekozenDelen.join('/') : '');
+
+  // Pad alvast instellen (foto mogelijk vanaf dit niveau)
+  setPad(huidigePadStr);
+
+  // Volgende niveau laden als er een waarde is
+  if (gekozenPad[niveau-1]) {
+    try {
+      const lijst = await getMappen(huidigePadStr);
+      if (lijst.length > 0 && niveau < 4) {
+        const volgCard = document.getElementById('card-'+(niveau+1));
+        const volgSel  = document.getElementById('sel-'+(niveau+1));
+        const volgLbl  = document.getElementById('lbl-'+(niveau+1));
+        if (volgCard && volgSel) {
+          volgSel.innerHTML = '<option value="">— (deze map) —</option>';
+          lijst.forEach(n => { const o=document.createElement('option'); o.value=n; o.textContent=n; volgSel.appendChild(o); });
+          if (volgLbl) volgLbl.textContent = NIVEAU_LABELS[niveau] || 'Submap';
+          volgCard.style.display = 'block';
+        }
+      }
+    } catch(e) { /* geen submappen, dat is prima */ }
+  }
 }
 
-async function laadNummers() {
-  const project = document.getElementById('sel-project').value;
-  const straat  = document.getElementById('sel-straat').value;
-  const selN = document.getElementById('sel-nummer');
-  selN.innerHTML='<option value="">— laden... —</option>'; selN.disabled=true;
-  resetKnop();
-  if (!straat) return;
-  try {
-    const list = await getMappen(`${BASE_PATH}/${project}/${straat}`);
-    selN.innerHTML='<option value="">— kies nummer —</option>';
-    list.forEach(n => { const o=document.createElement('option'); o.value=n; o.textContent=n; selN.appendChild(o); });
-    selN.disabled=false;
-  } catch(e) { setStatus('❌ '+e.message,'error'); }
+async function updatePad() {
+  gekozenPad[3] = document.getElementById('sel-4').value;
+  const gekozenDelen = gekozenPad.filter(p=>p!=='');
+  const pad = ROOT_PATH + (gekozenDelen.length ? '/' + gekozenDelen.join('/') : '');
+  setPad(pad);
 }
 
-function updatePad() {
-  const project = document.getElementById('sel-project').value;
-  const straat  = document.getElementById('sel-straat').value;
-  const nummer  = document.getElementById('sel-nummer').value;
-  if (project && straat && nummer) {
-    huidigPad = `${BASE_PATH}/${project}/${straat}/${nummer}`;
-    document.getElementById('pad-display').textContent = huidigPad;
-    fotoTeller=0; document.getElementById('foto-teller').textContent='0';
-    document.getElementById('teller-card').style.display='block';
-    const btn=document.getElementById('btn-foto'); btn.disabled=false; btn.className='btn btn-primary';
-    setStatus('','');
-  } else { resetKnop(); }
+function setPad(pad) {
+  huidigPad = pad;
+  fotoTeller = 0;
+  document.getElementById('foto-teller').textContent = '0';
+  document.getElementById('pad-display').textContent = pad;
+  document.getElementById('teller-card').style.display = 'block';
+  const btn = document.getElementById('btn-foto');
+  btn.disabled = false; btn.className = 'btn btn-primary';
+  setStatus('','');
 }
 
-function resetKnop() {
-  huidigPad=null;
-  document.getElementById('pad-display').textContent='Nog geen selectie';
-  document.getElementById('teller-card').style.display='none';
-  const btn=document.getElementById('btn-foto'); btn.disabled=true; btn.className='btn btn-disabled';
-}
-
+// ── Camera & upload ───────────────────────────────────────────
 function maakFoto() { document.getElementById('camera-input').click(); }
 
 async function uploadFoto(input) {
@@ -338,7 +318,7 @@ async function uploadFoto(input) {
     const resp=await fetch(url,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':file.type||'image/jpeg'},body:file});
     if (!resp.ok) { const e=await resp.json(); throw new Error(e.error?.message||resp.statusText); }
     fotoTeller++; document.getElementById('foto-teller').textContent=fotoTeller;
-    setStatus(`✅ ${naam} opgeslagen`,'success');
+    setStatus(`✅ ${naam} opgeslagen in ${huidigPad}`,'success');
   } catch(e) { setStatus('❌ Upload mislukt: '+e.message,'error'); }
 }
 
