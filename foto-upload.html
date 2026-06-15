@@ -128,7 +128,7 @@ async function login() {
     code_challenge_method: 'S256',
     prompt:                'select_account'
   });
-  window.location.href = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params}`;
+  window.location.href = `https://login.microsoftonline.com/984fd1fb-3d68-4c94-aff2-47f699fb5dae/oauth2/v2.0/authorize?${params}`;
 }
 
 // ── Verifier ophalen (uit elke beschikbare bron) ──────────────
@@ -162,7 +162,7 @@ async function tokenViaCode(code) {
     scope:         SCOPE
   });
 
-  const resp = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
+  const resp = await fetch('https://login.microsoftonline.com/984fd1fb-3d68-4c94-aff2-47f699fb5dae/oauth2/v2.0/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body
@@ -187,7 +187,7 @@ async function tokenViaCode(code) {
 async function refreshAccessToken() {
   const rt = localStorage.getItem('rt');
   if (!rt) throw new Error('Niet ingelogd');
-  const resp = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
+  const resp = await fetch('https://login.microsoftonline.com/984fd1fb-3d68-4c94-aff2-47f699fb5dae/oauth2/v2.0/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ client_id: CLIENT_ID, grant_type: 'refresh_token', refresh_token: rt, scope: SCOPE })
