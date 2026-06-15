@@ -300,7 +300,7 @@ async function init() {
   const code   = params.get('code');
   const state  = params.get('state');
 
-  if (code && state === sessionStorage.getItem('oauth_state')) {
+  if (code) {
     try {
       await tokenViaCode(code);
       toonApp();
