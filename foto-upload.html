@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Foto Upload">
+  <title>Foto Upload</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f2f2f7;
+      color: #1c1c1e;
+      min-height: 100vh;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+    .header {
+      background: #fff;
+      padding: 16px 20px;
+      border-bottom: 1px solid #e5e5ea;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .header h1 { font-size: 17px; font-weight: 600; }
+    .header p { font-size: 13px; color: #8e8e93; margin-top: 2px; }
+    .container { padding: 16px; }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .card label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #8e8e93;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: block;
+      margin-bottom: 8px;
+    }
+    select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #e5e5ea;
+      border-radius: 8px;
+      font-size: 16px;
+      background: #f9f9f9;
+      color: #1c1c1e;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238e8e93' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+    }
+    select:disabled { color: #c7c7cc; background-color: #f2f2f7; }
+    .path-display {
+      background: #f2f2f7;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 12px;
+      color: #636366;
+      font-family: monospace;
+      word-break: break-all;
+      min-height: 36px;
+    }
+    .btn {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 12px;
+      font-size: 17px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      margin-bottom: 10px;
+    }
+    .btn:active { opacity: 0.7; }
+    .btn-primary { background: #007aff; color: #fff; }
+    .btn-secondary { background: #e5e5ea; color: #1c1c1e; }
+    .btn-disabled { background: #c7c7cc; color: #fff; cursor: not-allowed; }
+    .status {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 10px;
+      font-size: 14px;
+      text-align: center;
+    }
+    .status-info { background: #e8f4fd; color: #007aff; }
+    .status-success { background: #e8f9e8; color: #34c759; }
+    .status-error { background: #fde8e8; color: #ff3b30; }
+    .status-loading { background: #f2f2f7; color: #636366; }
+    .foto-teller {
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      text-align: center;
+    }
+    .foto-teller .getal { font-size: 48px; font-weight: 700; color: #007aff; line-height: 1; }
+    .foto-teller .sublabel { font-size: 13px; color: #8e8e93; margin-top: 4px; }
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid #c7c7cc;
+      border-top-color: #007aff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    input[type="file"] { display: none; }
+    #login-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 60vh;
+      padding: 32px;
+      text-align: center;
+    }
+    #login-screen h2 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+    #login-screen p { color: #636366; margin-bottom: 32px; font-size: 15px; }
+    #app-screen { display: none; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📸 Foto Upload</h1>
+  <p id="header-user">Visser Inspecties</p>
+</div>
+
+<!-- Login scherm -->
+<div id="login-screen">
+  <h2>Inloggen vereist</h2>
+  <p>Log in met je Microsoft-account om foto's te uploaden naar OneDrive.</p>
+  <button class="btn btn-primary" style="max-width:280px" onclick="login()">🔐 Inloggen met Microsoft</button>
+  <div id="login-status"></div>
+</div>
+
+<!-- App scherm -->
+<div id="app-screen">
+  <div class="container">
+
+    <div class="card">
+      <label>Project</label>
+      <select id="sel-project" onchange="laadStraten()">
+        <option value="">— laden... —</option>
+      </select>
+    </div>
+
+    <div class="card">
+      <label>Straat</label>
+      <select id="sel-straat" disabled onchange="laadNummers()">
+        <option value="">— kies eerst project —</option>
+      </select>
+    </div>
+
+    <div class="card">
+      <label>Huisnummer</label>
+      <select id="sel-nummer" disabled onchange="updatePad()">
+        <option value="">— kies eerst straat —</option>
+      </select>
+    </div>
+
+    <div class="card">
+      <label>Doelmap</label>
+      <div class="path-display" id="pad-display">Nog geen selectie</div>
+    </div>
+
+    <div class="foto-teller" id="teller-card" style="display:none">
+      <div class="getal" id="foto-teller">0</div>
+      <div class="sublabel">foto's geüpload naar deze map</div>
+    </div>
+
+    <button class="btn btn-disabled" id="btn-foto" disabled onclick="maakFoto()">
+      📷 Foto maken
+    </button>
+
+    <button class="btn btn-secondary" onclick="uitloggen()">Uitloggen</button>
+
+    <input type="file" id="camera-input" accept="image/*" capture="environment" onchange="uploadFoto(this)">
+    <div id="status"></div>
+
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/msal.js/2.38.3/msal-browser.min.js"></script>
+<script>
+const CLIENT_ID  = '984fd1fb-3d68-4c94-aff2-47f699fb5dae';
+const TENANT_ID  = 'fdf237c9-bf46-47fa-ab3d-a8834a73e284';
+const BASE_PATH  = '0_In Behandeling/ERKEND ENERGIELABEL';
+const SCOPES     = ['Files.ReadWrite', 'offline_access'];
+
+const msalConfig = {
+  auth: {
+    clientId: CLIENT_ID,
+    authority: `https://login.microsoftonline.com/${TENANT_ID}`,
+    redirectUri: window.location.href.split('?')[0].split('#')[0]
+  },
+  cache: { cacheLocation: 'localStorage', storeAuthStateInCookie: true }
+};
+
+const msalInstance = new msal.PublicClientApplication(msalConfig);
+
+let accessToken = null;
+let fotoTeller  = 0;
+let huidigPad   = null;
+
+// ── Init ──────────────────────────────────────────────────────
+async function init() {
+  await msalInstance.initialize();
+
+  // Redirect afhandelen
+  try {
+    const result = await msalInstance.handleRedirectPromise();
+    if (result) {
+      accessToken = result.accessToken;
+    }
+  } catch(e) {
+    console.error(e);
+  }
+
+  const accounts = msalInstance.getAllAccounts();
+  if (accounts.length > 0) {
+    msalInstance.setActiveAccount(accounts[0]);
+    document.getElementById('header-user').textContent = accounts[0].username;
+    toonApp();
+    laadProjecten();
+  } else {
+    toonLogin();
+  }
+}
+
+// ── Login ─────────────────────────────────────────────────────
+async function login() {
+  document.getElementById('login-status').innerHTML = '<div class="status status-loading"><span class="spinner"></span> Doorsturen naar Microsoft...</div>';
+  await msalInstance.loginRedirect({ scopes: SCOPES });
+}
+
+function uitloggen() {
+  msalInstance.logoutRedirect();
+}
+
+// ── Token ophalen ─────────────────────────────────────────────
+async function getToken() {
+  const account = msalInstance.getActiveAccount();
+  try {
+    const result = await msalInstance.acquireTokenSilent({ scopes: SCOPES, account });
+    return result.accessToken;
+  } catch(e) {
+    const result = await msalInstance.acquireTokenRedirect({ scopes: SCOPES, account });
+    return null;
+  }
+}
+
+// ── UI wisselen ───────────────────────────────────────────────
+function toonApp()   { document.getElementById('login-screen').style.display = 'none'; document.getElementById('app-screen').style.display = 'block'; }
+function toonLogin() { document.getElementById('login-screen').style.display = 'flex'; document.getElementById('app-screen').style.display = 'none'; }
+
+// ── Mappen ophalen ────────────────────────────────────────────
+async function getMappen(pad) {
+  const token = await getToken();
+  if (!token) return [];
+  const url = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(pad)}:/children?$select=name,folder&$top=200`;
+  const resp = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+  const data = await resp.json();
+  if (!data.value) throw new Error(JSON.stringify(data.error));
+  return data.value.filter(i => i.folder).map(i => i.name).sort();
+}
+
+// ── Projecten laden ───────────────────────────────────────────
+async function laadProjecten() {
+  try {
+    const projecten = await getMappen(BASE_PATH);
+    const sel = document.getElementById('sel-project');
+    sel.innerHTML = '<option value="">— kies project —</option>';
+    projecten.forEach(p => { const o = document.createElement('option'); o.value = p; o.textContent = p; sel.appendChild(o); });
+  } catch(e) {
+    setStatus('❌ Projecten laden mislukt: ' + e.message, 'error');
+  }
+}
+
+// ── Straten laden ─────────────────────────────────────────────
+async function laadStraten() {
+  const project = document.getElementById('sel-project').value;
+  const selS = document.getElementById('sel-straat');
+  const selN = document.getElementById('sel-nummer');
+  selS.innerHTML = '<option value="">— laden... —</option>'; selS.disabled = true;
+  selN.innerHTML = '<option value="">— kies eerst straat —</option>'; selN.disabled = true;
+  resetKnop();
+  if (!project) return;
+  try {
+    const straten = await getMappen(`${BASE_PATH}/${project}`);
+    selS.innerHTML = '<option value="">— kies straat —</option>';
+    straten.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; selS.appendChild(o); });
+    selS.disabled = false;
+  } catch(e) { setStatus('❌ ' + e.message, 'error'); }
+}
+
+// ── Nummers laden ─────────────────────────────────────────────
+async function laadNummers() {
+  const project = document.getElementById('sel-project').value;
+  const straat  = document.getElementById('sel-straat').value;
+  const selN = document.getElementById('sel-nummer');
+  selN.innerHTML = '<option value="">— laden... —</option>'; selN.disabled = true;
+  resetKnop();
+  if (!straat) return;
+  try {
+    const nummers = await getMappen(`${BASE_PATH}/${project}/${straat}`);
+    selN.innerHTML = '<option value="">— kies nummer —</option>';
+    nummers.forEach(n => { const o = document.createElement('option'); o.value = n; o.textContent = n; selN.appendChild(o); });
+    selN.disabled = false;
+  } catch(e) { setStatus('❌ ' + e.message, 'error'); }
+}
+
+// ── Pad updaten ───────────────────────────────────────────────
+function updatePad() {
+  const project = document.getElementById('sel-project').value;
+  const straat  = document.getElementById('sel-straat').value;
+  const nummer  = document.getElementById('sel-nummer').value;
+  if (project && straat && nummer) {
+    huidigPad = `${BASE_PATH}/${project}/${straat}/${nummer}`;
+    document.getElementById('pad-display').textContent = huidigPad;
+    fotoTeller = 0;
+    document.getElementById('foto-teller').textContent = '0';
+    document.getElementById('teller-card').style.display = 'block';
+    const btn = document.getElementById('btn-foto');
+    btn.disabled = false; btn.className = 'btn btn-primary';
+    setStatus('', '');
+  } else { resetKnop(); }
+}
+
+function resetKnop() {
+  huidigPad = null;
+  document.getElementById('pad-display').textContent = 'Nog geen selectie';
+  document.getElementById('teller-card').style.display = 'none';
+  const btn = document.getElementById('btn-foto');
+  btn.disabled = true; btn.className = 'btn btn-disabled';
+}
+
+// ── Camera & upload ───────────────────────────────────────────
+function maakFoto() { document.getElementById('camera-input').click(); }
+
+async function uploadFoto(input) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  input.value = '';
+  const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const naam = `foto_${ts}.jpg`;
+  setStatus('<span class="spinner"></span> Uploaden...', 'loading');
+  try {
+    const token = await getToken();
+    const url = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(huidigPad)}/${naam}:/content`;
+    const resp = await fetch(url, {
+      method: 'PUT',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': file.type || 'image/jpeg' },
+      body: file
+    });
+    if (!resp.ok) { const e = await resp.json(); throw new Error(e.error?.message || resp.statusText); }
+    fotoTeller++;
+    document.getElementById('foto-teller').textContent = fotoTeller;
+    setStatus(`✅ ${naam} opgeslagen`, 'success');
+  } catch(e) { setStatus('❌ Upload mislukt: ' + e.message, 'error'); }
+}
+
+// ── Status ────────────────────────────────────────────────────
+function setStatus(msg, type) {
+  const el = document.getElementById('status');
+  el.innerHTML = msg ? `<div class="status status-${type}">${msg}</div>` : '';
+}
+
+init();
+</script>
+</body>
+</html>
