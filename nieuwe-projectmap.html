@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Nieuwe Projectmap">
+  <title>Nieuwe Projectmap</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f2f2f7; color: #1c1c1e; min-height: 100vh;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+    .header { background:#fff; padding:16px 20px; border-bottom:1px solid #e5e5ea; position:sticky; top:0; z-index:10; }
+    .header h1 { font-size:17px; font-weight:600; }
+    .header p { font-size:13px; color:#8e8e93; margin-top:2px; }
+    .container { padding:16px; }
+    .card { background:#fff; border-radius:12px; padding:16px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,0.08); }
+    .card label { font-size:13px; font-weight:600; color:#8e8e93; text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:8px; }
+    .row { display:flex; gap:10px; }
+    .row > div { flex:1; }
+    input[type="text"], input[type="number"] {
+      width:100%; padding:10px 12px; border:1px solid #e5e5ea; border-radius:8px;
+      font-size:16px; background:#f9f9f9; color:#1c1c1e;
+    }
+    input::placeholder { color:#c7c7cc; }
+    .path-display { background:#f2f2f7; border-radius:8px; padding:10px 12px; font-size:13px; color:#1c1c1e; font-family:monospace; word-break:break-all; min-height:36px; }
+    .btn { width:100%; padding:14px; border:none; border-radius:12px; font-size:17px; font-weight:600; cursor:pointer; transition:opacity 0.2s; margin-bottom:10px; }
+    .btn:active:not(:disabled) { opacity:0.7; }
+    .btn-primary { background:#007aff; color:#fff; }
+    .btn-secondary { background:#e5e5ea; color:#1c1c1e; }
+    .btn:disabled { background:#c7c7cc; color:#fff; cursor:not-allowed; }
+    .status { margin-top:12px; padding:12px; border-radius:10px; font-size:14px; text-align:center; }
+    .status-success { background:#e8f9e8; color:#34c759; }
+    .status-error { background:#fde8e8; color:#ff3b30; }
+    .status-loading { background:#f2f2f7; color:#636366; }
+    .spinner { display:inline-block; width:16px; height:16px; border:2px solid #c7c7cc; border-top-color:#007aff; border-radius:50%; animation:spin 0.8s linear infinite; vertical-align:middle; margin-right:6px; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    #login-screen { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:60vh; padding:32px; text-align:center; }
+    #login-screen h2 { font-size:22px; font-weight:700; margin-bottom:8px; }
+    #login-screen p { color:#636366; margin-bottom:32px; font-size:15px; }
+    #app-screen { display:none; }
+    .hint { font-size:12px; color:#8e8e93; margin-top:6px; font-style:italic; }
+
+    /* Wachtrij-kaart */
+    .queue-card { display:flex; justify-content:space-between; align-items:center; }
+    .queue-info .getal2 { font-size:24px; font-weight:700; color:#ff9500; }
+    .queue-info .sublabel2 { font-size:12px; color:#8e8e93; }
+    .btn-queue { background:#ff9500; color:#fff; padding:12px 16px; border:none; border-radius:10px; font-weight:600; font-size:14px; cursor:pointer; white-space:nowrap; }
+    .btn-queue:disabled { background:#c7c7cc; cursor:not-allowed; }
+    .btn-queue:active:not(:disabled) { opacity:0.7; }
+  </style>
+</head>
+<body>
+<div class="header">
+  <h1>📁 Nieuwe Projectmap</h1>
+  <p id="header-user">Visser Inspecties</p>
+</div>
+
+<div id="login-screen">
+  <h2>Inloggen vereist</h2>
+  <p>Log in met je Microsoft-account om een projectmap aan te maken in OneDrive.</p>
+  <button class="btn btn-primary" style="max-width:280px" onclick="login()">🔐 Inloggen met Microsoft</button>
+  <div id="login-status"></div>
+  <div id="debug" style="font-size:11px;color:#8e8e93;padding:8px;word-break:break-all;"></div>
+</div>
+
+<div id="app-screen">
+  <div class="container">
+
+    <!-- Adresgegevens -->
+    <div class="card">
+      <label>Postcode <span style="text-transform:none; font-weight:400;">(optioneel)</span></label>
+      <input type="text" id="inp-postcode" placeholder="2983LC — laat leeg indien onbekend" autocapitalize="characters" oninput="updateMapnaamPreview()">
+    </div>
+
+    <div class="card">
+      <label>Plaats</label>
+      <input type="text" id="inp-plaats" placeholder="Ridderkerk" oninput="updateMapnaamPreview()">
+    </div>
+
+    <div class="card">
+      <label>Straat</label>
+      <input type="text" id="inp-straat" placeholder="Donckselaan" oninput="updateMapnaamPreview()">
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div>
+          <label>Huisnummer <span style="text-transform:none; font-weight:400;">(optioneel)</span></label>
+          <input type="number" id="inp-huisnummer" placeholder="4 — leeg bij complex" oninput="updateMapnaamPreview()">
+        </div>
+        <div>
+          <label>Toevoeging</label>
+          <input type="text" id="inp-toevoeging" placeholder="evt. A, B...." oninput="updateMapnaamPreview()">
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-secondary" onclick="zoekAdres()">🔍 Adres aanvullen opzoeken</button>
+    <p class="hint" style="margin:-4px 0 12px 4px;">Vul in wat je weet en klik op zoeken — ontbrekende velden worden aangevuld.</p>
+
+    <!-- Voorbeeld mapnaam -->
+    <div class="card">
+      <label>Mapnaam wordt</label>
+      <div class="path-display" id="mapnaam-preview">Vul de velden in...</div>
+    </div>
+
+    <button class="btn btn-primary" id="btn-maak-map" onclick="maakProjectmap()" disabled>📁 Projectmap aanmaken</button>
+
+    <!-- Wachtrij (voor als er geen internet is) -->
+    <div class="card queue-card">
+      <div class="queue-info">
+        <div class="getal2" id="queue-getal">0</div>
+        <div class="sublabel2">projectmap(pen) in wachtrij</div>
+      </div>
+      <button class="btn-queue" id="btn-wachtrij" onclick="verwerkWachtrij()" disabled>📤 Verwerk wachtrij</button>
+    </div>
+
+    <button class="btn btn-secondary" onclick="uitloggen()">Uitloggen</button>
+
+    <div id="status"></div>
+  </div>
+</div>
+
+<script>
+const CLIENT_ID  = 'fdf237c9-bf46-47fa-ab3d-a8834a73e284';
+const TENANT_ID  = '984fd1fb-3d68-4c94-aff2-47f699fb5dae';
+const REDIRECT   = 'https://visserinspecties.github.io/foto-upload/nieuwe-projectmap.html';
+const ROOT_PATH  = '0_In Behandeling';
+const SCOPE      = 'https://graph.microsoft.com/Files.ReadWrite offline_access';
+
+// Vaste submappen, identiek aan het oorspronkelijke PowerShell-script
+const SUBMAPPEN = [
+  "005 VABI",
+  "010 FOTO'S",
+  "020 AANTEKENINGEN",
+  "040 KWALITEITSVERKLARING",
+  "085 CORRESPONDENTIE MET OPDRACHTGEVER",
+  "090 NAGEKOMEN INFORMATIE",
+  "099 VERVALLEN"
+];
+
+// Sjabloonbestanden die uit de root van "0_In Behandeling" gekopieerd worden
+const TEMPLATE_BESTANDEN = [
+  "01_betaalmethoden.docx",
+  "1_Bijlage 4 woningbouw basis - EP certificatie.pdf",
+  "Template Schetsen tekeningen schemas.pdf",
+  "Beslisschema_s visserinspecties isso 7e druk",
+  "Overzichtstabel U waarden dakvensters VELUX (4).pdf"
+];
+
+let accessToken = null;
+
+// ── PKCE ──────────────────────────────────────────────────────
+function b64url(buf) {
+  return btoa(String.fromCharCode(...new Uint8Array(buf)))
+    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+async function maakPKCE() {
+  const verifier  = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  const digest    = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+  return { verifier, challenge: b64url(digest) };
+}
+
+// ── Login ─────────────────────────────────────────────────────
+async function login() {
+  const { verifier, challenge } = await maakPKCE();
+  try { localStorage.setItem('pkce_v', verifier); } catch(e){}
+  try { sessionStorage.setItem('pkce_v', verifier); } catch(e){}
+  document.cookie = `pkce_v=${verifier};path=/;max-age=300;SameSite=Lax`;
+  const params = new URLSearchParams({
+    client_id: CLIENT_ID, response_type: 'code', redirect_uri: REDIRECT,
+    scope: SCOPE, code_challenge: challenge, code_challenge_method: 'S256',
+    prompt: 'select_account'
+  });
+  window.location.href = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize?${params}`;
+}
+
+function getVerifier() {
+  let v = null;
+  try { v = localStorage.getItem('pkce_v'); } catch(e){}
+  if (!v) { try { v = sessionStorage.getItem('pkce_v'); } catch(e){} }
+  if (!v) { const m = document.cookie.match(/pkce_v=([^;]+)/); if (m) v = m[1]; }
+  return v;
+}
+
+async function tokenViaCode(code) {
+  const verifier = getVerifier();
+  if (!verifier) throw new Error('Geen PKCE verifier — probeer opnieuw in te loggen.');
+  const resp = await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`, {
+    method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body: new URLSearchParams({ client_id:CLIENT_ID, grant_type:'authorization_code',
+      code, redirect_uri:REDIRECT, code_verifier:verifier, scope:SCOPE })
+  });
+  const data = await resp.json();
+  if (!data.access_token) throw new Error(data.error_description || 'Token mislukt');
+  accessToken = data.access_token;
+  if (data.refresh_token) localStorage.setItem('rt', data.refresh_token);
+  try { localStorage.removeItem('pkce_v'); } catch(e){}
+  try { sessionStorage.removeItem('pkce_v'); } catch(e){}
+  document.cookie = 'pkce_v=;path=/;max-age=0';
+  window.history.replaceState({}, '', REDIRECT);
+}
+
+async function refreshAccessToken() {
+  const rt = localStorage.getItem('rt');
+  if (!rt) throw new Error('Niet ingelogd');
+  const resp = await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`, {
+    method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body: new URLSearchParams({ client_id:CLIENT_ID, grant_type:'refresh_token',
+      refresh_token:rt, scope:SCOPE })
+  });
+  const data = await resp.json();
+  if (!data.access_token) throw new Error('Refresh mislukt');
+  accessToken = data.access_token;
+  if (data.refresh_token) localStorage.setItem('rt', data.refresh_token);
+}
+
+async function getToken() {
+  if (accessToken) return accessToken;
+  await refreshAccessToken();
+  return accessToken;
+}
+
+function uitloggen() { localStorage.removeItem('rt'); accessToken = null; toonLogin(); }
+function toonApp()   { document.getElementById('login-screen').style.display='none';  document.getElementById('app-screen').style.display='block'; }
+function toonLogin() { document.getElementById('login-screen').style.display='flex';  document.getElementById('app-screen').style.display='none'; }
+
+// ── Init ──────────────────────────────────────────────────────
+async function init() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code'), error = params.get('error');
+  if (error) { document.getElementById('debug').textContent = params.get('error_description')||error; toonLogin(); return; }
+  if (code) {
+    try { await tokenViaCode(code); toonApp(); refreshQueueUI(); return; }
+    catch(e) { document.getElementById('login-status').innerHTML=`<div class="status status-error">❌ ${e.message}</div>`; toonLogin(); return; }
+  }
+  if (localStorage.getItem('rt')) {
+    try { await refreshAccessToken(); toonApp(); refreshQueueUI(); return; }
+    catch(e) { localStorage.removeItem('rt'); }
+  }
+  toonLogin();
+}
+
+// ── PDOK adresopzoek ──────────────────────────────────────────
+async function zoekAdres() {
+  const postcodeRaw = document.getElementById('inp-postcode').value.replace(/\s/g,'').toUpperCase();
+  const straat       = document.getElementById('inp-straat').value.trim();
+  const plaats       = document.getElementById('inp-plaats').value.trim();
+  const huisnummer   = document.getElementById('inp-huisnummer').value.trim();
+  const toevoeging   = document.getElementById('inp-toevoeging').value.trim();
+
+  const params = new URLSearchParams();
+  params.append('fq', 'type:adres');
+
+  if (postcodeRaw) {
+    if (!/^\d{4}[A-Z]{2}$/.test(postcodeRaw)) { setStatus('❌ Postcode moet zijn: 1234AB (of laat leeg)', 'error'); return; }
+    params.append('fq', `postcode:${postcodeRaw}`);
+    if (huisnummer) params.append('fq', `huisnummer:${huisnummer}`);
+  } else if (straat) {
+    // Geen postcode bekend: zoeken op straatnaam (en huisnummer/plaats indien bekend)
+    params.append('fq', `straatnaam:"${straat}"`);
+    if (huisnummer) params.append('fq', `huisnummer:${huisnummer}`);
+    if (plaats) params.append('fq', `woonplaatsnaam:"${plaats}"`);
+  } else {
+    setStatus('❌ Vul minimaal een postcode, of een straatnaam in', 'error');
+    return;
+  }
+  if (toevoeging) params.append('fq', `huisnummertoevoeging:${toevoeging}`);
+  params.append('fl', 'straatnaam,woonplaatsnaam,postcode,huisnummer,huisnummertoevoeging');
+  params.append('rows', '5');
+
+  setStatus('<span class="spinner"></span> Adres opzoeken...', 'loading');
+  try {
+    const url = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?${params.toString()}`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    const docs = data.response?.docs || [];
+
+    if (docs.length === 0) {
+      setStatus('⚠️ Geen adres gevonden — vul de velden handmatig aan', 'error');
+      return;
+    }
+
+    const d = docs[0];
+    document.getElementById('inp-straat').value  = d.straatnaam || straat;
+    document.getElementById('inp-plaats').value  = d.woonplaatsnaam || plaats;
+    if (d.postcode) document.getElementById('inp-postcode').value = d.postcode;
+    setStatus(`✅ Gevonden: ${d.straatnaam || ''} ${d.huisnummer || ''}${d.huisnummertoevoeging || ''}, ${d.postcode || ''} ${d.woonplaatsnaam || ''}`.replace(/\s+/g,' ').trim(), 'success');
+  } catch(e) {
+    setStatus('❌ Opzoeken mislukt: '+e.message+' — vul handmatig in', 'error');
+  }
+  updateMapnaamPreview();
+}
+
+// ── Mapnaam opbouwen ──────────────────────────────────────────
+function sanitizeMapnaam(naam) {
+  return naam.replace(/[\\/:*?"<>|]/g, '').replace(/\s{2,}/g,' ').trim();
+}
+
+function berekenMapnaam() {
+  const postcode   = document.getElementById('inp-postcode').value.replace(/\s/g,'').toUpperCase();
+  const plaats     = document.getElementById('inp-plaats').value.trim();
+  const straat     = document.getElementById('inp-straat').value.trim();
+  const huisnummer = document.getElementById('inp-huisnummer').value.trim();
+  const toevoeging = document.getElementById('inp-toevoeging').value.trim();
+
+  if (!straat || !plaats) return ''; // straat én plaats zijn verplicht, postcode is optioneel
+
+  // "postcode plaats" — beide optioneel, weglaten wat ontbreekt
+  const deel1 = [postcode, plaats].filter(Boolean).join(' ');
+  // "straat huisnummer(toevoeging)" — huisnummer optioneel (bijv. bij een compleet complex)
+  const deel2 = [straat, huisnummer ? huisnummer + toevoeging : ''].filter(Boolean).join(' ');
+
+  return sanitizeMapnaam([deel1, deel2].filter(Boolean).join(', '));
+}
+
+function updateMapnaamPreview() {
+  const naam = berekenMapnaam();
+  document.getElementById('mapnaam-preview').textContent = naam || 'Vul de velden in...';
+  document.getElementById('btn-maak-map').disabled = !naam;
+}
+
+// ── Graph: map aanmaken ───────────────────────────────────────
+async function maakMap(parentPad, naam) {
+  const token = await getToken();
+  const url = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(parentPad)}:/children`;
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer '+token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: naam, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' })
+  });
+  if (resp.status === 409) {
+    const e = new Error('bestaat al'); e.conflict = true; throw e;
+  }
+  if (!resp.ok) {
+    const e = await resp.json();
+    throw new Error(e.error?.message || resp.statusText);
+  }
+  return resp.json();
+}
+
+// ── Graph: bestand kopiëren (downloaden + opnieuw uploaden) ──
+async function kopieerBestand(bronPad, doelPad) {
+  const token = await getToken();
+  const getUrl = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(bronPad)}:/content`;
+  const getResp = await fetch(getUrl, { headers: { Authorization: 'Bearer '+token } });
+  if (!getResp.ok) throw new Error('bronbestand niet gevonden');
+  const blob = await getResp.blob();
+
+  const putUrl = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(doelPad)}:/content`;
+  const putResp = await fetch(putUrl, { method:'PUT', headers:{ Authorization:'Bearer '+token }, body: blob });
+  if (!putResp.ok) throw new Error('upload mislukt');
+}
+
+// ── IndexedDB: offline wachtrij voor projectmappen ───────────
+const DB_NAAM_MAP    = 'projectmapQueueDB';
+const STORE_NAAM_MAP = 'wachtrij';
+
+function openMapWachtrijDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAAM_MAP, 1);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAAM_MAP)) {
+        db.createObjectStore(STORE_NAAM_MAP, { keyPath: 'id', autoIncrement: true });
+      }
+    };
+    req.onsuccess = (e) => resolve(e.target.result);
+    req.onerror   = (e) => reject(e.target.error);
+  });
+}
+
+async function voegToeAanMapWachtrij(naam) {
+  const db = await openMapWachtrijDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAAM_MAP, 'readwrite');
+    tx.objectStore(STORE_NAAM_MAP).add({ naam, ts: Date.now() });
+    tx.oncomplete = () => resolve();
+    tx.onerror    = (e) => reject(e.target.error);
+  });
+}
+
+async function leesMapWachtrij() {
+  const db = await openMapWachtrijDB();
+  return new Promise((resolve, reject) => {
+    const tx  = db.transaction(STORE_NAAM_MAP, 'readonly');
+    const req = tx.objectStore(STORE_NAAM_MAP).getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = (e) => reject(e.target.error);
+  });
+}
+
+async function verwijderUitMapWachtrij(id) {
+  const db = await openMapWachtrijDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAAM_MAP, 'readwrite');
+    tx.objectStore(STORE_NAAM_MAP).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror    = (e) => reject(e.target.error);
+  });
+}
+
+async function refreshQueueUI() {
+  let items = [];
+  try { items = await leesMapWachtrij(); } catch(e) { items = []; }
+  document.getElementById('queue-getal').textContent = items.length;
+  document.getElementById('btn-wachtrij').disabled = items.length === 0;
+}
+
+// ── Hoofdactie: projectmap aanmaken (of in wachtrij zetten) ──
+async function maakProjectmap() {
+  const naam = berekenMapnaam();
+  if (!naam) return;
+
+  const btn = document.getElementById('btn-maak-map');
+  btn.disabled = true;
+
+  // Geen internet? Meteen in de wachtrij, niet eens proberen.
+  if (!navigator.onLine) {
+    try {
+      await voegToeAanMapWachtrij(naam);
+      await refreshQueueUI();
+      setStatus(`📥 Geen internet — "${naam}" toegevoegd aan wachtrij`, 'success');
+    } catch(e) { setStatus('❌ Opslaan mislukt: '+e.message, 'error'); }
+    btn.disabled = false;
+    return;
+  }
+
+  try {
+    await voerProjectmapUit(naam);
+  } catch(e) {
+    // Verbinding viel weg tijdens het werk — alsnog in de wachtrij, niets gaat verloren
+    try {
+      await voegToeAanMapWachtrij(naam);
+      await refreshQueueUI();
+      setStatus(`⚠️ Verbinding mislukt (${e.message}) — "${naam}" in wachtrij gezet`, 'error');
+    } catch(e2) { setStatus('❌ Mislukt: '+e2.message, 'error'); }
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── Daadwerkelijke Graph-acties: map + submappen + bestanden ─
+async function voerProjectmapUit(naam) {
+  let bestondAl = false;
+  setStatus(`<span class="spinner"></span> Map aanmaken: ${naam}...`, 'loading');
+  try {
+    await maakMap(ROOT_PATH, naam);
+  } catch(e) {
+    if (e.conflict) { bestondAl = true; }
+    else { throw e; }
+  }
+
+  const projectPad = `${ROOT_PATH}/${naam}`;
+
+  setStatus(`<span class="spinner"></span> Submappen aanmaken: ${naam}...`, 'loading');
+  for (const sub of SUBMAPPEN) {
+    try { await maakMap(projectPad, sub); }
+    catch(e) { if (!e.conflict) throw e; /* anders: bestaat al, geen probleem */ }
+  }
+
+  setStatus(`<span class="spinner"></span> Sjabloonbestanden kopiëren: ${naam}...`, 'loading');
+  let gekopieerd = 0, overgeslagen = 0;
+  for (const bestand of TEMPLATE_BESTANDEN) {
+    try {
+      await kopieerBestand(`${ROOT_PATH}/${bestand}`, `${projectPad}/${bestand}`);
+      gekopieerd++;
+    } catch(e) { overgeslagen++; }
+  }
+
+  const melding = bestondAl
+    ? `✅ Map bestond al — aangevuld met submappen/bestanden: "${naam}"`
+    : `✅ Projectmap aangemaakt: "${naam}"`;
+  setStatus(`${melding} (${gekopieerd} bestanden gekopieerd${overgeslagen ? ', '+overgeslagen+' niet gevonden' : ''})`, 'success');
+}
+
+// ── Wachtrij verwerken (zodra er weer internet is) ───────────
+async function verwerkWachtrij() {
+  const items = await leesMapWachtrij();
+  if (items.length === 0) return;
+  const btn = document.getElementById('btn-wachtrij');
+  btn.disabled = true;
+
+  let gelukt = 0;
+  for (const item of items) {
+    btn.textContent = `📤 ${gelukt+1}/${items.length}...`;
+    try {
+      await voerProjectmapUit(item.naam);
+      await verwijderUitMapWachtrij(item.id);
+      gelukt++;
+    } catch(e) {
+      setStatus(`❌ Wachtrij gestopt na ${gelukt} van ${items.length}: ${e.message}`, 'error');
+      break;
+    }
+  }
+
+  await refreshQueueUI();
+  btn.textContent = '📤 Verwerk wachtrij';
+  if (gelukt === items.length) {
+    setStatus(`✅ ${gelukt} projectmap(pen) uit wachtrij verwerkt`, 'success');
+  }
+}
+
+function setStatus(msg, type) {
+  const el = document.getElementById('status');
+  el.innerHTML = msg ? `<div class="status status-${type}">${msg}</div>` : '';
+}
+
+init();
+</script>
+</body>
+</html>
