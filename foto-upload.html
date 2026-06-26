@@ -93,6 +93,16 @@
 <div id="app-screen">
   <div class="container">
 
+    <!-- Basismap-navigatie -->
+    <div class="card">
+      <label>Startmap</label>
+      <div class="path-display" id="basis-pad-display">0_In Behandeling</div>
+      <div style="display:flex; gap:8px; margin-top:10px;">
+        <button class="btn btn-secondary" style="margin-bottom:0; flex:1;" onclick="gaOmhoog()" id="btn-omhoog">⬆️ Omhoog</button>
+        <button class="btn btn-secondary" style="margin-bottom:0; flex:1;" onclick="terugNaarStandaard()">🏠 In Behandeling</button>
+      </div>
+    </div>
+
     <!-- Niveau 1: Hoofdmap -->
     <div class="card">
       <label>Hoofdmap</label>
@@ -177,7 +187,7 @@
 const CLIENT_ID  = 'fdf237c9-bf46-47fa-ab3d-a8834a73e284';
 const TENANT_ID  = '984fd1fb-3d68-4c94-aff2-47f699fb5dae';
 const REDIRECT   = 'https://visserinspecties.github.io/foto-upload/foto-upload.html';
-const ROOT_PATH  = '0_In Behandeling';
+const ROOT_PATH  = '0_In Behandeling';   // standaard startmap, niet aanpassen
 const SCOPE      = 'https://graph.microsoft.com/Files.ReadWrite offline_access';
 
 // Mapnamen per niveau (voor het label)
@@ -186,6 +196,7 @@ const NIVEAU_LABELS = ['Hoofdmap', 'Submap', 'Straat', 'Huisnummer'];
 let accessToken = null;
 let fotoTeller  = 0;
 let huidigPad   = null;
+let basisPad    = ROOT_PATH;   // huidige startmap; reset bij elke nieuwe sessie naar ROOT_PATH
 // Geselecteerde paden per niveau [0=hoofd, 1, 2, 3]
 let gekozenPad  = ['', '', '', ''];
 
@@ -281,6 +292,9 @@ async function init() {
 }
 
 function naLogin() {
+  basisPad = ROOT_PATH;
+  document.getElementById('basis-pad-display').textContent = basisPad;
+  document.getElementById('btn-omhoog').disabled = false;
   laadHoofdmappen();
   // Schakelaar-voorkeur herstellen (standaard: uit = offline-modus)
   const opgeslagen = localStorage.getItem('mobielUpload');
@@ -296,17 +310,53 @@ function opslaanToggleVoorkeur() {
 // ── Graph: mappen ophalen ─────────────────────────────────────
 async function getMappen(pad) {
   const token = await getToken();
-  const url = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(pad)}:/children?$select=name,folder&$top=200`;
+  const url = pad
+    ? `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(pad)}:/children?$select=name,folder&$top=200`
+    : `https://graph.microsoft.com/v1.0/me/drive/root/children?$select=name,folder&$top=200`;
   const resp = await fetch(url, { headers:{ Authorization:'Bearer '+token } });
   const data = await resp.json();
   if (!data.value) throw new Error(JSON.stringify(data.error));
   return data.value.filter(i=>i.folder).map(i=>i.name).sort();
 }
 
+// ── Basismap omhoog/terug navigeren ──────────────────────────
+function resetSelecties() {
+  gekozenPad = ['', '', '', ''];
+  for (let i = 2; i <= 4; i++) {
+    document.getElementById('card-'+i).style.display = 'none';
+    document.getElementById('sel-'+i).innerHTML = '<option value="">— kies hierboven eerst —</option>';
+  }
+  document.getElementById('teller-card').style.display = 'none';
+  document.getElementById('pad-display').textContent = 'Nog geen selectie';
+  const btn = document.getElementById('btn-foto');
+  btn.disabled = true; btn.className = 'btn btn-disabled';
+  huidigPad = null;
+  setStatus('','');
+}
+
+async function gaOmhoog() {
+  if (basisPad === '') return; // al op de OneDrive-hoofdmap
+  const delen = basisPad.split('/');
+  delen.pop();
+  basisPad = delen.join('/'); // kan '' worden (hoofdmap)
+  document.getElementById('basis-pad-display').textContent = basisPad || '(hoofdmap OneDrive)';
+  document.getElementById('btn-omhoog').disabled = (basisPad === '');
+  resetSelecties();
+  await laadHoofdmappen();
+}
+
+function terugNaarStandaard() {
+  basisPad = ROOT_PATH;
+  document.getElementById('basis-pad-display').textContent = basisPad;
+  document.getElementById('btn-omhoog').disabled = false;
+  resetSelecties();
+  laadHoofdmappen();
+}
+
 // ── Hoofdmappen laden ─────────────────────────────────────────
 async function laadHoofdmappen() {
   try {
-    const lijst = await getMappen(ROOT_PATH);
+    const lijst = await getMappen(basisPad);
     const sel = document.getElementById('sel-hoofd');
     sel.innerHTML = '<option value="">— kies map —</option>';
     lijst.forEach(n => { const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o); });
@@ -330,7 +380,7 @@ async function laadNiveau(niveau) {
 
   // Huidig pad opbouwen
   const gekozenDelen = gekozenPad.filter(p=>p!=='');
-  const huidigePadStr = ROOT_PATH + (gekozenDelen.length ? '/' + gekozenDelen.join('/') : '');
+  const huidigePadStr = bouwPad(gekozenDelen);
 
   // Pad alvast instellen (foto mogelijk vanaf dit niveau)
   setPad(huidigePadStr);
@@ -357,8 +407,14 @@ async function laadNiveau(niveau) {
 async function updatePad() {
   gekozenPad[3] = document.getElementById('sel-4').value;
   const gekozenDelen = gekozenPad.filter(p=>p!=='');
-  const pad = ROOT_PATH + (gekozenDelen.length ? '/' + gekozenDelen.join('/') : '');
-  setPad(pad);
+  setPad(bouwPad(gekozenDelen));
+}
+
+function bouwPad(delen) {
+  const onderdelen = [];
+  if (basisPad) onderdelen.push(basisPad);
+  onderdelen.push(...delen);
+  return onderdelen.join('/');
 }
 
 function setPad(pad) {
