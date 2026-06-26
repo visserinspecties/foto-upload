@@ -384,7 +384,11 @@ async function haalTaaklijsten() {
   const resp = await fetch('https://graph.microsoft.com/v1.0/me/todo/lists?$select=id,displayName,wellknownListName', {
     headers: { Authorization: 'Bearer '+token }
   });
-  if (!resp.ok) throw new Error('Kan takenlijsten niet ophalen');
+  if (!resp.ok) {
+    let detail = '';
+    try { const e = await resp.json(); detail = e.error?.message || e.error?.code || ''; } catch(err) {}
+    throw new Error(`Kan takenlijsten niet ophalen (HTTP ${resp.status})${detail ? ': ' + detail : ''}`);
+  }
   const data = await resp.json();
   return data.value || [];
 }
