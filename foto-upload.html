@@ -220,7 +220,8 @@ async function login() {
   const params = new URLSearchParams({
     client_id: CLIENT_ID, response_type: 'code', redirect_uri: REDIRECT,
     scope: SCOPE, code_challenge: challenge, code_challenge_method: 'S256',
-    prompt: 'select_account'
+    prompt: 'select_account',
+    domain_hint: 'organizations'
   });
   window.location.href = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize?${params}`;
 }
