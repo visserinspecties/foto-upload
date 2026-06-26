@@ -497,6 +497,11 @@ async function uploadWachtrij() {
       await doUpload(item.blob, item.pad, item.naam, item.type);
       await verwijderUitWachtrij(item.id);
       gelukt++;
+      // Tellertje bijwerken als deze foto naar de nu geselecteerde map ging
+      if (item.pad === huidigPad) {
+        fotoTeller++;
+        document.getElementById('foto-teller').textContent = fotoTeller;
+      }
     } catch(e) {
       setStatus(`❌ Wachtrij gestopt na ${gelukt} van ${items.length}: ${e.message}`, 'error');
       break;
