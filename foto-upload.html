@@ -9,15 +9,17 @@
   <title>Foto Upload</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: #f2f2f7; color: #1c1c1e; min-height: 100vh;
-      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
+      display: flex; flex-direction: column;
     }
     .header { background:#fff; padding:16px 20px; border-bottom:1px solid #e5e5ea; position:sticky; top:0; z-index:10; }
     .header h1 { font-size:17px; font-weight:600; }
     .header p { font-size:13px; color:#8e8e93; margin-top:2px; }
-    .container { padding:16px; }
+    .container { padding:16px; padding-bottom:24px; flex:1; overflow-y:auto; }
     .card { background:#fff; border-radius:12px; padding:16px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,0.08); }
     .card label { font-size:13px; font-weight:600; color:#8e8e93; text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:8px; }
     select { width:100%; padding:10px 12px; border:1px solid #e5e5ea; border-radius:8px; font-size:16px; background:#f9f9f9; color:#1c1c1e; appearance:none; -webkit-appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238e8e93' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; }
@@ -41,8 +43,37 @@
     #login-screen { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:60vh; padding:32px; text-align:center; }
     #login-screen h2 { font-size:22px; font-weight:700; margin-bottom:8px; }
     #login-screen p { color:#636366; margin-bottom:32px; font-size:15px; }
-    #app-screen { display:none; }
+    #app-screen { display:none; flex-direction:column; flex:1; min-height:0; }
     .hint { font-size:12px; color:#8e8e93; margin-top:6px; font-style:italic; }
+
+    /* Mobiel-netwerk schakelaar */
+    .toggle-row { display:flex; justify-content:space-between; align-items:center; }
+    .toggle-text { flex:1; padding-right:12px; }
+    .toggle-text .title { font-size:15px; font-weight:600; color:#1c1c1e; }
+    .toggle-text .desc { font-size:12px; color:#8e8e93; margin-top:2px; }
+    .switch { position:relative; width:51px; height:31px; flex-shrink:0; }
+    .switch input { opacity:0; width:0; height:0; }
+    .slider { position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background:#e5e5ea; border-radius:31px; transition:.2s; }
+    .slider:before { position:absolute; content:""; height:27px; width:27px; left:2px; top:2px; background:#fff; border-radius:50%; transition:.2s; box-shadow:0 1px 3px rgba(0,0,0,0.2); }
+    input:checked + .slider { background:#34c759; }
+    input:checked + .slider:before { transform:translateX(20px); }
+
+    /* Wachtrij-kaart */
+    .queue-card { display:flex; justify-content:space-between; align-items:center; }
+    .queue-info .getal2 { font-size:24px; font-weight:700; color:#ff9500; }
+    .queue-info .sublabel2 { font-size:12px; color:#8e8e93; }
+    .btn-queue { background:#ff9500; color:#fff; padding:12px 16px; border:none; border-radius:10px; font-weight:600; font-size:14px; cursor:pointer; white-space:nowrap; }
+    .btn-queue:disabled { background:#c7c7cc; cursor:not-allowed; }
+    .btn-queue:active:not(:disabled) { opacity:0.7; }
+
+    /* Vastgezette knoppenbalk onderin: geen scrollen nodig om te fotograferen */
+    .sticky-bar {
+      background:#fff; border-top:1px solid #e5e5ea;
+      padding:12px 16px calc(env(safe-area-inset-bottom) + 12px) 16px;
+      box-shadow:0 -2px 8px rgba(0,0,0,0.05);
+    }
+    .sticky-bar .btn { margin-bottom:8px; }
+    .sticky-bar .btn:last-child { margin-bottom:0; }
   </style>
 </head>
 <body>
@@ -109,11 +140,36 @@
       <div class="sublabel">foto's geüpload naar deze map</div>
     </div>
 
-    <button class="btn btn-disabled" id="btn-foto" disabled onclick="maakFoto()">📷 Foto maken</button>
+    <!-- Mobiel-netwerk schakelaar -->
+    <div class="card toggle-row">
+      <div class="toggle-text">
+        <div class="title">Ook uploaden via mobiel netwerk</div>
+        <div class="desc">Uit = foto's gaan in de wachtrij, upload later op wifi. Aan = direct proberen te uploaden, ook op 4G/5G.</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="toggle-mobiel" onchange="opslaanToggleVoorkeur()">
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <!-- Wachtrij -->
+    <div class="card queue-card">
+      <div class="queue-info">
+        <div class="getal2" id="queue-getal">0</div>
+        <div class="sublabel2">foto's in wachtrij</div>
+      </div>
+      <button class="btn-queue" id="btn-wachtrij" onclick="uploadWachtrij()" disabled>📤 Upload wachtrij</button>
+    </div>
+
     <button class="btn btn-secondary" onclick="uitloggen()">Uitloggen</button>
 
     <input type="file" id="camera-input" accept="image/*" capture="environment" onchange="uploadFoto(this)">
     <div id="status"></div>
+  </div>
+
+  <!-- Vastgezette balk: altijd bereikbaar zonder scrollen -->
+  <div class="sticky-bar">
+    <button class="btn btn-disabled" id="btn-foto" disabled onclick="maakFoto()">📷 Foto maken</button>
   </div>
 </div>
 
@@ -205,7 +261,7 @@ async function getToken() {
 }
 
 function uitloggen() { localStorage.removeItem('rt'); accessToken = null; toonLogin(); }
-function toonApp()   { document.getElementById('login-screen').style.display='none';  document.getElementById('app-screen').style.display='block'; }
+function toonApp()   { document.getElementById('login-screen').style.display='none';  document.getElementById('app-screen').style.display='flex'; }
 function toonLogin() { document.getElementById('login-screen').style.display='flex';  document.getElementById('app-screen').style.display='none'; }
 
 // ── Init ──────────────────────────────────────────────────────
@@ -214,14 +270,27 @@ async function init() {
   const code = params.get('code'), error = params.get('error');
   if (error) { document.getElementById('debug').textContent = params.get('error_description')||error; toonLogin(); return; }
   if (code) {
-    try { await tokenViaCode(code); toonApp(); laadHoofdmappen(); return; }
+    try { await tokenViaCode(code); toonApp(); naLogin(); return; }
     catch(e) { document.getElementById('login-status').innerHTML=`<div class="status status-error">❌ ${e.message}</div>`; toonLogin(); return; }
   }
   if (localStorage.getItem('rt')) {
-    try { await refreshAccessToken(); toonApp(); laadHoofdmappen(); return; }
+    try { await refreshAccessToken(); toonApp(); naLogin(); return; }
     catch(e) { localStorage.removeItem('rt'); }
   }
   toonLogin();
+}
+
+function naLogin() {
+  laadHoofdmappen();
+  // Schakelaar-voorkeur herstellen (standaard: uit = offline-modus)
+  const opgeslagen = localStorage.getItem('mobielUpload');
+  document.getElementById('toggle-mobiel').checked = (opgeslagen === '1');
+  refreshQueueUI();
+}
+
+function opslaanToggleVoorkeur() {
+  const aan = document.getElementById('toggle-mobiel').checked;
+  localStorage.setItem('mobielUpload', aan ? '1' : '0');
 }
 
 // ── Graph: mappen ophalen ─────────────────────────────────────
@@ -303,23 +372,142 @@ function setPad(pad) {
   setStatus('','');
 }
 
-// ── Camera & upload ───────────────────────────────────────────
+// ── Camera ────────────────────────────────────────────────────
 function maakFoto() { document.getElementById('camera-input').click(); }
 
+// ── IndexedDB: offline wachtrij ──────────────────────────────
+const DB_NAAM    = 'fotoQueueDB';
+const STORE_NAAM = 'queue';
+
+function openWachtrijDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAAM, 1);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAAM)) {
+        db.createObjectStore(STORE_NAAM, { keyPath: 'id', autoIncrement: true });
+      }
+    };
+    req.onsuccess = (e) => resolve(e.target.result);
+    req.onerror   = (e) => reject(e.target.error);
+  });
+}
+
+async function voegToeAanWachtrij(blob, pad, naam, type) {
+  const db = await openWachtrijDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAAM, 'readwrite');
+    tx.objectStore(STORE_NAAM).add({ blob, pad, naam, type, ts: Date.now() });
+    tx.oncomplete = () => resolve();
+    tx.onerror    = (e) => reject(e.target.error);
+  });
+}
+
+async function leesWachtrij() {
+  const db = await openWachtrijDB();
+  return new Promise((resolve, reject) => {
+    const tx  = db.transaction(STORE_NAAM, 'readonly');
+    const req = tx.objectStore(STORE_NAAM).getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = (e) => reject(e.target.error);
+  });
+}
+
+async function verwijderUitWachtrij(id) {
+  const db = await openWachtrijDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAAM, 'readwrite');
+    tx.objectStore(STORE_NAAM).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror    = (e) => reject(e.target.error);
+  });
+}
+
+async function refreshQueueUI() {
+  let items = [];
+  try { items = await leesWachtrij(); } catch(e) { items = []; }
+  document.getElementById('queue-getal').textContent = items.length;
+  document.getElementById('btn-wachtrij').disabled = items.length === 0;
+}
+
+// ── Upload (gedeelde Graph-call) ─────────────────────────────
+async function doUpload(blob, pad, naam, type) {
+  const token = await getToken();
+  const url = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(pad)}/${naam}:/content`;
+  const resp = await fetch(url, {
+    method:'PUT',
+    headers:{ Authorization:'Bearer '+token, 'Content-Type': type || 'image/jpeg' },
+    body: blob
+  });
+  if (!resp.ok) { const e = await resp.json(); throw new Error(e.error?.message||resp.statusText); }
+}
+
+// ── Foto verwerken: direct uploaden of in wachtrij ───────────
 async function uploadFoto(input) {
-  if (!input.files||!input.files[0]) return;
-  const file=input.files[0]; input.value='';
-  const ts=new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
-  const naam=`foto_${ts}.jpg`;
-  setStatus('<span class="spinner"></span> Uploaden...','loading');
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0]; input.value = '';
+  const ts   = new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
+  const naam = `foto_${ts}.jpg`;
+  const pad  = huidigPad;
+  const type = file.type || 'image/jpeg';
+
+  const mobielAan = document.getElementById('toggle-mobiel').checked;
+
+  if (!mobielAan) {
+    // Offline-modus (standaard): meteen in de wachtrij, niet proberen te uploaden
+    try {
+      await voegToeAanWachtrij(file, pad, naam, type);
+      await refreshQueueUI();
+      setStatus(`📥 Opgeslagen in wachtrij: ${naam}`, 'success');
+    } catch(e) {
+      setStatus('❌ Opslaan mislukt: '+e.message, 'error');
+    }
+    return;
+  }
+
+  // Schakelaar aan: direct proberen te uploaden
+  setStatus('<span class="spinner"></span> Uploaden...', 'loading');
   try {
-    const token=await getToken();
-    const url=`https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(huidigPad)}/${naam}:/content`;
-    const resp=await fetch(url,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':file.type||'image/jpeg'},body:file});
-    if (!resp.ok) { const e=await resp.json(); throw new Error(e.error?.message||resp.statusText); }
-    fotoTeller++; document.getElementById('foto-teller').textContent=fotoTeller;
-    setStatus(`✅ ${naam} opgeslagen in ${huidigPad}`,'success');
-  } catch(e) { setStatus('❌ Upload mislukt: '+e.message,'error'); }
+    await doUpload(file, pad, naam, type);
+    fotoTeller++; document.getElementById('foto-teller').textContent = fotoTeller;
+    setStatus(`✅ ${naam} opgeslagen in ${pad}`, 'success');
+  } catch(e) {
+    // Upload mislukt ondanks toestemming → alsnog in wachtrij zetten, niets gaat verloren
+    try {
+      await voegToeAanWachtrij(file, pad, naam, type);
+      await refreshQueueUI();
+      setStatus(`⚠️ Upload mislukt (${e.message}) — foto in wachtrij gezet`, 'error');
+    } catch(e2) {
+      setStatus('❌ Upload én opslaan mislukt: '+e2.message, 'error');
+    }
+  }
+}
+
+// ── Wachtrij leegmaken (op wifi thuis) ───────────────────────
+async function uploadWachtrij() {
+  const items = await leesWachtrij();
+  if (items.length === 0) return;
+  const btn = document.getElementById('btn-wachtrij');
+  btn.disabled = true;
+
+  let gelukt = 0;
+  for (const item of items) {
+    btn.textContent = `📤 ${gelukt+1}/${items.length}...`;
+    try {
+      await doUpload(item.blob, item.pad, item.naam, item.type);
+      await verwijderUitWachtrij(item.id);
+      gelukt++;
+    } catch(e) {
+      setStatus(`❌ Wachtrij gestopt na ${gelukt} van ${items.length}: ${e.message}`, 'error');
+      break;
+    }
+  }
+
+  await refreshQueueUI();
+  btn.textContent = '📤 Upload wachtrij';
+  if (gelukt === items.length) {
+    setStatus(`✅ ${gelukt} foto's uit wachtrij geüpload`, 'success');
+  }
 }
 
 function setStatus(msg,type) {
