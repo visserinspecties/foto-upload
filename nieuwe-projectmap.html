@@ -381,7 +381,7 @@ async function kopieerBestand(bronPad, doelPad) {
 // ── Graph: takenlijsten ophalen + taak aanmaken ──────────────
 async function haalTaaklijsten() {
   const token = await getToken();
-  const resp = await fetch('https://graph.microsoft.com/v1.0/me/todo/lists?$select=id,displayName,wellknownListName', {
+  const resp = await fetch('https://graph.microsoft.com/v1.0/me/todo/lists', {
     headers: { Authorization: 'Bearer '+token }
   });
   if (!resp.ok) {
