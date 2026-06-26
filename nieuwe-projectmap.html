@@ -53,6 +53,15 @@
     .btn-queue { background:#ff9500; color:#fff; padding:12px 16px; border:none; border-radius:10px; font-weight:600; font-size:14px; cursor:pointer; white-space:nowrap; }
     .btn-queue:disabled { background:#c7c7cc; cursor:not-allowed; }
     .btn-queue:active:not(:disabled) { opacity:0.7; }
+
+    /* Ja/Nee/Later-keuze voor taak aanmaken */
+    .keuze-tekst { text-align:center; margin-bottom:10px; color:#1c1c1e; font-size:14px; }
+    .keuze-rij { display:flex; gap:8px; }
+    .btn-keuze { flex:1; padding:10px; border:none; border-radius:8px; font-weight:600; font-size:14px; cursor:pointer; }
+    .btn-keuze:active { opacity:0.7; }
+    #keuze-ja    { background:#34c759; color:#fff; }
+    #keuze-nee   { background:#ff3b30; color:#fff; }
+    #keuze-later { background:#e5e5ea; color:#1c1c1e; }
   </style>
 </head>
 <body>
@@ -121,6 +130,15 @@
       <button class="btn-queue" id="btn-wachtrij" onclick="verwerkWachtrij()" disabled>📤 Verwerk wachtrij</button>
     </div>
 
+    <!-- Taken die met "Later" zijn uitgesteld -->
+    <div class="card queue-card">
+      <div class="queue-info">
+        <div class="getal2" id="later-getal">0</div>
+        <div class="sublabel2">taak/taken nog toevoegen</div>
+      </div>
+      <button class="btn-queue" id="btn-later" onclick="verwerkLater()" disabled>📋 Nu toevoegen</button>
+    </div>
+
     <button class="btn btn-secondary" onclick="uitloggen()">Uitloggen</button>
 
     <div id="status"></div>
@@ -132,7 +150,8 @@ const CLIENT_ID  = 'fdf237c9-bf46-47fa-ab3d-a8834a73e284';
 const TENANT_ID  = '984fd1fb-3d68-4c94-aff2-47f699fb5dae';
 const REDIRECT   = 'https://visserinspecties.github.io/foto-upload/nieuwe-projectmap.html';
 const ROOT_PATH  = '0_In Behandeling';
-const SCOPE      = 'https://graph.microsoft.com/Files.ReadWrite offline_access';
+const SCOPE      = 'https://graph.microsoft.com/Files.ReadWrite https://graph.microsoft.com/Tasks.ReadWrite offline_access';
+const TAAK_CATEGORIE = 'Opvolgen';
 
 // Vaste submappen, identiek aan het oorspronkelijke PowerShell-script
 const SUBMAPPEN = [
@@ -237,11 +256,11 @@ async function init() {
   const code = params.get('code'), error = params.get('error');
   if (error) { document.getElementById('debug').textContent = params.get('error_description')||error; toonLogin(); return; }
   if (code) {
-    try { await tokenViaCode(code); toonApp(); refreshQueueUI(); return; }
+    try { await tokenViaCode(code); toonApp(); refreshQueueUI(); refreshLaterUI(); return; }
     catch(e) { document.getElementById('login-status').innerHTML=`<div class="status status-error">❌ ${e.message}</div>`; toonLogin(); return; }
   }
   if (localStorage.getItem('rt')) {
-    try { await refreshAccessToken(); toonApp(); refreshQueueUI(); return; }
+    try { await refreshAccessToken(); toonApp(); refreshQueueUI(); refreshLaterUI(); return; }
     catch(e) { localStorage.removeItem('rt'); }
   }
   toonLogin();
@@ -357,6 +376,155 @@ async function kopieerBestand(bronPad, doelPad) {
   const putResp = await fetch(putUrl, { method:'PUT', headers:{ Authorization:'Bearer '+token }, body: blob });
   if (!putResp.ok) throw new Error('upload mislukt');
 }
+
+// ── Graph: takenlijsten ophalen + taak aanmaken ──────────────
+async function haalTaaklijsten() {
+  const token = await getToken();
+  const resp = await fetch('https://graph.microsoft.com/v1.0/me/todo/lists?$select=id,displayName,wellknownListName', {
+    headers: { Authorization: 'Bearer '+token }
+  });
+  if (!resp.ok) throw new Error('Kan takenlijsten niet ophalen');
+  const data = await resp.json();
+  return data.value || [];
+}
+
+async function plaatsTaak(lijstId, titel) {
+  const token = await getToken();
+  const resp = await fetch(`https://graph.microsoft.com/v1.0/me/todo/lists/${lijstId}/tasks`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer '+token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: titel, importance: 'high', categories: [TAAK_CATEGORIE] })
+  });
+  if (!resp.ok) {
+    const e = await resp.json().catch(() => ({}));
+    throw new Error(e.error?.message || resp.statusText);
+  }
+  return resp.json();
+}
+
+// Probeert eerst de "Flagged Emails"-lijst; valt terug op de standaard "Taken"-lijst
+// als die de taak niet accepteert (dit is een speciale, automatisch gevulde lijst).
+async function maakOpvolgTaak(titel) {
+  const lijsten   = await haalTaaklijsten();
+  const flagged   = lijsten.find(l => l.wellknownListName === 'flaggedEmails' || (l.displayName||'').toLowerCase().includes('flag'));
+  const standaard = lijsten.find(l => l.wellknownListName === 'defaultList') || lijsten[0];
+
+  if (flagged) {
+    try {
+      await plaatsTaak(flagged.id, titel);
+      return { lijst: flagged.displayName, fallback: false };
+    } catch(e) {
+      if (!standaard) throw e;
+      await plaatsTaak(standaard.id, titel);
+      return { lijst: standaard.displayName, fallback: true };
+    }
+  } else if (standaard) {
+    await plaatsTaak(standaard.id, titel);
+    return { lijst: standaard.displayName, fallback: false };
+  }
+  throw new Error('Geen takenlijst gevonden');
+}
+
+// Vraagt de gebruiker via knoppen in de status-balk: taak nu aanmaken, niet aanmaken, of later?
+function vraagTaakKeuze(naam) {
+  return new Promise((resolve) => {
+    const el = document.getElementById('status');
+    el.innerHTML = `
+      <div class="status status-loading">
+        <p class="keuze-tekst">📋 Ook een opvolgtaak aanmaken voor "${naam}"?</p>
+        <div class="keuze-rij">
+          <button class="btn-keuze" id="keuze-ja">Ja</button>
+          <button class="btn-keuze" id="keuze-nee">Nee</button>
+          <button class="btn-keuze" id="keuze-later">Later</button>
+        </div>
+      </div>`;
+    document.getElementById('keuze-ja').onclick    = () => resolve('ja');
+    document.getElementById('keuze-nee').onclick   = () => resolve('nee');
+    document.getElementById('keuze-later').onclick = () => resolve('later');
+  });
+}
+
+// ── IndexedDB: taken die met "Later" zijn uitgesteld ─────────
+const DB_NAAM_LATER    = 'taakLaterDB';
+const STORE_NAAM_LATER = 'later';
+
+function openLaterDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAAM_LATER, 1);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAAM_LATER)) {
+        db.createObjectStore(STORE_NAAM_LATER, { keyPath: 'id', autoIncrement: true });
+      }
+    };
+    req.onsuccess = (e) => resolve(e.target.result);
+    req.onerror   = (e) => reject(e.target.error);
+  });
+}
+
+async function voegToeAanLater(naam) {
+  const db = await openLaterDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAAM_LATER, 'readwrite');
+    tx.objectStore(STORE_NAAM_LATER).add({ naam, ts: Date.now() });
+    tx.oncomplete = () => resolve();
+    tx.onerror    = (e) => reject(e.target.error);
+  });
+}
+
+async function leesLater() {
+  const db = await openLaterDB();
+  return new Promise((resolve, reject) => {
+    const tx  = db.transaction(STORE_NAAM_LATER, 'readonly');
+    const req = tx.objectStore(STORE_NAAM_LATER).getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = (e) => reject(e.target.error);
+  });
+}
+
+async function verwijderUitLater(id) {
+  const db = await openLaterDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAAM_LATER, 'readwrite');
+    tx.objectStore(STORE_NAAM_LATER).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror    = (e) => reject(e.target.error);
+  });
+}
+
+async function refreshLaterUI() {
+  let items = [];
+  try { items = await leesLater(); } catch(e) { items = []; }
+  document.getElementById('later-getal').textContent = items.length;
+  document.getElementById('btn-later').disabled = items.length === 0;
+}
+
+async function verwerkLater() {
+  const items = await leesLater();
+  if (items.length === 0) return;
+  const btn = document.getElementById('btn-later');
+  btn.disabled = true;
+
+  let gelukt = 0;
+  for (const item of items) {
+    btn.textContent = `📋 ${gelukt+1}/${items.length}...`;
+    try {
+      await maakOpvolgTaak(item.naam);
+      await verwijderUitLater(item.id);
+      gelukt++;
+    } catch(e) {
+      setStatus(`❌ Gestopt na ${gelukt} van ${items.length}: ${e.message}`, 'error');
+      break;
+    }
+  }
+
+  await refreshLaterUI();
+  btn.textContent = '📋 Nu toevoegen';
+  if (gelukt === items.length) {
+    setStatus(`✅ ${gelukt} taak/taken aangemaakt`, 'success');
+  }
+}
+
 
 // ── IndexedDB: offline wachtrij voor projectmappen ───────────
 const DB_NAAM_MAP    = 'projectmapQueueDB';
@@ -474,10 +642,30 @@ async function voerProjectmapUit(naam) {
     } catch(e) { overgeslagen++; }
   }
 
+  const keuze = await vraagTaakKeuze(naam);
+  let taakMelding = '';
+  if (keuze === 'ja') {
+    setStatus(`<span class="spinner"></span> Taak aanmaken: ${naam}...`, 'loading');
+    try {
+      const taakResultaat = await maakOpvolgTaak(naam);
+      taakMelding = taakResultaat.fallback
+        ? ` · taak in "${taakResultaat.lijst}" (Flagged Emails accepteerde geen losse taak)`
+        : ` · taak aangemaakt in "${taakResultaat.lijst}"`;
+    } catch(e) {
+      taakMelding = ` · ⚠️ taak aanmaken mislukt: ${e.message}`;
+    }
+  } else if (keuze === 'later') {
+    await voegToeAanLater(naam);
+    await refreshLaterUI();
+    taakMelding = ' · taak later toevoegen (staat in de wachtrij)';
+  } else {
+    taakMelding = ' · geen taak aangemaakt';
+  }
+
   const melding = bestondAl
     ? `✅ Map bestond al — aangevuld met submappen/bestanden: "${naam}"`
     : `✅ Projectmap aangemaakt: "${naam}"`;
-  setStatus(`${melding} (${gekopieerd} bestanden gekopieerd${overgeslagen ? ', '+overgeslagen+' niet gevonden' : ''})`, 'success');
+  setStatus(`${melding} (${gekopieerd} bestanden gekopieerd${overgeslagen ? ', '+overgeslagen+' niet gevonden' : ''})${taakMelding}`, 'success');
 }
 
 // ── Wachtrij verwerken (zodra er weer internet is) ───────────
