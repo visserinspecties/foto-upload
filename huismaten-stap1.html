@@ -269,30 +269,10 @@
   </div>
 
   <div class="btn-row" style="margin:14px 0 4px;">
-    <button class="btn-secondary" id="btn-toggle-verdieping1">+ Verdieping toevoegen</button>
+    <button class="btn-secondary" id="btn-toevoegen-verdieping">+ Verdieping toevoegen</button>
   </div>
 
-  <div id="panel-verdieping1" style="display:none;margin-top:10px;">
-    <div style="font-weight:600;margin-bottom:8px;">Verdieping 1</div>
-    <div class="row">
-      <div class="field">
-        <label>Breedte (m) — auto (overschrijfbaar)</label>
-        <input type="text" inputmode="decimal" class="numeric-input" id="v1-breedte" step="0.01">
-      </div>
-      <div class="field">
-        <label>Diepte (m) — auto (overschrijfbaar)</label>
-        <input type="text" inputmode="decimal" class="numeric-input" id="v1-diepte" step="0.01">
-      </div>
-      <div class="field">
-        <label>Hoogte (m)</label>
-        <input type="text" inputmode="decimal" class="numeric-input" id="v1-hoogte" step="0.01">
-      </div>
-    </div>
-    <div class="result" style="font-size:1.3rem;">
-      <span>Verdieping 1</span>
-      <span><span id="v1-uitkomst">—</span> <span class="unit">m²</span></span>
-    </div>
-  </div>
+  <div id="extra-verdiepingen-container"></div>
 
   <div class="row">
     <div class="field" style="flex:0 0 100%;">
@@ -320,7 +300,7 @@
     </div>
   </div>
 
-  <div style="font-weight:600;margin:18px 0 8px;">Verdieping 2 — dakverdieping / zolder (onder schuin dak, &gt;1,50m)</div>
+  <div style="font-weight:600;margin:18px 0 8px;"><span id="dakverdieping-nummer-label">Verdieping 2</span> — dakverdieping / zolder (onder schuin dak, &gt;1,50m)</div>
   <div class="row">
     <div class="field" style="flex:0 0 100%;">
       <label>Dakvloer ligt onder start dakhelling (cm) — optioneel, default 0</label>
@@ -760,6 +740,13 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var n,r,i,a,
 
 </script>
 <script>
+// Standaard dakhelling als er niets is ingevuld (met waarschuwing elders)
+const DAK_DEFAULT_HOEK = 45;
+function leesHellingshoek(){
+  const v = parseFloat(document.getElementById('gs-hellingshoek')?.value);
+  return {hoek: isNaN(v) ? DAK_DEFAULT_HOEK : v, isDefault: isNaN(v)};
+}
+
 // Sta Nederlandse komma-notatie toe (1,2 -> 1.2) op alle numerieke velden
 document.addEventListener('input', function(e){
   if(e.target.classList && e.target.classList.contains('numeric-input')){
@@ -785,48 +772,146 @@ function updateVloer(){
   vu.textContent = opp===null ? '—' : opp.toFixed(2);
 }
 
-// ---------- VERDIEPING 1 (optioneel) ----------
-const btnToggleV1 = document.getElementById('btn-toggle-verdieping1');
-const panelV1 = document.getElementById('panel-verdieping1');
-const v1b = document.getElementById('v1-breedte');
-const v1d = document.getElementById('v1-diepte');
-const v1h = document.getElementById('v1-hoogte');
-const v1u = document.getElementById('v1-uitkomst');
-let v1Actief = false;
-let v1bTouched = false, v1dTouched = false;
-v1b.addEventListener('input', ()=>{ v1bTouched = true; });
-v1d.addEventListener('input', ()=>{ v1dTouched = true; });
+// ---------- EXTRA VERDIEPINGEN (dynamisch, 0 of meer, dak komt altijd als laatste) ----------
+const extraVerdiepingenContainer = document.getElementById('extra-verdiepingen-container');
+const btnToevoegenVerdieping = document.getElementById('btn-toevoegen-verdieping');
+let extraVerdiepingen = []; // [{id, breedteTouched, diepteTouched}]
+let volgendVerdiepingId = 1;
 
-function syncV1VanBeganeGrond(){
-  if(!v1bTouched) v1b.value = vl.value;
-  if(!v1dTouched) v1d.value = vb.value;
-  updateV1();
-}
-
-btnToggleV1.addEventListener('click', ()=>{
-  v1Actief = !v1Actief;
-  panelV1.style.display = v1Actief ? 'block' : 'none';
-  btnToggleV1.textContent = v1Actief ? '− Verdieping verwijderen' : '+ Verdieping toevoegen';
-  if(v1Actief) syncV1VanBeganeGrond();
-  if(typeof updateAutoGevelhoogte === 'function') updateAutoGevelhoogte();
-  renderDakverdiepingEnTotaal();
-});
-
-function v1Oppervlakte(){
-  if(!v1Actief) return null;
-  const b = parseFloat(v1b.value);
-  const d = parseFloat(v1d.value);
+function verdiepingOppervlakte(v){
+  const b = parseFloat(document.getElementById('ev-breedte-'+v.id).value);
+  const d = parseFloat(document.getElementById('ev-diepte-'+v.id).value);
   return (!isNaN(b) && !isNaN(d) && b>0 && d>0) ? b*d : null;
 }
-function updateV1(){
-  const opp = v1Oppervlakte();
-  v1u.textContent = opp===null ? '—' : opp.toFixed(2);
+
+function vorigeBreedteDiepte(index){
+  // index 0 = eerste extra verdieping -> neem over van begane grond, anders van de vorige extra verdieping
+  if(index === 0) return {breedte: vl.value, diepte: vb.value};
+  const vorige = extraVerdiepingen[index-1];
+  return {breedte: document.getElementById('ev-breedte-'+vorige.id).value, diepte: document.getElementById('ev-diepte-'+vorige.id).value};
+}
+
+function renumberVerdiepingen(){
+  extraVerdiepingen.forEach((v, i)=>{
+    document.getElementById('ev-titel-'+v.id).textContent = 'Verdieping ' + (i+1);
+  });
+  const dakNummer = extraVerdiepingen.length + 2; // begane grond=1, extra verdiepingen, dak = laatste
+  document.getElementById('dakverdieping-nummer-label').textContent = 'Verdieping ' + dakNummer;
+}
+
+function syncVerdiepingVanVorige(index){
+  const v = extraVerdiepingen[index];
+  const {breedte, diepte} = vorigeBreedteDiepte(index);
+  if(!v.breedteTouched) document.getElementById('ev-breedte-'+v.id).value = breedte;
+  if(!v.diepteTouched) document.getElementById('ev-diepte-'+v.id).value = diepte;
+  updateVerdiepingUitkomst(v);
+}
+
+function syncAlleVolgendeVerdiepingen(vanafIndex){
+  for(let i=vanafIndex; i<extraVerdiepingen.length; i++){
+    syncVerdiepingVanVorige(i);
+  }
+}
+
+function updateVerdiepingUitkomst(v){
+  const opp = verdiepingOppervlakte(v);
+  document.getElementById('ev-uitkomst-'+v.id).textContent = opp===null ? '—' : opp.toFixed(2);
+}
+
+function voegVerdiepingToe(){
+  const id = volgendVerdiepingId++;
+  const v = {id, breedteTouched:false, diepteTouched:false};
+  const index = extraVerdiepingen.length;
+  extraVerdiepingen.push(v);
+
+  const blok = document.createElement('div');
+  blok.id = 'ev-blok-'+id;
+  blok.style.marginTop = '10px';
+  blok.innerHTML = `
+    <div class="btn-row" style="justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <div style="font-weight:600;" id="ev-titel-${id}">Verdieping</div>
+      <button class="btn-secondary" data-id="${id}" style="padding:4px 10px;font-size:0.78rem;">− verwijderen</button>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Breedte (m) — auto (overschrijfbaar)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="ev-breedte-${id}" step="0.01">
+      </div>
+      <div class="field">
+        <label>Diepte (m) — auto (overschrijfbaar)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="ev-diepte-${id}" step="0.01">
+      </div>
+      <div class="field">
+        <label>Hoogte (m)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="ev-hoogte-${id}" step="0.01">
+      </div>
+    </div>
+    <div class="result" style="font-size:1.3rem;">
+      <span id="ev-titel2-${id}">Verdieping</span>
+      <span><span id="ev-uitkomst-${id}">—</span> <span class="unit">m²</span></span>
+    </div>
+  `;
+  extraVerdiepingenContainer.appendChild(blok);
+
+  blok.querySelector('button[data-id]').addEventListener('click', ()=>verwijderVerdieping(id));
+  document.getElementById('ev-breedte-'+id).addEventListener('input', ()=>{
+    v.breedteTouched = true;
+    updateVerdiepingUitkomst(v);
+    if(typeof updateAutoGevelhoogte==='function') updateAutoGevelhoogte();
+    renderDakverdiepingEnTotaal();
+    syncAlleVolgendeVerdiepingen(index+1);
+  });
+  document.getElementById('ev-diepte-'+id).addEventListener('input', ()=>{
+    v.diepteTouched = true;
+    updateVerdiepingUitkomst(v);
+    if(typeof updateAutoGevelhoogte==='function') updateAutoGevelhoogte();
+    renderDakverdiepingEnTotaal();
+    syncAlleVolgendeVerdiepingen(index+1);
+  });
+  document.getElementById('ev-hoogte-'+id).addEventListener('input', ()=>{
+    if(typeof updateAutoGevelhoogte==='function') updateAutoGevelhoogte();
+    renderDakverdiepingEnTotaal();
+  });
+
+  syncVerdiepingVanVorige(index);
+  renumberVerdiepingen();
+  // titel-spans koppelen aan het genummerde label
+  document.getElementById('ev-titel2-'+id).textContent = document.getElementById('ev-titel-'+id).textContent;
+
+  if(typeof updateAutoGevelhoogte==='function') updateAutoGevelhoogte();
+  renderDakverdiepingEnTotaal();
+}
+
+function verwijderVerdieping(id){
+  const idx = extraVerdiepingen.findIndex(v=>v.id===id);
+  if(idx===-1) return;
+  extraVerdiepingen.splice(idx,1);
+  document.getElementById('ev-blok-'+id).remove();
+  renumberVerdiepingen();
+  syncAlleVolgendeVerdiepingen(idx);
+  if(typeof updateAutoGevelhoogte==='function') updateAutoGevelhoogte();
+  renderDakverdiepingEnTotaal();
+}
+
+btnToevoegenVerdieping.addEventListener('click', voegVerdiepingToe);
+
+function alleVerdiepingenOppervlakte(){
+  return extraVerdiepingen.reduce((sum,v)=>{
+    const opp = verdiepingOppervlakte(v);
+    return sum + (opp||0);
+  }, 0);
+}
+function alleVerdiepingenHoogte(){
+  return extraVerdiepingen.reduce((sum,v)=>{
+    const h = parseFloat(document.getElementById('ev-hoogte-'+v.id).value);
+    return sum + (isNaN(h)?0:h);
+  }, 0);
 }
 
 // ---------- DAKVERDIEPING (1,50m-regel) + TOTAAL ----------
 function renderDakverdiepingEnTotaal(){
   updateVloer();
-  updateV1();
+  extraVerdiepingen.forEach(updateVerdiepingUitkomst);
 
   const out = document.getElementById('dakverdieping-output');
   const daktype = document.getElementById('gs-daktype')?.value;
@@ -834,11 +919,12 @@ function renderDakverdiepingEnTotaal(){
   const diepte = parseFloat(document.getElementById('gs-diepte')?.value);
   const gevelhoogte = parseFloat(document.getElementById('gs-hoogte')?.value);
   const nokrichting = document.getElementById('gs-nokrichting')?.value;
-  const hellingshoek = parseFloat(document.getElementById('gs-hellingshoek')?.value);
+  const hh = leesHellingshoek();
+  const hellingshoek = hh.hoek;
 
   let dakverdiepingOpp = null;
 
-  if(daktype !== 'zadel' || isNaN(beuk) || isNaN(diepte) || isNaN(gevelhoogte) || isNaN(hellingshoek)){
+  if(daktype !== 'zadel' || isNaN(beuk) || isNaN(diepte) || isNaN(gevelhoogte)){
     out.innerHTML = '<p class="hint">Stel eerst een zadeldak in op de Gevel-tab (beukmaat, diepte, gevelhoogte, hellingshoek).</p>';
   } else {
     const correctie = correctieVoorType(document.getElementById('gs-type').value);
@@ -858,32 +944,28 @@ function renderDakverdiepingEnTotaal(){
     out.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-bottom:1px solid #eee;">
       <span style="font-size:0.85rem;color:#6b6555;">Bruikbare breedte ${bruikbareBreedte.toFixed(2)}m × noklengte ${noklengte.toFixed(2)}m</span>
       <span style="font-size:1.3rem;font-weight:700;font-family:var(--mono);white-space:nowrap;margin-left:10px;">${dakverdiepingOpp.toFixed(2)} m²</span>
-    </div>`;
+    </div>` + (hh.isDefault ? `<p class="hint" style="color:#a8472e;">⚠ Geen hellingshoek ingevuld — gerekend met standaard ${DAK_DEFAULT_HOEK}°. Vul de echte hoek in voor een correcte berekening.</p>` : '');
   }
 
   let total = 0;
   const bg = bgOppervlakte();
   if(bg) total += bg;
-  const v1 = v1Oppervlakte();
-  if(v1) total += v1;
+  total += alleVerdiepingenOppervlakte();
   if(dakverdiepingOpp) total += dakverdiepingOpp;
   document.getElementById('totaal-woonoppervlak').textContent = total>0 ? total.toFixed(2) : '—';
 }
 
 vl.addEventListener('input', ()=>{
   if(!gsBeukmaatTouched){ gsBeukmaat.value = vl.value; if(typeof renderResultaten==='function') renderResultaten(); }
-  if(v1Actief && !v1bTouched){ v1b.value = vl.value; }
+  syncAlleVolgendeVerdiepingen(0);
   renderDakverdiepingEnTotaal();
 });
 vb.addEventListener('input', ()=>{
   if(!gsDiepteTouched){ gsDiepte.value = vb.value; if(typeof renderResultaten==='function') renderResultaten(); }
-  if(v1Actief && !v1dTouched){ v1d.value = vb.value; }
+  syncAlleVolgendeVerdiepingen(0);
   renderDakverdiepingEnTotaal();
 });
 vh.addEventListener('input', ()=>{ updateAutoGevelhoogte(); renderDakverdiepingEnTotaal(); });
-v1b.addEventListener('input', renderDakverdiepingEnTotaal);
-v1d.addEventListener('input', renderDakverdiepingEnTotaal);
-v1h.addEventListener('input', ()=>{ updateAutoGevelhoogte(); renderDakverdiepingEnTotaal(); });
 document.getElementById('gs-vloeroffset').addEventListener('input', ()=>{ updateAutoGevelhoogte(); renderDakverdiepingEnTotaal(); });
 
 // ---------- GEVEL STANDAARD ----------
@@ -900,9 +982,8 @@ gsHoogte.addEventListener('input', ()=>{ gsHoogteTouched = true; });
 
 function autoGevelhoogte(){
   const bg = parseFloat(vh.value) || 0;
-  const v1 = v1Actief ? (parseFloat(v1h.value) || 0) : 0;
   const offsetCm = parseFloat(document.getElementById('gs-vloeroffset')?.value) || 0;
-  return bg + v1 + (offsetCm/100);
+  return bg + alleVerdiepingenHoogte() + (offsetCm/100);
 }
 function updateAutoGevelhoogte(){
   if(!gsHoogteTouched){
@@ -1040,8 +1121,8 @@ function renderResultaten(){
 
   const daktype = document.getElementById('gs-daktype').value;
   const nokrichting = document.getElementById('gs-nokrichting')?.value;
-  const hellingshoek = parseFloat(document.getElementById('gs-hellingshoek')?.value);
-  const heeftDriehoek = daktype === 'zadel' && !isNaN(hellingshoek);
+  const hellingshoek = leesHellingshoek().hoek;
+  const heeftDriehoek = daktype === 'zadel';
 
   function driehoekOpp(basis){
     const driehoekHoogte = (basis/2) * Math.tan(deg2rad(hellingshoek));
@@ -1316,11 +1397,13 @@ function huidigeMaten(){
   const hoogte = parseFloat(document.getElementById('gs-hoogte').value);
   const daktype = document.getElementById('gs-daktype').value;
   const nokrichting = document.getElementById('gs-nokrichting')?.value;
-  const hellingshoek = parseFloat(document.getElementById('gs-hellingshoek')?.value);
+  const hh = leesHellingshoek();
+  const hellingshoek = hh.hoek;
+  const hellingDefault = hh.isDefault;
   const vloeroffsetCm = parseFloat(document.getElementById('gs-vloeroffset')?.value) || 0;
   const correctie = correctieVoorType(type);
   const voorAchterBreedte = isNaN(beuk) ? null : beuk + correctie;
-  return {type, beuk, diepte, hoogte, daktype, nokrichting, hellingshoek, vloeroffsetCm, correctie, voorAchterBreedte};
+  return {type, beuk, diepte, hoogte, daktype, nokrichting, hellingshoek, hellingDefault, vloeroffsetCm, correctie, voorAchterBreedte};
 }
 
 function svgEl(tag, attrs){
@@ -1339,9 +1422,11 @@ function nieuweSvg(viewW, viewH){
     attrs.width = '100%';
   }
   const svg = svgEl('svg', attrs);
-  const schaal = svgEl('text', {x:viewW-6, y:viewH-6, 'text-anchor':'end', 'font-size':9, fill:'#555'});
-  schaal.textContent = 'schaal 1:100';
-  svg.appendChild(schaal);
+  if(!PRINT_MODE){
+    const schaal = svgEl('text', {x:viewW-6, y:viewH-6, 'text-anchor':'end', 'font-size':9, fill:'#555'});
+    schaal.textContent = 'schaal 1:100';
+    svg.appendChild(schaal);
+  }
   return svg;
 }
 
@@ -1367,7 +1452,7 @@ function tekenPlattegrondVerdieping(titel, breedte, diepte, hatchLinks, hatchRec
   if(isNaN(breedte) || isNaN(diepte) || breedte<=0 || diepte<=0) return null;
   const {wrap, canvasWrap} = tekeningBlok(titel);
   const w = breedte*SCALE, h = diepte*SCALE;
-  const viewW = w + 2*TK_MARGIN, viewH = h + 2*TK_MARGIN + 20;
+  const viewW = w + 2*TK_MARGIN, viewH = h + 2*TK_MARGIN + (PRINT_MODE?10:20);
   const svg = nieuweSvg(viewW, viewH);
   const x0 = TK_MARGIN, y0 = TK_MARGIN;
 
@@ -1390,16 +1475,18 @@ function tekenPlattegrondVerdieping(titel, breedte, diepte, hatchLinks, hatchRec
   }
 
   const opp = breedte*diepte;
-  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h/2-4,'text-anchor':'middle','font-size':13,fill:'black'}));
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h/2-2,'text-anchor':'middle','font-size':10,fill:'black'}));
   svg.lastChild.textContent = `${opp.toFixed(2)} m²`;
-  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h/2+14,'text-anchor':'middle','font-size':10,fill:'black'}));
-  svg.lastChild.textContent = `${breedte.toFixed(2)} × ${diepte.toFixed(2)} m`;
 
-  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0-10,'text-anchor':'middle','font-size':11,fill:'black'}));
-  svg.lastChild.textContent = `${breedte.toFixed(2)} m`;
-  svg.appendChild(svgEl('text', {x:x0-8,y:y0+h/2,'text-anchor':'end','font-size':11,fill:'black'}));
-  svg.lastChild.textContent = `${diepte.toFixed(2)} m`;
-  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h+18,'text-anchor':'middle','font-size':10,fill:'black'}));
+  // breedte (boven, horizontaal)
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0-7,'text-anchor':'middle','font-size':8,fill:'black'}));
+  svg.lastChild.textContent = `breedte ${breedte.toFixed(2)} m`;
+  // diepte (links, geroteerd zodat het label leesbaar naast de gevel staat)
+  const diepteLabel = svgEl('text', {x:x0-7,y:y0+h/2,'text-anchor':'middle','font-size':8,fill:'black',transform:`rotate(-90 ${x0-7} ${y0+h/2})`});
+  diepteLabel.textContent = `diepte ${diepte.toFixed(2)} m`;
+  svg.appendChild(diepteLabel);
+  // voorgevel (onder, klein)
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h+13,'text-anchor':'middle','font-size':8,fill:'black'}));
   svg.lastChild.textContent = '↑ voorgevel';
 
   canvasWrap.appendChild(svg);
@@ -1408,7 +1495,7 @@ function tekenPlattegrondVerdieping(titel, breedte, diepte, hatchLinks, hatchRec
 
 // Plattegrond dakverdieping: volledige basis met uitgesloten <1,50m-stroken + bruikbare zone
 function tekenPlattegrondDakverdieping(m){
-  if(m.daktype!=='zadel' || isNaN(m.hellingshoek) || m.voorAchterBreedte===null || isNaN(m.diepte)) return null;
+  if(m.daktype!=='zadel' || m.voorAchterBreedte===null || isNaN(m.diepte)) return null;
 
   const basis = m.nokrichting==='voorachter' ? m.voorAchterBreedte : m.diepte;
   const noklengte = m.nokrichting==='voorachter' ? m.diepte : m.voorAchterBreedte;
@@ -1418,14 +1505,15 @@ function tekenPlattegrondDakverdieping(m){
   const bruikbareBreedte = Math.max(basis - 2*x0v, 0);
   const opp = bruikbareBreedte * noklengte;
 
-  const {wrap, canvasWrap} = tekeningBlok('Verdieping 2 — dakverdieping / zolder (plattegrond)');
+  const dakNummer = extraVerdiepingen.length + 2;
+  const {wrap, canvasWrap} = tekeningBlok(`Verdieping ${dakNummer} — dakverdieping / zolder (plattegrond)`);
 
   // basis-richting bepaalt of de stroken links/rechts (voorachter) of boven/onder (zijgevel) liggen
   const horizontaal = m.nokrichting === 'voorachter'; // basis = breedte-as
   const totBreedte = horizontaal ? basis : noklengte;
   const totDiepte = horizontaal ? noklengte : basis;
   const w = totBreedte*SCALE, h = totDiepte*SCALE;
-  const viewW = w + 2*TK_MARGIN, viewH = h + 2*TK_MARGIN + 20;
+  const viewW = w + 2*TK_MARGIN, viewH = h + 2*TK_MARGIN + (PRINT_MODE?10:20);
   const svg = nieuweSvg(viewW, viewH);
   const x0 = TK_MARGIN, y0 = TK_MARGIN;
 
@@ -1446,15 +1534,16 @@ function tekenPlattegrondDakverdieping(m){
     }
   }
 
-  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h/2-4,'text-anchor':'middle','font-size':13,fill:'black'}));
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h/2-2,'text-anchor':'middle','font-size':10,fill:'black'}));
   svg.lastChild.textContent = `${opp.toFixed(2)} m²`;
-  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h/2+14,'text-anchor':'middle','font-size':10,fill:'black'}));
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h/2+10,'text-anchor':'middle','font-size':7,fill:'black'}));
   svg.lastChild.textContent = `bruikbaar ${bruikbareBreedte.toFixed(2)} × ${noklengte.toFixed(2)} m`;
 
-  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0-10,'text-anchor':'middle','font-size':11,fill:'black'}));
-  svg.lastChild.textContent = `${totBreedte.toFixed(2)} m`;
-  svg.appendChild(svgEl('text', {x:x0-8,y:y0+h/2,'text-anchor':'end','font-size':11,fill:'black'}));
-  svg.lastChild.textContent = `${totDiepte.toFixed(2)} m`;
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0-7,'text-anchor':'middle','font-size':8,fill:'black'}));
+  svg.lastChild.textContent = `breedte ${totBreedte.toFixed(2)} m`;
+  const dDiepteLabel = svgEl('text', {x:x0-7,y:y0+h/2,'text-anchor':'middle','font-size':8,fill:'black',transform:`rotate(-90 ${x0-7} ${y0+h/2})`});
+  dDiepteLabel.textContent = `diepte ${totDiepte.toFixed(2)} m`;
+  svg.appendChild(dDiepteLabel);
 
   canvasWrap.appendChild(svg);
   return wrap;
@@ -1467,7 +1556,7 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
   const {wrap, canvasWrap} = tekeningBlok(titel);
 
   let driehoekHoogte = 0;
-  if(heeftDriehoek && !isNaN(hellingshoek)){
+  if(heeftDriehoek){
     driehoekHoogte = (breedte/2) * Math.tan(deg2rad(hellingshoek));
   }
   // hoogte van de stippellijn-rechthoek (dakvolume) als deze gevel zelf geen driehoek draagt
@@ -1479,7 +1568,7 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
   const totaalHoogte = gevelhoogte + driehoekHoogte + stippelHoogteM;
   const w = breedte*SCALE, hRect = gevelhoogte*SCALE, hTri = driehoekHoogte*SCALE, hStippel = stippelHoogteM*SCALE;
   const viewW = w + 2*TK_MARGIN;
-  const viewH = hRect + hTri + hStippel + 2*TK_MARGIN + (dakvlakInfo ? 30 : 0) + 20;
+  const viewH = hRect + hTri + hStippel + 2*TK_MARGIN + (dakvlakInfo ? (PRINT_MODE?14:30) : 0) + (PRINT_MODE?10:20);
   const svg = nieuweSvg(viewW, viewH);
   const x0 = TK_MARGIN, yBase = viewH-TK_MARGIN, yEave = yBase-hRect, yTop = yEave-hTri-hStippel;
 
@@ -1495,24 +1584,27 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
   const oppDriehoek = heeftDriehoek ? 0.5*breedte*driehoekHoogte : 0;
   const oppTotaal = oppRect + oppDriehoek;
 
-  svg.appendChild(svgEl('text', {x:x0+w/2,y:(yEave+yBase)/2,'text-anchor':'middle','font-size':12,fill:'black'}));
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:(yEave+yBase)/2,'text-anchor':'middle','font-size':10,fill:'black'}));
   svg.lastChild.textContent = `${oppTotaal.toFixed(2)} m²`;
 
-  svg.appendChild(svgEl('text', {x:x0+w/2,y:yBase+16,'text-anchor':'middle','font-size':11,fill:'black'}));
-  svg.lastChild.textContent = `${breedte.toFixed(2)} m`;
-  svg.appendChild(svgEl('text', {x:x0-8,y:(yEave+yBase)/2,'text-anchor':'end','font-size':11,fill:'black'}));
-  svg.lastChild.textContent = `${gevelhoogte.toFixed(2)} m`;
+  // breedte (onder, met label)
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:yBase+12,'text-anchor':'middle','font-size':8,fill:'black'}));
+  svg.lastChild.textContent = `breedte ${breedte.toFixed(2)} m`;
+  // gevelhoogte (links, geroteerd, met label)
+  const hoogteLabel = svgEl('text', {x:x0-7,y:(yEave+yBase)/2,'text-anchor':'middle','font-size':8,fill:'black',transform:`rotate(-90 ${x0-7} ${(yEave+yBase)/2})`});
+  hoogteLabel.textContent = `hoogte ${gevelhoogte.toFixed(2)} m`;
+  svg.appendChild(hoogteLabel);
 
   if(heeftDriehoek && driehoekHoogte>0){
-    svg.appendChild(svgEl('text', {x:x0+w/2,y:yTop-8,'text-anchor':'middle','font-size':10,fill:'black'}));
+    svg.appendChild(svgEl('text', {x:x0+w/2,y:yTop-6,'text-anchor':'middle','font-size':8,fill:'black'}));
     svg.lastChild.textContent = `nok ${totaalHoogte.toFixed(2)} m — ${hellingshoek}°`;
   } else if(hStippel>0){
-    svg.appendChild(svgEl('text', {x:x0+w/2,y:yTop-8,'text-anchor':'middle','font-size':10,fill:'black'}));
+    svg.appendChild(svgEl('text', {x:x0+w/2,y:yTop-6,'text-anchor':'middle','font-size':8,fill:'black'}));
     svg.lastChild.textContent = `nok ${totaalHoogte.toFixed(2)} m`;
   }
 
   if(dakvlakInfo){
-    svg.appendChild(svgEl('text', {x:x0+w/2,y:yTop-22,'text-anchor':'middle','font-size':10,fill:'black'}));
+    svg.appendChild(svgEl('text', {x:x0+w/2,y:yTop-18,'text-anchor':'middle','font-size':8,fill:'black'}));
     svg.lastChild.textContent = `dakvlak: ${dakvlakInfo.opp.toFixed(2)} m² — ${dakvlakInfo.hoek}°`;
   }
 
@@ -1539,20 +1631,20 @@ function renderTekening(targetContainerId){
   const blokBG = tekenPlattegrondVerdieping('Begane grond (plattegrond)', m.beuk, m.diepte, hatchL, hatchR);
   if(blokBG) container.appendChild(blokBG);
 
-  // Verdieping 1 (indien actief)
-  if(typeof v1Actief !== 'undefined' && v1Actief){
-    const v1breedte = parseFloat(document.getElementById('v1-breedte')?.value);
-    const v1diepte = parseFloat(document.getElementById('v1-diepte')?.value);
-    const blokV1 = tekenPlattegrondVerdieping('Verdieping 1 (plattegrond)', v1breedte, v1diepte, hatchL, hatchR);
-    if(blokV1) container.appendChild(blokV1);
-  }
+  // Extra verdiepingen (allemaal, in volgorde)
+  extraVerdiepingen.forEach((v,i)=>{
+    const breedte = parseFloat(document.getElementById('ev-breedte-'+v.id)?.value);
+    const diepte = parseFloat(document.getElementById('ev-diepte-'+v.id)?.value);
+    const blokV = tekenPlattegrondVerdieping(`Verdieping ${i+1} (plattegrond)`, breedte, diepte, hatchL, hatchR);
+    if(blokV) container.appendChild(blokV);
+  });
 
   // Verdieping 2 / dakverdieping (plattegrond)
   const blokDak = tekenPlattegrondDakverdieping(m);
   if(blokDak) container.appendChild(blokDak);
 
   // Gevelaanzichten
-  const heeftZadel = m.daktype==='zadel' && !isNaN(m.hellingshoek);
+  const heeftZadel = m.daktype==='zadel';
   const driehoekOpVoor = heeftZadel && m.nokrichting==='voorachter';
   const driehoekOpZij = heeftZadel && m.nokrichting==='zijgevel';
 
@@ -1608,6 +1700,76 @@ function svgNaarCanvas(svg, pxPerMm){
   });
 }
 
+function schoneLabel(tekst){
+  return tekst.split(' (')[0].trim();
+}
+
+function samenvattingRegelsVerzamelen(){
+  const regels = [];
+  regels.push({kop:'Woonoppervlakte'});
+  regels.push({label:'Begane grond', waarde: (document.getElementById('vloer-uitkomst').textContent||'—') + ' m²'});
+  extraVerdiepingen.forEach((v,i)=>{
+    regels.push({label:'Verdieping '+(i+1), waarde: (document.getElementById('ev-uitkomst-'+v.id).textContent||'—') + ' m²'});
+  });
+  const dakSpans = document.getElementById('dakverdieping-output').querySelectorAll('span');
+  if(dakSpans.length>=2){
+    const dakLabel = document.getElementById('dakverdieping-nummer-label').textContent;
+    regels.push({label:dakLabel+' (dakverdieping)', waarde: dakSpans[dakSpans.length-1].textContent});
+  }
+  regels.push({label:'Totaal woonoppervlakte', waarde: (document.getElementById('totaal-woonoppervlak').textContent||'—') + ' m²'});
+
+  regels.push({kop:'Gevel — invoer'});
+  const gsTypeEl = document.getElementById('gs-type');
+  regels.push({label:'Woningtype', waarde: gsTypeEl.selectedOptions[0].textContent});
+  regels.push({label:'Beukmaat', waarde: (document.getElementById('gs-beukmaat').value||'—') + ' m'});
+  regels.push({label:'Diepte', waarde: (document.getElementById('gs-diepte').value||'—') + ' m'});
+  regels.push({label:'Gevelhoogte', waarde: (document.getElementById('gs-hoogte').value||'—') + ' m'});
+  const daktypeEl = document.getElementById('gs-daktype');
+  regels.push({label:'Daktype', waarde: daktypeEl.selectedOptions[0].textContent});
+  if(daktypeEl.value==='zadel'){
+    regels.push({label:'Nokrichting', waarde: document.getElementById('gs-nokrichting').selectedOptions[0].textContent});
+    const hhSam = leesHellingshoek();
+    regels.push({label:'Hellingshoek', waarde: hhSam.isDefault ? `${DAK_DEFAULT_HOEK}° (standaard!)` : hhSam.hoek + '°'});
+  }
+
+  regels.push({kop:'Gevel — oppervlaktes'});
+  document.querySelectorAll('#gs-resultaten .lines-list > div').forEach(rij=>{
+    const spans = rij.querySelectorAll('span');
+    if(spans.length>=2){
+      regels.push({label: schoneLabel(spans[0].textContent), waarde: spans[1].textContent});
+    }
+  });
+
+  return regels;
+}
+
+function samenvattingTekenen(pdf, x, y, breedteMm, regels){
+  let cy = y;
+  const lineH = 5.0;
+  pdf.setFont(undefined,'bold');
+  pdf.setFontSize(13);
+  pdf.text('Samenvatting', x, cy);
+  cy += lineH + 2;
+
+  regels.forEach(r=>{
+    if(r.kop){
+      cy += 2;
+      pdf.setFont(undefined,'bold');
+      pdf.setFontSize(10);
+      pdf.text(r.kop, x, cy);
+      cy += lineH;
+    } else {
+      pdf.setFont(undefined,'normal');
+      pdf.setFontSize(9);
+      const labelRegels = pdf.splitTextToSize(r.label, breedteMm-30);
+      pdf.text(labelRegels, x, cy);
+      pdf.text(String(r.waarde), x+breedteMm-2, cy, {align:'right'});
+      cy += lineH * labelRegels.length;
+    }
+  });
+  return cy - y;
+}
+
 async function exporteerPDF(){
   const btn = document.getElementById('btn-tekening-pdf');
   const oudeTekst = btn.textContent;
@@ -1619,57 +1781,72 @@ async function exporteerPDF(){
   PRINT_MODE = true;
   renderTekening('print-export-container');
   const blokken = [...document.getElementById('print-export-container').children];
+  const samenvattingRegels = samenvattingRegelsVerzamelen();
   SCALE = 20;
   TK_MARGIN = 45;
   PRINT_MODE = false;
 
   try{
     const { jsPDF } = window.jspdf;
-    const pageW = 420, pageH = 297, margin = 10, gap = 4, titelH = 5;
+    const pageW = 420, pageH = 297, margin = 8, gap = 3, titelH = 4;
     const pdf = new jsPDF({orientation:'landscape', unit:'mm', format:'a3'});
-    let cursorX = margin, cursorY = margin, rowH = 0, eerstePagina = true;
+    let cursorX = margin, cursorY = margin, rowH = 0;
 
+    // Samenvatting linksboven op pagina 1
+    const samenvattingBreedte = 95;
+    const samenvattingHoogte = samenvattingTekenen(pdf, cursorX, cursorY+4, samenvattingBreedte, samenvattingRegels);
+    cursorX = margin + samenvattingBreedte + gap*2;
+    rowH = samenvattingHoogte + 4;
+
+    // Eerst alle tekeningen rasteren (canvas+afmetingen), dan op hoogte sorteren voor een dichtere vakverdeling
+    const items = [];
     for(const blok of blokken){
       const svg = blok.querySelector('svg');
       if(!svg) continue;
       const titel = blok.querySelector('div').textContent;
       const {canvas, wMm, hMm} = await svgNaarCanvas(svg, 6);
-      const itemH = hMm + titelH;
+      items.push({titel, canvas, wMm, hMm});
+    }
+    items.sort((a,b)=> b.hMm - a.hMm);
 
-      if(cursorX + wMm > pageW - margin){
+    let titelHoogteGebruikt = titelH;
+    for(const it of items){
+      const titelRuimte = 5; // mm voor de grotere titel
+      const itemH = it.hMm + titelRuimte;
+
+      if(cursorX !== margin && cursorX + it.wMm > pageW - margin){
         cursorX = margin;
         cursorY += rowH + gap;
         rowH = 0;
       }
-      if(cursorY + itemH > pageH - margin){
+      if(cursorY !== margin && cursorY + itemH > pageH - margin){
         pdf.addPage();
-        eerstePagina = false;
         cursorX = margin; cursorY = margin; rowH = 0;
       }
 
-      pdf.setFontSize(8);
-      pdf.text(titel, cursorX, cursorY + 3);
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', cursorX, cursorY + titelH, wMm, hMm);
+      pdf.setFont(undefined,'bold');
+      pdf.setFontSize(9);
+      pdf.text(it.titel, cursorX, cursorY + 3.5);
+      pdf.addImage(it.canvas.toDataURL('image/png'), 'PNG', cursorX, cursorY + titelRuimte, it.wMm, it.hMm);
 
-      cursorX += wMm + gap;
+      cursorX += it.wMm + gap;
       rowH = Math.max(rowH, itemH);
     }
 
-    const blob = pdf.output('blob');
-    const bestand = new File([blob], 'huismaten-tekening.pdf', {type:'application/pdf'});
+    // Schaal-aanduiding één keer, rechtsonder op de huidige (laatste) pagina
+    pdf.setFont(undefined,'normal');
+    pdf.setFontSize(8);
+    pdf.text('schaal 1:100', pageW - margin, pageH - margin + 4, {align:'right'});
 
-    if(navigator.canShare && navigator.canShare({files:[bestand]})){
-      await navigator.share({files:[bestand], title:'Huismaten tekening'});
-    } else {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'huismaten-tekening.pdf';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(()=>URL.revokeObjectURL(url), 10000);
-    }
+    const blob = pdf.output('blob');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'huismaten-tekening.pdf';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 10000);
   } catch(err){
     console.error(err);
     alert('PDF maken mislukt: ' + err.message);
