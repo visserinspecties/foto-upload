@@ -1,0 +1,1229 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Huismaten Tool — Stap 1</title>
+<style>
+  :root{
+    --ink:#1d2520;
+    --paper:#f6f4ee;
+    --line:#cfc9b8;
+    --accent:#a8472e;
+    --accent-soft:#e8d9c9;
+    --mono: "SF Mono", "Consolas", monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    padding:20px;
+  }
+  h1{
+    font-size:1.15rem;
+    margin:0 0 2px;
+    letter-spacing:0.01em;
+  }
+  .sub{
+    color:#6b6555;
+    font-size:0.85rem;
+    margin:0 0 18px;
+  }
+  .tabs{
+    display:flex;
+    gap:6px;
+    margin-bottom:16px;
+  }
+  .tab{
+    flex:1;
+    padding:10px 8px;
+    text-align:center;
+    border:1px solid var(--line);
+    background:white;
+    border-radius:8px;
+    font-size:0.85rem;
+    cursor:pointer;
+    color:#6b6555;
+  }
+  .tab.active{
+    border-color:var(--accent);
+    background:var(--accent-soft);
+    color:var(--ink);
+    font-weight:600;
+  }
+  .panel{
+    background:white;
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:16px;
+    margin-bottom:14px;
+  }
+  label{
+    display:block;
+    font-size:0.78rem;
+    color:#6b6555;
+    margin-bottom:4px;
+  }
+  .row{
+    display:flex;
+    gap:10px;
+    margin-bottom:12px;
+    flex-wrap:wrap;
+  }
+  .field{
+    flex:1;
+    min-width:90px;
+  }
+  input[type=number]{
+    width:100%;
+    padding:9px 10px;
+    border:1px solid var(--line);
+    border-radius:7px;
+    font-size:1rem;
+    font-family:var(--mono);
+  }
+  select{
+    width:100%;
+    padding:9px 10px;
+    border:1px solid var(--line);
+    border-radius:7px;
+    font-size:0.9rem;
+    background:white;
+  }
+  button{
+    border:none;
+    border-radius:7px;
+    padding:10px 14px;
+    font-size:0.88rem;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .btn-primary{
+    background:var(--accent);
+    color:white;
+  }
+  .btn-secondary{
+    background:#eee9dd;
+    color:var(--ink);
+  }
+  .btn-row{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  .result{
+    margin-top:14px;
+    padding:14px;
+    background:var(--accent-soft);
+    border-radius:8px;
+    font-size:1.6rem;
+    font-weight:700;
+    font-family:var(--mono);
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+  }
+  .result span.unit{
+    font-size:0.95rem;
+    font-weight:500;
+  }
+  .canvas-wrap{
+    border:1px solid var(--line);
+    border-radius:10px;
+    background:white;
+    overflow:hidden;
+  }
+  svg{
+    width:100%;
+    height:280px;
+    display:block;
+    background:
+      linear-gradient(0deg, transparent 24px, transparent 25px),
+      var(--paper);
+  }
+  .lines-list{
+    font-family:var(--mono);
+    font-size:0.78rem;
+    color:#6b6555;
+    margin-top:10px;
+    max-height:110px;
+    overflow-y:auto;
+  }
+  .lines-list div{
+    padding:3px 0;
+    border-bottom:1px solid #eee;
+  }
+  .hint{
+    font-size:0.75rem;
+    color:#8a8470;
+    margin-top:6px;
+  }
+  .empty{
+    color:#8a8470;
+    font-size:0.85rem;
+    text-align:center;
+    padding:30px 10px;
+  }
+  .print-only{ display:none; }
+
+  @media print {
+    body * { visibility: hidden; }
+    #print-export-container, #print-export-container * { visibility: visible; }
+    .print-only{ display:block !important; position:absolute; top:0; left:0; width:100%; }
+    #print-export-container{
+      display:flex;
+      flex-wrap:wrap;
+      gap:6mm;
+      align-items:flex-start;
+    }
+    @page{ size:A3 landscape; margin:10mm; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Huismaten Tool — stap 1</h1>
+<p class="sub">Kernmechanisme: vloeroppervlak en gevel/dakvlak tekenen</p>
+
+<div class="tabs">
+  <div class="tab active" data-mode="vloer">Woonoppervlakte</div>
+  <div class="tab" data-mode="gevelstandaard">Gevel</div>
+  <div class="tab" data-mode="gevel">Vrije vorm</div>
+  <div class="tab" data-mode="tekening">Tekening</div>
+</div>
+
+<!-- TEKENING MODE -->
+<div class="panel" id="panel-tekening" style="display:none;">
+  <div class="btn-row" style="margin-bottom:14px;">
+    <button class="btn-primary" id="btn-tekening-update">Tekening bijwerken</button>
+    <button class="btn-secondary" id="btn-tekening-pdf">Exporteer naar PDF (A3 liggend)</button>
+  </div>
+  <p class="hint">Vaste schaal 1:100 — zwart-wit lijntekening</p>
+  <div id="tekening-container"></div>
+</div>
+
+<div id="print-export-container" class="print-only"></div>
+
+<!-- GEVEL STANDAARD MODE -->
+<div class="panel" id="panel-gevelstandaard" style="display:none;">
+  <div class="row">
+    <div class="field" style="flex:0 0 100%;">
+      <label>Woningtype</label>
+      <select id="gs-type">
+        <option value="vrijstaand">Vrijstaand</option>
+        <option value="halfvrijstaand">Halfvrijstaand</option>
+        <option value="tussenwoning">Tussenwoning</option>
+      </select>
+    </div>
+  </div>
+  <div class="row">
+    <div class="field">
+      <label>Beukmaat (m)</label>
+      <input type="text" inputmode="decimal" class="numeric-input" id="gs-beukmaat" step="0.01" placeholder="bv. 6.00">
+    </div>
+    <div class="field">
+      <label>Diepte (m)</label>
+      <input type="text" inputmode="decimal" class="numeric-input" id="gs-diepte" step="0.01" placeholder="bv. 9.00">
+    </div>
+    <div class="field">
+      <label>Gevelhoogte (m) — auto (overschrijfbaar)</label>
+      <input type="text" inputmode="decimal" class="numeric-input" id="gs-hoogte" step="0.01" placeholder="tot dakrand">
+    </div>
+  </div>
+
+  <div id="gs-zijvragen"></div>
+
+  <div id="gs-resultaten"></div>
+</div>
+
+<!-- VLOER MODE -->
+<div class="panel" id="panel-vloer">
+
+  <div style="font-weight:600;margin-bottom:8px;">Begane grond</div>
+  <div class="row">
+    <div class="field">
+      <label>Breedte / beukmaat (m)</label>
+      <input type="text" inputmode="decimal" class="numeric-input" id="vloer-lengte" step="0.01" placeholder="bv. 8.40">
+    </div>
+    <div class="field">
+      <label>Diepte / voor-achter (m)</label>
+      <input type="text" inputmode="decimal" class="numeric-input" id="vloer-breedte" step="0.01" placeholder="bv. 5.20">
+    </div>
+    <div class="field">
+      <label>Hoogte (m)</label>
+      <input type="text" inputmode="decimal" class="numeric-input" id="vloer-hoogte" step="0.01" placeholder="bv. 2.60">
+    </div>
+  </div>
+  <div class="result" style="font-size:1.3rem;">
+    <span>Begane grond</span>
+    <span><span id="vloer-uitkomst">—</span> <span class="unit">m²</span></span>
+  </div>
+
+  <div class="btn-row" style="margin:14px 0 4px;">
+    <button class="btn-secondary" id="btn-toggle-verdieping1">+ Verdieping toevoegen</button>
+  </div>
+
+  <div id="panel-verdieping1" style="display:none;margin-top:10px;">
+    <div style="font-weight:600;margin-bottom:8px;">Verdieping 1</div>
+    <div class="row">
+      <div class="field">
+        <label>Breedte (m) — auto (overschrijfbaar)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="v1-breedte" step="0.01">
+      </div>
+      <div class="field">
+        <label>Diepte (m) — auto (overschrijfbaar)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="v1-diepte" step="0.01">
+      </div>
+      <div class="field">
+        <label>Hoogte (m)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="v1-hoogte" step="0.01">
+      </div>
+    </div>
+    <div class="result" style="font-size:1.3rem;">
+      <span>Verdieping 1</span>
+      <span><span id="v1-uitkomst">—</span> <span class="unit">m²</span></span>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="field" style="flex:0 0 100%;">
+      <label>Daktype</label>
+      <select id="gs-daktype">
+        <option value="geen">Geen / nog niet bepaald (alleen rechte gevel)</option>
+        <option value="plat">Plat dak</option>
+        <option value="zadel">Zadeldak (driehoek erbij)</option>
+      </select>
+    </div>
+  </div>
+  <div id="gs-zadelvragen" style="display:none;">
+    <div class="row">
+      <div class="field">
+        <label>Nokrichting</label>
+        <select id="gs-nokrichting">
+          <option value="voorachter">Van voor naar achter → driehoek op voor-/achtergevel</option>
+          <option value="zijgevel">Evenwijdig aan voorgevel → driehoek op zijgevel</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Hellingshoek (°)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="gs-hellingshoek" step="0.1" placeholder="bv. 45">
+      </div>
+    </div>
+  </div>
+
+  <div style="font-weight:600;margin:18px 0 8px;">Verdieping 2 — dakverdieping / zolder (onder schuin dak, &gt;1,50m)</div>
+  <div class="row">
+    <div class="field" style="flex:0 0 100%;">
+      <label>Dakvloer ligt onder start dakhelling (cm) — optioneel, default 0</label>
+      <input type="text" inputmode="decimal" class="numeric-input" id="gs-vloeroffset" step="1" placeholder="bv. 20">
+    </div>
+  </div>
+  <div id="dakverdieping-output" class="hint">Stel eerst een zadeldak in op de Gevel-tab (beukmaat, diepte, gevelhoogte, hellingshoek).</div>
+
+  <div class="result" id="totaal-woonoppervlak-wrap" style="margin-top:16px;background:var(--ink);color:white;">
+    <span>Totaal woonoppervlakte</span>
+    <span><span id="totaal-woonoppervlak">—</span> <span class="unit" style="color:#ccc;">m²</span></span>
+  </div>
+</div>
+
+<!-- GEVEL MODE -->
+<div class="panel" id="panel-gevel" style="display:none;">
+  <div class="row">
+    <div class="field" style="flex:0 0 130px;">
+      <label>Eerste richting</label>
+      <select id="gevel-startrichting">
+        <option value="0">→ rechts</option>
+        <option value="90">↓ omlaag</option>
+        <option value="180">← links</option>
+        <option value="270">↑ omhoog</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Afstand (m)</label>
+      <input type="text" inputmode="decimal" class="numeric-input" id="gevel-afstand" step="0.01" placeholder="bv. 3.00">
+    </div>
+    <div class="field" style="flex:0 0 90px;">
+      <label>Draai</label>
+      <select id="gevel-draairichting">
+        <option value="rechts">rechtsaf</option>
+        <option value="links">linksaf</option>
+        <option value="recht">rechtdoor</option>
+      </select>
+    </div>
+    <div class="field" style="flex:0 0 90px;">
+      <label>Hoek (°)</label>
+      <input type="text" inputmode="decimal" class="numeric-input" id="gevel-hoek" step="1" value="90">
+    </div>
+  </div>
+  <div class="btn-row">
+    <button class="btn-primary" id="btn-lijn-toevoegen">+ Lijn toevoegen</button>
+    <button class="btn-secondary" id="btn-sluiten">Vorm sluiten</button>
+    <button class="btn-secondary" id="btn-reset">Opnieuw</button>
+  </div>
+  <p class="hint">Eerste lijn: kies alleen de startrichting. Daarna: draai t.o.v. de vorige lijn (default 90°, zoals een gevelhoek).</p>
+
+  <div class="canvas-wrap" style="margin-top:12px;">
+    <svg id="gevel-svg" viewBox="0 0 400 280"></svg>
+  </div>
+
+  <div class="result" id="gevel-result-wrap" style="display:none;">
+    <span>Oppervlakte (gesloten vorm)</span>
+    <span><span id="gevel-uitkomst">—</span> <span class="unit">m²</span></span>
+  </div>
+
+  <div class="lines-list" id="gevel-lijst"></div>
+</div>
+
+<script>
+// Sta Nederlandse komma-notatie toe (1,2 -> 1.2) op alle numerieke velden
+document.addEventListener('input', function(e){
+  if(e.target.classList && e.target.classList.contains('numeric-input')){
+    if(e.target.value.indexOf(',') !== -1){
+      e.target.value = e.target.value.replace(',', '.');
+    }
+  }
+}, true);
+
+// ---------- WOONOPPERVLAKTE: BEGANE GROND ----------
+const vl = document.getElementById('vloer-lengte');
+const vb = document.getElementById('vloer-breedte');
+const vh = document.getElementById('vloer-hoogte');
+const vu = document.getElementById('vloer-uitkomst');
+
+function bgOppervlakte(){
+  const l = parseFloat(vl.value);
+  const b = parseFloat(vb.value);
+  return (!isNaN(l) && !isNaN(b) && l>0 && b>0) ? l*b : null;
+}
+function updateVloer(){
+  const opp = bgOppervlakte();
+  vu.textContent = opp===null ? '—' : opp.toFixed(2);
+}
+
+// ---------- VERDIEPING 1 (optioneel) ----------
+const btnToggleV1 = document.getElementById('btn-toggle-verdieping1');
+const panelV1 = document.getElementById('panel-verdieping1');
+const v1b = document.getElementById('v1-breedte');
+const v1d = document.getElementById('v1-diepte');
+const v1h = document.getElementById('v1-hoogte');
+const v1u = document.getElementById('v1-uitkomst');
+let v1Actief = false;
+let v1bTouched = false, v1dTouched = false;
+v1b.addEventListener('input', ()=>{ v1bTouched = true; });
+v1d.addEventListener('input', ()=>{ v1dTouched = true; });
+
+function syncV1VanBeganeGrond(){
+  if(!v1bTouched) v1b.value = vl.value;
+  if(!v1dTouched) v1d.value = vb.value;
+  updateV1();
+}
+
+btnToggleV1.addEventListener('click', ()=>{
+  v1Actief = !v1Actief;
+  panelV1.style.display = v1Actief ? 'block' : 'none';
+  btnToggleV1.textContent = v1Actief ? '− Verdieping verwijderen' : '+ Verdieping toevoegen';
+  if(v1Actief) syncV1VanBeganeGrond();
+  if(typeof updateAutoGevelhoogte === 'function') updateAutoGevelhoogte();
+  renderDakverdiepingEnTotaal();
+});
+
+function v1Oppervlakte(){
+  if(!v1Actief) return null;
+  const b = parseFloat(v1b.value);
+  const d = parseFloat(v1d.value);
+  return (!isNaN(b) && !isNaN(d) && b>0 && d>0) ? b*d : null;
+}
+function updateV1(){
+  const opp = v1Oppervlakte();
+  v1u.textContent = opp===null ? '—' : opp.toFixed(2);
+}
+
+// ---------- DAKVERDIEPING (1,50m-regel) + TOTAAL ----------
+function renderDakverdiepingEnTotaal(){
+  updateVloer();
+  updateV1();
+
+  const out = document.getElementById('dakverdieping-output');
+  const daktype = document.getElementById('gs-daktype')?.value;
+  const beuk = parseFloat(document.getElementById('gs-beukmaat')?.value);
+  const diepte = parseFloat(document.getElementById('gs-diepte')?.value);
+  const gevelhoogte = parseFloat(document.getElementById('gs-hoogte')?.value);
+  const nokrichting = document.getElementById('gs-nokrichting')?.value;
+  const hellingshoek = parseFloat(document.getElementById('gs-hellingshoek')?.value);
+
+  let dakverdiepingOpp = null;
+
+  if(daktype !== 'zadel' || isNaN(beuk) || isNaN(diepte) || isNaN(gevelhoogte) || isNaN(hellingshoek)){
+    out.innerHTML = '<p class="hint">Stel eerst een zadeldak in op de Gevel-tab (beukmaat, diepte, gevelhoogte, hellingshoek).</p>';
+  } else {
+    const correctie = correctieVoorType(document.getElementById('gs-type').value);
+    const voorAchterBreedte = beuk + correctie;
+    let basis, noklengte;
+    if(nokrichting === 'voorachter'){ basis = voorAchterBreedte; noklengte = diepte; }
+    else { basis = diepte; noklengte = voorAchterBreedte; }
+
+    const vloeroffsetCm = parseFloat(document.getElementById('gs-vloeroffset')?.value) || 0;
+    const vloeroffsetM = vloeroffsetCm / 100;
+    let x0 = (1.50 - vloeroffsetM) / Math.tan(deg2rad(hellingshoek));
+    const uitgeslotenPerZijde = Math.max(x0, 0);
+    let bruikbareBreedte = basis - 2*uitgeslotenPerZijde;
+    if(bruikbareBreedte < 0) bruikbareBreedte = 0;
+    dakverdiepingOpp = noklengte * bruikbareBreedte;
+
+    out.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-bottom:1px solid #eee;">
+      <span style="font-size:0.85rem;color:#6b6555;">Bruikbare breedte ${bruikbareBreedte.toFixed(2)}m × noklengte ${noklengte.toFixed(2)}m</span>
+      <span style="font-size:1.3rem;font-weight:700;font-family:var(--mono);white-space:nowrap;margin-left:10px;">${dakverdiepingOpp.toFixed(2)} m²</span>
+    </div>`;
+  }
+
+  let total = 0;
+  const bg = bgOppervlakte();
+  if(bg) total += bg;
+  const v1 = v1Oppervlakte();
+  if(v1) total += v1;
+  if(dakverdiepingOpp) total += dakverdiepingOpp;
+  document.getElementById('totaal-woonoppervlak').textContent = total>0 ? total.toFixed(2) : '—';
+}
+
+vl.addEventListener('input', ()=>{
+  if(!gsBeukmaatTouched){ gsBeukmaat.value = vl.value; if(typeof renderResultaten==='function') renderResultaten(); }
+  if(v1Actief && !v1bTouched){ v1b.value = vl.value; }
+  renderDakverdiepingEnTotaal();
+});
+vb.addEventListener('input', ()=>{
+  if(!gsDiepteTouched){ gsDiepte.value = vb.value; if(typeof renderResultaten==='function') renderResultaten(); }
+  if(v1Actief && !v1dTouched){ v1d.value = vb.value; }
+  renderDakverdiepingEnTotaal();
+});
+vh.addEventListener('input', ()=>{ updateAutoGevelhoogte(); renderDakverdiepingEnTotaal(); });
+v1b.addEventListener('input', renderDakverdiepingEnTotaal);
+v1d.addEventListener('input', renderDakverdiepingEnTotaal);
+v1h.addEventListener('input', ()=>{ updateAutoGevelhoogte(); renderDakverdiepingEnTotaal(); });
+document.getElementById('gs-vloeroffset').addEventListener('input', ()=>{ updateAutoGevelhoogte(); renderDakverdiepingEnTotaal(); });
+
+// ---------- GEVEL STANDAARD ----------
+const gsType = document.getElementById('gs-type');
+const gsBeukmaat = document.getElementById('gs-beukmaat');
+const gsDiepte = document.getElementById('gs-diepte');
+let gsBeukmaatTouched = false;
+let gsDiepteTouched = false;
+gsBeukmaat.addEventListener('input', ()=>{ gsBeukmaatTouched = true; });
+gsDiepte.addEventListener('input', ()=>{ gsDiepteTouched = true; });
+const gsHoogte = document.getElementById('gs-hoogte');
+let gsHoogteTouched = false;
+gsHoogte.addEventListener('input', ()=>{ gsHoogteTouched = true; });
+
+function autoGevelhoogte(){
+  const bg = parseFloat(vh.value) || 0;
+  const v1 = v1Actief ? (parseFloat(v1h.value) || 0) : 0;
+  const offsetCm = parseFloat(document.getElementById('gs-vloeroffset')?.value) || 0;
+  return bg + v1 + (offsetCm/100);
+}
+function updateAutoGevelhoogte(){
+  if(!gsHoogteTouched){
+    gsHoogte.value = autoGevelhoogte().toFixed(2);
+    if(typeof renderResultaten === 'function') renderResultaten();
+  }
+}
+
+const gsZijvragen = document.getElementById('gs-zijvragen');
+const gsResultaten = document.getElementById('gs-resultaten');
+
+// state voor zijgevel-antwoorden
+let zijState = {
+  links: { volledig: true, breedte: null, hoogte: null },
+  rechts: { volledig: true, breedte: null, hoogte: null }
+};
+
+function correctieVoorType(type){
+  if(type === 'halfvrijstaand') return 0.11;
+  if(type === 'tussenwoning') return 0.22;
+  return 0;
+}
+
+function renderZijvragen(){
+  const type = gsType.value;
+  gsZijvragen.innerHTML = '';
+
+  if(type === 'vrijstaand'){
+    // geen vragen nodig, beide zijgevels vol
+    return;
+  }
+
+  const kanten = type === 'halfvrijstaand' ? ['links'] : ['links','rechts'];
+  // bij halfvrijstaand: laat kiezen welke kant grenst
+  if(type === 'halfvrijstaand'){
+    const wrap = document.createElement('div');
+    wrap.className = 'row';
+    wrap.innerHTML = `
+      <div class="field" style="flex:0 0 100%;">
+        <label>Welke zijgevel grenst aan de buurwoning?</label>
+        <select id="gs-buurzijde">
+          <option value="links">Links</option>
+          <option value="rechts">Rechts</option>
+        </select>
+      </div>`;
+    gsZijvragen.appendChild(wrap);
+    document.getElementById('gs-buurzijde').addEventListener('change', ()=>{renderZijDetail();renderResultaten();});
+  }
+
+  renderZijDetail();
+}
+
+function renderZijDetail(){
+  const type = gsType.value;
+  // verwijder oude detailblokken (behoud buurzijde-select indien aanwezig)
+  document.querySelectorAll('.zijdetail').forEach(el=>el.remove());
+
+  let kanten = [];
+  if(type === 'halfvrijstaand'){
+    const buurzijde = document.getElementById('gs-buurzijde')?.value || 'links';
+    kanten = [buurzijde];
+  } else if(type === 'tussenwoning'){
+    kanten = ['links','rechts'];
+  }
+
+  kanten.forEach(kant=>{
+    const block = document.createElement('div');
+    block.className = 'zijdetail panel';
+    block.style.background = '#fbfaf6';
+    block.style.marginTop = '10px';
+    block.innerHTML = `
+      <label>Zijgevel ${kant} — grenst deze volledig aan de buurwoning?</label>
+      <div class="btn-row" style="margin-bottom:10px;">
+        <button class="btn-secondary zij-volledig" data-kant="${kant}" data-val="ja">Ja, volledig</button>
+        <button class="btn-secondary zij-volledig" data-kant="${kant}" data-val="nee">Nee, deels</button>
+      </div>
+      <div class="zij-maten" id="zij-maten-${kant}" style="display:none;">
+        <div class="row">
+          <div class="field">
+            <label>Blootgestelde breedte (m)</label>
+            <input type="text" inputmode="decimal" class="numeric-input zij-breedte" step="0.01" data-kant="${kant}" placeholder="bv. 1.20">
+          </div>
+          <div class="field">
+            <label>Blootgestelde hoogte (m)</label>
+            <input type="text" inputmode="decimal" class="numeric-input zij-hoogte" step="0.01" data-kant="${kant}" placeholder="bv. 2.50">
+          </div>
+        </div>
+        <p class="hint">Rechthoekig deel voor nu — schuine/driehoekige restdelen pakken we later net als bij de dakkapel.</p>
+      </div>
+    `;
+    gsZijvragen.appendChild(block);
+  });
+
+  document.querySelectorAll('.zij-volledig').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      const kant = e.target.dataset.kant;
+      const val = e.target.dataset.val;
+      zijState[kant].volledig = (val === 'ja');
+      document.getElementById(`zij-maten-${kant}`).style.display = val === 'nee' ? 'block' : 'none';
+      // visuele actieve status
+      document.querySelectorAll(`.zij-volledig[data-kant="${kant}"]`).forEach(b=>b.classList.remove('btn-primary'));
+      e.target.classList.add('btn-primary');
+      renderResultaten();
+    });
+  });
+
+  document.querySelectorAll('.zij-breedte, .zij-hoogte').forEach(inp=>{
+    inp.addEventListener('input', (e)=>{
+      const kant = e.target.dataset.kant;
+      const breedte = parseFloat(document.querySelector(`.zij-breedte[data-kant="${kant}"]`).value);
+      const hoogte = parseFloat(document.querySelector(`.zij-hoogte[data-kant="${kant}"]`).value);
+      zijState[kant].breedte = isNaN(breedte) ? null : breedte;
+      zijState[kant].hoogte = isNaN(hoogte) ? null : hoogte;
+      renderResultaten();
+    });
+  });
+}
+
+function renderResultaten(){
+  const type = gsType.value;
+  const beuk = parseFloat(gsBeukmaat.value);
+  const diepte = parseFloat(gsDiepte.value);
+  const hoogte = parseFloat(gsHoogte.value);
+
+  renderDakverdiepingEnTotaal();
+
+  if(isNaN(beuk) || isNaN(diepte) || isNaN(hoogte)){
+    gsResultaten.innerHTML = '<p class="hint">Vul beukmaat, diepte en gevelhoogte in voor de berekening.</p>';
+    return;
+  }
+
+  const correctie = correctieVoorType(type);
+  const voorAchterBreedte = beuk + correctie;
+  const voorAchterRect = voorAchterBreedte * hoogte;
+
+  const daktype = document.getElementById('gs-daktype').value;
+  const nokrichting = document.getElementById('gs-nokrichting')?.value;
+  const hellingshoek = parseFloat(document.getElementById('gs-hellingshoek')?.value);
+  const heeftDriehoek = daktype === 'zadel' && !isNaN(hellingshoek);
+
+  function driehoekOpp(basis){
+    const driehoekHoogte = (basis/2) * Math.tan(deg2rad(hellingshoek));
+    return 0.5 * basis * driehoekHoogte;
+  }
+
+  let driehoekVoorAchter = 0, driehoekZij = 0;
+  if(heeftDriehoek && nokrichting === 'voorachter'){
+    driehoekVoorAchter = driehoekOpp(voorAchterBreedte);
+  }
+  if(heeftDriehoek && nokrichting === 'zijgevel'){
+    driehoekZij = driehoekOpp(diepte);
+  }
+
+  const voorAchterOpp = voorAchterRect + driehoekVoorAchter;
+
+  function gevelLabel(basisLabel, rect, driehoek){
+    let label = basisLabel;
+    if(driehoek > 0) label += ` (rechthoek ${rect.toFixed(2)} + driehoek ${driehoek.toFixed(2)})`;
+    return label;
+  }
+
+  function zijLabel(kant){ return kant === 'links' ? 'Linker gevel' : 'Rechter gevel'; }
+
+  let rows = [
+    {label: gevelLabel(`Voorgevel (beukmaat ${beuk.toFixed(2)}m${correctie>0 ? ' + '+(correctie*100).toFixed(0)+'cm' : ''})`, voorAchterRect, driehoekVoorAchter), opp: voorAchterOpp},
+    {label: gevelLabel(`Achtergevel (zelfde berekening)`, voorAchterRect, driehoekVoorAchter), opp: voorAchterOpp}
+  ];
+
+  // zijgevels
+  let kanten = type === 'vrijstaand' ? ['links','rechts']
+             : type === 'halfvrijstaand' ? null
+             : ['links','rechts'];
+
+  if(type === 'vrijstaand'){
+    rows.push({label: gevelLabel('Linker gevel (vol, geen buurwoning)', diepte*hoogte, driehoekZij), opp: diepte*hoogte+driehoekZij});
+    rows.push({label: gevelLabel('Rechter gevel (vol, geen buurwoning)', diepte*hoogte, driehoekZij), opp: diepte*hoogte+driehoekZij});
+  } else if(type === 'halfvrijstaand'){
+    const buurzijde = document.getElementById('gs-buurzijde')?.value || 'links';
+    const vrijeZijde = buurzijde === 'links' ? 'rechts' : 'links';
+    rows.push({label: gevelLabel(`${zijLabel(vrijeZijde)} (vol, geen buurwoning)`, diepte*hoogte, driehoekZij), opp: diepte*hoogte+driehoekZij});
+
+    const st = zijState[buurzijde];
+    if(st.volledig){
+      rows.push({label:`${zijLabel(buurzijde)} (volledig scheidingsmuur — telt niet mee)${driehoekZij>0 ? ' — driehoek bij scheidingsmuur nog niet verrekend' : ''}`, opp: 0});
+    } else if(st.breedte && st.hoogte){
+      rows.push({label:`${zijLabel(buurzijde)} (blootgesteld deel)${driehoekZij>0 ? ' — driehoek bij scheidingsmuur nog niet verrekend' : ''}`, opp: st.breedte*st.hoogte});
+    } else {
+      rows.push({label:`${zijLabel(buurzijde)} (maten blootgesteld deel nog invullen)`, opp: null});
+    }
+  } else if(type === 'tussenwoning'){
+    ['links','rechts'].forEach(kant=>{
+      const st = zijState[kant];
+      if(st.volledig){
+        rows.push({label:`${zijLabel(kant)} (volledig scheidingsmuur — telt niet mee)${driehoekZij>0 ? ' — driehoek bij scheidingsmuur nog niet verrekend' : ''}`, opp: 0});
+      } else if(st.breedte && st.hoogte){
+        rows.push({label:`${zijLabel(kant)} (blootgesteld deel)${driehoekZij>0 ? ' — driehoek bij scheidingsmuur nog niet verrekend' : ''}`, opp: st.breedte*st.hoogte});
+      } else {
+        rows.push({label:`${zijLabel(kant)} (maten blootgesteld deel nog invullen)`, opp: null});
+      }
+    });
+  }
+
+  // dakvlakken
+  let dakvlakRows = [];
+  if(daktype === 'plat'){
+    const platDakOpp = voorAchterBreedte * diepte;
+    dakvlakRows.push({label: `Plat dak (beukmaat${correctie>0?'+correctie':''} ${voorAchterBreedte.toFixed(2)}m × diepte ${diepte.toFixed(2)}m)`, opp: platDakOpp});
+  } else if(heeftDriehoek){
+    let basis, noklengte;
+    if(nokrichting === 'voorachter'){
+      basis = voorAchterBreedte;   // overspanning, loodrecht op de nok
+      noklengte = diepte;
+    } else {
+      basis = diepte;
+      noklengte = voorAchterBreedte;
+    }
+    const schuineZijde = (basis/2) / Math.cos(deg2rad(hellingshoek));
+    const dakvlakOpp = noklengte * schuineZijde;
+    dakvlakRows.push({label: `Dakvlak 1 (noklengte ${noklengte.toFixed(2)}m × schuine zijde ${schuineZijde.toFixed(2)}m)`, opp: dakvlakOpp});
+    dakvlakRows.push({label: `Dakvlak 2 (zelfde berekening)`, opp: dakvlakOpp});
+
+    const nokDriehoekHoogte = (basis/2) * Math.tan(deg2rad(hellingshoek));
+    const nokhoogte = hoogte + nokDriehoekHoogte;
+    dakvlakRows.push({label: `Nokhoogte (vanaf onderkant gevel)`, opp: nokhoogte, eenheid: 'm'});
+  }
+  rows = rows.concat(dakvlakRows);
+
+  let html = '<div class="lines-list" style="max-height:none;">';
+  rows.forEach(r=>{
+    html += `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-bottom:1px solid #eee;">
+      <span style="font-size:0.85rem;color:#6b6555;">${r.label}</span>
+      <span style="font-size:1.3rem;font-weight:700;font-family:var(--mono);white-space:nowrap;margin-left:10px;">${r.opp===null?'—':r.opp.toFixed(2)+' '+(r.eenheid||'m²')}</span>
+    </div>`;
+  });
+  html += '</div>';
+  gsResultaten.innerHTML = html;
+}
+
+[gsType, gsBeukmaat, gsDiepte, gsHoogte].forEach(el=>{
+  el.addEventListener('input', ()=>{ renderResultaten(); });
+});
+
+const gsDaktype = document.getElementById('gs-daktype');
+const gsZadelvragen = document.getElementById('gs-zadelvragen');
+gsDaktype.addEventListener('change', ()=>{
+  gsZadelvragen.style.display = gsDaktype.value === 'zadel' ? 'block' : 'none';
+  renderResultaten();
+});
+document.getElementById('gs-nokrichting').addEventListener('change', renderResultaten);
+document.getElementById('gs-hellingshoek').addEventListener('input', renderResultaten);
+gsType.addEventListener('change', ()=>{
+  zijState = { links:{volledig:true,breedte:null,hoogte:null}, rechts:{volledig:true,breedte:null,hoogte:null} };
+  renderZijvragen();
+  renderResultaten();
+});
+renderZijvragen();
+renderResultaten();
+
+
+// ---------- GEVEL / DAKVLAK ----------
+let points = [{x:0,y:0}];
+let heading = 0; // graden, 0 = naar rechts, oplopend = rechtsom (schermconventie, y naar onder)
+let closed = false;
+let lines = []; // log voor lijst
+
+const svg = document.getElementById('gevel-svg');
+const lijst = document.getElementById('gevel-lijst');
+const resultWrap = document.getElementById('gevel-result-wrap');
+const uitkomstEl = document.getElementById('gevel-uitkomst');
+
+function deg2rad(d){ return d * Math.PI / 180; }
+
+function addLine(){
+  if(closed) return;
+  const afstand = parseFloat(document.getElementById('gevel-afstand').value);
+  if(isNaN(afstand) || afstand<=0){ return; }
+
+  if(points.length === 1 && lines.length === 0){
+    // eerste lijn: gebruik startrichting
+    heading = parseFloat(document.getElementById('gevel-startrichting').value);
+  } else {
+    const draai = document.getElementById('gevel-draairichting').value;
+    const hoek = parseFloat(document.getElementById('gevel-hoek').value) || 0;
+    if(draai === 'rechts') heading += hoek;
+    else if(draai === 'links') heading -= hoek;
+    // 'recht' = geen wijziging
+  }
+
+  const rad = deg2rad(heading);
+  const last = points[points.length-1];
+  const next = {
+    x: last.x + afstand * Math.cos(rad),
+    y: last.y + afstand * Math.sin(rad)
+  };
+  points.push(next);
+  lines.push({afstand: afstand, heading: heading});
+  document.getElementById('gevel-afstand').value = '';
+  renderLijst();
+  renderSvg();
+}
+
+function closeShape(){
+  if(points.length < 3) return;
+  closed = true;
+  renderSvg();
+  const area = shoelaceArea(points);
+  uitkomstEl.textContent = area.toFixed(2);
+  resultWrap.style.display = 'flex';
+}
+
+function resetShape(){
+  points = [{x:0,y:0}];
+  heading = 0;
+  closed = false;
+  lines = [];
+  resultWrap.style.display = 'none';
+  uitkomstEl.textContent = '—';
+  renderLijst();
+  renderSvg();
+}
+
+function shoelaceArea(pts){
+  let sum = 0;
+  for(let i=0;i<pts.length;i++){
+    const a = pts[i];
+    const b = pts[(i+1)%pts.length];
+    sum += (a.x*b.y - b.x*a.y);
+  }
+  return Math.abs(sum)/2;
+}
+
+function renderLijst(){
+  lijst.innerHTML = '';
+  lines.forEach((l,i)=>{
+    const d = document.createElement('div');
+    d.textContent = `Lijn ${i+1}: ${l.afstand.toFixed(2)} m — richting ${Math.round(((l.heading%360)+360)%360)}°`;
+    lijst.appendChild(d);
+  });
+}
+
+function renderSvg(){
+  svg.innerHTML = '';
+  if(points.length === 1){
+    svg.innerHTML = '';
+    return;
+  }
+  // bounding box
+  const xs = points.map(p=>p.x), ys = points.map(p=>p.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const w = maxX-minX || 1, h = maxY-minY || 1;
+  const pad = 0.6;
+  const scale = Math.min(360/(w+2*pad*0===0?1:w), 1) ; // fallback, recompute below properly
+  // simpele auto-fit
+  const viewW = 400, viewH = 280, margin = 30;
+  const sx = (viewW - 2*margin) / (w || 1);
+  const sy = (viewH - 2*margin) / (h || 1);
+  const s = Math.min(sx, sy);
+
+  function tx(p){
+    return {
+      x: margin + (p.x - minX) * s,
+      y: margin + (p.y - minY) * s
+    };
+  }
+
+  const tpoints = points.map(tx);
+  let pathStr = tpoints.map(p=>`${p.x},${p.y}`).join(' ');
+
+  const ns = 'http://www.w3.org/2000/svg';
+
+  if(closed){
+    const poly = document.createElementNS(ns,'polygon');
+    poly.setAttribute('points', pathStr);
+    poly.setAttribute('fill', '#e8d9c9');
+    poly.setAttribute('stroke', '#a8472e');
+    poly.setAttribute('stroke-width', '2');
+    svg.appendChild(poly);
+  } else {
+    const poly = document.createElementNS(ns,'polyline');
+    poly.setAttribute('points', pathStr);
+    poly.setAttribute('fill', 'none');
+    poly.setAttribute('stroke', '#a8472e');
+    poly.setAttribute('stroke-width', '2');
+    svg.appendChild(poly);
+  }
+
+  tpoints.forEach((p,i)=>{
+    const c = document.createElementNS(ns,'circle');
+    c.setAttribute('cx', p.x);
+    c.setAttribute('cy', p.y);
+    c.setAttribute('r', 4);
+    c.setAttribute('fill', i===0 ? '#1d2520' : '#a8472e');
+    svg.appendChild(c);
+  });
+}
+
+document.getElementById('btn-lijn-toevoegen').addEventListener('click', addLine);
+document.getElementById('btn-sluiten').addEventListener('click', closeShape);
+document.getElementById('btn-reset').addEventListener('click', resetShape);
+
+// ---------- TEKENING ----------
+let SCALE = 20; // px (scherm) of mm (print) per meter — bij print exact 1:100 (1m = 10mm)
+let PRINT_MODE = false;
+const TK_MARGIN = 45;
+
+function huidigeMaten(){
+  const type = document.getElementById('gs-type').value;
+  const beuk = parseFloat(document.getElementById('gs-beukmaat').value);
+  const diepte = parseFloat(document.getElementById('gs-diepte').value);
+  const hoogte = parseFloat(document.getElementById('gs-hoogte').value);
+  const daktype = document.getElementById('gs-daktype').value;
+  const nokrichting = document.getElementById('gs-nokrichting')?.value;
+  const hellingshoek = parseFloat(document.getElementById('gs-hellingshoek')?.value);
+  const vloeroffsetCm = parseFloat(document.getElementById('gs-vloeroffset')?.value) || 0;
+  const correctie = correctieVoorType(type);
+  const voorAchterBreedte = isNaN(beuk) ? null : beuk + correctie;
+  return {type, beuk, diepte, hoogte, daktype, nokrichting, hellingshoek, vloeroffsetCm, correctie, voorAchterBreedte};
+}
+
+function svgEl(tag, attrs){
+  const ns = 'http://www.w3.org/2000/svg';
+  const el = document.createElementNS(ns, tag);
+  for(const k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
+}
+
+function nieuweSvg(viewW, viewH){
+  const attrs = {viewBox:`0 0 ${viewW} ${viewH}`, style:'display:block;background:white;'};
+  if(PRINT_MODE){
+    attrs.width = viewW + 'mm';
+    attrs.height = viewH + 'mm';
+  } else {
+    attrs.width = '100%';
+  }
+  const svg = svgEl('svg', attrs);
+  const schaal = svgEl('text', {x:viewW-6, y:viewH-6, 'text-anchor':'end', 'font-size':9, fill:'#555'});
+  schaal.textContent = 'schaal 1:100';
+  svg.appendChild(schaal);
+  return svg;
+}
+
+function tekeningBlok(titel){
+  const wrap = document.createElement('div');
+  wrap.style.marginBottom = '22px';
+  const kop = document.createElement('div');
+  kop.style.fontWeight = '600';
+  kop.style.marginBottom = '6px';
+  kop.textContent = titel;
+  wrap.appendChild(kop);
+  const canvasWrap = document.createElement('div');
+  canvasWrap.className = 'canvas-wrap';
+  canvasWrap.style.background = 'white';
+  wrap.appendChild(canvasWrap);
+  return {wrap, canvasWrap};
+}
+
+// Generieke rechthoekige plattegrond (begane grond / verdieping 1)
+function tekenPlattegrondVerdieping(titel, breedte, diepte, hatchLinks, hatchRechts){
+  if(isNaN(breedte) || isNaN(diepte) || breedte<=0 || diepte<=0) return null;
+  const {wrap, canvasWrap} = tekeningBlok(titel);
+  const w = breedte*SCALE, h = diepte*SCALE;
+  const viewW = w + 2*TK_MARGIN, viewH = h + 2*TK_MARGIN + 20;
+  const svg = nieuweSvg(viewW, viewH);
+  const x0 = TK_MARGIN, y0 = TK_MARGIN;
+
+  svg.appendChild(svgEl('rect', {x:x0,y:y0,width:w,height:h,fill:'white',stroke:'black','stroke-width':1.5}));
+
+  if(hatchLinks || hatchRechts){
+    const hw = 0.11*SCALE; // visuele dikte scheidingsmuur
+    if(hatchLinks){
+      const hx = x0;
+      for(let yy=0; yy<h; yy+=8){
+        svg.appendChild(svgEl('line', {x1:hx,y1:y0+yy,x2:hx+hw,y2:y0+Math.min(yy+8,h),stroke:'black','stroke-width':0.75}));
+      }
+    }
+    if(hatchRechts){
+      const hx = x0+w-hw;
+      for(let yy=0; yy<h; yy+=8){
+        svg.appendChild(svgEl('line', {x1:hx,y1:y0+yy,x2:hx+hw,y2:y0+Math.min(yy+8,h),stroke:'black','stroke-width':0.75}));
+      }
+    }
+  }
+
+  const opp = breedte*diepte;
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h/2-4,'text-anchor':'middle','font-size':13,fill:'black'}));
+  svg.lastChild.textContent = `${opp.toFixed(2)} m²`;
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h/2+14,'text-anchor':'middle','font-size':10,fill:'black'}));
+  svg.lastChild.textContent = `${breedte.toFixed(2)} × ${diepte.toFixed(2)} m`;
+
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0-10,'text-anchor':'middle','font-size':11,fill:'black'}));
+  svg.lastChild.textContent = `${breedte.toFixed(2)} m`;
+  svg.appendChild(svgEl('text', {x:x0-8,y:y0+h/2,'text-anchor':'end','font-size':11,fill:'black'}));
+  svg.lastChild.textContent = `${diepte.toFixed(2)} m`;
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h+18,'text-anchor':'middle','font-size':10,fill:'black'}));
+  svg.lastChild.textContent = '↑ voorgevel';
+
+  canvasWrap.appendChild(svg);
+  return wrap;
+}
+
+// Plattegrond dakverdieping: volledige basis met uitgesloten <1,50m-stroken + bruikbare zone
+function tekenPlattegrondDakverdieping(m){
+  if(m.daktype!=='zadel' || isNaN(m.hellingshoek) || m.voorAchterBreedte===null || isNaN(m.diepte)) return null;
+
+  const basis = m.nokrichting==='voorachter' ? m.voorAchterBreedte : m.diepte;
+  const noklengte = m.nokrichting==='voorachter' ? m.diepte : m.voorAchterBreedte;
+  const vloeroffsetM = m.vloeroffsetCm/100;
+  let x0v = (1.50 - vloeroffsetM) / Math.tan(deg2rad(m.hellingshoek));
+  x0v = Math.max(x0v, 0);
+  const bruikbareBreedte = Math.max(basis - 2*x0v, 0);
+  const opp = bruikbareBreedte * noklengte;
+
+  const {wrap, canvasWrap} = tekeningBlok('Verdieping 2 — dakverdieping / zolder (plattegrond)');
+
+  // basis-richting bepaalt of de stroken links/rechts (voorachter) of boven/onder (zijgevel) liggen
+  const horizontaal = m.nokrichting === 'voorachter'; // basis = breedte-as
+  const totBreedte = horizontaal ? basis : noklengte;
+  const totDiepte = horizontaal ? noklengte : basis;
+  const w = totBreedte*SCALE, h = totDiepte*SCALE;
+  const viewW = w + 2*TK_MARGIN, viewH = h + 2*TK_MARGIN + 20;
+  const svg = nieuweSvg(viewW, viewH);
+  const x0 = TK_MARGIN, y0 = TK_MARGIN;
+
+  svg.appendChild(svgEl('rect', {x:x0,y:y0,width:w,height:h,fill:'white',stroke:'black','stroke-width':1.5}));
+
+  if(x0v > 0 && x0v < basis/2){
+    const strookPx = x0v*SCALE;
+    if(horizontaal){
+      svg.appendChild(svgEl('rect', {x:x0,y:y0,width:strookPx,height:h,fill:'none',stroke:'black','stroke-width':0.75,'stroke-dasharray':'3,2'}));
+      svg.appendChild(svgEl('rect', {x:x0+w-strookPx,y:y0,width:strookPx,height:h,fill:'none',stroke:'black','stroke-width':0.75,'stroke-dasharray':'3,2'}));
+      svg.appendChild(svgEl('text', {x:x0+strookPx/2,y:y0+h/2,'text-anchor':'middle','font-size':8,fill:'black','writing-mode':'tb'}));
+      svg.lastChild.textContent = '<1,50m';
+    } else {
+      svg.appendChild(svgEl('rect', {x:x0,y:y0,width:w,height:strookPx,fill:'none',stroke:'black','stroke-width':0.75,'stroke-dasharray':'3,2'}));
+      svg.appendChild(svgEl('rect', {x:x0,y:y0+h-strookPx,width:w,height:strookPx,fill:'none',stroke:'black','stroke-width':0.75,'stroke-dasharray':'3,2'}));
+      svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+strookPx/2+3,'text-anchor':'middle','font-size':8,fill:'black'}));
+      svg.lastChild.textContent = '<1,50m';
+    }
+  }
+
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h/2-4,'text-anchor':'middle','font-size':13,fill:'black'}));
+  svg.lastChild.textContent = `${opp.toFixed(2)} m²`;
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h/2+14,'text-anchor':'middle','font-size':10,fill:'black'}));
+  svg.lastChild.textContent = `bruikbaar ${bruikbareBreedte.toFixed(2)} × ${noklengte.toFixed(2)} m`;
+
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0-10,'text-anchor':'middle','font-size':11,fill:'black'}));
+  svg.lastChild.textContent = `${totBreedte.toFixed(2)} m`;
+  svg.appendChild(svgEl('text', {x:x0-8,y:y0+h/2,'text-anchor':'end','font-size':11,fill:'black'}));
+  svg.lastChild.textContent = `${totDiepte.toFixed(2)} m`;
+
+  canvasWrap.appendChild(svg);
+  return wrap;
+}
+
+// Gevelaanzicht (voor- of zijgevel). heeftDriehoek = true tekent een driehoek erop (zadeldak-kant),
+// anders een gewone rechthoek (zoals bij een ware 2D-projectie van de andere as).
+function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellingshoek, dakvlakInfo){
+  if(isNaN(breedte) || isNaN(gevelhoogte) || breedte<=0) return null;
+  const {wrap, canvasWrap} = tekeningBlok(titel);
+
+  let driehoekHoogte = 0;
+  if(heeftDriehoek && !isNaN(hellingshoek)){
+    driehoekHoogte = (breedte/2) * Math.tan(deg2rad(hellingshoek));
+  }
+  // hoogte van de stippellijn-rechthoek (dakvolume) als deze gevel zelf geen driehoek draagt
+  let stippelHoogteM = 0;
+  if(!heeftDriehoek && dakvlakInfo && dakvlakInfo.nokhoogte){
+    stippelHoogteM = Math.max(dakvlakInfo.nokhoogte - gevelhoogte, 0);
+  }
+
+  const totaalHoogte = gevelhoogte + driehoekHoogte + stippelHoogteM;
+  const w = breedte*SCALE, hRect = gevelhoogte*SCALE, hTri = driehoekHoogte*SCALE, hStippel = stippelHoogteM*SCALE;
+  const viewW = w + 2*TK_MARGIN;
+  const viewH = hRect + hTri + hStippel + 2*TK_MARGIN + (dakvlakInfo ? 30 : 0) + 20;
+  const svg = nieuweSvg(viewW, viewH);
+  const x0 = TK_MARGIN, yBase = viewH-TK_MARGIN, yEave = yBase-hRect, yTop = yEave-hTri-hStippel;
+
+  svg.appendChild(svgEl('rect', {x:x0,y:yEave,width:w,height:hRect,fill:'white',stroke:'black','stroke-width':1.5}));
+
+  if(heeftDriehoek && driehoekHoogte>0){
+    svg.appendChild(svgEl('polygon', {points:`${x0},${yEave} ${x0+w/2},${yTop} ${x0+w},${yEave}`, fill:'white', stroke:'black','stroke-width':1.5}));
+  } else if(hStippel>0){
+    svg.appendChild(svgEl('rect', {x:x0,y:yEave-hStippel,width:w,height:hStippel,fill:'none',stroke:'black','stroke-width':1,'stroke-dasharray':'5,3'}));
+  }
+
+  const oppRect = breedte*gevelhoogte;
+  const oppDriehoek = heeftDriehoek ? 0.5*breedte*driehoekHoogte : 0;
+  const oppTotaal = oppRect + oppDriehoek;
+
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:(yEave+yBase)/2,'text-anchor':'middle','font-size':12,fill:'black'}));
+  svg.lastChild.textContent = `${oppTotaal.toFixed(2)} m²`;
+
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:yBase+16,'text-anchor':'middle','font-size':11,fill:'black'}));
+  svg.lastChild.textContent = `${breedte.toFixed(2)} m`;
+  svg.appendChild(svgEl('text', {x:x0-8,y:(yEave+yBase)/2,'text-anchor':'end','font-size':11,fill:'black'}));
+  svg.lastChild.textContent = `${gevelhoogte.toFixed(2)} m`;
+
+  if(heeftDriehoek && driehoekHoogte>0){
+    svg.appendChild(svgEl('text', {x:x0+w/2,y:yTop-8,'text-anchor':'middle','font-size':10,fill:'black'}));
+    svg.lastChild.textContent = `nok ${totaalHoogte.toFixed(2)} m — ${hellingshoek}°`;
+  } else if(hStippel>0){
+    svg.appendChild(svgEl('text', {x:x0+w/2,y:yTop-8,'text-anchor':'middle','font-size':10,fill:'black'}));
+    svg.lastChild.textContent = `nok ${totaalHoogte.toFixed(2)} m`;
+  }
+
+  if(dakvlakInfo){
+    svg.appendChild(svgEl('text', {x:x0+w/2,y:yTop-22,'text-anchor':'middle','font-size':10,fill:'black'}));
+    svg.lastChild.textContent = `dakvlak: ${dakvlakInfo.opp.toFixed(2)} m² — ${dakvlakInfo.hoek}°`;
+  }
+
+  canvasWrap.appendChild(svg);
+  return wrap;
+}
+
+function renderTekening(targetContainerId){
+  const container = document.getElementById(targetContainerId || 'tekening-container');
+  container.innerHTML = '';
+  const m = huidigeMaten();
+
+  if(m.beuk===null || isNaN(m.beuk) || isNaN(m.diepte)){
+    container.innerHTML = '<p class="hint">Vul beukmaat en diepte in op de Gevel-tab.</p>';
+    return;
+  }
+
+  // Begane grond
+  const buurzijdeHV = document.getElementById('gs-buurzijde')?.value || 'links';
+  let hatchL = false, hatchR = false;
+  if(m.type==='halfvrijstaand'){ hatchL = buurzijdeHV==='links'; hatchR = buurzijdeHV==='rechts'; }
+  if(m.type==='tussenwoning'){ hatchL = true; hatchR = true; }
+
+  const blokBG = tekenPlattegrondVerdieping('Begane grond (plattegrond)', m.beuk, m.diepte, hatchL, hatchR);
+  if(blokBG) container.appendChild(blokBG);
+
+  // Verdieping 1 (indien actief)
+  if(typeof v1Actief !== 'undefined' && v1Actief){
+    const v1breedte = parseFloat(document.getElementById('v1-breedte')?.value);
+    const v1diepte = parseFloat(document.getElementById('v1-diepte')?.value);
+    const blokV1 = tekenPlattegrondVerdieping('Verdieping 1 (plattegrond)', v1breedte, v1diepte, hatchL, hatchR);
+    if(blokV1) container.appendChild(blokV1);
+  }
+
+  // Verdieping 2 / dakverdieping (plattegrond)
+  const blokDak = tekenPlattegrondDakverdieping(m);
+  if(blokDak) container.appendChild(blokDak);
+
+  // Gevelaanzichten
+  const heeftZadel = m.daktype==='zadel' && !isNaN(m.hellingshoek);
+  const driehoekOpVoor = heeftZadel && m.nokrichting==='voorachter';
+  const driehoekOpZij = heeftZadel && m.nokrichting==='zijgevel';
+
+  let dakvlakInfoVoor = null, dakvlakInfoZij = null;
+  if(heeftZadel){
+    let basis, noklengte;
+    if(m.nokrichting==='voorachter'){ basis=m.voorAchterBreedte; noklengte=m.diepte; }
+    else { basis=m.diepte; noklengte=m.voorAchterBreedte; }
+    const schuineZijde = (basis/2)/Math.cos(deg2rad(m.hellingshoek));
+    const dakvlakOpp = noklengte*schuineZijde;
+    const driehoekHoogteEcht = (basis/2)*Math.tan(deg2rad(m.hellingshoek));
+    const info = {opp: dakvlakOpp, hoek: m.hellingshoek, nokhoogte: m.hoogte + driehoekHoogteEcht};
+    // dakvlak-info plaatsen op de gevel die GEEN driehoek draagt (de "rechthoek"-kant),
+    // conform: dakvlak-oppervlak en hoek in het zijaanzicht zetten
+    if(m.nokrichting==='voorachter') dakvlakInfoZij = info;
+    else dakvlakInfoVoor = info;
+  }
+
+  const blokVoor = tekenGevelaanzicht('Voorgevel (aanzicht)', m.voorAchterBreedte, m.hoogte, driehoekOpVoor, m.hellingshoek, dakvlakInfoVoor);
+  if(blokVoor) container.appendChild(blokVoor);
+
+  const blokZij = tekenGevelaanzicht('Zijgevel (aanzicht)', m.diepte, m.hoogte, driehoekOpZij, m.hellingshoek, dakvlakInfoZij);
+  if(blokZij) container.appendChild(blokZij);
+
+  if(container.children.length === 0){
+    container.innerHTML = '<p class="hint">Vul de Gevel-tab verder in voor de tekeningen.</p>';
+  }
+}
+
+document.getElementById('btn-tekening-update').addEventListener('click', ()=>renderTekening());
+
+function exporteerPDF(){
+  SCALE = 10;       // 1m = 10mm op papier = exact 1:100
+  PRINT_MODE = true;
+  renderTekening('print-export-container');
+  SCALE = 20;
+  PRINT_MODE = false;
+  window.print();
+}
+document.getElementById('btn-tekening-pdf').addEventListener('click', exporteerPDF);
+
+
+
+// ---------- TABS ----------
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    const mode = tab.dataset.mode;
+    document.getElementById('panel-vloer').style.display = mode==='vloer' ? 'block' : 'none';
+    document.getElementById('panel-gevelstandaard').style.display = mode==='gevelstandaard' ? 'block' : 'none';
+    document.getElementById('panel-gevel').style.display = mode==='gevel' ? 'block' : 'none';
+    document.getElementById('panel-tekening').style.display = mode==='tekening' ? 'block' : 'none';
+    if(mode==='tekening' && typeof renderTekening==='function') renderTekening();
+  });
+});
+</script>
+</body>
+</html>
