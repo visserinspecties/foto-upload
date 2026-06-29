@@ -23,7 +23,7 @@
     .card label { font-size:13px; font-weight:600; color:#8e8e93; text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:8px; }
     .row { display:flex; gap:10px; }
     .row > div { flex:1; }
-    input[type="text"], input[type="number"] {
+    input[type="text"], input[type="number"], select {
       width:100%; padding:10px 12px; border:1px solid #e5e5ea; border-radius:8px;
       font-size:16px; background:#f9f9f9; color:#1c1c1e;
     }
@@ -45,6 +45,16 @@
     #login-screen p { color:#636366; margin-bottom:32px; font-size:15px; }
     #app-screen { display:none; }
     .hint { font-size:12px; color:#8e8e93; margin-top:6px; font-style:italic; }
+
+    /* Kopieerknopjes bij opdrachtgever-velden */
+    .copy-row { display:flex; gap:8px; align-items:flex-end; }
+    .copy-row > div:first-child { flex:1; }
+    .btn-copy {
+      flex-shrink:0; background:#e5e5ea; color:#1c1c1e; border:none; border-radius:8px;
+      padding:10px 14px; font-size:14px; font-weight:600; cursor:pointer; white-space:nowrap;
+    }
+    .btn-copy:active { opacity:0.7; }
+    .btn-copy.copied { background:#34c759; color:#fff; }
 
     /* Wachtrij-kaart */
     .queue-card { display:flex; justify-content:space-between; align-items:center; }
@@ -112,6 +122,54 @@
 
     <button class="btn btn-secondary" onclick="zoekAdres()">🔍 Adres aanvullen opzoeken</button>
     <p class="hint" style="margin:-4px 0 12px 4px;">Vul in wat je weet en klik op zoeken — ontbrekende velden worden aangevuld.</p>
+
+    <!-- Opdrachtgever -->
+    <div class="card">
+      <label>Aanhef <span style="text-transform:none; font-weight:400;">(optioneel)</span></label>
+      <select id="inp-aanhef">
+        <option value="">— geen —</option>
+        <option value="heer">De heer</option>
+        <option value="mevrouw">Mevrouw</option>
+        <option value="familie">Familie</option>
+      </select>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div>
+          <label>Voornaam <span style="text-transform:none; font-weight:400;">(optioneel)</span></label>
+          <input type="text" id="inp-voornaam" placeholder="Jan">
+        </div>
+        <div>
+          <label>Naam opdrachtgever</label>
+          <input type="text" id="inp-achternaam" placeholder="Jansen">
+        </div>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <button class="btn-copy" id="copy-voornaam" style="flex:1;" onclick="kopieerVeld('inp-voornaam','copy-voornaam')">📋 Voornaam</button>
+        <button class="btn-copy" id="copy-achternaam" style="flex:1;" onclick="kopieerVeld('inp-achternaam','copy-achternaam')">📋 Achternaam</button>
+      </div>
+      <button class="btn-copy" id="copy-volledige-naam" style="width:100%; margin-top:8px;" onclick="kopieerVolledigeNaam()">📋 Volledige naam (met aanhef)</button>
+    </div>
+
+    <div class="card">
+      <label>E-mailadres <span style="text-transform:none; font-weight:400;">(optioneel)</span></label>
+      <div class="copy-row">
+        <div><input type="text" id="inp-email" placeholder="naam@voorbeeld.nl"></div>
+        <button class="btn-copy" id="copy-email" onclick="kopieerVeld('inp-email','copy-email')">📋</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <label>Telefoonnummer <span style="text-transform:none; font-weight:400;">(optioneel)</span></label>
+      <div class="copy-row">
+        <div><input type="text" id="inp-telefoon" placeholder="06 12345678"></div>
+        <button class="btn-copy" id="copy-telefoon" onclick="kopieerVeld('inp-telefoon','copy-telefoon')">📋</button>
+      </div>
+    </div>
+
+    <button class="btn btn-secondary" id="copy-alles" onclick="kopieerAlleGegevens()">📋 Kopieer alle opdrachtgever-gegevens</button>
+    <p class="hint" style="margin:-4px 0 12px 4px;">Handig om in één keer in een agenda-afspraak te plakken.</p>
 
     <!-- Voorbeeld mapnaam -->
     <div class="card">
@@ -376,6 +434,106 @@ async function kopieerBestand(bronPad, doelPad) {
   const putUrl = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(doelPad)}:/content`;
   const putResp = await fetch(putUrl, { method:'PUT', headers:{ Authorization:'Bearer '+token }, body: blob });
   if (!putResp.ok) throw new Error('upload mislukt');
+}
+
+// ── Klembord: losse velden en alles-in-één-keer kopiëren ────
+async function kopieerNaarKlembord(tekst, knopId) {
+  try {
+    await navigator.clipboard.writeText(tekst);
+  } catch(e) {
+    // Fallback voor oudere browsers/Safari zonder Clipboard-API
+    const tmp = document.createElement('textarea');
+    tmp.value = tekst;
+    document.body.appendChild(tmp);
+    tmp.select();
+    document.execCommand('copy');
+    document.body.removeChild(tmp);
+  }
+  if (knopId) {
+    const btn = document.getElementById(knopId);
+    const origineel = btn.textContent;
+    btn.textContent = '✅';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = origineel; btn.classList.remove('copied'); }, 1200);
+  }
+}
+
+function kopieerVeld(veldId, knopId) {
+  const waarde = document.getElementById(veldId).value.trim();
+  if (!waarde) return;
+  kopieerNaarKlembord(waarde, knopId);
+}
+
+function kopieerVolledigeNaam() {
+  const aanhef     = document.getElementById('inp-aanhef').value;
+  const voornaam   = document.getElementById('inp-voornaam').value.trim();
+  const achternaam = document.getElementById('inp-achternaam').value.trim();
+  const naamRegel  = [bepaalAanhefLabel(aanhef), voornaam, achternaam].filter(Boolean).join(' ');
+  if (!naamRegel) return;
+  kopieerNaarKlembord(naamRegel, 'copy-volledige-naam');
+}
+
+function kopieerAlleGegevens() {
+  const aanhef     = document.getElementById('inp-aanhef').value;
+  const voornaam   = document.getElementById('inp-voornaam').value.trim();
+  const achternaam = document.getElementById('inp-achternaam').value.trim();
+  const email      = document.getElementById('inp-email').value.trim();
+  const telefoon   = document.getElementById('inp-telefoon').value.trim();
+  const naamRegel  = [bepaalAanhefLabel(aanhef), voornaam, achternaam].filter(Boolean).join(' ');
+
+  const regels = [];
+  if (naamRegel) regels.push(naamRegel);
+  if (email)     regels.push(email);
+  if (telefoon)  regels.push(telefoon);
+  if (regels.length === 0) return;
+
+  kopieerNaarKlembord(regels.join('\n'), 'copy-alles');
+}
+
+// ── Graph: opdrachtgever-tekstbestand wegschrijven in de hoofdmap ──
+function bepaalAanhefLabel(code) {
+  if (code === 'heer')     return 'De heer';
+  if (code === 'mevrouw')  return 'Mevrouw';
+  if (code === 'familie')  return 'Familie';
+  return '';
+}
+
+async function maakOpdrachtgeverBestand(projectPad, mapnaam) {
+  const aanhef     = document.getElementById('inp-aanhef').value;
+  const voornaam   = document.getElementById('inp-voornaam').value.trim();
+  const achternaam = document.getElementById('inp-achternaam').value.trim();
+  const email      = document.getElementById('inp-email').value.trim();
+  const telefoon   = document.getElementById('inp-telefoon').value.trim();
+
+  // Niets ingevuld? Dan ook geen bestand aanmaken.
+  if (!voornaam && !achternaam && !email && !telefoon) return false;
+
+  const naamRegel = [bepaalAanhefLabel(aanhef), voornaam, achternaam].filter(Boolean).join(' ');
+
+  const inhoud = [
+    'OPDRACHTGEVER',
+    '=============',
+    '',
+    `Naam: ${naamRegel || '-'}`,
+    `E-mailadres: ${email || '-'}`,
+    `Telefoonnummer: ${telefoon || '-'}`,
+    '',
+    `Project: ${mapnaam}`
+  ].join('\r\n');
+
+  // Bestandsnaam = mapnaam + naam opdrachtgever (indien bekend)
+  const bestandBasis = sanitizeMapnaam([mapnaam, naamRegel].filter(Boolean).join(' - '));
+  const bestandNaam  = `${bestandBasis}.txt`;
+
+  const token = await getToken();
+  const putUrl = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(projectPad + '/' + bestandNaam)}:/content`;
+  const resp = await fetch(putUrl, {
+    method: 'PUT',
+    headers: { Authorization: 'Bearer '+token, 'Content-Type': 'text/plain' },
+    body: inhoud
+  });
+  if (!resp.ok) throw new Error('opdrachtgever-bestand mislukt');
+  return true;
 }
 
 // ── Graph: takenlijsten ophalen + taak aanmaken ──────────────
@@ -647,6 +805,14 @@ async function voerProjectmapUit(naam) {
     } catch(e) { overgeslagen++; }
   }
 
+  let opdrachtgeverMelding = '';
+  try {
+    const aangemaakt = await maakOpdrachtgeverBestand(projectPad, naam);
+    if (aangemaakt) opdrachtgeverMelding = ' · opdrachtgever-bestand toegevoegd';
+  } catch(e) {
+    opdrachtgeverMelding = ' · ⚠️ opdrachtgever-bestand mislukt';
+  }
+
   const keuze = await vraagTaakKeuze(naam);
   let taakMelding = '';
   if (keuze === 'ja') {
@@ -670,7 +836,7 @@ async function voerProjectmapUit(naam) {
   const melding = bestondAl
     ? `✅ Map bestond al — aangevuld met submappen/bestanden: "${naam}"`
     : `✅ Projectmap aangemaakt: "${naam}"`;
-  setStatus(`${melding} (${gekopieerd} bestanden gekopieerd${overgeslagen ? ', '+overgeslagen+' niet gevonden' : ''})${taakMelding}`, 'success');
+  setStatus(`${melding} (${gekopieerd} bestanden gekopieerd${overgeslagen ? ', '+overgeslagen+' niet gevonden' : ''})${opdrachtgeverMelding}${taakMelding}`, 'success');
 }
 
 // ── Wachtrij verwerken (zodra er weer internet is) ───────────
