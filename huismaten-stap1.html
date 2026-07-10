@@ -242,6 +242,13 @@
 
   <div id="gs-zijvragen"></div>
 
+  <div style="font-weight:600;margin:18px 0 4px;">Uitbouwen</div>
+  <p class="hint" style="margin-top:-2px;">Breedte = in lijn met de gevel waar de uitbouw aan grenst. Diepte = loodrecht op die gevel (hoe ver hij uitsteekt). Bouwlagen = hoeveel verdiepingen van het hoofdgebouw de uitbouw beslaat (telt mee voor het woonoppervlak).</p>
+  <div id="uitbouwen-container"></div>
+  <div class="btn-row" style="margin:8px 0 14px;">
+    <button class="btn-secondary" id="btn-toevoegen-uitbouw">+ Uitbouw toevoegen</button>
+  </div>
+
   <div id="gs-resultaten"></div>
 </div>
 
@@ -308,6 +315,8 @@
     </div>
   </div>
   <div id="dakverdieping-output" class="hint">Stel eerst een zadeldak in op de Gevel-tab (beukmaat, diepte, gevelhoogte, hellingshoek).</div>
+
+  <div id="uitbouwen-vloer-output"></div>
 
   <div class="result" id="totaal-woonoppervlak-wrap" style="margin-top:16px;background:var(--ink);color:white;">
     <span>Totaal woonoppervlakte</span>
@@ -952,7 +961,9 @@ function renderDakverdiepingEnTotaal(){
   if(bg) total += bg;
   total += alleVerdiepingenOppervlakte();
   if(dakverdiepingOpp) total += dakverdiepingOpp;
+  if(typeof totaalUitbouwVloeroppervlak === 'function') total += totaalUitbouwVloeroppervlak();
   document.getElementById('totaal-woonoppervlak').textContent = total>0 ? total.toFixed(2) : '—';
+  if(typeof renderUitbouwVloerOverzicht === 'function') renderUitbouwVloerOverzicht();
 }
 
 vl.addEventListener('input', ()=>{
@@ -967,6 +978,227 @@ vb.addEventListener('input', ()=>{
 });
 vh.addEventListener('input', ()=>{ updateAutoGevelhoogte(); renderDakverdiepingEnTotaal(); });
 document.getElementById('gs-vloeroffset').addEventListener('input', ()=>{ updateAutoGevelhoogte(); renderDakverdiepingEnTotaal(); });
+
+// ---------- UITBOUWEN ----------
+const uitbouwenContainer = document.getElementById('uitbouwen-container');
+const btnToevoegenUitbouw = document.getElementById('btn-toevoegen-uitbouw');
+let uitbouwen = []; // {id, naam, hoogteTouched, hellingshoekTouched}
+let volgendUitbouwId = 1;
+
+const GEVEL_LABELS = {VG:'voorgevel', AG:'achtergevel', LG:'linkergevel', RG:'rechtergevel'};
+function kantNaarGevel(kant){ return kant === 'links' ? 'LG' : 'RG'; }
+
+// hoogte van hoofdgebouw-verdieping met index 0 = begane grond, 1 = eerste extra verdieping, enz.
+function verdiepingHoogte(index){
+  if(index === 0) return parseFloat(vh.value) || 0;
+  const v = extraVerdiepingen[index-1];
+  if(!v) return 0;
+  return parseFloat(document.getElementById('ev-hoogte-'+v.id)?.value) || 0;
+}
+function autoHoogteUitbouw(lagen){
+  let h = 0;
+  for(let i=0;i<lagen;i++) h += verdiepingHoogte(i);
+  return h;
+}
+
+function renumberUitbouwen(){
+  const tellers = {VG:0, AG:0, LG:0, RG:0};
+  uitbouwen.forEach(u=>{
+    const gevel = document.getElementById('ub-gevel-'+u.id)?.value || 'VG';
+    tellers[gevel] = (tellers[gevel]||0) + 1;
+    u.naam = `Uitbouw ${gevel}-${tellers[gevel]}`;
+    const titelEl = document.getElementById('ub-titel-'+u.id);
+    if(titelEl) titelEl.textContent = u.naam;
+  });
+}
+
+// Berekent alle afgeleide maten/oppervlaktes van 1 uitbouw. Zadeldak-aanname:
+// nok loodrecht op de gevel -> driehoek op de vrijstaande voorzijde van de uitbouw,
+// wangen (zijkanten) blijven rechthoekig.
+function berekenUitbouwData(u){
+  const breedte = parseFloat(document.getElementById('ub-breedte-'+u.id)?.value);
+  const diepte = parseFloat(document.getElementById('ub-diepte-'+u.id)?.value);
+  const hoogte = parseFloat(document.getElementById('ub-hoogte-'+u.id)?.value);
+  const lagen = parseInt(document.getElementById('ub-lagen-'+u.id)?.value) || 1;
+  const gevel = document.getElementById('ub-gevel-'+u.id)?.value || 'VG';
+  const daktype = document.getElementById('ub-daktype-'+u.id)?.value || 'plat';
+
+  if(isNaN(breedte) || isNaN(diepte) || isNaN(hoogte) || breedte<=0 || diepte<=0 || hoogte<=0){
+    return {id:u.id, naam:u.naam, gevel, breedte, diepte, hoogte, lagen, daktype, geldig:false};
+  }
+
+  const hellingshoek = parseFloat(document.getElementById('ub-hellingshoek-'+u.id)?.value) || DAK_DEFAULT_HOEK;
+  let front, dakRows, driehoekHoogte = 0;
+  if(daktype === 'zadel'){
+    driehoekHoogte = (breedte/2) * Math.tan(deg2rad(hellingshoek));
+    front = breedte*hoogte + 0.5*breedte*driehoekHoogte;
+    const schuineZijde = (breedte/2) / Math.cos(deg2rad(hellingshoek));
+    const dakvlakOpp = diepte*schuineZijde;
+    dakRows = [
+      {label:'dakvlak 1', opp:dakvlakOpp},
+      {label:'dakvlak 2', opp:dakvlakOpp}
+    ];
+  } else {
+    front = breedte*hoogte;
+    dakRows = [{label:'plat dak', opp: breedte*diepte}];
+  }
+  const zijkant = diepte*hoogte;
+  const vloerOpp = breedte*diepte*lagen;
+  const gevelTotaal = front + 2*zijkant + dakRows.reduce((s,r)=>s+r.opp,0);
+
+  return {
+    id:u.id, naam:u.naam, gevel, breedte, diepte, hoogte, lagen, daktype, hellingshoek,
+    driehoekHoogte, front, zijkant, dakRows, vloerOpp, gevelTotaal, geldig:true
+  };
+}
+
+function alleUitbouwData(){ return uitbouwen.map(berekenUitbouwData); }
+function uitbouwenOpGevel(gevelCode){ return alleUitbouwData().filter(d=>d.gevel===gevelCode && d.geldig); }
+function blokkageOpGevel(gevelCode, mainHoogte){
+  return uitbouwenOpGevel(gevelCode).reduce((sum,d)=> sum + d.breedte*Math.min(d.hoogte, mainHoogte), 0);
+}
+function totaalUitbouwVloeroppervlak(){
+  return alleUitbouwData().reduce((sum,d)=> sum + (d.geldig ? d.vloerOpp : 0), 0);
+}
+
+function updateUitbouwUitkomst(u){
+  const d = berekenUitbouwData(u);
+  const elGevel = document.getElementById('ub-uitkomst-'+u.id);
+  const elVloer = document.getElementById('ub-vloer-uitkomst-'+u.id);
+  if(elGevel) elGevel.textContent = d.geldig ? d.gevelTotaal.toFixed(2) : '—';
+  if(elVloer) elVloer.textContent = d.geldig ? d.vloerOpp.toFixed(2) : '—';
+}
+
+function renderUitbouwVloerOverzicht(){
+  const out = document.getElementById('uitbouwen-vloer-output');
+  if(!out) return;
+  const data = alleUitbouwData().filter(d=>d.geldig);
+  if(data.length === 0){ out.innerHTML=''; return; }
+  let html = '<div class="lines-list" style="max-height:none;margin-top:10px;">';
+  data.forEach(d=>{
+    html += `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;border-bottom:1px solid #eee;">
+      <span style="font-size:0.85rem;color:#6b6555;">${d.naam} (${d.breedte.toFixed(2)}×${d.diepte.toFixed(2)}m, ${d.lagen} bouwlaag/lagen)</span>
+      <span style="font-size:1rem;font-weight:700;font-family:var(--mono);">${d.vloerOpp.toFixed(2)} m²</span>
+    </div>`;
+  });
+  html += '</div>';
+  out.innerHTML = html;
+}
+
+function onUitbouwWijziging(){
+  uitbouwen.forEach(updateUitbouwUitkomst);
+  renderDakverdiepingEnTotaal();
+  if(typeof renderResultaten === 'function') renderResultaten();
+}
+
+function voegUitbouwToe(){
+  const id = volgendUitbouwId++;
+  const u = {id, hoogteTouched:false, hellingshoekTouched:false, naam:'Uitbouw'};
+  uitbouwen.push(u);
+
+  const blok = document.createElement('div');
+  blok.className = 'panel';
+  blok.id = 'ub-blok-'+id;
+  blok.style.background = '#fbfaf6';
+  blok.style.marginTop = '10px';
+  blok.innerHTML = `
+    <div class="btn-row" style="justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <div style="font-weight:600;" id="ub-titel-${id}">Uitbouw</div>
+      <button class="btn-secondary" data-ubid="${id}" style="padding:4px 10px;font-size:0.78rem;">− verwijderen</button>
+    </div>
+    <div class="row">
+      <div class="field" style="flex:0 0 140px;">
+        <label>Gevel</label>
+        <select id="ub-gevel-${id}">
+          <option value="VG">VG — voorgevel</option>
+          <option value="AG">AG — achtergevel</option>
+          <option value="LG">LG — linkergevel</option>
+          <option value="RG">RG — rechtergevel</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Breedte (m)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="ub-breedte-${id}" step="0.01" placeholder="bv. 3.00">
+      </div>
+      <div class="field">
+        <label>Diepte (m)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="ub-diepte-${id}" step="0.01" placeholder="bv. 2.50">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field" style="flex:0 0 130px;">
+        <label>Bouwlagen</label>
+        <select id="ub-lagen-${id}">
+          <option value="1">1 laag</option>
+          <option value="2">2 lagen</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Hoogte (m) — auto (overschrijfbaar)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="ub-hoogte-${id}" step="0.01">
+      </div>
+      <div class="field" style="flex:0 0 140px;">
+        <label>Dak uitbouw</label>
+        <select id="ub-daktype-${id}">
+          <option value="plat">Plat dak</option>
+          <option value="zadel">Zadeldak</option>
+        </select>
+      </div>
+    </div>
+    <div class="row" id="ub-zadelrow-${id}" style="display:none;">
+      <div class="field">
+        <label>Hellingshoek uitbouwdak (°)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="ub-hellingshoek-${id}" step="0.1" placeholder="bv. 30">
+      </div>
+    </div>
+    <p class="hint" id="ub-zadelhint-${id}" style="display:none;">Zadeldak-uitbouw: nok loodrecht op de gevel — driehoek op de vrijstaande voorzijde van de uitbouw.</p>
+    <div class="result" style="font-size:1.1rem;margin-top:6px;">
+      <span>Gevels uitbouw</span>
+      <span><span id="ub-uitkomst-${id}">—</span> <span class="unit">m²</span></span>
+    </div>
+    <div class="result" style="font-size:1.1rem;background:var(--accent-soft);">
+      <span>Vloeroppervlak (bij woonoppervlakte)</span>
+      <span><span id="ub-vloer-uitkomst-${id}">—</span> <span class="unit">m²</span></span>
+    </div>
+  `;
+  uitbouwenContainer.appendChild(blok);
+
+  blok.querySelector('button[data-ubid]').addEventListener('click', ()=>verwijderUitbouw(id));
+  document.getElementById('ub-gevel-'+id).addEventListener('change', ()=>{ renumberUitbouwen(); onUitbouwWijziging(); });
+  document.getElementById('ub-breedte-'+id).addEventListener('input', onUitbouwWijziging);
+  document.getElementById('ub-diepte-'+id).addEventListener('input', onUitbouwWijziging);
+  document.getElementById('ub-lagen-'+id).addEventListener('change', ()=>{
+    if(!u.hoogteTouched){
+      document.getElementById('ub-hoogte-'+id).value = autoHoogteUitbouw(parseInt(document.getElementById('ub-lagen-'+id).value)).toFixed(2);
+    }
+    onUitbouwWijziging();
+  });
+  document.getElementById('ub-hoogte-'+id).addEventListener('input', ()=>{ u.hoogteTouched = true; onUitbouwWijziging(); });
+  document.getElementById('ub-daktype-'+id).addEventListener('change', ()=>{
+    const isZadel = document.getElementById('ub-daktype-'+id).value === 'zadel';
+    document.getElementById('ub-zadelrow-'+id).style.display = isZadel ? 'flex' : 'none';
+    document.getElementById('ub-zadelhint-'+id).style.display = isZadel ? 'block' : 'none';
+    onUitbouwWijziging();
+  });
+  document.getElementById('ub-hellingshoek-'+id).addEventListener('input', ()=>{ u.hellingshoekTouched = true; onUitbouwWijziging(); });
+
+  document.getElementById('ub-hoogte-'+id).value = autoHoogteUitbouw(1).toFixed(2);
+
+  renumberUitbouwen();
+  updateUitbouwUitkomst(u);
+  onUitbouwWijziging();
+}
+
+function verwijderUitbouw(id){
+  const idx = uitbouwen.findIndex(u=>u.id===id);
+  if(idx===-1) return;
+  uitbouwen.splice(idx,1);
+  document.getElementById('ub-blok-'+id).remove();
+  renumberUitbouwen();
+  onUitbouwWijziging();
+}
+
+btnToevoegenUitbouw.addEventListener('click', voegUitbouwToe);
 
 // ---------- GEVEL STANDAARD ----------
 const gsType = document.getElementById('gs-type');
@@ -1148,8 +1380,8 @@ function renderResultaten(){
   function zijLabel(kant){ return kant === 'links' ? 'Linker gevel' : 'Rechter gevel'; }
 
   let rows = [
-    {label: gevelLabel(`Voorgevel (beukmaat ${beuk.toFixed(2)}m${correctie>0 ? ' + '+(correctie*100).toFixed(0)+'cm' : ''})`, voorAchterRect, driehoekVoorAchter), opp: voorAchterOpp},
-    {label: gevelLabel(`Achtergevel (zelfde berekening)`, voorAchterRect, driehoekVoorAchter), opp: voorAchterOpp}
+    {label: gevelLabel(`Voorgevel (beukmaat ${beuk.toFixed(2)}m${correctie>0 ? ' + '+(correctie*100).toFixed(0)+'cm' : ''})`, voorAchterRect, driehoekVoorAchter), opp: voorAchterOpp, gevelKey:'VG'},
+    {label: gevelLabel(`Achtergevel (zelfde berekening)`, voorAchterRect, driehoekVoorAchter), opp: voorAchterOpp, gevelKey:'AG'}
   ];
 
   // zijgevels
@@ -1158,33 +1390,42 @@ function renderResultaten(){
              : ['links','rechts'];
 
   if(type === 'vrijstaand'){
-    rows.push({label: gevelLabel('Linker gevel (vol, geen buurwoning)', diepte*hoogte, driehoekZij), opp: diepte*hoogte+driehoekZij});
-    rows.push({label: gevelLabel('Rechter gevel (vol, geen buurwoning)', diepte*hoogte, driehoekZij), opp: diepte*hoogte+driehoekZij});
+    rows.push({label: gevelLabel('Linker gevel (vol, geen buurwoning)', diepte*hoogte, driehoekZij), opp: diepte*hoogte+driehoekZij, gevelKey:'LG'});
+    rows.push({label: gevelLabel('Rechter gevel (vol, geen buurwoning)', diepte*hoogte, driehoekZij), opp: diepte*hoogte+driehoekZij, gevelKey:'RG'});
   } else if(type === 'halfvrijstaand'){
     const buurzijde = document.getElementById('gs-buurzijde')?.value || 'links';
     const vrijeZijde = buurzijde === 'links' ? 'rechts' : 'links';
-    rows.push({label: gevelLabel(`${zijLabel(vrijeZijde)} (vol, geen buurwoning)`, diepte*hoogte, driehoekZij), opp: diepte*hoogte+driehoekZij});
+    rows.push({label: gevelLabel(`${zijLabel(vrijeZijde)} (vol, geen buurwoning)`, diepte*hoogte, driehoekZij), opp: diepte*hoogte+driehoekZij, gevelKey:kantNaarGevel(vrijeZijde)});
 
     const st = zijState[buurzijde];
     if(st.volledig){
-      rows.push({label:`${zijLabel(buurzijde)} (volledig scheidingsmuur — telt niet mee)${driehoekZij>0 ? ' — driehoek bij scheidingsmuur nog niet verrekend' : ''}`, opp: 0});
+      rows.push({label:`${zijLabel(buurzijde)} (volledig scheidingsmuur — telt niet mee)${driehoekZij>0 ? ' — driehoek bij scheidingsmuur nog niet verrekend' : ''}`, opp: 0, gevelKey:kantNaarGevel(buurzijde)});
     } else if(st.breedte && st.hoogte){
-      rows.push({label:`${zijLabel(buurzijde)} (blootgesteld deel)${driehoekZij>0 ? ' — driehoek bij scheidingsmuur nog niet verrekend' : ''}`, opp: st.breedte*st.hoogte});
+      rows.push({label:`${zijLabel(buurzijde)} (blootgesteld deel)${driehoekZij>0 ? ' — driehoek bij scheidingsmuur nog niet verrekend' : ''}`, opp: st.breedte*st.hoogte, gevelKey:kantNaarGevel(buurzijde)});
     } else {
-      rows.push({label:`${zijLabel(buurzijde)} (maten blootgesteld deel nog invullen)`, opp: null});
+      rows.push({label:`${zijLabel(buurzijde)} (maten blootgesteld deel nog invullen)`, opp: null, gevelKey:kantNaarGevel(buurzijde)});
     }
   } else if(type === 'tussenwoning'){
     ['links','rechts'].forEach(kant=>{
       const st = zijState[kant];
       if(st.volledig){
-        rows.push({label:`${zijLabel(kant)} (volledig scheidingsmuur — telt niet mee)${driehoekZij>0 ? ' — driehoek bij scheidingsmuur nog niet verrekend' : ''}`, opp: 0});
+        rows.push({label:`${zijLabel(kant)} (volledig scheidingsmuur — telt niet mee)${driehoekZij>0 ? ' — driehoek bij scheidingsmuur nog niet verrekend' : ''}`, opp: 0, gevelKey:kantNaarGevel(kant)});
       } else if(st.breedte && st.hoogte){
-        rows.push({label:`${zijLabel(kant)} (blootgesteld deel)${driehoekZij>0 ? ' — driehoek bij scheidingsmuur nog niet verrekend' : ''}`, opp: st.breedte*st.hoogte});
+        rows.push({label:`${zijLabel(kant)} (blootgesteld deel)${driehoekZij>0 ? ' — driehoek bij scheidingsmuur nog niet verrekend' : ''}`, opp: st.breedte*st.hoogte, gevelKey:kantNaarGevel(kant)});
       } else {
-        rows.push({label:`${zijLabel(kant)} (maten blootgesteld deel nog invullen)`, opp: null});
+        rows.push({label:`${zijLabel(kant)} (maten blootgesteld deel nog invullen)`, opp: null, gevelKey:kantNaarGevel(kant)});
       }
     });
   }
+
+  // uitbouw-blokkage aftrekken van de gevel waar de uitbouw aan grenst
+  rows = rows.map(r=>{
+    if(!r.gevelKey || r.opp===null || r.opp<=0) return r;
+    const blocked = blokkageOpGevel(r.gevelKey, hoogte);
+    if(blocked<=0) return r;
+    const afgetrokken = Math.min(blocked, r.opp);
+    return {label: r.label + ` − uitbouw ${afgetrokken.toFixed(2)} m²`, opp: Math.max(r.opp-blocked,0)};
+  });
 
   // dakvlakken
   let dakvlakRows = [];
@@ -1210,6 +1451,18 @@ function renderResultaten(){
     dakvlakRows.push({label: `Nokhoogte (vanaf onderkant gevel)`, opp: nokhoogte, eenheid: 'm'});
   }
   rows = rows.concat(dakvlakRows);
+
+  let uitbouwRows = [];
+  alleUitbouwData().forEach(d=>{
+    if(!d.geldig) return;
+    uitbouwRows.push({label:`${d.naam} — voorzijde (${GEVEL_LABELS[d.gevel]})`, opp: d.front});
+    uitbouwRows.push({label:`${d.naam} — linkerwang`, opp: d.zijkant});
+    uitbouwRows.push({label:`${d.naam} — rechterwang`, opp: d.zijkant});
+    d.dakRows.forEach(dr=>{
+      uitbouwRows.push({label:`${d.naam} — ${dr.label}`, opp: dr.opp});
+    });
+  });
+  rows = rows.concat(uitbouwRows);
 
   let html = '<div class="lines-list" style="max-height:none;">';
   rows.forEach(r=>{
@@ -1448,13 +1701,48 @@ function tekeningBlok(titel){
 }
 
 // Generieke rechthoekige plattegrond (begane grond / verdieping 1)
-function tekenPlattegrondVerdieping(titel, breedte, diepte, hatchLinks, hatchRechts){
+// Tekent de rechthoekige protrusie(s) van uitbouwen op een plattegrond. uitbouwLijst = array van
+// berekenUitbouwData()-objecten die op DEZE verdieping actief zijn. VG=boven, AG=onder, LG=links, RG=rechts.
+// Meerdere uitbouwen aan dezelfde gevel worden naast elkaar gezet (volgorde van toevoegen), met een klein
+// tekenkloofje ertussen (puur visueel, telt niet mee in de oppervlaktes).
+function tekenUitbouwProtrusiesPlattegrond(svg, x0, y0, w, h, uitbouwLijst){
+  const gap = 0.15*SCALE;
+  ['VG','AG','LG','RG'].forEach(gevelCode=>{
+    const lijst = uitbouwLijst.filter(u=>u.gevel===gevelCode);
+    if(lijst.length===0) return;
+    let cursor = 0;
+    lijst.forEach(u=>{
+      const bPx = u.breedte*SCALE, dPx = u.diepte*SCALE;
+      let rx, ry, rw, rh;
+      if(gevelCode==='VG'){ rx=x0+cursor; ry=y0-dPx; rw=bPx; rh=dPx; }
+      if(gevelCode==='AG'){ rx=x0+cursor; ry=y0+h;    rw=bPx; rh=dPx; }
+      if(gevelCode==='LG'){ rx=x0-dPx;    ry=y0+cursor; rw=dPx; rh=bPx; }
+      if(gevelCode==='RG'){ rx=x0+w;      ry=y0+cursor; rw=dPx; rh=bPx; }
+      svg.appendChild(svgEl('rect', {x:rx,y:ry,width:rw,height:rh,fill:'white',stroke:'black','stroke-width':1.25}));
+      const txt = svgEl('text', {x:rx+rw/2,y:ry+rh/2,'text-anchor':'middle','font-size':6.5,fill:'black'});
+      txt.textContent = u.naam;
+      svg.appendChild(txt);
+      cursor += bPx + gap;
+    });
+  });
+}
+
+function tekenPlattegrondVerdieping(titel, breedte, diepte, hatchLinks, hatchRechts, uitbouwLijst){
   if(isNaN(breedte) || isNaN(diepte) || breedte<=0 || diepte<=0) return null;
+  uitbouwLijst = uitbouwLijst || [];
   const {wrap, canvasWrap} = tekeningBlok(titel);
   const w = breedte*SCALE, h = diepte*SCALE;
-  const viewW = w + 2*TK_MARGIN, viewH = h + 2*TK_MARGIN + (PRINT_MODE?10:20);
+
+  const dieptePer = code => uitbouwLijst.filter(u=>u.gevel===code).reduce((m,u)=>Math.max(m,u.diepte),0);
+  const extraBoven = dieptePer('VG'), extraOnder = dieptePer('AG'), extraLinks = dieptePer('LG'), extraRechts = dieptePer('RG');
+  const marginTop    = TK_MARGIN + extraBoven*SCALE   + (extraBoven>0   ? 12 : 0);
+  const marginBottom = TK_MARGIN + extraOnder*SCALE   + (extraOnder>0  ? 12 : 0) + (PRINT_MODE?10:20);
+  const marginLeft   = TK_MARGIN + extraLinks*SCALE   + (extraLinks>0  ? 12 : 0);
+  const marginRight  = TK_MARGIN + extraRechts*SCALE  + (extraRechts>0 ? 12 : 0);
+
+  const viewW = w + marginLeft + marginRight, viewH = h + marginTop + marginBottom;
   const svg = nieuweSvg(viewW, viewH);
-  const x0 = TK_MARGIN, y0 = TK_MARGIN;
+  const x0 = marginLeft, y0 = marginTop;
 
   svg.appendChild(svgEl('rect', {x:x0,y:y0,width:w,height:h,fill:'white',stroke:'black','stroke-width':1.5}));
 
@@ -1474,19 +1762,22 @@ function tekenPlattegrondVerdieping(titel, breedte, diepte, hatchLinks, hatchRec
     }
   }
 
+  tekenUitbouwProtrusiesPlattegrond(svg, x0, y0, w, h, uitbouwLijst);
+
   const opp = breedte*diepte;
   svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h/2-2,'text-anchor':'middle','font-size':10,fill:'black'}));
   svg.lastChild.textContent = `${opp.toFixed(2)} m²`;
 
   // breedte (boven, horizontaal)
-  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0-7,'text-anchor':'middle','font-size':8,fill:'black'}));
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0-7-(extraBoven>0?extraBoven*SCALE+12:0),'text-anchor':'middle','font-size':8,fill:'black'}));
   svg.lastChild.textContent = `breedte ${breedte.toFixed(2)} m`;
   // diepte (links, geroteerd zodat het label leesbaar naast de gevel staat)
-  const diepteLabel = svgEl('text', {x:x0-7,y:y0+h/2,'text-anchor':'middle','font-size':8,fill:'black',transform:`rotate(-90 ${x0-7} ${y0+h/2})`});
+  const diepteLabelX = x0-7-(extraLinks>0?extraLinks*SCALE+12:0);
+  const diepteLabel = svgEl('text', {x:diepteLabelX,y:y0+h/2,'text-anchor':'middle','font-size':8,fill:'black',transform:`rotate(-90 ${diepteLabelX} ${y0+h/2})`});
   diepteLabel.textContent = `diepte ${diepte.toFixed(2)} m`;
   svg.appendChild(diepteLabel);
   // voorgevel (onder, klein)
-  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h+13,'text-anchor':'middle','font-size':8,fill:'black'}));
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h+13+(extraOnder>0?extraOnder*SCALE+12:0),'text-anchor':'middle','font-size':8,fill:'black'}));
   svg.lastChild.textContent = '↑ voorgevel';
 
   canvasWrap.appendChild(svg);
@@ -1551,8 +1842,31 @@ function tekenPlattegrondDakverdieping(m){
 
 // Gevelaanzicht (voor- of zijgevel). heeftDriehoek = true tekent een driehoek erop (zadeldak-kant),
 // anders een gewone rechthoek (zoals bij een ware 2D-projectie van de andere as).
-function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellingshoek, dakvlakInfo){
+// Tekent de uitbouw-silhouetten aan de voet van een gevelaanzicht (naast elkaar, in volgorde van toevoegen).
+function tekenUitbouwSilhouetten(svg, x0, yBase, uitbouwLijst){
+  const gap = 0.15*SCALE;
+  let cursor = 0;
+  uitbouwLijst.forEach(u=>{
+    const bPx = u.breedte*SCALE, hPx = u.hoogte*SCALE;
+    const rx = x0+cursor, ry = yBase-hPx;
+    svg.appendChild(svgEl('rect', {x:rx,y:ry,width:bPx,height:hPx,fill:'white',stroke:'black','stroke-width':1.1}));
+    let labelY = ry-4;
+    if(u.daktype==='zadel' && u.driehoekHoogte>0){
+      const triHPx = u.driehoekHoogte*SCALE;
+      svg.appendChild(svgEl('polygon', {points:`${rx},${ry} ${rx+bPx/2},${ry-triHPx} ${rx+bPx},${ry}`, fill:'white', stroke:'black','stroke-width':1.1}));
+      labelY = ry-triHPx-4;
+    }
+    const lbl = svgEl('text', {x:rx+bPx/2,y:labelY,'text-anchor':'middle','font-size':6.5,fill:'black'});
+    lbl.textContent = u.naam;
+    svg.appendChild(lbl);
+    cursor += bPx + gap;
+  });
+}
+
+function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellingshoek, dakvlakInfo, blokkage, uitbouwLijst){
   if(isNaN(breedte) || isNaN(gevelhoogte) || breedte<=0) return null;
+  blokkage = blokkage || 0;
+  uitbouwLijst = uitbouwLijst || [];
   const {wrap, canvasWrap} = tekeningBlok(titel);
 
   let driehoekHoogte = 0;
@@ -1580,12 +1894,14 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
     svg.appendChild(svgEl('rect', {x:x0,y:yEave-hStippel,width:w,height:hStippel,fill:'none',stroke:'black','stroke-width':1,'stroke-dasharray':'5,3'}));
   }
 
-  const oppRect = breedte*gevelhoogte;
+  if(uitbouwLijst.length>0) tekenUitbouwSilhouetten(svg, x0, yBase, uitbouwLijst);
+
+  const oppRectNetto = Math.max(breedte*gevelhoogte - blokkage, 0);
   const oppDriehoek = heeftDriehoek ? 0.5*breedte*driehoekHoogte : 0;
-  const oppTotaal = oppRect + oppDriehoek;
+  const oppTotaal = oppRectNetto + oppDriehoek;
 
   svg.appendChild(svgEl('text', {x:x0+w/2,y:(yEave+yBase)/2,'text-anchor':'middle','font-size':10,fill:'black'}));
-  svg.lastChild.textContent = `${oppTotaal.toFixed(2)} m²`;
+  svg.lastChild.textContent = blokkage>0 ? `${oppTotaal.toFixed(2)} m² (− uitbouw)` : `${oppTotaal.toFixed(2)} m²`;
 
   // breedte (onder, met label)
   svg.appendChild(svgEl('text', {x:x0+w/2,y:yBase+12,'text-anchor':'middle','font-size':8,fill:'black'}));
@@ -1628,14 +1944,17 @@ function renderTekening(targetContainerId){
   if(m.type==='halfvrijstaand'){ hatchL = buurzijdeHV==='links'; hatchR = buurzijdeHV==='rechts'; }
   if(m.type==='tussenwoning'){ hatchL = true; hatchR = true; }
 
-  const blokBG = tekenPlattegrondVerdieping('Begane grond (plattegrond)', m.beuk, m.diepte, hatchL, hatchR);
+  const uitbouwLijstAlle = alleUitbouwData().filter(d=>d.geldig);
+
+  const blokBG = tekenPlattegrondVerdieping('Begane grond (plattegrond)', m.beuk, m.diepte, hatchL, hatchR, uitbouwLijstAlle.filter(d=>d.lagen>0));
   if(blokBG) container.appendChild(blokBG);
 
   // Extra verdiepingen (allemaal, in volgorde)
   extraVerdiepingen.forEach((v,i)=>{
     const breedte = parseFloat(document.getElementById('ev-breedte-'+v.id)?.value);
     const diepte = parseFloat(document.getElementById('ev-diepte-'+v.id)?.value);
-    const blokV = tekenPlattegrondVerdieping(`Verdieping ${i+1} (plattegrond)`, breedte, diepte, hatchL, hatchR);
+    const vloerIndex = i+1;
+    const blokV = tekenPlattegrondVerdieping(`Verdieping ${i+1} (plattegrond)`, breedte, diepte, hatchL, hatchR, uitbouwLijstAlle.filter(d=>d.lagen>vloerIndex));
     if(blokV) container.appendChild(blokV);
   });
 
@@ -1663,11 +1982,22 @@ function renderTekening(targetContainerId){
     else dakvlakInfoVoor = info;
   }
 
-  const blokVoor = tekenGevelaanzicht('Voorgevel (aanzicht)', m.voorAchterBreedte, m.hoogte, driehoekOpVoor, m.hellingshoek, dakvlakInfoVoor);
+  const blokkageVG = blokkageOpGevel('VG', m.hoogte);
+  const blokkageAG = blokkageOpGevel('AG', m.hoogte);
+  const blokkageLG = blokkageOpGevel('LG', m.hoogte);
+  const blokkageRG = blokkageOpGevel('RG', m.hoogte);
+
+  const blokVoor = tekenGevelaanzicht('Voorgevel (aanzicht)', m.voorAchterBreedte, m.hoogte, driehoekOpVoor, m.hellingshoek, dakvlakInfoVoor, blokkageVG, uitbouwLijstAlle.filter(d=>d.gevel==='VG'));
   if(blokVoor) container.appendChild(blokVoor);
 
-  const blokZij = tekenGevelaanzicht('Zijgevel (aanzicht)', m.diepte, m.hoogte, driehoekOpZij, m.hellingshoek, dakvlakInfoZij);
-  if(blokZij) container.appendChild(blokZij);
+  const blokAchter = tekenGevelaanzicht('Achtergevel (aanzicht)', m.voorAchterBreedte, m.hoogte, driehoekOpVoor, m.hellingshoek, dakvlakInfoVoor, blokkageAG, uitbouwLijstAlle.filter(d=>d.gevel==='AG'));
+  if(blokAchter) container.appendChild(blokAchter);
+
+  const blokLinks = tekenGevelaanzicht('Linkergevel (aanzicht)', m.diepte, m.hoogte, driehoekOpZij, m.hellingshoek, dakvlakInfoZij, blokkageLG, uitbouwLijstAlle.filter(d=>d.gevel==='LG'));
+  if(blokLinks) container.appendChild(blokLinks);
+
+  const blokRechts = tekenGevelaanzicht('Rechtergevel (aanzicht)', m.diepte, m.hoogte, driehoekOpZij, m.hellingshoek, dakvlakInfoZij, blokkageRG, uitbouwLijstAlle.filter(d=>d.gevel==='RG'));
+  if(blokRechts) container.appendChild(blokRechts);
 
   if(container.children.length === 0){
     container.innerHTML = '<p class="hint">Vul de Gevel-tab verder in voor de tekeningen.</p>';
@@ -1716,7 +2046,18 @@ function samenvattingRegelsVerzamelen(){
     const dakLabel = document.getElementById('dakverdieping-nummer-label').textContent;
     regels.push({label:dakLabel+' (dakverdieping)', waarde: dakSpans[dakSpans.length-1].textContent});
   }
+  alleUitbouwData().filter(d=>d.geldig).forEach(d=>{
+    regels.push({label:d.naam+' (vloeroppervlak)', waarde: d.vloerOpp.toFixed(2)+' m²'});
+  });
   regels.push({label:'Totaal woonoppervlakte', waarde: (document.getElementById('totaal-woonoppervlak').textContent||'—') + ' m²'});
+
+  const uitbouwDataVoorPdf = alleUitbouwData().filter(d=>d.geldig);
+  if(uitbouwDataVoorPdf.length>0){
+    regels.push({kop:'Uitbouwen — invoer'});
+    uitbouwDataVoorPdf.forEach(d=>{
+      regels.push({label:d.naam, waarde:`${GEVEL_LABELS[d.gevel]}, ${d.breedte.toFixed(2)}×${d.diepte.toFixed(2)}×${d.hoogte.toFixed(2)}m, ${d.lagen} laag/lagen, ${d.daktype==='zadel' ? 'zadeldak '+d.hellingshoek+'°' : 'plat dak'}`});
+    });
+  }
 
   regels.push({kop:'Gevel — invoer'});
   const gsTypeEl = document.getElementById('gs-type');
