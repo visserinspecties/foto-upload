@@ -988,6 +988,41 @@ let volgendUitbouwId = 1;
 const GEVEL_LABELS = {VG:'voorgevel', AG:'achtergevel', LG:'linkergevel', RG:'rechtergevel'};
 function kantNaarGevel(kant){ return kant === 'links' ? 'LG' : 'RG'; }
 
+// Hoek-logica: een uitbouw kan behalve aan zijn hoofdgevel ook aan één aangrenzende gevel grenzen
+// (bv. voorgevel + linkergevel tegelijk, op de hoek van het huis).
+function linksHoekWaarde(gevelCode){ return (gevelCode==='VG'||gevelCode==='AG') ? 'links' : 'voor'; }
+function rechtsHoekWaarde(gevelCode){ return (gevelCode==='VG'||gevelCode==='AG') ? 'rechts' : 'achter'; }
+// Verdeelt een lijst uitbouwen (allemaal dezelfde hoofdgevel) in links-geflagd / geen / rechts-geflagd,
+// voor het positioneren langs die gevel (links-groep + geen-groep vanaf het begin, rechts-groep vanaf het eind terug).
+function verdeelHoekGroepen(lijst, gevelCode){
+  const lw = linksHoekWaarde(gevelCode), rw = rechtsHoekWaarde(gevelCode);
+  return {
+    links: lijst.filter(d=>d.hoek===lw),
+    geen: lijst.filter(d=>d.hoek!==lw && d.hoek!==rw),
+    rechts: lijst.filter(d=>d.hoek===rw)
+  };
+}
+// Plaatst {links,geen,rechts}-items langs een as van totaleLengtePx. breedteVeld = welk veld (in meter)
+// van elk item de stapelbreedte bepaalt. Geeft [{item,pos,bPx}] terug (pos = positie langs de as, in px).
+function positioneerMetHoek(groepen, totaleLengtePx, breedteVeld, gapPx){
+  const resultaat = [];
+  let cursor = 0;
+  [...groepen.links, ...groepen.geen].forEach(item=>{
+    const bPx = item[breedteVeld]*SCALE;
+    resultaat.push({item, pos:cursor, bPx});
+    cursor += bPx + gapPx;
+  });
+  const rechtsBpx = groepen.rechts.map(item=>item[breedteVeld]*SCALE);
+  const totaalRechts = rechtsBpx.reduce((s,b)=>s+b,0) + Math.max(0, groepen.rechts.length-1)*gapPx;
+  let cursorR = totaleLengtePx - totaalRechts;
+  groepen.rechts.forEach((item,i)=>{
+    const bPx = rechtsBpx[i];
+    resultaat.push({item, pos:cursorR, bPx});
+    cursorR += bPx + gapPx;
+  });
+  return resultaat;
+}
+
 // hoogte van hoofdgebouw-verdieping met index 0 = begane grond, 1 = eerste extra verdieping, enz.
 function verdiepingHoogte(index){
   if(index === 0) return parseFloat(vh.value) || 0;
@@ -1643,6 +1678,12 @@ let SCALE = 20; // px (scherm) of mm (print) per meter — bij print exact 1:100
 let PRINT_MODE = false;
 let TK_MARGIN = 45;
 
+// Alle tekst in de tekeningen krijgt dezelfde grootte als de 'normale regels' in de PDF-samenvatting
+// (daar 9pt ≈ 3,18mm). Op scherm (dubbele schaal t.o.v. print, 20 vs 10 px/mm per meter) wordt dit
+// verhoudingsgewijs 2x zo groot in px, zodat het er zowel op scherm als in de PDF consistent uitziet.
+const TEKENING_FONT_MM = 9 * 25.4 / 72;
+function tekstGrootte(){ return PRINT_MODE ? TEKENING_FONT_MM : TEKENING_FONT_MM * 2; }
+
 function huidigeMaten(){
   const type = document.getElementById('gs-type').value;
   const beuk = parseFloat(document.getElementById('gs-beukmaat').value);
@@ -1676,7 +1717,7 @@ function nieuweSvg(viewW, viewH){
   }
   const svg = svgEl('svg', attrs);
   if(!PRINT_MODE){
-    const schaal = svgEl('text', {x:viewW-6, y:viewH-6, 'text-anchor':'end', 'font-size':9, fill:'#555'});
+    const schaal = svgEl('text', {x:viewW-6, y:viewH-6, 'text-anchor':'end', 'font-size':tekstGrootte(), fill:'#555'});
     schaal.textContent = 'schaal 1:100';
     svg.appendChild(schaal);
   }
@@ -1702,27 +1743,35 @@ function tekeningBlok(titel){
 
 // Generieke rechthoekige plattegrond (begane grond / verdieping 1)
 // Tekent de rechthoekige protrusie(s) van uitbouwen op een plattegrond. uitbouwLijst = array van
-// berekenUitbouwData()-objecten die op DEZE verdieping actief zijn. VG=boven, AG=onder, LG=links, RG=rechts.
-// Meerdere uitbouwen aan dezelfde gevel worden naast elkaar gezet (volgorde van toevoegen), met een klein
-// tekenkloofje ertussen (puur visueel, telt niet mee in de oppervlaktes).
+// berekenUitbouwData()-objecten die op DEZE verdieping actief zijn.
+// De plattegrond zet het label "↑ voorgevel" onder de rechthoek -> de ONDERRAND is de voorgevel (VG),
+// dus: VG=onder, AG=boven, LG=links, RG=rechts.
+// Uitbouwen met een hoek-vlag (bv. VG+links) staan vast tegen die hoek; de rest wordt ertussen gestapeld
+// (volgorde van toevoegen), met een klein tekenkloofje ertussen (puur visueel, telt niet mee in de oppervlaktes).
+function protrusieRect(gevelCode, x0, y0, w, h, cursor, bPx, dPx){
+  if(gevelCode==='VG') return {rx:x0+cursor, ry:y0+h,    rw:bPx, rh:dPx};
+  if(gevelCode==='AG') return {rx:x0+cursor, ry:y0-dPx,  rw:bPx, rh:dPx};
+  if(gevelCode==='LG') return {rx:x0-dPx,    ry:y0+cursor, rw:dPx, rh:bPx};
+  return                       {rx:x0+w,     ry:y0+cursor, rw:dPx, rh:bPx};
+}
+function tekenEenProtrusieRect(svg, r, naam){
+  svg.appendChild(svgEl('rect', {x:r.rx,y:r.ry,width:r.rw,height:r.rh,fill:'white',stroke:'black','stroke-width':1.25}));
+  const txt = svgEl('text', {x:r.rx+r.rw/2,y:r.ry+r.rh/2,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'});
+  txt.textContent = naam;
+  svg.appendChild(txt);
+}
 function tekenUitbouwProtrusiesPlattegrond(svg, x0, y0, w, h, uitbouwLijst){
   const gap = 0.15*SCALE;
   ['VG','AG','LG','RG'].forEach(gevelCode=>{
     const lijst = uitbouwLijst.filter(u=>u.gevel===gevelCode);
     if(lijst.length===0) return;
-    let cursor = 0;
-    lijst.forEach(u=>{
-      const bPx = u.breedte*SCALE, dPx = u.diepte*SCALE;
-      let rx, ry, rw, rh;
-      if(gevelCode==='VG'){ rx=x0+cursor; ry=y0-dPx; rw=bPx; rh=dPx; }
-      if(gevelCode==='AG'){ rx=x0+cursor; ry=y0+h;    rw=bPx; rh=dPx; }
-      if(gevelCode==='LG'){ rx=x0-dPx;    ry=y0+cursor; rw=dPx; rh=bPx; }
-      if(gevelCode==='RG'){ rx=x0+w;      ry=y0+cursor; rw=dPx; rh=bPx; }
-      svg.appendChild(svgEl('rect', {x:rx,y:ry,width:rw,height:rh,fill:'white',stroke:'black','stroke-width':1.25}));
-      const txt = svgEl('text', {x:rx+rw/2,y:ry+rh/2,'text-anchor':'middle','font-size':6.5,fill:'black'});
-      txt.textContent = u.naam;
-      svg.appendChild(txt);
-      cursor += bPx + gap;
+    const langsAs = (gevelCode==='VG'||gevelCode==='AG') ? w : h;
+    const groepen = verdeelHoekGroepen(lijst, gevelCode);
+    const geplaatst = positioneerMetHoek(groepen, langsAs, 'breedte', gap);
+    geplaatst.forEach(({item, pos, bPx})=>{
+      const dPx = item.diepte*SCALE;
+      const r = protrusieRect(gevelCode, x0, y0, w, h, pos, bPx, dPx);
+      tekenEenProtrusieRect(svg, r, item.naam);
     });
   });
 }
@@ -1734,7 +1783,7 @@ function tekenPlattegrondVerdieping(titel, breedte, diepte, hatchLinks, hatchRec
   const w = breedte*SCALE, h = diepte*SCALE;
 
   const dieptePer = code => uitbouwLijst.filter(u=>u.gevel===code).reduce((m,u)=>Math.max(m,u.diepte),0);
-  const extraBoven = dieptePer('VG'), extraOnder = dieptePer('AG'), extraLinks = dieptePer('LG'), extraRechts = dieptePer('RG');
+  const extraBoven = dieptePer('AG'), extraOnder = dieptePer('VG'), extraLinks = dieptePer('LG'), extraRechts = dieptePer('RG');
   const marginTop    = TK_MARGIN + extraBoven*SCALE   + (extraBoven>0   ? 12 : 0);
   const marginBottom = TK_MARGIN + extraOnder*SCALE   + (extraOnder>0  ? 12 : 0) + (PRINT_MODE?10:20);
   const marginLeft   = TK_MARGIN + extraLinks*SCALE   + (extraLinks>0  ? 12 : 0);
@@ -1765,19 +1814,19 @@ function tekenPlattegrondVerdieping(titel, breedte, diepte, hatchLinks, hatchRec
   tekenUitbouwProtrusiesPlattegrond(svg, x0, y0, w, h, uitbouwLijst);
 
   const opp = breedte*diepte;
-  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h/2-2,'text-anchor':'middle','font-size':10,fill:'black'}));
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h/2-2,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
   svg.lastChild.textContent = `${opp.toFixed(2)} m²`;
 
   // breedte (boven, horizontaal)
-  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0-7-(extraBoven>0?extraBoven*SCALE+12:0),'text-anchor':'middle','font-size':8,fill:'black'}));
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0-7-(extraBoven>0?extraBoven*SCALE+12:0),'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
   svg.lastChild.textContent = `breedte ${breedte.toFixed(2)} m`;
   // diepte (links, geroteerd zodat het label leesbaar naast de gevel staat)
   const diepteLabelX = x0-7-(extraLinks>0?extraLinks*SCALE+12:0);
-  const diepteLabel = svgEl('text', {x:diepteLabelX,y:y0+h/2,'text-anchor':'middle','font-size':8,fill:'black',transform:`rotate(-90 ${diepteLabelX} ${y0+h/2})`});
+  const diepteLabel = svgEl('text', {x:diepteLabelX,y:y0+h/2,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black',transform:`rotate(-90 ${diepteLabelX} ${y0+h/2})`});
   diepteLabel.textContent = `diepte ${diepte.toFixed(2)} m`;
   svg.appendChild(diepteLabel);
   // voorgevel (onder, klein)
-  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h+13+(extraOnder>0?extraOnder*SCALE+12:0),'text-anchor':'middle','font-size':8,fill:'black'}));
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h+13+(extraOnder>0?extraOnder*SCALE+12:0),'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
   svg.lastChild.textContent = '↑ voorgevel';
 
   canvasWrap.appendChild(svg);
@@ -1815,24 +1864,24 @@ function tekenPlattegrondDakverdieping(m){
     if(horizontaal){
       svg.appendChild(svgEl('rect', {x:x0,y:y0,width:strookPx,height:h,fill:'none',stroke:'black','stroke-width':0.75,'stroke-dasharray':'3,2'}));
       svg.appendChild(svgEl('rect', {x:x0+w-strookPx,y:y0,width:strookPx,height:h,fill:'none',stroke:'black','stroke-width':0.75,'stroke-dasharray':'3,2'}));
-      svg.appendChild(svgEl('text', {x:x0+strookPx/2,y:y0+h/2,'text-anchor':'middle','font-size':8,fill:'black','writing-mode':'tb'}));
+      svg.appendChild(svgEl('text', {x:x0+strookPx/2,y:y0+h/2,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black','writing-mode':'tb'}));
       svg.lastChild.textContent = '<1,50m';
     } else {
       svg.appendChild(svgEl('rect', {x:x0,y:y0,width:w,height:strookPx,fill:'none',stroke:'black','stroke-width':0.75,'stroke-dasharray':'3,2'}));
       svg.appendChild(svgEl('rect', {x:x0,y:y0+h-strookPx,width:w,height:strookPx,fill:'none',stroke:'black','stroke-width':0.75,'stroke-dasharray':'3,2'}));
-      svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+strookPx/2+3,'text-anchor':'middle','font-size':8,fill:'black'}));
+      svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+strookPx/2+3,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
       svg.lastChild.textContent = '<1,50m';
     }
   }
 
-  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h/2-2,'text-anchor':'middle','font-size':10,fill:'black'}));
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h/2-2,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
   svg.lastChild.textContent = `${opp.toFixed(2)} m²`;
-  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h/2+10,'text-anchor':'middle','font-size':7,fill:'black'}));
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h/2+10,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
   svg.lastChild.textContent = `bruikbaar ${bruikbareBreedte.toFixed(2)} × ${noklengte.toFixed(2)} m`;
 
-  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0-7,'text-anchor':'middle','font-size':8,fill:'black'}));
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0-7,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
   svg.lastChild.textContent = `breedte ${totBreedte.toFixed(2)} m`;
-  const dDiepteLabel = svgEl('text', {x:x0-7,y:y0+h/2,'text-anchor':'middle','font-size':8,fill:'black',transform:`rotate(-90 ${x0-7} ${y0+h/2})`});
+  const dDiepteLabel = svgEl('text', {x:x0-7,y:y0+h/2,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black',transform:`rotate(-90 ${x0-7} ${y0+h/2})`});
   dDiepteLabel.textContent = `diepte ${totDiepte.toFixed(2)} m`;
   svg.appendChild(dDiepteLabel);
 
@@ -1842,31 +1891,60 @@ function tekenPlattegrondDakverdieping(m){
 
 // Gevelaanzicht (voor- of zijgevel). heeftDriehoek = true tekent een driehoek erop (zadeldak-kant),
 // anders een gewone rechthoek (zoals bij een ware 2D-projectie van de andere as).
-// Tekent de uitbouw-silhouetten aan de voet van een gevelaanzicht (naast elkaar, in volgorde van toevoegen).
-function tekenUitbouwSilhouetten(svg, x0, yBase, uitbouwLijst){
-  const gap = 0.15*SCALE;
-  let cursor = 0;
-  uitbouwLijst.forEach(u=>{
-    const bPx = u.breedte*SCALE, hPx = u.hoogte*SCALE;
-    const rx = x0+cursor, ry = yBase-hPx;
+// Tekent de uitbouw-silhouetten aan de voet van een gevelaanzicht, inclusief maten en oppervlaktecijfer
+// (net als bij de hoofdgevel). `geplaatst` = output van positioneerMetHoek():
+// [{item:{naam,breedte,hoogte,daktype,driehoekHoogte,oppervlakte?,front?}, pos, bPx}].
+function tekenUitbouwSilhouetten(svg, x0, yBase, geplaatst){
+  geplaatst.forEach(({item, pos, bPx})=>{
+    const hPx = item.hoogte*SCALE;
+    const rx = x0+pos, ry = yBase-hPx;
     svg.appendChild(svgEl('rect', {x:rx,y:ry,width:bPx,height:hPx,fill:'white',stroke:'black','stroke-width':1.1}));
     let labelY = ry-4;
-    if(u.daktype==='zadel' && u.driehoekHoogte>0){
-      const triHPx = u.driehoekHoogte*SCALE;
+    if(item.daktype==='zadel' && item.driehoekHoogte>0){
+      const triHPx = item.driehoekHoogte*SCALE;
       svg.appendChild(svgEl('polygon', {points:`${rx},${ry} ${rx+bPx/2},${ry-triHPx} ${rx+bPx},${ry}`, fill:'white', stroke:'black','stroke-width':1.1}));
       labelY = ry-triHPx-4;
     }
-    const lbl = svgEl('text', {x:rx+bPx/2,y:labelY,'text-anchor':'middle','font-size':6.5,fill:'black'});
-    lbl.textContent = u.naam;
+    const lbl = svgEl('text', {x:rx+bPx/2,y:labelY,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'});
+    lbl.textContent = item.naam;
     svg.appendChild(lbl);
-    cursor += bPx + gap;
+
+    // oppervlaktecijfer, gecentreerd in het vlak (net als bij de hoofdgevel)
+    const oppWaarde = item.oppervlakte!=null ? item.oppervlakte : item.front;
+    if(oppWaarde!=null){
+      const oppLbl = svgEl('text', {x:rx+bPx/2,y:ry+hPx/2,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'});
+      oppLbl.textContent = `${oppWaarde.toFixed(2)} m²`;
+      svg.appendChild(oppLbl);
+    }
+    // breedte-maat (onder)
+    const breedteLbl = svgEl('text', {x:rx+bPx/2,y:yBase+9,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'});
+    breedteLbl.textContent = `${item.breedte.toFixed(2)} m`;
+    svg.appendChild(breedteLbl);
+    // hoogte-maat (geroteerd, rechts naast het vlak)
+    const hoogteX = rx+bPx+5;
+    const hoogteLbl = svgEl('text', {x:hoogteX,y:ry+hPx/2,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black',transform:`rotate(-90 ${hoogteX} ${ry+hPx/2})`});
+    hoogteLbl.textContent = `${item.hoogte.toFixed(2)} m`;
+    svg.appendChild(hoogteLbl);
   });
 }
 
-function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellingshoek, dakvlakInfo, blokkage, uitbouwLijst){
+// Tekent hoek-overloop-boxen die AANSLUITEND buiten de eigen gevelbreedte staan (niet erover),
+// omdat ze fysiek de aangrenzende gevel zijn, niet een uitbouw óp deze gevel zelf.
+// richting: -1 = naar links uitwaaierend vanaf randX, +1 = naar rechts.
+function tekenOverloopBoxen(svg, randX, yBase, lijst, richting, gap){
+  let cursor = randX;
+  lijst.forEach(item=>{
+    const bPx = item.breedte*SCALE;
+    const rx = richting<0 ? cursor-bPx : cursor;
+    tekenUitbouwSilhouetten(svg, rx, yBase, [{item, pos:0, bPx}]);
+    cursor = richting<0 ? (rx-gap) : (rx+bPx+gap);
+  });
+}
+
+function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellingshoek, dakvlakInfo, blokkage, weergaveGroepen){
   if(isNaN(breedte) || isNaN(gevelhoogte) || breedte<=0) return null;
   blokkage = blokkage || 0;
-  uitbouwLijst = uitbouwLijst || [];
+  weergaveGroepen = weergaveGroepen || {eigen:{links:[],geen:[],rechts:[]}, overloopLinks:[], overloopRechts:[]};
   const {wrap, canvasWrap} = tekeningBlok(titel);
 
   let driehoekHoogte = 0;
@@ -1880,11 +1958,19 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
   }
 
   const totaalHoogte = gevelhoogte + driehoekHoogte + stippelHoogteM;
+  const gap = 0.15*SCALE;
   const w = breedte*SCALE, hRect = gevelhoogte*SCALE, hTri = driehoekHoogte*SCALE, hStippel = stippelHoogteM*SCALE;
-  const viewW = w + 2*TK_MARGIN;
+
+  // extra breedte reserveren voor hoek-overloop die BUITEN de eigen gevel aansluit
+  const overloopLinksPx = weergaveGroepen.overloopLinks.reduce((s,it)=>s+it.breedte*SCALE,0) + Math.max(0,weergaveGroepen.overloopLinks.length-1)*gap;
+  const overloopRechtsPx = weergaveGroepen.overloopRechts.reduce((s,it)=>s+it.breedte*SCALE,0) + Math.max(0,weergaveGroepen.overloopRechts.length-1)*gap;
+  const extraLinks = overloopLinksPx>0 ? overloopLinksPx+gap : 0;
+  const extraRechts = overloopRechtsPx>0 ? overloopRechtsPx+gap : 0;
+
+  const viewW = w + extraLinks + extraRechts + 2*TK_MARGIN;
   const viewH = hRect + hTri + hStippel + 2*TK_MARGIN + (dakvlakInfo ? (PRINT_MODE?14:30) : 0) + (PRINT_MODE?10:20);
   const svg = nieuweSvg(viewW, viewH);
-  const x0 = TK_MARGIN, yBase = viewH-TK_MARGIN, yEave = yBase-hRect, yTop = yEave-hTri-hStippel;
+  const x0 = TK_MARGIN + extraLinks, yBase = viewH-TK_MARGIN, yEave = yBase-hRect, yTop = yEave-hTri-hStippel;
 
   svg.appendChild(svgEl('rect', {x:x0,y:yEave,width:w,height:hRect,fill:'white',stroke:'black','stroke-width':1.5}));
 
@@ -1894,33 +1980,43 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
     svg.appendChild(svgEl('rect', {x:x0,y:yEave-hStippel,width:w,height:hStippel,fill:'none',stroke:'black','stroke-width':1,'stroke-dasharray':'5,3'}));
   }
 
-  if(uitbouwLijst.length>0) tekenUitbouwSilhouetten(svg, x0, yBase, uitbouwLijst);
+  // eigen uitbouwen: sluiten aan op deze gevel zelf, dus overlappend getekend binnen de eigen breedte
+  const eigenGroepen = weergaveGroepen.eigen || {links:[],geen:[],rechts:[]};
+  const eigenHeeft = eigenGroepen.links.length || eigenGroepen.geen.length || eigenGroepen.rechts.length;
+  if(eigenHeeft){
+    const geplaatst = positioneerMetHoek(eigenGroepen, w, 'breedte', gap);
+    tekenUitbouwSilhouetten(svg, x0, yBase, geplaatst);
+  }
+
+  // hoek-overloop: fysiek de aangrenzende gevel, dus AANSLUITEND buiten deze gevelbreedte, niet erover
+  if(weergaveGroepen.overloopLinks.length) tekenOverloopBoxen(svg, x0, yBase, weergaveGroepen.overloopLinks, -1, gap);
+  if(weergaveGroepen.overloopRechts.length) tekenOverloopBoxen(svg, x0+w, yBase, weergaveGroepen.overloopRechts, 1, gap);
 
   const oppRectNetto = Math.max(breedte*gevelhoogte - blokkage, 0);
   const oppDriehoek = heeftDriehoek ? 0.5*breedte*driehoekHoogte : 0;
   const oppTotaal = oppRectNetto + oppDriehoek;
 
-  svg.appendChild(svgEl('text', {x:x0+w/2,y:(yEave+yBase)/2,'text-anchor':'middle','font-size':10,fill:'black'}));
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:(yEave+yBase)/2,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
   svg.lastChild.textContent = blokkage>0 ? `${oppTotaal.toFixed(2)} m² (− uitbouw)` : `${oppTotaal.toFixed(2)} m²`;
 
   // breedte (onder, met label)
-  svg.appendChild(svgEl('text', {x:x0+w/2,y:yBase+12,'text-anchor':'middle','font-size':8,fill:'black'}));
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:yBase+12,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
   svg.lastChild.textContent = `breedte ${breedte.toFixed(2)} m`;
   // gevelhoogte (links, geroteerd, met label)
-  const hoogteLabel = svgEl('text', {x:x0-7,y:(yEave+yBase)/2,'text-anchor':'middle','font-size':8,fill:'black',transform:`rotate(-90 ${x0-7} ${(yEave+yBase)/2})`});
+  const hoogteLabel = svgEl('text', {x:x0-7,y:(yEave+yBase)/2,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black',transform:`rotate(-90 ${x0-7} ${(yEave+yBase)/2})`});
   hoogteLabel.textContent = `hoogte ${gevelhoogte.toFixed(2)} m`;
   svg.appendChild(hoogteLabel);
 
   if(heeftDriehoek && driehoekHoogte>0){
-    svg.appendChild(svgEl('text', {x:x0+w/2,y:yTop-6,'text-anchor':'middle','font-size':8,fill:'black'}));
+    svg.appendChild(svgEl('text', {x:x0+w/2,y:yTop-6,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
     svg.lastChild.textContent = `nok ${totaalHoogte.toFixed(2)} m — ${hellingshoek}°`;
   } else if(hStippel>0){
-    svg.appendChild(svgEl('text', {x:x0+w/2,y:yTop-6,'text-anchor':'middle','font-size':8,fill:'black'}));
+    svg.appendChild(svgEl('text', {x:x0+w/2,y:yTop-6,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
     svg.lastChild.textContent = `nok ${totaalHoogte.toFixed(2)} m`;
   }
 
   if(dakvlakInfo){
-    svg.appendChild(svgEl('text', {x:x0+w/2,y:yTop-18,'text-anchor':'middle','font-size':8,fill:'black'}));
+    svg.appendChild(svgEl('text', {x:x0+w/2,y:yTop-18,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
     svg.lastChild.textContent = `dakvlak: ${dakvlakInfo.opp.toFixed(2)} m² — ${dakvlakInfo.hoek}°`;
   }
 
@@ -1987,16 +2083,36 @@ function renderTekening(targetContainerId){
   const blokkageLG = blokkageOpGevel('LG', m.hoogte);
   const blokkageRG = blokkageOpGevel('RG', m.hoogte);
 
-  const blokVoor = tekenGevelaanzicht('Voorgevel (aanzicht)', m.voorAchterBreedte, m.hoogte, driehoekOpVoor, m.hellingshoek, dakvlakInfoVoor, blokkageVG, uitbouwLijstAlle.filter(d=>d.gevel==='VG'));
+  // Voor elk aanzicht: eigen uitbouwen + de "overloop" van élke uitbouw op een LOODRECHTE gevel.
+  // Reden: in een zijaanzicht valt de breedte-as (links-rechts) helemaal weg — een uitbouw aan de
+  // voor- of achtergevel steekt dus altijd een stukje naar voren/achteren uit, ongeacht waar langs
+  // die gevel hij precies staat. Dat geldt automatisch, zonder dat je dit apart hoeft aan te geven.
+  // Aannameconventie (bekeken van buitenaf, staand vóór de betreffende gevel):
+  //   Voorgevel: links=LG, rechts=RG | Achtergevel: links=RG, rechts=LG (gespiegeld)
+  //   Linkergevel: links=AG, rechts=VG | Rechtergevel: links=VG, rechts=AG
+  const HOEK_AANZICHT_LINKS  = { VG:'LG', AG:'RG', LG:'AG', RG:'VG' };
+  const HOEK_AANZICHT_RECHTS = { VG:'RG', AG:'LG', LG:'VG', RG:'AG' };
+  function weergaveGroepenVoorGevel(gevelCode){
+    const eigen = uitbouwLijstAlle.filter(d=>d.gevel===gevelCode);
+    const eigenGroepen = verdeelHoekGroepen(eigen, gevelCode);
+
+    const naarWeergaveItem = d => ({naam:d.naam, breedte:d.diepte, hoogte:d.hoogte, daktype:'plat', driehoekHoogte:0, oppervlakte:d.zijkant});
+    const overloopLinks = uitbouwLijstAlle.filter(d=>d.gevel===HOEK_AANZICHT_LINKS[gevelCode]).map(naarWeergaveItem);
+    const overloopRechts = uitbouwLijstAlle.filter(d=>d.gevel===HOEK_AANZICHT_RECHTS[gevelCode]).map(naarWeergaveItem);
+
+    return { eigen: eigenGroepen, overloopLinks, overloopRechts };
+  }
+
+  const blokVoor = tekenGevelaanzicht('Voorgevel (aanzicht)', m.voorAchterBreedte, m.hoogte, driehoekOpVoor, m.hellingshoek, dakvlakInfoVoor, blokkageVG, weergaveGroepenVoorGevel('VG'));
   if(blokVoor) container.appendChild(blokVoor);
 
-  const blokAchter = tekenGevelaanzicht('Achtergevel (aanzicht)', m.voorAchterBreedte, m.hoogte, driehoekOpVoor, m.hellingshoek, dakvlakInfoVoor, blokkageAG, uitbouwLijstAlle.filter(d=>d.gevel==='AG'));
+  const blokAchter = tekenGevelaanzicht('Achtergevel (aanzicht)', m.voorAchterBreedte, m.hoogte, driehoekOpVoor, m.hellingshoek, dakvlakInfoVoor, blokkageAG, weergaveGroepenVoorGevel('AG'));
   if(blokAchter) container.appendChild(blokAchter);
 
-  const blokLinks = tekenGevelaanzicht('Linkergevel (aanzicht)', m.diepte, m.hoogte, driehoekOpZij, m.hellingshoek, dakvlakInfoZij, blokkageLG, uitbouwLijstAlle.filter(d=>d.gevel==='LG'));
+  const blokLinks = tekenGevelaanzicht('Linkergevel (aanzicht)', m.diepte, m.hoogte, driehoekOpZij, m.hellingshoek, dakvlakInfoZij, blokkageLG, weergaveGroepenVoorGevel('LG'));
   if(blokLinks) container.appendChild(blokLinks);
 
-  const blokRechts = tekenGevelaanzicht('Rechtergevel (aanzicht)', m.diepte, m.hoogte, driehoekOpZij, m.hellingshoek, dakvlakInfoZij, blokkageRG, uitbouwLijstAlle.filter(d=>d.gevel==='RG'));
+  const blokRechts = tekenGevelaanzicht('Rechtergevel (aanzicht)', m.diepte, m.hoogte, driehoekOpZij, m.hellingshoek, dakvlakInfoZij, blokkageRG, weergaveGroepenVoorGevel('RG'));
   if(blokRechts) container.appendChild(blokRechts);
 
   if(container.children.length === 0){
@@ -2006,27 +2122,81 @@ function renderTekening(targetContainerId){
 
 document.getElementById('btn-tekening-update').addEventListener('click', ()=>renderTekening());
 
+// Tekent de SVG-elementen (rect/line/polygon/text) rechtstreeks op een canvas 2D-context.
+// Werkt in mm-coördinaten (dezelfde als de viewBox); ctx is al geschaald naar pxPerMm.
+function tekenSvgElementOpCanvas(ctx, el){
+  const tag = el.tagName ? el.tagName.toLowerCase() : '';
+  const fill = el.getAttribute('fill');
+  const stroke = el.getAttribute('stroke');
+  const strokeWidth = parseFloat(el.getAttribute('stroke-width'));
+  const dash = el.getAttribute('stroke-dasharray');
+
+  ctx.save();
+  ctx.lineWidth = isNaN(strokeWidth) ? 1 : strokeWidth;
+  ctx.setLineDash(dash ? dash.split(',').map(Number) : []);
+  if(fill && fill!=='none') ctx.fillStyle = fill;
+  if(stroke && stroke!=='none') ctx.strokeStyle = stroke;
+
+  if(tag==='rect'){
+    const x=parseFloat(el.getAttribute('x'))||0, y=parseFloat(el.getAttribute('y'))||0;
+    const w=parseFloat(el.getAttribute('width'))||0, h=parseFloat(el.getAttribute('height'))||0;
+    if(fill && fill!=='none') ctx.fillRect(x,y,w,h);
+    if(stroke && stroke!=='none') ctx.strokeRect(x,y,w,h);
+  } else if(tag==='line'){
+    const x1=parseFloat(el.getAttribute('x1'))||0, y1=parseFloat(el.getAttribute('y1'))||0;
+    const x2=parseFloat(el.getAttribute('x2'))||0, y2=parseFloat(el.getAttribute('y2'))||0;
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  } else if(tag==='polygon'){
+    const pts = (el.getAttribute('points')||'').trim().split(/\s+/).filter(Boolean).map(p=>p.split(',').map(Number));
+    if(pts.length){
+      ctx.beginPath();
+      pts.forEach(([px,py],i)=>{ i===0 ? ctx.moveTo(px,py) : ctx.lineTo(px,py); });
+      ctx.closePath();
+      if(fill && fill!=='none') ctx.fill();
+      if(stroke && stroke!=='none') ctx.stroke();
+    }
+  } else if(tag==='text'){
+    const x=parseFloat(el.getAttribute('x'))||0, y=parseFloat(el.getAttribute('y'))||0;
+    const fontSize = parseFloat(el.getAttribute('font-size'))||10;
+    const anchor = el.getAttribute('text-anchor')||'start';
+    const transform = el.getAttribute('transform');
+    const writingMode = el.getAttribute('writing-mode');
+    ctx.font = `${fontSize}px Arial, sans-serif`;
+    ctx.textAlign = anchor==='middle' ? 'center' : (anchor==='end' ? 'right' : 'left');
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = (fill && fill!=='none') ? fill : 'black';
+    const m = transform && transform.match(/rotate\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s*\)/);
+    if(m || writingMode==='tb'){
+      const deg = m ? parseFloat(m[1]) : -90;
+      const cx = m ? parseFloat(m[2]) : x;
+      const cy = m ? parseFloat(m[3]) : y;
+      ctx.translate(cx,cy);
+      ctx.rotate(deg*Math.PI/180);
+      ctx.fillText(el.textContent, x-cx, y-cy);
+    } else {
+      ctx.fillText(el.textContent, x, y);
+    }
+  }
+  ctx.restore();
+}
+
 function svgNaarCanvas(svg, pxPerMm){
   return new Promise((resolve, reject)=>{
-    const vb = svg.viewBox.baseVal;
-    const wMm = vb.width, hMm = vb.height;
-    const xml = new XMLSerializer().serializeToString(svg);
-    const blob = new Blob([xml], {type:'image/svg+xml;charset=utf-8'});
-    const url = URL.createObjectURL(blob);
-    const img = new Image();
-    img.onload = function(){
+    try{
+      const vb = svg.viewBox.baseVal;
+      const wMm = vb.width, hMm = vb.height;
       const canvas = document.createElement('canvas');
-      canvas.width = Math.round(wMm*pxPerMm);
-      canvas.height = Math.round(hMm*pxPerMm);
+      canvas.width = Math.max(1, Math.round(wMm*pxPerMm));
+      canvas.height = Math.max(1, Math.round(hMm*pxPerMm));
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = 'white';
       ctx.fillRect(0,0,canvas.width,canvas.height);
-      ctx.drawImage(img,0,0,canvas.width,canvas.height);
-      URL.revokeObjectURL(url);
+      ctx.scale(pxPerMm, pxPerMm);
+      Array.from(svg.children).forEach(el=>tekenSvgElementOpCanvas(ctx, el));
       resolve({canvas, wMm, hMm});
-    };
-    img.onerror = reject;
-    img.src = url;
+    } catch(fout){
+      reject(new Error('Tekenen op canvas mislukt: ' + (fout && fout.message ? fout.message : fout)));
+    }
   });
 }
 
@@ -2141,12 +2311,21 @@ async function exporteerPDF(){
 
     // Eerst alle tekeningen rasteren (canvas+afmetingen), dan op hoogte sorteren voor een dichtere vakverdeling
     const items = [];
+    const mislukt = [];
     for(const blok of blokken){
       const svg = blok.querySelector('svg');
       if(!svg) continue;
       const titel = blok.querySelector('div').textContent;
-      const {canvas, wMm, hMm} = await svgNaarCanvas(svg, 6);
-      items.push({titel, canvas, wMm, hMm});
+      try{
+        const {canvas, wMm, hMm} = await svgNaarCanvas(svg, 6);
+        items.push({titel, canvas, wMm, hMm});
+      } catch(itemFout){
+        console.error('Kon tekening niet omzetten:', titel, itemFout);
+        mislukt.push(titel);
+      }
+    }
+    if(items.length === 0){
+      throw new Error('Geen enkele tekening kon worden omgezet naar de PDF.' + (mislukt.length ? ' (' + mislukt.join(', ') + ')' : ''));
     }
     items.sort((a,b)=> b.hMm - a.hMm);
 
@@ -2188,9 +2367,13 @@ async function exporteerPDF(){
     a.click();
     a.remove();
     setTimeout(()=>URL.revokeObjectURL(url), 10000);
+    if(mislukt.length){
+      alert('PDF is gemaakt, maar deze tekening(en) konden niet worden meegenomen: ' + mislukt.join(', '));
+    }
   } catch(err){
     console.error(err);
-    alert('PDF maken mislukt: ' + err.message);
+    const melding = (err && err.message) ? err.message : String(err);
+    alert('PDF maken mislukt: ' + melding);
   } finally {
     btn.textContent = oudeTekst;
     btn.disabled = false;
