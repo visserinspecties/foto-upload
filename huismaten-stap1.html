@@ -197,7 +197,7 @@
 <div class="tabs">
   <div class="tab active" data-mode="vloer">Woonoppervlakte</div>
   <div class="tab" data-mode="gevelstandaard">Schil</div>
-  <div class="tab" data-mode="gevel">Vrije vorm</div>
+  <div class="tab" data-mode="gevel">Dakkapel e.d.</div>
   <div class="tab" data-mode="tekening">Tekening</div>
 </div>
 
@@ -318,58 +318,23 @@
 
   <div id="uitbouwen-vloer-output"></div>
 
+  <div id="dakkapellen-vloer-output"></div>
+
   <div class="result" id="totaal-woonoppervlak-wrap" style="margin-top:16px;background:var(--ink);color:white;">
     <span>Totaal woonoppervlakte</span>
     <span><span id="totaal-woonoppervlak">—</span> <span class="unit" style="color:#ccc;">m²</span></span>
   </div>
 </div>
 
-<!-- GEVEL MODE -->
+<!-- DAKKAPEL E.D. MODE -->
 <div class="panel" id="panel-gevel" style="display:none;">
-  <div class="row">
-    <div class="field" style="flex:0 0 130px;">
-      <label>Eerste richting</label>
-      <select id="gevel-startrichting">
-        <option value="0">→ rechts</option>
-        <option value="90">↓ omlaag</option>
-        <option value="180">← links</option>
-        <option value="270">↑ omhoog</option>
-      </select>
-    </div>
-    <div class="field">
-      <label>Afstand (m)</label>
-      <input type="text" inputmode="decimal" class="numeric-input" id="gevel-afstand" step="0.01" placeholder="bv. 3.00">
-    </div>
-    <div class="field" style="flex:0 0 90px;">
-      <label>Draai</label>
-      <select id="gevel-draairichting">
-        <option value="rechts">rechtsaf</option>
-        <option value="links">linksaf</option>
-        <option value="recht">rechtdoor</option>
-      </select>
-    </div>
-    <div class="field" style="flex:0 0 90px;">
-      <label>Hoek (°)</label>
-      <input type="text" inputmode="decimal" class="numeric-input" id="gevel-hoek" step="1" value="90">
-    </div>
+  <div style="font-weight:600;margin-bottom:8px;">Dakkapellen</div>
+  <p class="hint" id="dakkapel-daktype-hint">Stel eerst een zadeldak in (Daktype op de Woonoppervlakte-tab).</p>
+  <div id="dakkapellen-container"></div>
+  <div class="btn-row" style="margin:8px 0 14px;">
+    <button class="btn-secondary" id="btn-toevoegen-dakkapel">+ Dakkapel toevoegen</button>
   </div>
-  <div class="btn-row">
-    <button class="btn-primary" id="btn-lijn-toevoegen">+ Lijn toevoegen</button>
-    <button class="btn-secondary" id="btn-sluiten">Vorm sluiten</button>
-    <button class="btn-secondary" id="btn-reset">Opnieuw</button>
-  </div>
-  <p class="hint">Eerste lijn: kies alleen de startrichting. Daarna: draai t.o.v. de vorige lijn (default 90°, zoals een gevelhoek).</p>
-
-  <div class="canvas-wrap" style="margin-top:12px;">
-    <svg id="gevel-svg" viewBox="0 0 400 280"></svg>
-  </div>
-
-  <div class="result" id="gevel-result-wrap" style="display:none;">
-    <span>Oppervlakte (gesloten vorm)</span>
-    <span><span id="gevel-uitkomst">—</span> <span class="unit">m²</span></span>
-  </div>
-
-  <div class="lines-list" id="gevel-lijst"></div>
+  <div id="dakkapellen-waarschuwing"></div>
 </div>
 
 <script>
@@ -962,8 +927,10 @@ function renderDakverdiepingEnTotaal(){
   total += alleVerdiepingenOppervlakte();
   if(dakverdiepingOpp) total += dakverdiepingOpp;
   if(typeof totaalUitbouwVloeroppervlak === 'function') total += totaalUitbouwVloeroppervlak();
+  if(typeof totaalDakkapelVloeroppervlak === 'function') total += totaalDakkapelVloeroppervlak();
   document.getElementById('totaal-woonoppervlak').textContent = total>0 ? total.toFixed(2) : '—';
   if(typeof renderUitbouwVloerOverzicht === 'function') renderUitbouwVloerOverzicht();
+  if(typeof renderDakkapelVloerOverzicht === 'function') renderDakkapelVloerOverzicht();
 }
 
 vl.addEventListener('input', ()=>{
@@ -1488,8 +1455,17 @@ function renderResultaten(){
     const schuineZijde = (basis/2) / Math.cos(deg2rad(hellingshoek));
     const dakvlakOpp = noklengte * schuineZijde;
     const dakvlakNamen = nokrichting === 'voorachter' ? ['Dak Links', 'Dak Rechts'] : ['Dak Voor', 'Dak Achter'];
-    dakvlakRows.push({label: `${dakvlakNamen[0]} (noklengte ${noklengte.toFixed(2)}m × schuine zijde ${schuineZijde.toFixed(2)}m)`, opp: dakvlakOpp});
-    dakvlakRows.push({label: `${dakvlakNamen[1]} (zelfde berekening)`, opp: dakvlakOpp});
+    const dakkapelGatPerVlak = {A:0, B:0};
+    if(typeof alleDakkapelData === 'function'){
+      alleDakkapelData().forEach(d=>{ if(d.geldig) dakkapelGatPerVlak[d.dakvlak] = (dakkapelGatPerVlak[d.dakvlak]||0) + d.gatOpp; });
+    }
+    ['A','B'].forEach((key,i)=>{
+      const afgetrokken = dakkapelGatPerVlak[key] || 0;
+      const netto = Math.max(dakvlakOpp - afgetrokken, 0);
+      const basisLabel = `${dakvlakNamen[i]} (${i===0 ? `noklengte ${noklengte.toFixed(2)}m × schuine zijde ${schuineZijde.toFixed(2)}m` : 'zelfde berekening'})`;
+      const label = afgetrokken>0 ? `${basisLabel} − dakkapel(len) ${afgetrokken.toFixed(2)} m²` : basisLabel;
+      dakvlakRows.push({label, opp: netto});
+    });
 
     const nokDriehoekHoogte = (basis/2) * Math.tan(deg2rad(hellingshoek));
     const nokhoogte = hoogte + nokDriehoekHoogte;
@@ -1518,6 +1494,7 @@ function renderResultaten(){
   });
   html += '</div>';
   gsResultaten.innerHTML = html;
+  if(typeof renderDakkapelWaarschuwing === 'function') renderDakkapelWaarschuwing();
 }
 
 [gsType, gsBeukmaat, gsDiepte, gsHoogte].forEach(el=>{
@@ -1532,6 +1509,10 @@ gsDaktype.addEventListener('change', ()=>{
 });
 document.getElementById('gs-nokrichting').addEventListener('change', renderResultaten);
 document.getElementById('gs-hellingshoek').addEventListener('input', renderResultaten);
+// ---------- DAKKAPEL E.D. (state vooraf gedeclareerd, nodig voor renderResultaten hieronder) ----------
+let dakkapellen = []; // [{id, naam}]
+let volgendDakkapelId = 1;
+
 gsType.addEventListener('change', ()=>{
   zijState = { links:{volledig:true,breedte:null,hoogte:null}, rechts:{volledig:true,breedte:null,hoogte:null} };
   renderZijvragen();
@@ -1541,147 +1522,238 @@ renderZijvragen();
 renderResultaten();
 
 
-// ---------- GEVEL / DAKVLAK ----------
-let points = [{x:0,y:0}];
-let heading = 0; // graden, 0 = naar rechts, oplopend = rechtsom (schermconventie, y naar onder)
-let closed = false;
-let lines = []; // log voor lijst
-
-const svg = document.getElementById('gevel-svg');
-const lijst = document.getElementById('gevel-lijst');
-const resultWrap = document.getElementById('gevel-result-wrap');
-const uitkomstEl = document.getElementById('gevel-uitkomst');
-
+// ---------- DAKKAPEL E.D. ----------
 function deg2rad(d){ return d * Math.PI / 180; }
 
-function addLine(){
-  if(closed) return;
-  const afstand = parseFloat(document.getElementById('gevel-afstand').value);
-  if(isNaN(afstand) || afstand<=0){ return; }
+const dakkapellenContainer = document.getElementById('dakkapellen-container');
+const btnToevoegenDakkapel = document.getElementById('btn-toevoegen-dakkapel');
+const dakkapelDaktypeHint = document.getElementById('dakkapel-daktype-hint');
 
-  if(points.length === 1 && lines.length === 0){
-    // eerste lijn: gebruik startrichting
-    heading = parseFloat(document.getElementById('gevel-startrichting').value);
-  } else {
-    const draai = document.getElementById('gevel-draairichting').value;
-    const hoek = parseFloat(document.getElementById('gevel-hoek').value) || 0;
-    if(draai === 'rechts') heading += hoek;
-    else if(draai === 'links') heading -= hoek;
-    // 'recht' = geen wijziging
-  }
-
-  const rad = deg2rad(heading);
-  const last = points[points.length-1];
-  const next = {
-    x: last.x + afstand * Math.cos(rad),
-    y: last.y + afstand * Math.sin(rad)
-  };
-  points.push(next);
-  lines.push({afstand: afstand, heading: heading});
-  document.getElementById('gevel-afstand').value = '';
-  renderLijst();
-  renderSvg();
+// Links/Rechts als de nok loodrecht op de voorgevel staat, Voor/Achter als de nok
+// evenwijdig aan voor-/achtergevel loopt — zelfde conventie als bij de hoofddakvlakken.
+function dakvlakLabels(){
+  const nokrichting = document.getElementById('gs-nokrichting')?.value;
+  return nokrichting === 'voorachter' ? {A:'Links', B:'Rechts'} : {A:'Voor', B:'Achter'};
 }
 
-function closeShape(){
-  if(points.length < 3) return;
-  closed = true;
-  renderSvg();
-  const area = shoelaceArea(points);
-  uitkomstEl.textContent = area.toFixed(2);
-  resultWrap.style.display = 'flex';
+function updateDakvlakOpties(){
+  const labels = dakvlakLabels();
+  dakkapellen.forEach(dk=>{
+    const sel = document.getElementById('dk-dakvlak-'+dk.id);
+    if(!sel) return;
+    const huidige = sel.value || 'A';
+    sel.innerHTML = `<option value="A">${labels.A}</option><option value="B">${labels.B}</option>`;
+    sel.value = huidige;
+  });
+  renumberDakkapellen();
+  onDakkapelWijziging();
 }
 
-function resetShape(){
-  points = [{x:0,y:0}];
-  heading = 0;
-  closed = false;
-  lines = [];
-  resultWrap.style.display = 'none';
-  uitkomstEl.textContent = '—';
-  renderLijst();
-  renderSvg();
-}
-
-function shoelaceArea(pts){
-  let sum = 0;
-  for(let i=0;i<pts.length;i++){
-    const a = pts[i];
-    const b = pts[(i+1)%pts.length];
-    sum += (a.x*b.y - b.x*a.y);
-  }
-  return Math.abs(sum)/2;
-}
-
-function renderLijst(){
-  lijst.innerHTML = '';
-  lines.forEach((l,i)=>{
-    const d = document.createElement('div');
-    d.textContent = `Lijn ${i+1}: ${l.afstand.toFixed(2)} m — richting ${Math.round(((l.heading%360)+360)%360)}°`;
-    lijst.appendChild(d);
+function renumberDakkapellen(){
+  const labels = dakvlakLabels();
+  const tellers = {A:0, B:0};
+  dakkapellen.forEach(dk=>{
+    const vlak = document.getElementById('dk-dakvlak-'+dk.id)?.value || 'A';
+    tellers[vlak] = (tellers[vlak]||0) + 1;
+    dk.naam = `Dakkapel ${labels[vlak]}-${tellers[vlak]}`;
+    const titelEl = document.getElementById('dk-titel-'+dk.id);
+    if(titelEl) titelEl.textContent = dk.naam;
   });
 }
 
-function renderSvg(){
-  svg.innerHTML = '';
-  if(points.length === 1){
-    svg.innerHTML = '';
+// Geometrie: voorzijde en plat dak zijn rechthoeken, de wangen zijn rechthoekige
+// driehoeken (rechthoekszijden hoogte en diepte), en het gat dat uit het hoofddakvlak
+// wordt gesneden is een rechthoek breedte × L, met L de schuine zijde van diezelfde
+// driehoek (L² = hoogte² + diepte²). Onafhankelijk van de hellingshoek van het hoofddak.
+function berekenDakkapelData(dk){
+  const breedte = parseFloat(document.getElementById('dk-breedte-'+dk.id)?.value);
+  const hoogte = parseFloat(document.getElementById('dk-hoogte-'+dk.id)?.value);
+  const diepte = parseFloat(document.getElementById('dk-diepte-'+dk.id)?.value);
+  const afstandRaw = parseFloat(document.getElementById('dk-afstand-'+dk.id)?.value);
+  const afstand = isNaN(afstandRaw) ? 0.01 : afstandRaw; // marge voor de tekening later, telt niet mee in de oppervlaktes
+  const dakvlak = document.getElementById('dk-dakvlak-'+dk.id)?.value || 'A';
+
+  if(isNaN(breedte) || isNaN(hoogte) || isNaN(diepte) || breedte<=0 || hoogte<=0 || diepte<=0){
+    return {id:dk.id, naam:dk.naam, dakvlak, afstand, geldig:false};
+  }
+
+  const L = Math.sqrt(hoogte*hoogte + diepte*diepte);
+  const voorzijde = breedte*hoogte;
+  const gatOpp = breedte*L;
+  const wangOpp = 0.5*hoogte*diepte;
+  const platDakOpp = breedte*diepte;
+
+  return {
+    id:dk.id, naam:dk.naam, dakvlak, breedte, hoogte, diepte, afstand, L,
+    voorzijde, gatOpp, wangOpp, platDakOpp, geldig:true
+  };
+}
+
+function alleDakkapelData(){ return dakkapellen.map(berekenDakkapelData); }
+
+function totaalDakkapelVloeroppervlak(){
+  return alleDakkapelData().reduce((sum,d)=> sum + (d.geldig ? d.platDakOpp : 0), 0);
+}
+
+// Lengte van het dakvlak in de richting evenwijdig aan de nok — dat is ook precies
+// de breedte van de gevel die onder dat dakvlak staat (Links/Rechts-gevallen: diepte;
+// Voor/Achter-gevallen: voorAchterBreedte). Dakkapel-breedtes op datzelfde dakvlak
+// mogen hier samen niet overheen gaan.
+function huidigeNoklengte(){
+  const beuk = parseFloat(document.getElementById('gs-beukmaat')?.value);
+  const diepte = parseFloat(document.getElementById('gs-diepte')?.value);
+  const type = document.getElementById('gs-type')?.value;
+  const nokrichting = document.getElementById('gs-nokrichting')?.value;
+  if(isNaN(beuk) || isNaN(diepte)) return null;
+  const correctie = typeof correctieVoorType === 'function' ? correctieVoorType(type) : 0;
+  const voorAchterBreedte = beuk + correctie;
+  return nokrichting === 'voorachter' ? diepte : voorAchterBreedte;
+}
+
+function renderDakkapelWaarschuwing(){
+  const el = document.getElementById('dakkapellen-waarschuwing');
+  if(!el) return;
+  const noklengte = huidigeNoklengte();
+  const labels = dakvlakLabels();
+  const somPerVlak = {A:0, B:0};
+  alleDakkapelData().forEach(d=>{ if(d.geldig) somPerVlak[d.dakvlak] = (somPerVlak[d.dakvlak]||0) + d.breedte; });
+
+  let waarschuwingen = [];
+  ['A','B'].forEach(key=>{
+    if(noklengte !== null && somPerVlak[key] > noklengte){
+      waarschuwingen.push(`⚠ Dak ${labels[key]}: som van de breedtes van de dakkapellen (${somPerVlak[key].toFixed(2)}m) is groter dan de beschikbare breedte van dat dakvlak (${noklengte.toFixed(2)}m).`);
+    }
+  });
+  el.innerHTML = waarschuwingen.map(w=>`<p class="hint" style="color:#a8472e;">${w}</p>`).join('');
+}
+
+function renderDakkapelVloerOverzicht(){
+  const out = document.getElementById('dakkapellen-vloer-output');
+  if(!out) return;
+  const data = alleDakkapelData().filter(d=>d.geldig);
+  if(data.length === 0){ out.innerHTML=''; return; }
+  let html = '<div class="lines-list" style="max-height:none;margin-top:10px;">';
+  data.forEach(d=>{
+    html += `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;border-bottom:1px solid #eee;">
+      <span style="font-size:0.85rem;color:#6b6555;">${d.naam} — vloer onder dakkapel (${d.breedte.toFixed(2)}×${d.diepte.toFixed(2)}m, telt volledig mee — geen 1,5m-regel)</span>
+      <span style="font-size:1rem;font-weight:700;font-family:var(--mono);">${d.platDakOpp.toFixed(2)} m²</span>
+    </div>`;
+  });
+  html += '</div>';
+  out.innerHTML = html;
+}
+
+function renderDakkapelResultaat(dk){
+  const el = document.getElementById('dk-resultaten-'+dk.id);
+  if(!el) return;
+  const d = berekenDakkapelData(dk);
+  if(!d.geldig){
+    el.innerHTML = '<p class="hint">Vul breedte, hoogte en diepte in.</p>';
     return;
   }
-  // bounding box
-  const xs = points.map(p=>p.x), ys = points.map(p=>p.y);
-  const minX = Math.min(...xs), maxX = Math.max(...xs);
-  const minY = Math.min(...ys), maxY = Math.max(...ys);
-  const w = maxX-minX || 1, h = maxY-minY || 1;
-  const pad = 0.6;
-  const scale = Math.min(360/(w+2*pad*0===0?1:w), 1) ; // fallback, recompute below properly
-  // simpele auto-fit
-  const viewW = 400, viewH = 280, margin = 30;
-  const sx = (viewW - 2*margin) / (w || 1);
-  const sy = (viewH - 2*margin) / (h || 1);
-  const s = Math.min(sx, sy);
-
-  function tx(p){
-    return {
-      x: margin + (p.x - minX) * s,
-      y: margin + (p.y - minY) * s
-    };
-  }
-
-  const tpoints = points.map(tx);
-  let pathStr = tpoints.map(p=>`${p.x},${p.y}`).join(' ');
-
-  const ns = 'http://www.w3.org/2000/svg';
-
-  if(closed){
-    const poly = document.createElementNS(ns,'polygon');
-    poly.setAttribute('points', pathStr);
-    poly.setAttribute('fill', '#e8d9c9');
-    poly.setAttribute('stroke', '#a8472e');
-    poly.setAttribute('stroke-width', '2');
-    svg.appendChild(poly);
-  } else {
-    const poly = document.createElementNS(ns,'polyline');
-    poly.setAttribute('points', pathStr);
-    poly.setAttribute('fill', 'none');
-    poly.setAttribute('stroke', '#a8472e');
-    poly.setAttribute('stroke-width', '2');
-    svg.appendChild(poly);
-  }
-
-  tpoints.forEach((p,i)=>{
-    const c = document.createElementNS(ns,'circle');
-    c.setAttribute('cx', p.x);
-    c.setAttribute('cy', p.y);
-    c.setAttribute('r', 4);
-    c.setAttribute('fill', i===0 ? '#1d2520' : '#a8472e');
-    svg.appendChild(c);
+  const rows = [
+    {label:'Voorzijde', opp:d.voorzijde},
+    {label:`Gat in dakvlak (L = √(${d.hoogte.toFixed(2)}² + ${d.diepte.toFixed(2)}²) = ${d.L.toFixed(2)}m)`, opp:d.gatOpp},
+    {label:'Wang links', opp:d.wangOpp},
+    {label:'Wang rechts', opp:d.wangOpp},
+    {label:'Plat dak dakkapel', opp:d.platDakOpp}
+  ];
+  let html = '<div class="lines-list" style="max-height:none;">';
+  rows.forEach(r=>{
+    html += `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;border-bottom:1px solid #eee;">
+      <span style="font-size:0.85rem;color:#6b6555;">${r.label}</span>
+      <span style="font-size:1.1rem;font-weight:700;font-family:var(--mono);white-space:nowrap;margin-left:10px;">${r.opp.toFixed(2)} m²</span>
+    </div>`;
   });
+  html += '</div>';
+  el.innerHTML = html;
 }
 
-document.getElementById('btn-lijn-toevoegen').addEventListener('click', addLine);
-document.getElementById('btn-sluiten').addEventListener('click', closeShape);
-document.getElementById('btn-reset').addEventListener('click', resetShape);
+function onDakkapelWijziging(){
+  dakkapellen.forEach(renderDakkapelResultaat);
+  renderDakkapelWaarschuwing();
+  if(typeof renderResultaten === 'function') renderResultaten();
+  if(typeof renderDakverdiepingEnTotaal === 'function') renderDakverdiepingEnTotaal();
+}
+
+function voegDakkapelToe(){
+  const id = volgendDakkapelId++;
+  const dk = {id, naam:'Dakkapel'};
+  dakkapellen.push(dk);
+
+  const labels = dakvlakLabels();
+  const blok = document.createElement('div');
+  blok.className = 'panel';
+  blok.id = 'dk-blok-'+id;
+  blok.style.background = '#fbfaf6';
+  blok.style.marginTop = '10px';
+  blok.innerHTML = `
+    <div class="btn-row" style="justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <div style="font-weight:600;" id="dk-titel-${id}">Dakkapel</div>
+      <button class="btn-secondary" data-dkid="${id}" style="padding:4px 10px;font-size:0.78rem;">− verwijderen</button>
+    </div>
+    <div class="row">
+      <div class="field" style="flex:0 0 130px;">
+        <label>Dakvlak</label>
+        <select id="dk-dakvlak-${id}">
+          <option value="A">${labels.A}</option>
+          <option value="B">${labels.B}</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Breedte (m)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="dk-breedte-${id}" step="0.01" placeholder="bv. 1.80">
+      </div>
+      <div class="field">
+        <label>Hoogte (m)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="dk-hoogte-${id}" step="0.01" placeholder="bv. 1.50">
+      </div>
+      <div class="field">
+        <label>Diepte (m)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="dk-diepte-${id}" step="0.01" placeholder="bv. 1.20">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Afstand tot dakvlak (m) — optioneel, default 0,01</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="dk-afstand-${id}" step="0.01" placeholder="bv. 0.01">
+      </div>
+    </div>
+    <div id="dk-resultaten-${id}"></div>
+  `;
+  dakkapellenContainer.appendChild(blok);
+
+  blok.querySelector('button[data-dkid]').addEventListener('click', ()=>verwijderDakkapel(id));
+  document.getElementById('dk-dakvlak-'+id).addEventListener('change', ()=>{ renumberDakkapellen(); onDakkapelWijziging(); });
+  ['dk-breedte-','dk-hoogte-','dk-diepte-','dk-afstand-'].forEach(prefix=>{
+    document.getElementById(prefix+id).addEventListener('input', onDakkapelWijziging);
+  });
+
+  renumberDakkapellen();
+  renderDakkapelResultaat(dk);
+}
+
+function verwijderDakkapel(id){
+  const idx = dakkapellen.findIndex(dk=>dk.id===id);
+  if(idx===-1) return;
+  dakkapellen.splice(idx,1);
+  document.getElementById('dk-blok-'+id).remove();
+  renumberDakkapellen();
+}
+
+btnToevoegenDakkapel.addEventListener('click', voegDakkapelToe);
+
+function updateDakkapelDaktypeHint(){
+  const daktype = document.getElementById('gs-daktype')?.value;
+  const isZadel = daktype === 'zadel';
+  dakkapelDaktypeHint.style.display = isZadel ? 'none' : 'block';
+  btnToevoegenDakkapel.style.display = isZadel ? 'inline-block' : 'none';
+  dakkapellenContainer.style.display = isZadel ? 'block' : 'none';
+}
+
+document.getElementById('gs-daktype')?.addEventListener('change', updateDakkapelDaktypeHint);
+document.getElementById('gs-nokrichting')?.addEventListener('change', updateDakvlakOpties);
+updateDakkapelDaktypeHint();
 
 // ---------- TEKENING ----------
 let SCALE = 20; // px (scherm) of mm (print) per meter — bij print exact 1:100 (1m = 10mm)
