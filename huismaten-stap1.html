@@ -196,7 +196,7 @@
 
 <div class="tabs">
   <div class="tab active" data-mode="vloer">Woonoppervlakte</div>
-  <div class="tab" data-mode="gevelstandaard">Gevel</div>
+  <div class="tab" data-mode="gevelstandaard">Schil</div>
   <div class="tab" data-mode="gevel">Vrije vorm</div>
   <div class="tab" data-mode="tekening">Tekening</div>
 </div>
@@ -314,7 +314,7 @@
       <input type="text" inputmode="decimal" class="numeric-input" id="gs-vloeroffset" step="1" placeholder="bv. 20">
     </div>
   </div>
-  <div id="dakverdieping-output" class="hint">Stel eerst een zadeldak in op de Gevel-tab (beukmaat, diepte, gevelhoogte, hellingshoek).</div>
+  <div id="dakverdieping-output" class="hint">Stel eerst een zadeldak in op de Schil-tab (beukmaat, diepte, gevelhoogte, hellingshoek).</div>
 
   <div id="uitbouwen-vloer-output"></div>
 
@@ -934,7 +934,7 @@ function renderDakverdiepingEnTotaal(){
   let dakverdiepingOpp = null;
 
   if(daktype !== 'zadel' || isNaN(beuk) || isNaN(diepte) || isNaN(gevelhoogte)){
-    out.innerHTML = '<p class="hint">Stel eerst een zadeldak in op de Gevel-tab (beukmaat, diepte, gevelhoogte, hellingshoek).</p>';
+    out.innerHTML = '<p class="hint">Stel eerst een zadeldak in op de Schil-tab (beukmaat, diepte, gevelhoogte, hellingshoek).</p>';
   } else {
     const correctie = correctieVoorType(document.getElementById('gs-type').value);
     const voorAchterBreedte = beuk + correctie;
@@ -1461,6 +1461,15 @@ function renderResultaten(){
     const afgetrokken = Math.min(blocked, r.opp);
     return {label: r.label + ` − uitbouw ${afgetrokken.toFixed(2)} m²`, opp: Math.max(r.opp-blocked,0)};
   });
+
+  // vloer BG — schiloppervlakte (grenst aan grond/kruipruimte)
+  // Let op: dit is de schilmaat (buitenwerks, incl. halve spouwdikte bij belending),
+  // niet de woonoppervlakte/gebruiksoppervlakte (die wordt op de Woonoppervlakte-tab berekend).
+  const vloerSchilOpp = voorAchterBreedte * diepte;
+  const vloerSchilRows = [
+    {label: `Vloer BG — schil (grenzend aan grond/kruipruimte) (breedte ${voorAchterBreedte.toFixed(2)}m${correctie>0 ? ' = beukmaat + '+(correctie*100).toFixed(0)+'cm' : ''} × diepte ${diepte.toFixed(2)}m)`, opp: vloerSchilOpp}
+  ];
+  rows = rows.concat(vloerSchilRows);
 
   // dakvlakken
   let dakvlakRows = [];
@@ -2030,7 +2039,7 @@ function renderTekening(targetContainerId){
   const m = huidigeMaten();
 
   if(m.beuk===null || isNaN(m.beuk) || isNaN(m.diepte)){
-    container.innerHTML = '<p class="hint">Vul beukmaat en diepte in op de Gevel-tab.</p>';
+    container.innerHTML = '<p class="hint">Vul beukmaat en diepte in op de Schil-tab.</p>';
     return;
   }
 
@@ -2116,7 +2125,7 @@ function renderTekening(targetContainerId){
   if(blokRechts) container.appendChild(blokRechts);
 
   if(container.children.length === 0){
-    container.innerHTML = '<p class="hint">Vul de Gevel-tab verder in voor de tekeningen.</p>';
+    container.innerHTML = '<p class="hint">Vul de Schil-tab verder in voor de tekeningen.</p>';
   }
 }
 
