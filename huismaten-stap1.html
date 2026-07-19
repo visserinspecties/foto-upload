@@ -1070,12 +1070,12 @@ function berekenUitbouwData(u){
     const schuineZijde = (breedte/2) / Math.cos(deg2rad(hellingshoek));
     const dakvlakOpp = diepte*schuineZijde;
     dakRows = [
-      {label:'dakvlak 1', opp:dakvlakOpp},
-      {label:'dakvlak 2', opp:dakvlakOpp}
+      {label:'Dak Links', opp:dakvlakOpp},
+      {label:'Dak Rechts', opp:dakvlakOpp}
     ];
   } else {
     front = breedte*hoogte;
-    dakRows = [{label:'plat dak', opp: breedte*diepte}];
+    dakRows = [{label:'Plat dak', opp: breedte*diepte}];
   }
   const zijkant = diepte*hoogte;
   const vloerOpp = breedte*diepte*lagen;
@@ -1487,8 +1487,9 @@ function renderResultaten(){
     }
     const schuineZijde = (basis/2) / Math.cos(deg2rad(hellingshoek));
     const dakvlakOpp = noklengte * schuineZijde;
-    dakvlakRows.push({label: `Dakvlak 1 (noklengte ${noklengte.toFixed(2)}m × schuine zijde ${schuineZijde.toFixed(2)}m)`, opp: dakvlakOpp});
-    dakvlakRows.push({label: `Dakvlak 2 (zelfde berekening)`, opp: dakvlakOpp});
+    const dakvlakNamen = nokrichting === 'voorachter' ? ['Dak Links', 'Dak Rechts'] : ['Dak Voor', 'Dak Achter'];
+    dakvlakRows.push({label: `${dakvlakNamen[0]} (noklengte ${noklengte.toFixed(2)}m × schuine zijde ${schuineZijde.toFixed(2)}m)`, opp: dakvlakOpp});
+    dakvlakRows.push({label: `${dakvlakNamen[1]} (zelfde berekening)`, opp: dakvlakOpp});
 
     const nokDriehoekHoogte = (basis/2) * Math.tan(deg2rad(hellingshoek));
     const nokhoogte = hoogte + nokDriehoekHoogte;
