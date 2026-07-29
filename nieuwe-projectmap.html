@@ -231,6 +231,10 @@ const TEMPLATE_BESTANDEN = [
   "Overzichtstabel U waarden dakvensters VELUX (4).pdf"
 ];
 
+// Sjabloon voor de Huismaten-tool, staat als "master"-versie in de root van "0_In Behandeling".
+// Bij elke nieuwe projectmap wordt hier een projectgebonden kopie van gemaakt.
+const HUISMATEN_TEMPLATE_BESTAND = "huismaten-stap1.html";
+
 let accessToken = null;
 
 // ── PKCE ──────────────────────────────────────────────────────
@@ -434,6 +438,38 @@ async function kopieerBestand(bronPad, doelPad) {
   const putUrl = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(doelPad)}:/content`;
   const putResp = await fetch(putUrl, { method:'PUT', headers:{ Authorization:'Bearer '+token }, body: blob });
   if (!putResp.ok) throw new Error('upload mislukt');
+}
+
+// ── Graph: tekstbestand ophalen ───────────────────────────────
+async function haalBestandAlsTekst(pad) {
+  const token = await getToken();
+  const url = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(pad)}:/content`;
+  const resp = await fetch(url, { headers: { Authorization: 'Bearer '+token } });
+  if (!resp.ok) throw new Error('sjabloon niet gevonden: ' + pad);
+  return resp.text();
+}
+
+// ── Graph: tekstbestand wegschrijven ──────────────────────────
+async function schrijfTekstbestand(pad, tekst) {
+  const token = await getToken();
+  const url = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(pad)}:/content`;
+  const resp = await fetch(url, {
+    method: 'PUT',
+    headers: { Authorization: 'Bearer '+token, 'Content-Type': 'text/html' },
+    body: tekst
+  });
+  if (!resp.ok) throw new Error('wegschrijven mislukt: ' + pad);
+}
+
+// ── Huismaten-tool: projectgebonden kopie maken in 020 AANTEKENINGEN ──
+async function maakHuismatenKopie(projectPad, naam) {
+  const sjabloon = await haalBestandAlsTekst(`${ROOT_PATH}/${HUISMATEN_TEMPLATE_BESTAND}`);
+  const gevuld = sjabloon
+    .replace('const PROJECT_NAAM = "__PROJECT_NAAM__";', `const PROJECT_NAAM = ${JSON.stringify(naam)};`)
+    .replace('const PROJECT_PAD  = "__PROJECT_PAD__";', `const PROJECT_PAD  = ${JSON.stringify(projectPad + '/020 AANTEKENINGEN')};`);
+  const doelbestand = `Huismaten ${naam}.html`;
+  await schrijfTekstbestand(`${projectPad}/020 AANTEKENINGEN/${doelbestand}`, gevuld);
+  return doelbestand;
 }
 
 // ── Klembord: losse velden en alles-in-één-keer kopiëren ────
@@ -805,6 +841,14 @@ async function voerProjectmapUit(naam) {
     } catch(e) { overgeslagen++; }
   }
 
+  let huismatenMelding = '';
+  try {
+    await maakHuismatenKopie(projectPad, naam);
+    huismatenMelding = ' · Huismaten-tool klaargezet in 020 AANTEKENINGEN';
+  } catch(e) {
+    huismatenMelding = ' · ⚠️ Huismaten-tool klaarzetten mislukt: ' + e.message;
+  }
+
   let opdrachtgeverMelding = '';
   try {
     const aangemaakt = await maakOpdrachtgeverBestand(projectPad, naam);
@@ -836,7 +880,7 @@ async function voerProjectmapUit(naam) {
   const melding = bestondAl
     ? `✅ Map bestond al — aangevuld met submappen/bestanden: "${naam}"`
     : `✅ Projectmap aangemaakt: "${naam}"`;
-  setStatus(`${melding} (${gekopieerd} bestanden gekopieerd${overgeslagen ? ', '+overgeslagen+' niet gevonden' : ''})${opdrachtgeverMelding}${taakMelding}`, 'success');
+  setStatus(`${melding} (${gekopieerd} bestanden gekopieerd${overgeslagen ? ', '+overgeslagen+' niet gevonden' : ''})${huismatenMelding}${opdrachtgeverMelding}${taakMelding}`, 'success');
 }
 
 // ── Wachtrij verwerken (zodra er weer internet is) ───────────
