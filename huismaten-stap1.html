@@ -275,9 +275,14 @@
   <div class="btn-row" style="margin-bottom:14px;">
     <button class="btn-primary" id="btn-tekening-update">Tekening bijwerken</button>
     <button class="btn-secondary" id="btn-tekening-pdf">Exporteer naar PDF (A3 liggend)</button>
+    <button class="btn-secondary" id="btn-tekening-excel">Exporteer naar Excel</button>
     <button class="btn-secondary" id="btn-tekening-upload" style="display:none;">Upload naar projectmap</button>
   </div>
   <div id="upload-status" style="font-size:12px; margin:-6px 0 10px;"></div>
+  <div id="excel-dropzone" style="margin:0 0 14px; border:2px dashed var(--line); border-radius:8px; padding:12px; text-align:center; font-size:0.82rem; color:#6b6555; cursor:pointer;">
+    <span id="excel-dropzone-tekst">📥 Sleep hier een aangepaste Excel-export (tabblad "Invoer") naartoe om de velden opnieuw in te lezen — of klik om een bestand te kiezen</span>
+    <input type="file" id="excel-input" accept=".xlsx" style="display:none;">
+  </div>
   <p class="hint">Vaste schaal 1:100 — zwart-wit lijntekening</p>
   <div id="tekening-resultaten-tabel"></div>
   <div id="tekening-container"></div>
@@ -360,6 +365,7 @@
         <option value="geen">Geen / nog niet bepaald (alleen rechte gevel)</option>
         <option value="plat">Plat dak</option>
         <option value="zadel">Zadeldak (driehoek erbij)</option>
+        <option value="schilddak">Schilddak (4 hellende vlakken)</option>
       </select>
     </div>
   </div>
@@ -375,6 +381,36 @@
       <div class="field">
         <label>Hellingshoek (°)</label>
         <input type="text" inputmode="decimal" class="numeric-input" id="gs-hellingshoek" step="0.1" placeholder="bv. 45">
+      </div>
+    </div>
+  </div>
+
+  <div id="gs-schilddakvragen" style="display:none;">
+    <div style="color:#6b6555; font-size:0.8rem; margin-bottom:12px; padding:8px; background:#f0ebe3; border-radius:6px;">
+      Gevelhoogtes zijn gemeten tot de nok. Hellingshoeken per vlak bepalen de schuin oppervlakten.
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Gevelhoogte voorgevel (tot nok, m)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="gs-schilddak-hoogte-voor" step="0.01" placeholder="bv. 7.5">
+      </div>
+      <div class="field">
+        <label>Gevelhoogte achtergevel (tot nok, m)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="gs-schilddak-hoogte-achter" step="0.01" placeholder="bv. 8.0">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Hellingshoek voorgevel (°)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="gs-schilddak-helling-voor" step="0.1" placeholder="bv. 35">
+      </div>
+      <div class="field">
+        <label>Hellingshoek zijgevel (°)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="gs-schilddak-helling-zij" step="0.1" placeholder="bv. 40">
+      </div>
+      <div class="field">
+        <label>Hellingshoek achtergevel (°)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="gs-schilddak-helling-achter" step="0.1" placeholder="bv. 35">
       </div>
     </div>
   </div>
@@ -409,6 +445,7 @@
   <div id="dakkapellen-waarschuwing"></div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script>
 /** @license
  *
@@ -818,10 +855,17 @@ async function graphRefreshToken() {
   return data.access_token;
 }
 
-async function uploadPdfNaarProjectmap(blob) {
+// Versienummer van deze sessie: 1 = origineel, 2+ = na inlezen van een aangepaste Excel-export.
+let huismatenVersie = 1;
+
+function huidigeBasisbestandsnaam() {
+  const basis = projectGekoppeld() ? `Huismaten ${PROJECT_NAAM}` : 'huismaten-tekening';
+  return huismatenVersie > 1 ? `${basis}_v${huismatenVersie}` : basis;
+}
+
+async function uploadBestandNaarProjectmap(blob, bestandsnaam) {
   if (!projectGekoppeld()) throw new Error('Dit exemplaar van de tool is niet aan een project gekoppeld.');
   const token = await graphRefreshToken();
-  const bestandsnaam = `Huismaten ${PROJECT_NAAM}.pdf`;
   const url = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(PROJECT_PAD)}/${encodeURIComponent(bestandsnaam)}:/content`;
   const resp = await fetch(url, { method: 'PUT', headers: { Authorization: 'Bearer ' + token }, body: blob });
   if (!resp.ok) {
@@ -830,6 +874,10 @@ async function uploadPdfNaarProjectmap(blob) {
     throw new Error(melding);
   }
   return bestandsnaam;
+}
+
+async function uploadPdfNaarProjectmap(blob) {
+  return uploadBestandNaarProjectmap(blob, huidigeBasisbestandsnaam() + '.pdf');
 }
 
 function initProjectBanner() {
@@ -1673,12 +1721,19 @@ function renderResultaten(){
 
 const gsDaktype = document.getElementById('gs-daktype');
 const gsZadelvragen = document.getElementById('gs-zadelvragen');
+const gsSchilddakvragen = document.getElementById('gs-schilddakvragen');
 gsDaktype.addEventListener('change', ()=>{
   gsZadelvragen.style.display = gsDaktype.value === 'zadel' ? 'block' : 'none';
+  gsSchilddakvragen.style.display = gsDaktype.value === 'schilddak' ? 'block' : 'none';
   renderResultaten();
 });
 document.getElementById('gs-nokrichting').addEventListener('change', renderResultaten);
 document.getElementById('gs-hellingshoek').addEventListener('input', renderResultaten);
+document.getElementById('gs-schilddak-hoogte-voor').addEventListener('input', renderResultaten);
+document.getElementById('gs-schilddak-hoogte-achter').addEventListener('input', renderResultaten);
+document.getElementById('gs-schilddak-helling-voor').addEventListener('input', renderResultaten);
+document.getElementById('gs-schilddak-helling-zij').addEventListener('input', renderResultaten);
+document.getElementById('gs-schilddak-helling-achter').addEventListener('input', renderResultaten);
 // ---------- DAKKAPEL E.D. (state vooraf gedeclareerd, nodig voor renderResultaten hieronder) ----------
 let dakkapellen = []; // [{id, naam}]
 let volgendDakkapelId = 1;
@@ -1756,6 +1811,49 @@ function berekenDakkapelData(dk){
   return {
     id:dk.id, naam:dk.naam, dakvlak, breedte, hoogte, diepte, afstand, L,
     voorzijde, gatOpp, wangOpp, platDakOpp, geldig:true
+  };
+}
+
+function berekenSchilddakData(){
+  const voorAchterBreedte = parseFloat(document.getElementById('gs-beukmaat')?.value);
+  const diepte = parseFloat(document.getElementById('gs-diepte')?.value);
+  const type = document.getElementById('gs-type')?.value;
+  const correctie = typeof correctieVoorType === 'function' ? correctieVoorType(type) : 0;
+  const b = voorAchterBreedte + correctie; // breedte voor/achtergevel
+  const d = diepte;
+  
+  const hVoor = parseFloat(document.getElementById('gs-schilddak-hoogte-voor')?.value);
+  const hAchter = parseFloat(document.getElementById('gs-schilddak-hoogte-achter')?.value);
+  const hellVoor = parseFloat(document.getElementById('gs-schilddak-helling-voor')?.value);
+  const hellZij = parseFloat(document.getElementById('gs-schilddak-helling-zij')?.value);
+  const hellAchter = parseFloat(document.getElementById('gs-schilddak-helling-achter')?.value);
+  
+  if(isNaN(b) || isNaN(d) || isNaN(hVoor) || isNaN(hAchter) || isNaN(hellVoor) || isNaN(hellZij) || isNaN(hellAchter) || 
+     b<=0 || d<=0 || hVoor<=0 || hAchter<=0 || hellVoor<=0 || hellZij<=0 || hellAchter<=0){
+    return null;
+  }
+  
+  // Bereken nok hoogte op basis van hellingshoeken en gevelhooge
+  // Voor/Achter nokken liggen op de gemiddelde gelvelhoogte + halve breedte × tan(hellingshoek)
+  // Zijdaken: begint op berekende noklinies en loopt af over de diepte
+  
+  // Simplified: oppervlakte berekenen door projectie × correctiefactor voor helling
+  const projectieOppervlakte = b * d;
+  
+  // Correctiefactor: 1/cos(hellingshoek) voor schuin dak
+  const rad2deg = Math.PI/180;
+  const opVoor = (b * d/2) / Math.cos(hellVoor * rad2deg);
+  const opAchter = (b * d/2) / Math.cos(hellAchter * rad2deg);
+  const opZijLinks = (b/2 * d) / Math.cos(hellZij * rad2deg);
+  const opZijRechts = (b/2 * d) / Math.cos(hellZij * rad2deg);
+  
+  const totaalOpp = opVoor + opAchter + opZijLinks + opZijRechts;
+  
+  return {
+    daktype: 'schilddak',
+    geldig: true,
+    hVoor, hAchter, hellVoor, hellZij, hellAchter,
+    opVoor, opAchter, opZijLinks, opZijRechts, totaalOpp
   };
 }
 
@@ -2643,6 +2741,22 @@ function samenvattingRegelsVerzamelen(){
     const hhSam = leesHellingshoek();
     regels.push({label:'Hellingshoek', waarde: hhSam.isDefault ? `${DAK_DEFAULT_HOEK}° (standaard!)` : hhSam.hoek + '°'});
   }
+  if(daktypeEl.value==='schilddak'){
+    const schildData = berekenSchilddakData();
+    if(schildData && schildData.geldig){
+      regels.push({label:'Gevelhoogte voor', waarde: schildData.hVoor.toFixed(2) + ' m'});
+      regels.push({label:'Gevelhoogte achter', waarde: schildData.hAchter.toFixed(2) + ' m'});
+      regels.push({label:'Helling voorgevel', waarde: schildData.hellVoor.toFixed(1) + '°'});
+      regels.push({label:'Helling achtergevel', waarde: schildData.hellAchter.toFixed(1) + '°'});
+      regels.push({label:'Helling zijgevel', waarde: schildData.hellZij.toFixed(1) + '°'});
+      regels.push({kop:'Schilddak — dak­vlak­ten (EPA)'});
+      regels.push({label:'Voordak', waarde: schildData.opVoor.toFixed(2) + ' m²'});
+      regels.push({label:'Zijdak links', waarde: schildData.opZijLinks.toFixed(2) + ' m²'});
+      regels.push({label:'Zijdak rechts', waarde: schildData.opZijRechts.toFixed(2) + ' m²'});
+      regels.push({label:'Achterdak', waarde: schildData.opAchter.toFixed(2) + ' m²'});
+      regels.push({label:'Totaal dak­oppervlak', waarde: schildData.totaalOpp.toFixed(2) + ' m²'});
+    }
+  }
 
   regels.push({kop:'Gevel — oppervlaktes'});
   document.querySelectorAll('#gs-resultaten .lines-list > div').forEach(rij=>{
@@ -2792,15 +2906,15 @@ async function exporteerPDF(){
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'huismaten-tekening.pdf';
+    a.download = huidigeBasisbestandsnaam() + '.pdf';
     document.body.appendChild(a);
     a.click();
     a.remove();
     setTimeout(()=>URL.revokeObjectURL(url), 10000);
 
     let uploadMelding = '';
+    const statusEl = document.getElementById('upload-status');
     if (projectGekoppeld()) {
-      const statusEl = document.getElementById('upload-status');
       statusEl.textContent = '⏳ Uploaden naar projectmap...';
       try {
         const bestandsnaam = await uploadPdfNaarProjectmap(blob);
@@ -2808,6 +2922,15 @@ async function exporteerPDF(){
       } catch(uploadErr){
         statusEl.textContent = `⚠️ Upload naar projectmap mislukt: ${uploadErr.message}`;
       }
+    }
+
+    // Excel-export (output + invoer) hoort bij dezelfde PDF-export
+    try {
+      const excelNaam = await exporteerExcel();
+      statusEl.textContent += (statusEl.textContent ? ' — ' : '') + `📊 Excel gemaakt: "${excelNaam}"`;
+    } catch(excelErr) {
+      console.error('Excel-export mislukt:', excelErr);
+      statusEl.textContent += (statusEl.textContent ? ' — ' : '') + `⚠️ Excel-export mislukt: ${excelErr.message}`;
     }
 
     if(mislukt.length){
@@ -2825,6 +2948,288 @@ async function exporteerPDF(){
 document.getElementById('btn-tekening-pdf').addEventListener('click', exporteerPDF);
 document.getElementById('btn-tekening-upload').addEventListener('click', exporteerPDF);
 initProjectBanner();
+
+// ============================================================
+// EXCEL EXPORT / IMPORT — werkblad 1 "Output" (berekend),
+// werkblad 2 "Invoer" (ruwe velden, key-based zodat je hem
+// kunt bewerken en weer inlezen zonder dat rij/kolomvolgorde
+// er toe doet)
+// ============================================================
+
+function veldWaarde(id){
+  const el = document.getElementById(id);
+  return el ? el.value : '';
+}
+function veldZetten(id, waarde){
+  const el = document.getElementById(id);
+  if(!el || waarde===undefined || waarde===null || waarde==='') return;
+  el.value = waarde;
+  el.dispatchEvent(new Event('input', {bubbles:true}));
+  el.dispatchEvent(new Event('change', {bubbles:true}));
+}
+
+function verzamelInvoerData(){
+  const rows = [];
+  const push = (sectie, index, veld, waarde) => rows.push({sectie, index, veld, waarde: (waarde===undefined||waarde===null) ? '' : waarde});
+
+  push('Gevel', 1, 'type', veldWaarde('gs-type'));
+  push('Gevel', 1, 'beukmaat', veldWaarde('gs-beukmaat'));
+  push('Gevel', 1, 'diepte', veldWaarde('gs-diepte'));
+  push('Gevel', 1, 'hoogte', veldWaarde('gs-hoogte'));
+  push('Gevel', 1, 'daktype', veldWaarde('gs-daktype'));
+  push('Gevel', 1, 'nokrichting', veldWaarde('gs-nokrichting'));
+  push('Gevel', 1, 'hellingshoek', veldWaarde('gs-hellingshoek'));
+  push('Gevel', 1, 'schilddak-hoogte-voor', veldWaarde('gs-schilddak-hoogte-voor'));
+  push('Gevel', 1, 'schilddak-hoogte-achter', veldWaarde('gs-schilddak-hoogte-achter'));
+  push('Gevel', 1, 'schilddak-helling-voor', veldWaarde('gs-schilddak-helling-voor'));
+  push('Gevel', 1, 'schilddak-helling-zij', veldWaarde('gs-schilddak-helling-zij'));
+  push('Gevel', 1, 'schilddak-helling-achter', veldWaarde('gs-schilddak-helling-achter'));
+  push('Gevel', 1, 'vloeroffset', veldWaarde('gs-vloeroffset'));
+
+  push('BeganeGrond', 1, 'lengte', veldWaarde('vloer-lengte'));
+  push('BeganeGrond', 1, 'breedte', veldWaarde('vloer-breedte'));
+  push('BeganeGrond', 1, 'hoogte', veldWaarde('vloer-hoogte'));
+
+  extraVerdiepingen.forEach((v,i)=>{
+    push('Verdieping', i+1, 'breedte', veldWaarde('ev-breedte-'+v.id));
+    push('Verdieping', i+1, 'diepte', veldWaarde('ev-diepte-'+v.id));
+  });
+
+  uitbouwen.forEach((u,i)=>{
+    push('Uitbouw', i+1, 'gevel', veldWaarde('ub-gevel-'+u.id));
+    push('Uitbouw', i+1, 'breedte', veldWaarde('ub-breedte-'+u.id));
+    push('Uitbouw', i+1, 'diepte', veldWaarde('ub-diepte-'+u.id));
+    push('Uitbouw', i+1, 'lagen', veldWaarde('ub-lagen-'+u.id));
+    push('Uitbouw', i+1, 'hoogte', veldWaarde('ub-hoogte-'+u.id));
+    push('Uitbouw', i+1, 'daktype', veldWaarde('ub-daktype-'+u.id));
+    push('Uitbouw', i+1, 'hellingshoek', veldWaarde('ub-hellingshoek-'+u.id));
+  });
+
+  dakkapellen.forEach((dk,i)=>{
+    push('Dakkapel', i+1, 'dakvlak', veldWaarde('dk-dakvlak-'+dk.id));
+    push('Dakkapel', i+1, 'breedte', veldWaarde('dk-breedte-'+dk.id));
+    push('Dakkapel', i+1, 'hoogte', veldWaarde('dk-hoogte-'+dk.id));
+    push('Dakkapel', i+1, 'diepte', veldWaarde('dk-diepte-'+dk.id));
+    push('Dakkapel', i+1, 'afstand', veldWaarde('dk-afstand-'+dk.id));
+  });
+
+  return rows;
+}
+
+function groepeerInvoerRijen(rows){
+  const groepen = {};
+  rows.forEach(r=>{
+    const key = r.sectie + '|' + r.index;
+    if(!groepen[key]) groepen[key] = {sectie:r.sectie, index:Number(r.index), velden:{}};
+    groepen[key].velden[r.veld] = r.waarde;
+  });
+  return Object.values(groepen);
+}
+
+function vulInvoerDataIn(rows){
+  const groepen = groepeerInvoerRijen(rows);
+
+  const gevel = groepen.find(g=>g.sectie==='Gevel');
+  if(gevel){
+    veldZetten('gs-type', gevel.velden.type);
+    veldZetten('gs-beukmaat', gevel.velden.beukmaat);
+    veldZetten('gs-diepte', gevel.velden.diepte);
+    veldZetten('gs-hoogte', gevel.velden.hoogte);
+    veldZetten('gs-daktype', gevel.velden.daktype);
+    veldZetten('gs-nokrichting', gevel.velden.nokrichting);
+    veldZetten('gs-hellingshoek', gevel.velden.hellingshoek);
+    veldZetten('gs-schilddak-hoogte-voor', gevel.velden['schilddak-hoogte-voor']);
+    veldZetten('gs-schilddak-hoogte-achter', gevel.velden['schilddak-hoogte-achter']);
+    veldZetten('gs-schilddak-helling-voor', gevel.velden['schilddak-helling-voor']);
+    veldZetten('gs-schilddak-helling-zij', gevel.velden['schilddak-helling-zij']);
+    veldZetten('gs-schilddak-helling-achter', gevel.velden['schilddak-helling-achter']);
+    veldZetten('gs-vloeroffset', gevel.velden.vloeroffset);
+  }
+
+  const bg = groepen.find(g=>g.sectie==='BeganeGrond');
+  if(bg){
+    veldZetten('vloer-lengte', bg.velden.lengte);
+    veldZetten('vloer-breedte', bg.velden.breedte);
+    veldZetten('vloer-hoogte', bg.velden.hoogte);
+  }
+
+  // Dynamische secties: eerst alles verwijderen, dan opnieuw opbouwen
+  // in het aantal dat in de Excel staat (zo maakt de volgorde/opmaak
+  // in de Excel niet uit, alleen de gegevens per sectie+index).
+  [...extraVerdiepingen].forEach(v=>verwijderVerdieping(v.id));
+  groepen.filter(g=>g.sectie==='Verdieping').sort((a,b)=>a.index-b.index).forEach(g=>{
+    voegVerdiepingToe();
+    const v = extraVerdiepingen[extraVerdiepingen.length-1];
+    veldZetten('ev-breedte-'+v.id, g.velden.breedte);
+    veldZetten('ev-diepte-'+v.id, g.velden.diepte);
+    v.breedteTouched = true; v.diepteTouched = true;
+  });
+
+  [...uitbouwen].forEach(u=>verwijderUitbouw(u.id));
+  groepen.filter(g=>g.sectie==='Uitbouw').sort((a,b)=>a.index-b.index).forEach(g=>{
+    voegUitbouwToe();
+    const u = uitbouwen[uitbouwen.length-1];
+    veldZetten('ub-gevel-'+u.id, g.velden.gevel);
+    veldZetten('ub-breedte-'+u.id, g.velden.breedte);
+    veldZetten('ub-diepte-'+u.id, g.velden.diepte);
+    veldZetten('ub-lagen-'+u.id, g.velden.lagen);
+    veldZetten('ub-daktype-'+u.id, g.velden.daktype);
+    veldZetten('ub-hellingshoek-'+u.id, g.velden.hellingshoek);
+    veldZetten('ub-hoogte-'+u.id, g.velden.hoogte);
+    u.hoogteTouched = true;
+    if(g.velden.hellingshoek) u.hellingshoekTouched = true;
+  });
+
+  [...dakkapellen].forEach(dk=>verwijderDakkapel(dk.id));
+  groepen.filter(g=>g.sectie==='Dakkapel').sort((a,b)=>a.index-b.index).forEach(g=>{
+    voegDakkapelToe();
+    const dk = dakkapellen[dakkapellen.length-1];
+    veldZetten('dk-dakvlak-'+dk.id, g.velden.dakvlak);
+    veldZetten('dk-breedte-'+dk.id, g.velden.breedte);
+    veldZetten('dk-hoogte-'+dk.id, g.velden.hoogte);
+    veldZetten('dk-diepte-'+dk.id, g.velden.diepte);
+    veldZetten('dk-afstand-'+dk.id, g.velden.afstand);
+  });
+
+  if(typeof updateAutoGevelhoogte==='function') updateAutoGevelhoogte();
+  updateVloer();
+  renderDakverdiepingEnTotaal();
+}
+
+function xlsxKolomBreedtes(aoa){
+  const breedtes = [];
+  aoa.forEach(rij=>{
+    rij.forEach((cel, c)=>{
+      const len = (cel===undefined||cel===null) ? 0 : String(cel).length;
+      breedtes[c] = Math.max(breedtes[c]||10, Math.min(len+2, 60));
+    });
+  });
+  return breedtes.map(wch=>({wch}));
+}
+
+function xlsxRand(){
+  const lijn = {style:'thin', color:{rgb:'CFC9B8'}};
+  return {top:lijn, bottom:lijn, left:lijn, right:lijn};
+}
+function xlsxStijlHeader(){
+  return {font:{bold:true, color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'A8472E'}}, alignment:{vertical:'center'}, border:xlsxRand()};
+}
+function xlsxStijlKop(){
+  return {font:{bold:true, color:{rgb:'1D2520'}}, fill:{fgColor:{rgb:'E7E3D8'}}, alignment:{vertical:'center'}, border:xlsxRand()};
+}
+function xlsxStijlNormaal(){
+  return {border:xlsxRand(), alignment:{vertical:'center'}};
+}
+
+function xlsxOpmaakToepassen(ws, aantalKolommen, kopRijen, headerRij){
+  if(!ws['!ref']) return;
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for(let r=range.s.r; r<=range.e.r; r++){
+    let stijl;
+    if(r===headerRij) stijl = xlsxStijlHeader();
+    else if(kopRijen.has(r)) stijl = xlsxStijlKop();
+    else stijl = xlsxStijlNormaal();
+    for(let c=0; c<aantalKolommen; c++){
+      const adres = XLSX.utils.encode_cell({r,c});
+      if(!ws[adres]) ws[adres] = {t:'s', v:''};
+      ws[adres].s = stijl;
+    }
+  }
+}
+
+function bouwWerkboek(){
+  const regels = samenvattingRegelsVerzamelen();
+  const outputAoa = [['Omschrijving','Waarde']];
+  const kopRijenOutput = new Set();
+  regels.forEach(r=>{
+    if(r.kop){ kopRijenOutput.add(outputAoa.length); outputAoa.push([r.kop, '']); }
+    else outputAoa.push([r.label, r.waarde]);
+  });
+
+  const invoerRows = verzamelInvoerData();
+  const invoerAoa = [['Sectie','Index','Veld','Waarde']];
+  invoerRows.forEach(r=> invoerAoa.push([r.sectie, r.index, r.veld, r.waarde]));
+
+  const wb = XLSX.utils.book_new();
+
+  const wsOutput = XLSX.utils.aoa_to_sheet(outputAoa);
+  wsOutput['!cols'] = xlsxKolomBreedtes(outputAoa);
+  xlsxOpmaakToepassen(wsOutput, 2, kopRijenOutput, 0);
+  wsOutput['!merges'] = [...kopRijenOutput].map(r=>({s:{r,c:0}, e:{r,c:1}}));
+
+  const wsInvoer = XLSX.utils.aoa_to_sheet(invoerAoa);
+  wsInvoer['!cols'] = xlsxKolomBreedtes(invoerAoa);
+  xlsxOpmaakToepassen(wsInvoer, 4, new Set(), 0);
+
+  XLSX.utils.book_append_sheet(wb, wsOutput, 'Output');
+  XLSX.utils.book_append_sheet(wb, wsInvoer, 'Invoer');
+  return wb;
+}
+
+async function exporteerExcel(){
+  const wb = bouwWerkboek();
+  const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+  const blob = new Blob([wbout], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const bestandsnaam = huidigeBasisbestandsnaam() + '.xlsx';
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = bestandsnaam;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 10000);
+
+  if(projectGekoppeld()){
+    await uploadBestandNaarProjectmap(blob, bestandsnaam);
+  }
+  return bestandsnaam;
+}
+
+document.getElementById('btn-tekening-excel').addEventListener('click', ()=>{
+  exporteerExcel().catch(err=>{
+    console.error(err);
+    alert('Excel maken mislukt: ' + (err && err.message ? err.message : err));
+  });
+});
+
+const excelDropzone = document.getElementById('excel-dropzone');
+const excelDropzoneTekst = document.getElementById('excel-dropzone-tekst');
+const excelInput = document.getElementById('excel-input');
+
+excelDropzone.addEventListener('click', ()=>excelInput.click());
+excelDropzone.addEventListener('dragover', e=>{ e.preventDefault(); excelDropzone.style.background = '#efece3'; });
+excelDropzone.addEventListener('dragleave', ()=>{ excelDropzone.style.background = ''; });
+excelDropzone.addEventListener('drop', e=>{
+  e.preventDefault();
+  excelDropzone.style.background = '';
+  if(e.dataTransfer.files.length) verwerkExcelBestand(e.dataTransfer.files[0]);
+});
+excelInput.addEventListener('change', e=>{
+  if(e.target.files.length) verwerkExcelBestand(e.target.files[0]);
+  excelInput.value = '';
+});
+
+async function verwerkExcelBestand(file){
+  try{
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(data, {type:'array'});
+    const sheet = wb.Sheets['Invoer'];
+    if(!sheet) throw new Error('Geen tabblad "Invoer" gevonden in dit Excel-bestand.');
+    const aoa = XLSX.utils.sheet_to_json(sheet, {header:1});
+    const rows = [];
+    for(let i=1;i<aoa.length;i++){
+      const rij = aoa[i] || [];
+      const [sectie, index, veld, waarde] = rij;
+      if(sectie===undefined || sectie==='' || veld===undefined || veld==='') continue;
+      rows.push({sectie:String(sectie).trim(), index:Number(index), veld:String(veld).trim(), waarde: waarde===undefined?'':waarde});
+    }
+    vulInvoerDataIn(rows);
+    huismatenVersie += 1;
+    excelDropzoneTekst.textContent = `✅ "${file.name}" ingelezen — velden zijn bijgewerkt. Volgende export wordt versie ${huismatenVersie} (bestandsnaam krijgt _v${huismatenVersie}).`;
+  }catch(err){
+    console.error(err);
+    alert('Excel-bestand inlezen mislukt: ' + (err && err.message ? err.message : err));
+  }
+}
 
 
 
