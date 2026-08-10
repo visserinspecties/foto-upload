@@ -332,6 +332,14 @@
 <!-- VLOER MODE -->
 <div class="panel" id="panel-vloer">
 
+  <!-- Asymmetrisch dak toggle checkbox -->
+  <div style="margin-bottom:16px; padding:10px; background:#f0ebe3; border-radius:6px; display:flex; align-items:center; gap:8px;">
+    <input type="checkbox" id="toggle-asymmetrisch-input" style="width:18px; height:18px; cursor:pointer;">
+    <label for="toggle-asymmetrisch-input" style="margin:0; color:#1d2520; font-weight:500; cursor:pointer; flex:1;">
+      Asymmetrisch dak (voor- en achtergevel verschillende hoogte)
+    </label>
+  </div>
+
   <div style="font-weight:600;margin-bottom:8px;">Begane grond</div>
   <div class="row">
     <div class="field">
@@ -342,11 +350,47 @@
       <label>Diepte / voor-achter (m)</label>
       <input type="text" inputmode="decimal" class="numeric-input" id="vloer-breedte" step="0.01" placeholder="bv. 5.20">
     </div>
+  </div>
+  
+  <!-- Verdiepingshoogte — ALTIJD zichtbaar -->
+  <div class="row">
     <div class="field">
-      <label>Hoogte (m)</label>
-      <input type="text" inputmode="decimal" class="numeric-input" id="vloer-hoogte" step="0.01" placeholder="bv. 2.60">
+      <label>Verdiepingshoogte interieur (m)</label>
+      <input type="text" inputmode="decimal" class="numeric-input" id="vloer-verdiepingshoogte" step="0.01" placeholder="bv. 2.60">
     </div>
   </div>
+  
+  <!-- Gevelhoogte symmetrisch (normaal geval) -->
+  <div id="vloer-gevelhoogte-normaal-wrap" class="row">
+    <div class="field">
+      <label>Gevelhoogte (m) — tot gootlijn / scheidingsmuur</label>
+      <input type="text" inputmode="decimal" class="numeric-input" id="vloer-gevelhoogte" step="0.01" placeholder="bv. 2.80">
+    </div>
+  </div>
+  
+  <!-- Gevelhoogte asymmetrisch (voor + achter apart) -->
+  <div id="vloer-gevelhoogte-asym-wrap" style="display:none;">
+    <div style="width:100%;font-size:0.9rem;color:#666;margin-bottom:8px;">
+      <strong id="vloer-asym-kop-a">Voorgevel:</strong>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Gevelhoogte (m)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="vloer-gevelhoogte-voor" step="0.01" placeholder="bv. 3.20">
+      </div>
+    </div>
+    
+    <div style="width:100%;font-size:0.9rem;color:#666;margin-top:12px;margin-bottom:8px;">
+      <strong id="vloer-asym-kop-b">Achtergevel:</strong>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Gevelhoogte (m)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="vloer-gevelhoogte-achter" step="0.01" placeholder="bv. 4.20">
+      </div>
+    </div>
+  </div>
+  
   <div class="result" style="font-size:1.3rem;">
     <span>Begane grond</span>
     <span><span id="vloer-uitkomst">—</span> <span class="unit">m²</span></span>
@@ -365,24 +409,97 @@
         <option value="geen">Geen / nog niet bepaald (alleen rechte gevel)</option>
         <option value="plat">Plat dak</option>
         <option value="zadel">Zadeldak (driehoek erbij)</option>
+        <option value="asymmetrisch">Asymmetrisch dak (voor- en achtergevel verschillende hoogte)</option>
         <option value="schilddak">Schilddak (4 hellende vlakken)</option>
       </select>
     </div>
   </div>
+  <!-- Nokrichting: geldt voor zadeldak EN asymmetrisch dak -->
+  <div id="gs-nokrichting-wrap" class="row" style="display:none;">
+    <div class="field" style="flex:0 0 100%;">
+      <label>Nokrichting</label>
+      <select id="gs-nokrichting">
+        <option value="voorachter">Van voor naar achter — dakprofiel op voor-/achtergevel</option>
+        <option value="zijgevel">Evenwijdig aan voorgevel — dakprofiel op zijgevel</option>
+      </select>
+    </div>
+  </div>
+
   <div id="gs-zadelvragen" style="display:none;">
     <div class="row">
-      <div class="field">
-        <label>Nokrichting</label>
-        <select id="gs-nokrichting">
-          <option value="voorachter">Van voor naar achter - driehoek op voor-/achtergevel</option>
-          <option value="zijgevel">Evenwijdig aan voorgevel - driehoek op zijgevel</option>
-        </select>
-      </div>
       <div class="field">
         <label>Hellingshoek (°)</label>
         <input type="text" inputmode="decimal" class="numeric-input" id="gs-hellingshoek" step="0.1" placeholder="bv. 45">
       </div>
     </div>
+
+    <div style="color:#6b6555; font-size:0.8rem; margin:10px 0 10px; padding:8px; background:#f0ebe3; border-radius:6px;">
+      Wolfseind (optioneel): kopgevel afgekapt onder de nok, met een klein hellend vlak erboven. Hoogte = t.o.v. de gootlijn (bovenkant rechte gevel).
+    </div>
+
+    <div class="row" style="align-items:center;">
+      <div class="field" style="flex:0 0 100%; display:flex; align-items:center; gap:8px; margin-bottom:0;">
+        <input type="checkbox" id="gs-wolfseind-a-actief" style="width:auto;">
+        <label style="margin:0;" id="gs-wolfseind-a-label">Wolfseind op kopgevel A</label>
+      </div>
+    </div>
+    <div id="gs-wolfseind-a-velden" class="row" style="display:none;">
+      <div class="field">
+        <label>Hoogte boven gootlijn (m)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="gs-wolfseind-a-hoogte" step="0.01" placeholder="bv. 1.20">
+      </div>
+      <div class="field">
+        <label>Hoek wolfseind (°)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="gs-wolfseind-a-hoek" step="0.1" placeholder="bv. 60">
+      </div>
+    </div>
+
+    <div class="row" style="align-items:center;">
+      <div class="field" style="flex:0 0 100%; display:flex; align-items:center; gap:8px; margin-bottom:0;">
+        <input type="checkbox" id="gs-wolfseind-b-actief" style="width:auto;">
+        <label style="margin:0;" id="gs-wolfseind-b-label">Wolfseind op kopgevel B</label>
+      </div>
+    </div>
+    <div id="gs-wolfseind-b-velden" class="row" style="display:none;">
+      <div class="field">
+        <label>Hoogte boven gootlijn (m)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="gs-wolfseind-b-hoogte" step="0.01" placeholder="bv. 1.20">
+      </div>
+      <div class="field">
+        <label>Hoek wolfseind (°)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="gs-wolfseind-b-hoek" step="0.1" placeholder="bv. 60">
+      </div>
+    </div>
+  </div>
+
+  <div id="gs-asymmetrisch-vragen" style="display:none;">
+    <div style="color:#6b6555; font-size:0.8rem; margin-bottom:12px; padding:8px; background:#f0ebe3; border-radius:6px;">
+      <strong>Nokrichting:</strong> bepaalt op welke twee gevels het schuine profiel zit — zie de keuze hierboven. <strong>Gevelhoogtes:</strong> worden automatisch berekend uit BG + verdiepingen. <strong>Dakhellingen:</strong> aparte hoeken per zijde. <span id="gs-asym-overspanning-hint">De overspanning (diepte) wordt gecontroleerd op geometrische consistentie (>5% afwijking = waarschuwing).</span>
+    </div>
+    
+    <!-- Gevelhoogtes: auto-berekend, niet handmatig ingevoerd -->
+    <div class="row">
+      <div class="field">
+        <label id="lbl-asym-hoogte-a">Gevelhoogte voorgevel (berekend, m)</label>
+        <input type="text" readonly style="background:#f0f0f0;" id="gs-asym-hoogte-voor-display" placeholder="—">
+      </div>
+      <div class="field">
+        <label id="lbl-asym-hoogte-b">Gevelhoogte achtergevel (berekend, m)</label>
+        <input type="text" readonly style="background:#f0f0f0;" id="gs-asym-hoogte-achter-display" placeholder="—">
+      </div>
+    </div>
+    
+    <div class="row">
+      <div class="field">
+        <label id="lbl-asym-helling-a">Dakhelling voorgevel (°)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="gs-asym-helling-voor" step="0.1" placeholder="bv. 45">
+      </div>
+      <div class="field">
+        <label id="lbl-asym-helling-b">Dakhelling achtergevel (°)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="gs-asym-helling-achter" step="0.1" placeholder="bv. 45">
+      </div>
+    </div>
+    <div id="gs-asym-validatie" style="color:#a8472e; font-size:0.85rem; margin:10px 0; padding:8px; background:#f0ebe3; border-radius:6px; display:none;"></div>
   </div>
 
   <div id="gs-schilddakvragen" style="display:none;">
@@ -415,8 +532,16 @@
     </div>
   </div>
 
-  <div style="font-weight:600;margin:18px 0 8px;"><span id="dakverdieping-nummer-label">Verdieping 2</span> — dakverdieping / zolder (onder schuin dak, &gt;1,50m)</div>
-  <div class="row">
+  <div style="font-weight:600;margin:18px 0 8px;"><span id="dakverdieping-nummer-label">Zolderverdieping</span> — dakverdieping / zolder (onder schuin dak, &gt;1,50m)</div>
+  
+  <div class="row" style="align-items:center;">
+    <div class="field" style="flex:0 0 100%; display:flex; align-items:center; gap:8px; margin-bottom:0;">
+      <input type="checkbox" id="gs-geen-zoldervloer" style="width:auto;">
+      <label style="margin:0;">Geen zoldervloer aanwezig (open kap, van binnenuit gezien tot aan het dak)</label>
+    </div>
+  </div>
+  
+  <div class="row" style="align-items:center;">
     <div class="field" style="flex:0 0 100%;">
       <label>Dakvloer ligt onder start dakhelling (cm) — optioneel, default 0</label>
       <input type="text" inputmode="decimal" class="numeric-input" id="gs-vloeroffset" step="1" placeholder="bv. 20">
@@ -905,6 +1030,55 @@ function leesHellingshoek(){
   return {hoek: isNaN(v) ? DAK_DEFAULT_HOEK : v, isDefault: isNaN(v)};
 }
 
+// ============================================================
+// NOKRICHTING — één centrale bron van waarheid
+// ------------------------------------------------------------
+// 'zijgevel'   = nok loopt EVENWIJDIG aan de voorgevel.
+//                Het schuine profiel zit dan op de linker- en rechtergevel,
+//                de overspanning loopt over de DIEPTE.
+//                Dakhelft A = voorgevel (VG), dakhelft B = achtergevel (AG).
+// 'voorachter' = nok loopt VAN VOOR NAAR ACHTER (dwars).
+//                Het schuine profiel zit op de voor- en achtergevel,
+//                de overspanning loopt over de BREEDTE/beukmaat.
+//                Dakhelft A = linkergevel (LG), dakhelft B = rechtergevel (RG).
+// Intern heten de twee helften altijd 'voor'/'achter' resp. A/B; alleen
+// de gevel waar ze bij horen verschuift. Deze helpers vertalen dat.
+// ============================================================
+function nokLoopDwars(){
+  return document.getElementById('gs-nokrichting')?.value === 'voorachter';
+}
+// Gevelcodes per dakhelft (geldt voor zadeldak én asymmetrisch dak)
+function dakvlakGevelCodes(){
+  return nokLoopDwars() ? {A:'LG', B:'RG'} : {A:'VG', B:'AG'};
+}
+// Namen van de twee gevels die de gevelhoogte per dakhelft dragen
+function asymZijNamen(){
+  return nokLoopDwars()
+    ? {A:'Linkergevel', B:'Rechtergevel', aKlein:'linkergevel', bKlein:'rechtergevel'}
+    : {A:'Voorgevel',  B:'Achtergevel',  aKlein:'voorgevel',  bKlein:'achtergevel'};
+}
+// Naam van de as waarover het dakprofiel overspant
+function asymOverspanningNaam(){ return nokLoopDwars() ? 'breedte' : 'diepte'; }
+
+// Zet alle labels die met de nokrichting meebewegen (asymmetrisch dak)
+function updateAsymLabels(){
+  const n = asymZijNamen();
+  const zet = (id, tekst) => { const el = document.getElementById(id); if(el) el.textContent = tekst; };
+  zet('lbl-asym-hoogte-a', `Gevelhoogte ${n.aKlein} (berekend, m)`);
+  zet('lbl-asym-hoogte-b', `Gevelhoogte ${n.bKlein} (berekend, m)`);
+  zet('lbl-asym-helling-a', `Dakhelling ${n.aKlein} (°)`);
+  zet('lbl-asym-helling-b', `Dakhelling ${n.bKlein} (°)`);
+  zet('gs-asym-overspanning-hint', `De overspanning (${asymOverspanningNaam()}) wordt gecontroleerd op geometrische consistentie (>5% afwijking = waarschuwing).`);
+  zet('vloer-asym-kop-a', n.A + ':');
+  zet('vloer-asym-kop-b', n.B + ':');
+  if(typeof extraVerdiepingen !== 'undefined'){
+    extraVerdiepingen.forEach(v=>{
+      zet('ev-asym-kop-a-'+v.id, n.A + ':');
+      zet('ev-asym-kop-b-'+v.id, n.B + ':');
+    });
+  }
+}
+
 // Sta Nederlandse komma-notatie toe (1,2 -> 1.2) op alle numerieke velden
 document.addEventListener('input', function(e){
   if(e.target.classList && e.target.classList.contains('numeric-input')){
@@ -917,16 +1091,158 @@ document.addEventListener('input', function(e){
 // ---------- WOONOPPERVLAKTE: BEGANE GROND ----------
 const vl = document.getElementById('vloer-lengte');
 const vb = document.getElementById('vloer-breedte');
-const vh = document.getElementById('vloer-hoogte');
 const vu = document.getElementById('vloer-uitkomst');
 
-function bgOppervlakte(){
-  const l = parseFloat(vl.value);
-  const b = parseFloat(vb.value);
-  return (!isNaN(l) && !isNaN(b) && l>0 && b>0) ? l*b : null;
+// Helper: krijg Verdiepingshoogte (interieur, voor 1,5m-check)
+function getVerdiepingshoogte(verdieping, zijde){
+  // Verdiepingshoogte is ALTIJD hetzelfde (niet asymmetrisch-afhankelijk)
+  if(verdieping === 'bg'){
+    return parseFloat(document.getElementById('vloer-verdiepingshoogte')?.value) || 0;
+  } else {
+    return parseFloat(document.getElementById('ev-verdiepingshoogte-'+verdieping)?.value) || 0;
+  }
 }
+
+// Helper: krijg Gevelhoogte (gevel-eindpunt, voor nok-berekening)
+function getGevelhoogte(verdieping, zijde){
+  const daktype = document.getElementById('gs-daktype')?.value;
+  
+  if(verdieping === 'bg'){
+    // Begane Grond
+    if(daktype === 'asymmetrisch'){
+      if(zijde === 'voor') return parseFloat(document.getElementById('vloer-gevelhoogte-voor')?.value) || 0;
+      if(zijde === 'achter') return parseFloat(document.getElementById('vloer-gevelhoogte-achter')?.value) || 0;
+    }
+    return parseFloat(document.getElementById('vloer-gevelhoogte')?.value) || 0;
+  } else {
+    // Extra verdieping
+    if(daktype === 'asymmetrisch'){
+      if(zijde === 'voor') return parseFloat(document.getElementById('ev-gevelhoogte-voor-'+verdieping)?.value) || 0;
+      if(zijde === 'achter') return parseFloat(document.getElementById('ev-gevelhoogte-achter-'+verdieping)?.value) || 0;
+    }
+    return parseFloat(document.getElementById('ev-gevelhoogte-'+verdieping)?.value) || 0;
+  }
+}
+
+// LEGACY: getBgHoogte() en getVdHoogte() - nu deprecated, gebruik getVerdiepingshoogte/getGevelhoogte
+function getBgHoogte(zijde){
+  return getVerdiepingshoogte('bg', zijde);
+}
+
+function getVdHoogte(vId, zijde){
+  return getVerdiepingshoogte(vId, zijde);
+}
+
+// Helper: bereken Zoldervloer-hoogte (auto uit VERDIEPINGSHOOGTES)
+// BELANGRIJK: dit zijn de interieur-afmetingen, NIET de gevelhoogtes!
+function calcZolderVloerHoogte(zijde){
+  const daktype = document.getElementById('gs-daktype')?.value;
+  
+  // Start met Begane Grond VERDIEPINGSHOOGTE
+  let totaal = getVerdiepingshoogte('bg', zijde);
+  
+  // Tel alle verdiepingen VERDIEPINGSHOOGTES op
+  extraVerdiepingen.forEach(v => {
+    totaal += getVerdiepingshoogte(v.id, zijde);
+  });
+  
+  return totaal;
+}
+
+// Berekent de bruikbare diepte (1,5m-regel) onder een zadelprofiel (twee hellende vlakken naar de nok),
+// voor een vloer op een gegeven absolute hoogte (t.o.v. BG-vloer). Wordt gebruikt voor zowel een
+// normale verdieping waar het dak al doorheen snijdt, als voor de aparte zolderverdieping.
+// Berekent waar het zadelprofiel de 1,5m-lijn kruist (x1 = vanaf voorgevel, x2 = vanaf voorgevel
+// tot waar achtergevel weer eronder komt). Geeft ook de bruikbare diepte terug (x2-x1).
+function zadelprofielSnijpunten(vloerhoogte, diepte, asymData){
+  const MIN_HOOGTE = 1.5;
+  const beschikbaarVoor = calcCumulGeveHoogte('voor') - vloerhoogte;
+  const beschikbaarAchter = calcCumulGeveHoogte('achter') - vloerhoogte;
+  const nokRelatief = asymData.h_nok - vloerhoogte;
+  const tanVoor = Math.tan(asymData.hellVoor * Math.PI / 180);
+  const tanAchter = Math.tan(asymData.hellAchter * Math.PI / 180);
+
+  if(nokRelatief < MIN_HOOGTE) return {x1: diepte, x2: diepte, bruikbareDiepte: 0};
+
+  let x1 = 0;
+  if(beschikbaarVoor < MIN_HOOGTE){
+    x1 = Math.min((MIN_HOOGTE - beschikbaarVoor) / tanVoor, asymData.d_voor);
+  }
+  let x2 = diepte;
+  if(beschikbaarAchter < MIN_HOOGTE){
+    const afstandVanafAchter = Math.min((MIN_HOOGTE - beschikbaarAchter) / tanAchter, asymData.d_achter);
+    x2 = diepte - afstandVanafAchter;
+  }
+  return {x1, x2, bruikbareDiepte: Math.max(0, x2 - x1)};
+}
+
+function bruikbareDiepteOnderZadelprofiel(vloerhoogte, diepte, asymData){
+  return zadelprofielSnijpunten(vloerhoogte, diepte, asymData).bruikbareDiepte;
+}
+
+// Helper: cumulatieve VERDIEPINGSHOOGTE tot (EXCLUSIEF) een gegeven verdieping = vloerhoogte t.o.v. BG-vloer
+function cumulatieveVloerhoogte(verdiepingId){
+  if(verdiepingId === 'bg') return 0;
+  let totaal = getVerdiepingshoogte('bg', null);
+  for(const v of extraVerdiepingen){
+    if(v.id === verdiepingId) return totaal;
+    totaal += getVerdiepingshoogte(v.id, null);
+  }
+  return totaal;
+}
+
+// Helper: is deze verdieping de BOVENSTE (waar het dak op staat)?
+function isTopVerdieping(verdiepingId){
+  if(extraVerdiepingen.length === 0) return verdiepingId === 'bg';
+  return verdiepingId === extraVerdiepingen[extraVerdiepingen.length - 1].id;
+}
+
+// Geeft null terug als het dak nog niet in de weg zit binnen deze verdieping (gewone rechthoek),
+// anders de x1/x2-snijpunten (in meters vanaf de voorgevel) waartussen het bruikbaar is.
+// Gebruikt door zowel de oppervlakteberekening als de plattegrond-tekening (1,5m-strook).
+// De 1,5m-strook ligt langs de as waarover het dakprofiel overspant: bij een nok
+// evenwijdig aan de voorgevel is dat de diepte-as, bij een nok van voor naar achter
+// de breedte-as. 'as' wordt meegegeven zodat de plattegrond hem goed kan tekenen.
+function verdiepingDakInfo(verdiepingId, verdiepingshoogte, breedte, diepte){
+  const daktype = document.getElementById('gs-daktype')?.value;
+  if(daktype !== 'asymmetrisch' || !isTopVerdieping(verdiepingId)) return null;
+  const dwars = nokLoopDwars();
+  const span = dwars ? breedte : diepte;
+  if(isNaN(verdiepingshoogte) || isNaN(span)) return null;
+  const asymData = berekenAsymmetrischDakData();
+  if(!asymData || !asymData.geldig) return null;
+
+  const vloerhoogteStart = cumulatieveVloerhoogte(verdiepingId);
+  const cumGevelVoor = calcCumulGeveHoogte('voor');
+  const cumGevelAchter = calcCumulGeveHoogte('achter');
+  const topGewenst = vloerhoogteStart + verdiepingshoogte;
+  if(topGewenst <= cumGevelVoor && topGewenst <= cumGevelAchter) return null;
+
+  const snij = zadelprofielSnijpunten(vloerhoogteStart, span, asymData);
+  return Object.assign({}, snij, {as: dwars ? 'breedte' : 'diepte', span});
+}
+
+// Berekent het woonoppervlak van een verdieping, rekening houdend met een dak dat er mogelijk al doorheen snijdt.
+// Alleen relevant voor de BOVENSTE verdieping bij asymmetrisch dak — lagere verdiepingen hebben altijd rechte muren.
+function verdiepingOppervlakMetDakCheck(verdiepingId, verdiepingshoogte, breedte, diepte){
+  const daktype = document.getElementById('gs-daktype')?.value;
+
+  if(daktype !== 'asymmetrisch' || !isTopVerdieping(verdiepingId)){
+    // Standaard: alleen simpele 1,5m-check op de volledige verdiepingshoogte
+    if(isNaN(verdiepingshoogte) || verdiepingshoogte <= 0) return null;
+    if(verdiepingshoogte < 1.5) return 0;
+    return breedte * diepte;
+  }
+
+  const info = verdiepingDakInfo(verdiepingId, verdiepingshoogte, breedte, diepte);
+  if(!info) return breedte * diepte;
+  // De bruikbare strook zit op de overspanningsas; de andere as telt volledig mee.
+  return (info.as === 'breedte' ? diepte : breedte) * info.bruikbareDiepte;
+}
+
 function updateVloer(){
   const opp = bgOppervlakte();
+
   vu.textContent = opp===null ? '—' : opp.toFixed(2);
 }
 
@@ -939,7 +1255,22 @@ let volgendVerdiepingId = 1;
 function verdiepingOppervlakte(v){
   const b = parseFloat(document.getElementById('ev-breedte-'+v.id).value);
   const d = parseFloat(document.getElementById('ev-diepte-'+v.id).value);
-  return (!isNaN(b) && !isNaN(d) && b>0 && d>0) ? b*d : null;
+  
+  if(isNaN(b) || isNaN(d) || b<=0 || d<=0) return null;
+  
+  const h = getVerdiepingshoogte(v.id, null);
+  return verdiepingOppervlakMetDakCheck(v.id, h, b, d);
+}
+
+// Functie voor BG hoogte-berekening (zelfde logica)
+function bgOppervlakte(){
+  const b = parseFloat(document.getElementById('vloer-lengte').value);
+  const d = parseFloat(document.getElementById('vloer-breedte').value);
+  
+  if(isNaN(b) || isNaN(d) || b<=0 || d<=0) return null;
+  
+  const h = getVerdiepingshoogte('bg', null);
+  return verdiepingOppervlakMetDakCheck('bg', h, b, d);
 }
 
 function vorigeBreedteDiepte(index){
@@ -953,8 +1284,8 @@ function renumberVerdiepingen(){
   extraVerdiepingen.forEach((v, i)=>{
     document.getElementById('ev-titel-'+v.id).textContent = 'Verdieping ' + (i+1);
   });
-  const dakNummer = extraVerdiepingen.length + 2; // begane grond=1, extra verdiepingen, dak = laatste
-  document.getElementById('dakverdieping-nummer-label').textContent = 'Verdieping ' + dakNummer;
+  // Dakverdieping = zolderverdieping (niet "Verdieping X")
+  document.getElementById('dakverdieping-nummer-label').textContent = 'Zolderverdieping';
 }
 
 function syncVerdiepingVanVorige(index){
@@ -981,6 +1312,10 @@ function voegVerdiepingToe(){
   const v = {id, breedteTouched:false, diepteTouched:false};
   const index = extraVerdiepingen.length;
   extraVerdiepingen.push(v);
+  
+  // Bepaal huidige daktype
+  const daktype = document.getElementById('gs-daktype')?.value;
+  const isAsymmetrisch = daktype === 'asymmetrisch';
 
   const blok = document.createElement('div');
   blok.id = 'ev-blok-'+id;
@@ -999,11 +1334,47 @@ function voegVerdiepingToe(){
         <label>Diepte (m) — auto (overschrijfbaar)</label>
         <input type="text" inputmode="decimal" class="numeric-input" id="ev-diepte-${id}" step="0.01">
       </div>
+    </div>
+    
+    <!-- Verdiepingshoogte — ALTIJD zichtbaar -->
+    <div class="row">
       <div class="field">
-        <label>Hoogte (m)</label>
-        <input type="text" inputmode="decimal" class="numeric-input" id="ev-hoogte-${id}" step="0.01">
+        <label>Verdiepingshoogte interieur (m)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="ev-verdiepingshoogte-${id}" step="0.01">
       </div>
     </div>
+    
+    <!-- Gevelhoogte symmetrisch (normaal geval) -->
+    <div id="ev-gevelhoogte-normaal-wrap-${id}" class="row" style="display:${isAsymmetrisch ? 'none' : 'flex'};">
+      <div class="field">
+        <label>Gevelhoogte (m) — tot gootlijn / scheidingsmuur</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="ev-gevelhoogte-${id}" step="0.01">
+      </div>
+    </div>
+    
+    <!-- Gevelhoogte asymmetrisch (voor + achter apart) -->
+    <div id="ev-gevelhoogte-asym-wrap-${id}" style="display:${isAsymmetrisch ? 'block' : 'none'};">
+      <div style="width:100%;font-size:0.9rem;color:#666;margin-bottom:8px;">
+        <strong id="ev-asym-kop-a-${id}">Voorgevel:</strong>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Gevelhoogte (m)</label>
+          <input type="text" inputmode="decimal" class="numeric-input" id="ev-gevelhoogte-voor-${id}" step="0.01">
+        </div>
+      </div>
+      
+      <div style="width:100%;font-size:0.9rem;color:#666;margin-top:12px;margin-bottom:8px;">
+        <strong id="ev-asym-kop-b-${id}">Achtergevel:</strong>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Gevelhoogte (m)</label>
+          <input type="text" inputmode="decimal" class="numeric-input" id="ev-gevelhoogte-achter-${id}" step="0.01">
+        </div>
+      </div>
+    </div>
+    
     <div class="result" style="font-size:1.3rem;">
       <span id="ev-titel2-${id}">Verdieping</span>
       <span><span id="ev-uitkomst-${id}">—</span> <span class="unit">m²</span></span>
@@ -1026,8 +1397,32 @@ function voegVerdiepingToe(){
     renderDakverdiepingEnTotaal();
     syncAlleVolgendeVerdiepingen(index+1);
   });
-  document.getElementById('ev-hoogte-'+id).addEventListener('input', ()=>{
+  document.getElementById('ev-verdiepingshoogte-'+id).addEventListener('input', ()=>{
     if(typeof updateAutoGevelhoogte==='function') updateAutoGevelhoogte();
+    updateVerdiepingUitkomst(v);
+    renderDakverdiepingEnTotaal();
+  });
+  
+  // Gevelhoogte normaal (symmetrisch)
+  const evGevelhoog = document.getElementById('ev-gevelhoogte-'+id);
+  if(evGevelhoog) evGevelhoog.addEventListener('input', ()=>{
+    if(typeof updateAutoGevelhoogte==='function') updateAutoGevelhoogte();
+    updateVerdiepingUitkomst(v);
+    renderDakverdiepingEnTotaal();
+  });
+  
+  // Gevelhoogtes asym (voor + achter)
+  const evGevelhoogVoor = document.getElementById('ev-gevelhoogte-voor-'+id);
+  if(evGevelhoogVoor) evGevelhoogVoor.addEventListener('input', ()=>{
+    if(typeof updateAutoGevelhoogte==='function') updateAutoGevelhoogte();
+    updateVerdiepingUitkomst(v);
+    renderDakverdiepingEnTotaal();
+  });
+  
+  const evGevelhoogAchter = document.getElementById('ev-gevelhoogte-achter-'+id);
+  if(evGevelhoogAchter) evGevelhoogAchter.addEventListener('input', ()=>{
+    if(typeof updateAutoGevelhoogte==='function') updateAutoGevelhoogte();
+    updateVerdiepingUitkomst(v);
     renderDakverdiepingEnTotaal();
   });
 
@@ -1060,10 +1455,18 @@ function alleVerdiepingenOppervlakte(){
   }, 0);
 }
 function alleVerdiepingenHoogte(){
+  // Optellen van alle VERDIEPINGSHOOGTES (niet gevelhoogtes!)
   return extraVerdiepingen.reduce((sum,v)=>{
-    const h = parseFloat(document.getElementById('ev-hoogte-'+v.id).value);
+    const h = getVerdiepingshoogte(v.id, null);
     return sum + (isNaN(h)?0:h);
   }, 0);
+}
+
+// DEPRECATED: autoGevelhoogte() wordt niet meer gebruikt (gevelhoogtes zijn nu auto-berekend)
+function autoGevelhoogte(){
+  const bg = getVerdiepingshoogte('bg', null) || 0;
+  const offsetCm = parseFloat(document.getElementById('gs-vloeroffset')?.value) || 0;
+  return bg + alleVerdiepingenHoogte() + (offsetCm/100);
 }
 
 // ---------- DAKVERDIEPING (1,50m-regel) + TOTAAL ----------
@@ -1081,10 +1484,46 @@ function renderDakverdiepingEnTotaal(){
   const hellingshoek = hh.hoek;
 
   let dakverdiepingOpp = null;
+  const geenZoldervloer = document.getElementById('gs-geen-zoldervloer')?.checked || false;
+  const vloeroffsetRij = document.getElementById('gs-vloeroffset-rij');
+  if(vloeroffsetRij) vloeroffsetRij.style.display = geenZoldervloer ? 'none' : 'flex';
 
-  if(daktype !== 'zadel' || isNaN(beuk) || isNaN(diepte) || isNaN(gevelhoogte)){
+  if(geenZoldervloer){
+    out.innerHTML = '<p class="hint">Open kap: geen zoldervloer aanwezig, dus geen extra vloeroppervlak boven de 1,50m-lijn. De ruimte is van binnenuit gezien open tot aan het dak. De dakvlakken (EPA-schil) worden gewoon berekend.</p>';
+  } else if(daktype === 'asymmetrisch'){
+    // Asymmetrische zolder: rechthoek-logica (1,5m doos)
+    if(isNaN(beuk) || isNaN(diepte)){
+      out.innerHTML = '<p class="hint">Vul beukmaat en diepte in op de Schil-tab.</p>';
+    } else {
+      const asymData = berekenAsymmetrischDakData();
+      if(!asymData || !asymData.geldig){
+        out.innerHTML = '<p class="hint">Stel eerst een asymmetrisch dak in op de Schil-tab (gevelhoogtes, dakhellingen).</p>';
+      } else {
+        // Zoldervloer-hoogte: auto-berekend uit verdiepingshoogtes (cumulatief, één platte vloer)
+        const zoldervloerhoogte = calcZolderVloerHoogte('voor');
+
+        if(asymData.h_nok - zoldervloerhoogte <= 0){
+          dakverdiepingOpp = 0;
+          out.innerHTML = '<p class="hint">Geen zolder beschikbaar (zoldervloer ≥ nokhoogte).</p>';
+        } else {
+          const dwarsZolder = nokLoopDwars();
+          const spanZolder = dwarsZolder ? beuk : diepte;        // as waarover het dak overspant
+          const langsZolder = dwarsZolder ? diepte : beuk;       // as evenwijdig aan de nok
+          const bruikbareDiepte = bruikbareDiepteOnderZadelprofiel(zoldervloerhoogte, spanZolder, asymData);
+          dakverdiepingOpp = langsZolder * bruikbareDiepte;
+
+          const detail = `Zoldervloer op ${zoldervloerhoogte.toFixed(2)}m, nok op ${asymData.h_nok.toFixed(2)}m → bruikbare ${dwarsZolder ? 'breedte' : 'diepte'} ${bruikbareDiepte.toFixed(2)}m (1,5m-regel, zadelprofiel)`;
+          out.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-bottom:1px solid #eee;">
+            <span style="font-size:0.85rem;color:#6b6555;">${detail}</span>
+            <span style="font-size:1.3rem;font-weight:700;font-family:var(--mono);white-space:nowrap;margin-left:10px;">${dakverdiepingOpp.toFixed(2)} m²</span>
+          </div>`;
+        }
+      }
+    }
+  } else if(daktype !== 'zadel' || isNaN(beuk) || isNaN(diepte) || isNaN(gevelhoogte)){
     out.innerHTML = '<p class="hint">Stel eerst een zadeldak in op de Schil-tab (beukmaat, diepte, gevelhoogte, hellingshoek).</p>';
   } else {
+    // Normaal zadeldak
     const correctie = correctieVoorType(document.getElementById('gs-type').value);
     const voorAchterBreedte = beuk + correctie;
     let basis, noklengte;
@@ -1093,14 +1532,29 @@ function renderDakverdiepingEnTotaal(){
 
     const vloeroffsetCm = parseFloat(document.getElementById('gs-vloeroffset')?.value) || 0;
     const vloeroffsetM = vloeroffsetCm / 100;
-    let x0 = (1.50 - vloeroffsetM) / Math.tan(deg2rad(hellingshoek));
+    const zTarget = 1.50 - vloeroffsetM;
+    let x0 = zTarget / Math.tan(deg2rad(hellingshoek));
     const uitgeslotenPerZijde = Math.max(x0, 0);
     let bruikbareBreedte = basis - 2*uitgeslotenPerZijde;
     if(bruikbareBreedte < 0) bruikbareBreedte = 0;
-    dakverdiepingOpp = noklengte * bruikbareBreedte;
+
+    // Wolfseind: alleen relevant als de 1,50m-lijn boven de wolfseind-afkaphoogte ligt.
+    const wA2 = leesWolfseind('a'), wB2 = leesWolfseind('b');
+    const wolfseindBasis2 = nokrichting === 'voorachter' ? voorAchterBreedte : diepte;
+    const wAopp = berekenWolfseindGevel(wolfseindBasis2, hellingshoek, wA2);
+    const wBopp = berekenWolfseindGevel(wolfseindBasis2, hellingshoek, wB2);
+    let wolfseindCorrectie = 0;
+    if(wAopp.afgeknot && zTarget > wAopp.nokDriehoekHoogte - wAopp.restHoogte){
+      wolfseindCorrectie += 0.5 * wAopp.afstandW * bruikbareBreedte;
+    }
+    if(wBopp.afgeknot && zTarget > wBopp.nokDriehoekHoogte - wBopp.restHoogte){
+      wolfseindCorrectie += 0.5 * wBopp.afstandW * bruikbareBreedte;
+    }
+
+    dakverdiepingOpp = Math.max(noklengte * bruikbareBreedte - wolfseindCorrectie, 0);
 
     out.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-bottom:1px solid #eee;">
-      <span style="font-size:0.85rem;color:#6b6555;">Bruikbare breedte ${bruikbareBreedte.toFixed(2)}m × noklengte ${noklengte.toFixed(2)}m</span>
+      <span style="font-size:0.85rem;color:#6b6555;">Bruikbare breedte ${bruikbareBreedte.toFixed(2)}m × noklengte ${noklengte.toFixed(2)}m${wolfseindCorrectie>0 ? ` - wolfseind-hoeken ${wolfseindCorrectie.toFixed(2)}m² (benadering)` : ''}</span>
       <span style="font-size:1.3rem;font-weight:700;font-family:var(--mono);white-space:nowrap;margin-left:10px;">${dakverdiepingOpp.toFixed(2)} m²</span>
     </div>` + (hh.isDefault ? `<p class="hint" style="color:#a8472e;">⚠ Geen hellingshoek ingevuld — gerekend met standaard ${DAK_DEFAULT_HOEK}°. Vul de echte hoek in voor een correcte berekening.</p>` : '');
   }
@@ -1127,8 +1581,19 @@ vb.addEventListener('input', ()=>{
   syncAlleVolgendeVerdiepingen(0);
   renderDakverdiepingEnTotaal();
 });
-vh.addEventListener('input', ()=>{ updateAutoGevelhoogte(); renderDakverdiepingEnTotaal(); });
+// Listeners voor Begane Grond hoogte-inputs
+document.getElementById('vloer-verdiepingshoogte').addEventListener('input', ()=>{ updateAutoGevelhoogte(); renderDakverdiepingEnTotaal(); });
+document.getElementById('vloer-gevelhoogte').addEventListener('input', ()=>{ renderResultaten(); renderDakverdiepingEnTotaal(); });
+
+// Gevelhoogte asymmetrisch (voeg listeners toe met null-check)
+const vloerGevelhoogVoor = document.getElementById('vloer-gevelhoogte-voor');
+if(vloerGevelhoogVoor) vloerGevelhoogVoor.addEventListener('input', ()=>{ renderResultaten(); renderDakverdiepingEnTotaal(); });
+
+const vloerGevelhoogAchter = document.getElementById('vloer-gevelhoogte-achter');
+if(vloerGevelhoogAchter) vloerGevelhoogAchter.addEventListener('input', ()=>{ renderResultaten(); renderDakverdiepingEnTotaal(); });
+
 document.getElementById('gs-vloeroffset').addEventListener('input', ()=>{ updateAutoGevelhoogte(); renderDakverdiepingEnTotaal(); });
+document.getElementById('gs-geen-zoldervloer').addEventListener('change', renderDakverdiepingEnTotaal);
 
 // ---------- UITBOUWEN ----------
 const uitbouwenContainer = document.getElementById('uitbouwen-container');
@@ -1155,14 +1620,19 @@ function verdeelHoekGroepen(lijst, gevelCode){
 }
 // Plaatst {links,geen,rechts}-items langs een as van totaleLengtePx. breedteVeld = welk veld (in meter)
 // van elk item de stapelbreedte bepaalt. Geeft [{item,pos,bPx}] terug (pos = positie langs de as, in px).
+// links/rechts-groepen (hoek-vlag) staan vast tegen hun hoek; de geen-groep (geen hoek-vlag) wordt
+// gecentreerd in de resterende ruimte ertussen — dus midden op de gevel, niet in een hoek gedrukt.
 function positioneerMetHoek(groepen, totaleLengtePx, breedteVeld, gapPx){
   const resultaat = [];
+
   let cursor = 0;
-  [...groepen.links, ...groepen.geen].forEach(item=>{
+  groepen.links.forEach(item=>{
     const bPx = item[breedteVeld]*SCALE;
     resultaat.push({item, pos:cursor, bPx});
     cursor += bPx + gapPx;
   });
+  const linksRand = cursor;
+
   const rechtsBpx = groepen.rechts.map(item=>item[breedteVeld]*SCALE);
   const totaalRechts = rechtsBpx.reduce((s,b)=>s+b,0) + Math.max(0, groepen.rechts.length-1)*gapPx;
   let cursorR = totaleLengtePx - totaalRechts;
@@ -1171,6 +1641,18 @@ function positioneerMetHoek(groepen, totaleLengtePx, breedteVeld, gapPx){
     resultaat.push({item, pos:cursorR, bPx});
     cursorR += bPx + gapPx;
   });
+  const rechtsRand = totaleLengtePx - totaalRechts - (groepen.rechts.length ? gapPx : 0);
+
+  const geenBpx = groepen.geen.map(item=>item[breedteVeld]*SCALE);
+  const geenTotaal = geenBpx.reduce((s,b)=>s+b,0) + Math.max(0, groepen.geen.length-1)*gapPx;
+  const beschikbaar = Math.max(0, rechtsRand - linksRand);
+  let cursorM = linksRand + Math.max(0, (beschikbaar - geenTotaal) / 2);
+  groepen.geen.forEach((item,i)=>{
+    const bPx = geenBpx[i];
+    resultaat.push({item, pos:cursorM, bPx});
+    cursorM += bPx + gapPx;
+  });
+
   return resultaat;
 }
 
@@ -1181,10 +1663,10 @@ function positioneerMetHoek(groepen, totaleLengtePx, breedteVeld, gapPx){
 // gootlijn) wordt niet meegenomen: die lijn valt al samen met de bovenkant van de gevel.
 function verdiepingsvloerHoogtes(){
   const niveaus = [];
-  let cum = parseFloat(vh?.value) || 0;
+  let cum = getBgHoogte(); // Pak normale hoogte (voor asymmetrisch: voorgevel)
   niveaus.push(cum);
   extraVerdiepingen.forEach(v=>{
-    const h = parseFloat(document.getElementById('ev-hoogte-'+v.id)?.value) || 0;
+    const h = getVdHoogte(v.id); // Pak normale hoogte
     cum += h;
     niveaus.push(cum);
   });
@@ -1193,10 +1675,10 @@ function verdiepingsvloerHoogtes(){
 }
 
 function verdiepingHoogte(index){
-  if(index === 0) return parseFloat(vh.value) || 0;
+  if(index === 0) return getBgHoogte();
   const v = extraVerdiepingen[index-1];
   if(!v) return 0;
-  return parseFloat(document.getElementById('ev-hoogte-'+v.id)?.value) || 0;
+  return getVdHoogte(v.id);
 }
 function autoHoogteUitbouw(lagen){
   let h = 0;
@@ -1426,22 +1908,17 @@ const gsBeukmaat = document.getElementById('gs-beukmaat');
 const gsDiepte = document.getElementById('gs-diepte');
 let gsBeukmaatTouched = false;
 let gsDiepteTouched = false;
-gsBeukmaat.addEventListener('input', ()=>{ gsBeukmaatTouched = true; });
-gsDiepte.addEventListener('input', ()=>{ gsDiepteTouched = true; });
+gsBeukmaat.addEventListener('input', (e)=>{ if(e.isTrusted) gsBeukmaatTouched = true; });
+gsDiepte.addEventListener('input', (e)=>{ if(e.isTrusted) gsDiepteTouched = true; });
 const gsHoogte = document.getElementById('gs-hoogte');
 let gsHoogteTouched = false;
-gsHoogte.addEventListener('input', ()=>{ gsHoogteTouched = true; });
+gsHoogte.addEventListener('input', (e)=>{ if(e.isTrusted) gsHoogteTouched = true; });
 
-function autoGevelhoogte(){
-  const bg = parseFloat(vh.value) || 0;
-  const offsetCm = parseFloat(document.getElementById('gs-vloeroffset')?.value) || 0;
-  return bg + alleVerdiepingenHoogte() + (offsetCm/100);
-}
+// updateAutoGevelhoogte() wil niet meer gebruikt — gevelhoogtes zijn nu auto-berekend
+// (was: gsHoogte.value = autoGevelhoogte(), maar autoGevelhoogte() is nu alleen voor zoldervloer-context)
 function updateAutoGevelhoogte(){
-  if(!gsHoogteTouched){
-    gsHoogte.value = autoGevelhoogte().toFixed(2);
-    if(typeof renderResultaten === 'function') renderResultaten();
-  }
+  // PLACEHOLDER: deze functie doet nu niks (gevelhoogtes worden auto-berekend in berekenAsymmetrischDakData())
+  if(typeof renderResultaten === 'function') renderResultaten();
 }
 
 const gsZijvragen = document.getElementById('gs-zijvragen');
@@ -1559,17 +2036,19 @@ function renderResultaten(){
   const beuk = parseFloat(gsBeukmaat.value);
   const diepte = parseFloat(gsDiepte.value);
   const hoogte = parseFloat(gsHoogte.value);
+  const daktypeVroeg = document.getElementById('gs-daktype').value;
+  const isAsymResultaten = daktypeVroeg === 'asymmetrisch';
 
   renderDakverdiepingEnTotaal();
 
-  if(isNaN(beuk) || isNaN(diepte) || isNaN(hoogte)){
+  if(isNaN(beuk) || isNaN(diepte) || (!isAsymResultaten && isNaN(hoogte))){
     gsResultaten.innerHTML = '<p class="hint">Vul beukmaat, diepte en gevelhoogte in voor de berekening.</p>';
     return;
   }
 
   const correctie = correctieVoorType(type);
   const voorAchterBreedte = beuk + correctie;
-  const voorAchterRect = voorAchterBreedte * hoogte;
+  const voorAchterRect = voorAchterBreedte * hoogte; // NaN bij asymmetrisch — daar niet gebruikt, zie apart pad hieronder
 
   const daktype = document.getElementById('gs-daktype').value;
   const nokrichting = document.getElementById('gs-nokrichting')?.value;
@@ -1581,57 +2060,177 @@ function renderResultaten(){
     return 0.5 * basis * driehoekHoogte;
   }
 
+  // Wolfseind: alleen relevant op de kopgevels (die met de driehoek).
+  // Kopgevel A/B volgen de nokrichting: voorachter -> A=voorgevel, B=achtergevel; zijgevel -> A=links, B=rechts.
+  const wolfseindA = leesWolfseind('a');
+  const wolfseindB = leesWolfseind('b');
+  const wolfseindBasis = nokrichting === 'voorachter' ? voorAchterBreedte : diepte;
+  let wA = {opp:0, afgeknot:false}, wB = {opp:0, afgeknot:false};
+
   let driehoekVoorAchter = 0, driehoekZij = 0;
+  let driehoekVoorAchterA = 0, driehoekVoorAchterB = 0; // apart per kant i.v.m. wolfseind
   if(heeftDriehoek && nokrichting === 'voorachter'){
-    driehoekVoorAchter = driehoekOpp(voorAchterBreedte);
+    wA = berekenWolfseindGevel(wolfseindBasis, hellingshoek, wolfseindA);
+    wB = berekenWolfseindGevel(wolfseindBasis, hellingshoek, wolfseindB);
+    driehoekVoorAchterA = wA.opp;
+    driehoekVoorAchterB = wB.opp;
+    driehoekVoorAchter = driehoekOpp(voorAchterBreedte); // ongewijzigd, alleen gebruikt als geen wolfseind
   }
   if(heeftDriehoek && nokrichting === 'zijgevel'){
+    wA = berekenWolfseindGevel(wolfseindBasis, hellingshoek, wolfseindA);
+    wB = berekenWolfseindGevel(wolfseindBasis, hellingshoek, wolfseindB);
     driehoekZij = driehoekOpp(diepte);
   }
 
-  const voorAchterOpp = voorAchterRect + driehoekVoorAchter;
+  const voorAchterOpp = voorAchterRect + driehoekVoorAchter; // fallback zonder wolfseind (gebruikt bij zijgevel-nokrichting)
 
-  function gevelLabel(basisLabel, rect, driehoek){
+  function gevelLabel(basisLabel, rect, driehoek, afgeknot){
     let label = basisLabel;
-    if(driehoek > 0) label += ` (rechthoek ${rect.toFixed(2)} + driehoek ${driehoek.toFixed(2)})`;
+    if(driehoek > 0) label += ` (rechthoek ${rect.toFixed(2)} + driehoek${afgeknot ? ' afgeknot (wolfseind)' : ''} ${driehoek.toFixed(2)})`;
     return label;
   }
 
   function zijLabel(kant){ return kant === 'links' ? 'Linker gevel' : 'Rechter gevel'; }
 
-  let rows = [
-    {label: gevelLabel(`Voorgevel (beukmaat ${beuk.toFixed(2)}m${correctie>0 ? ' + '+(correctie*100).toFixed(0)+'cm' : ''})`, voorAchterRect, driehoekVoorAchter), opp: voorAchterOpp, gevelKey:'VG'},
-    {label: gevelLabel(`Achtergevel (zelfde berekening)`, voorAchterRect, driehoekVoorAchter), opp: voorAchterOpp, gevelKey:'AG'}
-  ];
+  let rows;
+  let asymDataResultaten = null;
+  if(isAsymResultaten){
+    // Asymmetrisch dak: geen enkele "hoogte" — voorgevel/achtergevel hebben elk hun eigen
+    // (cumulatieve) gevelhoogte; linker/rechtergevel zijn het 2D-profiel (twee trapezia naar de nok),
+    // dezelfde berekening als in de tekening (tekenGevelaanzicht met asymProfiel).
+    asymDataResultaten = berekenAsymmetrischDakData();
+    if(!asymDataResultaten || !asymDataResultaten.geldig){
+      gsResultaten.innerHTML = '<p class="hint">Vul eerst alle asymmetrisch-dak velden in (gevelhoogtes, dakhellingen) — zie hieronder.</p>';
+      rows = [];
+    } else {
+      const cumGevelVoorR = calcCumulGeveHoogte('voor');
+      const cumGevelAchterR = calcCumulGeveHoogte('achter');
+      const oppVoor2D = ((asymDataResultaten.hVoor + asymDataResultaten.h_nok) / 2) * asymDataResultaten.d_voor;
+      const oppAchter2D = ((asymDataResultaten.hAchter + asymDataResultaten.h_nok) / 2) * asymDataResultaten.d_achter;
+      const profielOpp = oppVoor2D + oppAchter2D; // 2D-oppervlak van het schuine gevelprofiel
+      const dwarsR = asymDataResultaten.dwars;
 
-  // zijgevels
+      // Welke twee gevels dragen het schuine profiel, en welke twee zijn rechthoekig?
+      // dwars (nok voor-achter): profiel op VG/AG, rechthoek op LG (=zijde A) en RG (=zijde B)
+      // anders (nok evenwijdig): profiel op LG/RG, rechthoek op VG (=zijde A) en AG (=zijde B)
+      const rechtBreedte = dwarsR ? diepte : voorAchterBreedte;
+      const breedteOmschrijving = dwarsR
+        ? `diepte ${diepte.toFixed(2)}m`
+        : `beukmaat ${beuk.toFixed(2)}m${correctie>0 ? ' + '+(correctie*100).toFixed(0)+'cm' : ''}`;
+
+      // Voor- en achtergevel
+      if(dwarsR){
+        rows = [
+          {label: `Voorgevel (dakprofiel, breedte ${voorAchterBreedte.toFixed(2)}m, nok ${asymDataResultaten.h_nok.toFixed(2)}m)`, opp: profielOpp, gevelKey:'VG', capHoogte: asymDataResultaten.h_nok},
+          {label: `Achtergevel (dakprofiel, zelfde berekening)`, opp: profielOpp, gevelKey:'AG', capHoogte: asymDataResultaten.h_nok}
+        ];
+      } else {
+        rows = [
+          {label: `Voorgevel (${breedteOmschrijving} × gevelhoogte ${cumGevelVoorR.toFixed(2)}m)`, opp: voorAchterBreedte*cumGevelVoorR, gevelKey:'VG', capHoogte: cumGevelVoorR},
+          {label: `Achtergevel (${breedteOmschrijving} × gevelhoogte ${cumGevelAchterR.toFixed(2)}m)`, opp: voorAchterBreedte*cumGevelAchterR, gevelKey:'AG', capHoogte: cumGevelAchterR}
+        ];
+      }
+
+      // Linker- en rechtergevel: bij dwarse nok zijn dit rechthoeken met elk hun eigen
+      // gevelhoogte (zijde A = links, zijde B = rechts), anders dragen zij het profiel.
+      const kantenLabelAsym = kant => kant === 'links' ? 'Linker gevel' : 'Rechter gevel';
+      const zijVolOpp = kant => dwarsR
+        ? rechtBreedte * (kant === 'links' ? cumGevelVoorR : cumGevelAchterR)
+        : profielOpp;
+      const zijCapHoogte = kant => dwarsR
+        ? (kant === 'links' ? cumGevelVoorR : cumGevelAchterR)
+        : asymDataResultaten.h_nok;
+      const zijVolLabel = kant => dwarsR
+        ? `${kantenLabelAsym(kant)} (vol, geen buurwoning, ${breedteOmschrijving} × gevelhoogte ${(kant==='links'?cumGevelVoorR:cumGevelAchterR).toFixed(2)}m)`
+        : `${kantenLabelAsym(kant)} (vol, geen buurwoning, dakprofiel)`;
+
+      if(type === 'vrijstaand'){
+        rows.push({label: zijVolLabel('links'), opp: zijVolOpp('links'), gevelKey:'LG', capHoogte: zijCapHoogte('links')});
+        rows.push({label: zijVolLabel('rechts'), opp: zijVolOpp('rechts'), gevelKey:'RG', capHoogte: zijCapHoogte('rechts')});
+      } else if(type === 'halfvrijstaand'){
+        const buurzijde = document.getElementById('gs-buurzijde')?.value || 'links';
+        const vrijeZijde = buurzijde === 'links' ? 'rechts' : 'links';
+        rows.push({label: zijVolLabel(vrijeZijde), opp: zijVolOpp(vrijeZijde), gevelKey:kantNaarGevel(vrijeZijde), capHoogte: zijCapHoogte(vrijeZijde)});
+        const st = zijState[buurzijde];
+        if(st.volledig){
+          rows.push({label:`${kantenLabelAsym(buurzijde)} (volledig scheidingsmuur — telt niet mee)`, opp: 0, gevelKey:kantNaarGevel(buurzijde)});
+        } else if(st.breedte && st.hoogte){
+          rows.push({label:`${kantenLabelAsym(buurzijde)} (blootgesteld deel)`, opp: st.breedte*st.hoogte, gevelKey:kantNaarGevel(buurzijde)});
+        } else {
+          rows.push({label:`${kantenLabelAsym(buurzijde)} (maten blootgesteld deel nog invullen)`, opp: null, gevelKey:kantNaarGevel(buurzijde)});
+        }
+      } else if(type === 'tussenwoning'){
+        ['links','rechts'].forEach(kant=>{
+          const st = zijState[kant];
+          if(st.volledig){
+            rows.push({label:`${kantenLabelAsym(kant)} (volledig scheidingsmuur — telt niet mee)`, opp: 0, gevelKey:kantNaarGevel(kant)});
+          } else if(st.breedte && st.hoogte){
+            rows.push({label:`${kantenLabelAsym(kant)} (blootgesteld deel)`, opp: st.breedte*st.hoogte, gevelKey:kantNaarGevel(kant)});
+          } else {
+            rows.push({label:`${kantenLabelAsym(kant)} (maten blootgesteld deel nog invullen)`, opp: null, gevelKey:kantNaarGevel(kant)});
+          }
+        });
+      }
+
+      // uitbouw-blokkage aftrekken (elke gevel met zijn eigen hoogte-cap)
+      rows = rows.map(r=>{
+        if(!r.gevelKey || r.opp===null || r.opp<=0 || r.capHoogte==null) return r;
+        const blocked = blokkageOpGevel(r.gevelKey, r.capHoogte);
+        if(blocked<=0) return r;
+        const afgetrokken = Math.min(blocked, r.opp);
+        return {label: r.label + ` - uitbouw ${afgetrokken.toFixed(2)} m²`, opp: Math.max(r.opp-blocked,0)};
+      });
+    }
+  } else {
+  if(nokrichting === 'voorachter' && heeftDriehoek){
+    rows = [
+      {label: gevelLabel(`Voorgevel (beukmaat ${beuk.toFixed(2)}m${correctie>0 ? ' + '+(correctie*100).toFixed(0)+'cm' : ''})`, voorAchterRect, driehoekVoorAchterA, wA.afgeknot), opp: voorAchterRect + driehoekVoorAchterA, gevelKey:'VG'},
+      {label: gevelLabel(`Achtergevel (zelfde berekening)`, voorAchterRect, driehoekVoorAchterB, wB.afgeknot), opp: voorAchterRect + driehoekVoorAchterB, gevelKey:'AG'}
+    ];
+  } else {
+    rows = [
+      {label: gevelLabel(`Voorgevel (beukmaat ${beuk.toFixed(2)}m${correctie>0 ? ' + '+(correctie*100).toFixed(0)+'cm' : ''})`, voorAchterRect, driehoekVoorAchter, false), opp: voorAchterOpp, gevelKey:'VG'},
+      {label: gevelLabel(`Achtergevel (zelfde berekening)`, voorAchterRect, driehoekVoorAchter, false), opp: voorAchterOpp, gevelKey:'AG'}
+    ];
+  }
+
+  // zijgevels — bij nokrichting 'zijgevel' zit de driehoek (en evt. wolfseind) hier: links=A, rechts=B
   let kanten = type === 'vrijstaand' ? ['links','rechts']
              : type === 'halfvrijstaand' ? null
              : ['links','rechts'];
 
+  function driehoekVoorKant(kant){
+    if(nokrichting !== 'zijgevel') return {opp: driehoekZij, afgeknot:false};
+    return kant === 'links' ? wA : wB;
+  }
+
   if(type === 'vrijstaand'){
-    rows.push({label: gevelLabel('Linker gevel (vol, geen buurwoning)', diepte*hoogte, driehoekZij), opp: diepte*hoogte+driehoekZij, gevelKey:'LG'});
-    rows.push({label: gevelLabel('Rechter gevel (vol, geen buurwoning)', diepte*hoogte, driehoekZij), opp: diepte*hoogte+driehoekZij, gevelKey:'RG'});
+    const dLinks = driehoekVoorKant('links'), dRechts = driehoekVoorKant('rechts');
+    rows.push({label: gevelLabel('Linker gevel (vol, geen buurwoning)', diepte*hoogte, dLinks.opp, dLinks.afgeknot), opp: diepte*hoogte+dLinks.opp, gevelKey:'LG'});
+    rows.push({label: gevelLabel('Rechter gevel (vol, geen buurwoning)', diepte*hoogte, dRechts.opp, dRechts.afgeknot), opp: diepte*hoogte+dRechts.opp, gevelKey:'RG'});
   } else if(type === 'halfvrijstaand'){
     const buurzijde = document.getElementById('gs-buurzijde')?.value || 'links';
     const vrijeZijde = buurzijde === 'links' ? 'rechts' : 'links';
-    rows.push({label: gevelLabel(`${zijLabel(vrijeZijde)} (vol, geen buurwoning)`, diepte*hoogte, driehoekZij), opp: diepte*hoogte+driehoekZij, gevelKey:kantNaarGevel(vrijeZijde)});
+    const dVrij = driehoekVoorKant(vrijeZijde);
+    rows.push({label: gevelLabel(`${zijLabel(vrijeZijde)} (vol, geen buurwoning)`, diepte*hoogte, dVrij.opp, dVrij.afgeknot), opp: diepte*hoogte+dVrij.opp, gevelKey:kantNaarGevel(vrijeZijde)});
 
     const st = zijState[buurzijde];
+    const dBuur = driehoekVoorKant(buurzijde);
     if(st.volledig){
-      rows.push({label:`${zijLabel(buurzijde)} (volledig scheidingsmuur — telt niet mee)${driehoekZij>0 ? ' — driehoek bij scheidingsmuur nog niet verrekend' : ''}`, opp: 0, gevelKey:kantNaarGevel(buurzijde)});
+      rows.push({label:`${zijLabel(buurzijde)} (volledig scheidingsmuur — telt niet mee)${dBuur.opp>0 ? ' — driehoek bij scheidingsmuur nog niet verrekend' : ''}`, opp: 0, gevelKey:kantNaarGevel(buurzijde)});
     } else if(st.breedte && st.hoogte){
-      rows.push({label:`${zijLabel(buurzijde)} (blootgesteld deel)${driehoekZij>0 ? ' — driehoek bij scheidingsmuur nog niet verrekend' : ''}`, opp: st.breedte*st.hoogte, gevelKey:kantNaarGevel(buurzijde)});
+      rows.push({label:`${zijLabel(buurzijde)} (blootgesteld deel)${dBuur.opp>0 ? ' — driehoek bij scheidingsmuur nog niet verrekend' : ''}`, opp: st.breedte*st.hoogte, gevelKey:kantNaarGevel(buurzijde)});
     } else {
       rows.push({label:`${zijLabel(buurzijde)} (maten blootgesteld deel nog invullen)`, opp: null, gevelKey:kantNaarGevel(buurzijde)});
     }
   } else if(type === 'tussenwoning'){
     ['links','rechts'].forEach(kant=>{
       const st = zijState[kant];
+      const d = driehoekVoorKant(kant);
       if(st.volledig){
-        rows.push({label:`${zijLabel(kant)} (volledig scheidingsmuur — telt niet mee)${driehoekZij>0 ? ' — driehoek bij scheidingsmuur nog niet verrekend' : ''}`, opp: 0, gevelKey:kantNaarGevel(kant)});
+        rows.push({label:`${zijLabel(kant)} (volledig scheidingsmuur — telt niet mee)${d.opp>0 ? ' — driehoek bij scheidingsmuur nog niet verrekend' : ''}`, opp: 0, gevelKey:kantNaarGevel(kant)});
       } else if(st.breedte && st.hoogte){
-        rows.push({label:`${zijLabel(kant)} (blootgesteld deel)${driehoekZij>0 ? ' — driehoek bij scheidingsmuur nog niet verrekend' : ''}`, opp: st.breedte*st.hoogte, gevelKey:kantNaarGevel(kant)});
+        rows.push({label:`${zijLabel(kant)} (blootgesteld deel)${d.opp>0 ? ' — driehoek bij scheidingsmuur nog niet verrekend' : ''}`, opp: st.breedte*st.hoogte, gevelKey:kantNaarGevel(kant)});
       } else {
         rows.push({label:`${zijLabel(kant)} (maten blootgesteld deel nog invullen)`, opp: null, gevelKey:kantNaarGevel(kant)});
       }
@@ -1646,6 +2245,7 @@ function renderResultaten(){
     const afgetrokken = Math.min(blocked, r.opp);
     return {label: r.label + ` - uitbouw ${afgetrokken.toFixed(2)} m²`, opp: Math.max(r.opp-blocked,0)};
   });
+  }
 
   // vloer BG — schiloppervlakte (grenst aan grond/kruipruimte)
   // Let op: dit is de schilmaat (buitenwerks, incl. halve spouwdikte bij belending),
@@ -1671,23 +2271,80 @@ function renderResultaten(){
       noklengte = voorAchterBreedte;
     }
     const schuineZijde = (basis/2) / Math.cos(deg2rad(hellingshoek));
-    const dakvlakOpp = noklengte * schuineZijde;
+
+    // Wolfseind knipt bij elk actief kopgevel-uiteinde een hoekje van de twee hoofddakvlakken af
+    // (rechthoekige driehoek benadering: afstandW × reststuk schuine zijde).
+    // Benadering: rechthoekige driehoek met ribben afstandW (langs de nok) en het schuine
+    // reststuk boven de afkaphoogte (restHoogte omgerekend naar afstand ïn het dakvlak).
+    function missendeHoek(w){
+      if(!w.afgeknot) return 0;
+      return 0.5 * w.afstandW * (w.restHoogte / Math.sin(deg2rad(hellingshoek)));
+    }
+    const afgesnedenA = missendeHoek(wA);
+    const afgesnedenB = missendeHoek(wB);
+    const dakvlakOpp = Math.max(noklengte * schuineZijde - afgesnedenA - afgesnedenB, 0);
+
     const dakvlakNamen = nokrichting === 'voorachter' ? ['Dak Links', 'Dak Rechts'] : ['Dak Voor', 'Dak Achter'];
     const dakkapelGatPerVlak = {A:0, B:0};
     if(typeof alleDakkapelData === 'function'){
       alleDakkapelData().forEach(d=>{ if(d.geldig) dakkapelGatPerVlak[d.dakvlak] = (dakkapelGatPerVlak[d.dakvlak]||0) + d.gatOpp; });
     }
+    const wolfseindSuffix = (afgesnedenA+afgesnedenB) > 0 ? ` - wolfseind-hoeken ${(afgesnedenA+afgesnedenB).toFixed(2)} m²` : '';
     ['A','B'].forEach((key,i)=>{
       const afgetrokken = dakkapelGatPerVlak[key] || 0;
       const netto = Math.max(dakvlakOpp - afgetrokken, 0);
-      const basisLabel = `${dakvlakNamen[i]} (${i===0 ? `noklengte ${noklengte.toFixed(2)}m × schuine zijde ${schuineZijde.toFixed(2)}m` : 'zelfde berekening'})`;
+      const basisLabel = `${dakvlakNamen[i]} (${i===0 ? `noklengte ${noklengte.toFixed(2)}m × schuine zijde ${schuineZijde.toFixed(2)}m${wolfseindSuffix}` : 'zelfde berekening'})`;
       const label = afgetrokken>0 ? `${basisLabel} - dakkapel(len) ${afgetrokken.toFixed(2)} m²` : basisLabel;
       dakvlakRows.push({label, opp: netto});
     });
 
+    // Wolfseindvlak(-en) zelf: apart dakvlak per actief kopgevel-uiteinde.
+    const [naamA, naamB] = kopgevelNamen();
+    if(wA.afgeknot){
+      dakvlakRows.push({label:`Wolfseindvlak ${naamA} (basis ${wA.topWidth.toFixed(2)}m, nok ${wA.afstandW.toFixed(2)}m ingekort)`, opp: wA.wolfseindVlakOpp});
+    }
+    if(wB.afgeknot){
+      dakvlakRows.push({label:`Wolfseindvlak ${naamB} (basis ${wB.topWidth.toFixed(2)}m, nok ${wB.afstandW.toFixed(2)}m ingekort)`, opp: wB.wolfseindVlakOpp});
+    }
+
     const nokDriehoekHoogte = (basis/2) * Math.tan(deg2rad(hellingshoek));
     const nokhoogte = hoogte + nokDriehoekHoogte;
     dakvlakRows.push({label: `Nokhoogte (vanaf onderkant gevel)`, opp: nokhoogte, eenheid: 'm'});
+    if(wA.afgeknot || wB.afgeknot){
+      const effectieveNoklengte = noklengte - (wA.afgeknot?wA.afstandW:0) - (wB.afgeknot?wB.afstandW:0);
+      dakvlakRows.push({label:`Volle nok resteert over (noklengte minus wolfseind-inkortingen)`, opp: Math.max(effectieveNoklengte,0), eenheid:'m'});
+    }
+  } else if(daktype === 'asymmetrisch'){
+    const asymData = berekenAsymmetrischDakData();
+    const validatieEl = document.getElementById('gs-asym-validatie');
+    if(asymData){
+      if(asymData.tooMuchDeviation){
+        validatieEl.style.display = 'block';
+        const nA = asymZijNamen();
+        validatieEl.innerHTML = `⚠ <strong>Afwijking te groot!</strong> Gegeven de ingevoerde gevelhoogtes (${asymData.hVoor.toFixed(2)}m ${nA.aKlein}, ${asymData.hAchter.toFixed(2)}m ${nA.bKlein}) en dakhellingen (${asymData.hellVoor.toFixed(1)}° / ${asymData.hellAchter.toFixed(1)}°), zou de ${asymData.overspanningNaam} ongeveer <strong>${asymData.d_werkelijk.toFixed(2)}m</strong> moeten zijn, niet ${asymData.d_ingevoerd.toFixed(2)}m (afwijking <strong>${asymData.afwijking_pct.toFixed(1)}%</strong>). Controleer je maten!`;
+      } else {
+        validatieEl.style.display = 'none';
+        // Dakkapel-opening(en) aftrekken per dakvlak (A=voor, B=achter), net als bij het zadeldak.
+        const dakkapelGatPerVlakAsym = {A:0, B:0};
+        if(typeof alleDakkapelData === 'function'){
+          alleDakkapelData().forEach(d=>{ if(d.geldig) dakkapelGatPerVlakAsym[d.dakvlak] = (dakkapelGatPerVlakAsym[d.dakvlak]||0) + d.gatOpp; });
+        }
+        const afgetrokkenVoor = dakkapelGatPerVlakAsym.A || 0;
+        const afgetrokkenAchter = dakkapelGatPerVlakAsym.B || 0;
+        const nettoVoor = Math.max(asymData.opVoor - afgetrokkenVoor, 0);
+        const nettoAchter = Math.max(asymData.opAchter - afgetrokkenAchter, 0);
+        // Namen volgen de nokrichting: dwarse nok → dakvlakken kijken naar links/rechts
+        const dakNaam = asymData.dwars ? {A:'Dak linkerzijde', B:'Dak rechterzijde'} : {A:'Dak voorkant', B:'Dak achterkant'};
+        const labelVoor = `${dakNaam.A} (${asymData.noklengte.toFixed(2)}m langs de nok × ${asymData.d_voor.toFixed(2)}m onder ${asymData.hellVoor.toFixed(1)}°)` + (afgetrokkenVoor>0 ? ` - dakkapel(len) ${afgetrokkenVoor.toFixed(2)} m²` : '');
+        const labelAchter = `${dakNaam.B} (${asymData.noklengte.toFixed(2)}m langs de nok × ${asymData.d_achter.toFixed(2)}m onder ${asymData.hellAchter.toFixed(1)}°)` + (afgetrokkenAchter>0 ? ` - dakkapel(len) ${afgetrokkenAchter.toFixed(2)} m²` : '');
+        dakvlakRows.push({label: labelVoor, opp: nettoVoor});
+        dakvlakRows.push({label: labelAchter, opp: nettoAchter});
+        dakvlakRows.push({label: `Nokhoogte ${asymData.h_nok.toFixed(3)}m`, opp: asymData.h_nok, eenheid: 'm'});
+      }
+    } else {
+      validatieEl.style.display = 'block';
+      validatieEl.innerHTML = '⚠ Vul alle asymmetrisch-dak velden in (gevelhoogtes, dakhellingen).';
+    }
   }
   rows = rows.concat(dakvlakRows);
 
@@ -1702,6 +2359,17 @@ function renderResultaten(){
     });
   });
   rows = rows.concat(uitbouwRows);
+
+  let dakkapelRows = [];
+  if(typeof alleDakkapelData === 'function'){
+    alleDakkapelData().filter(d=>d.geldig).forEach(d=>{
+      dakkapelRows.push({label:`${d.naam} — voorzijde`, opp: d.voorzijde});
+      dakkapelRows.push({label:`${d.naam} — wang links`, opp: d.wangOpp});
+      dakkapelRows.push({label:`${d.naam} — wang rechts`, opp: d.wangOpp});
+      dakkapelRows.push({label:`${d.naam} — plat dak`, opp: d.platDakOpp});
+    });
+  }
+  rows = rows.concat(dakkapelRows);
 
   let html = '<div class="lines-list" style="max-height:none;">';
   rows.forEach(r=>{
@@ -1721,19 +2389,151 @@ function renderResultaten(){
 
 const gsDaktype = document.getElementById('gs-daktype');
 const gsZadelvragen = document.getElementById('gs-zadelvragen');
+const gsAsymmetrischVragen = document.getElementById('gs-asymmetrisch-vragen');
 const gsSchilddakvragen = document.getElementById('gs-schilddakvragen');
+const gsNokrichtingWrap = document.getElementById('gs-nokrichting-wrap');
+function updateDaktypeZichtbaarheid(){
+  const v = gsDaktype.value;
+  gsZadelvragen.style.display = v === 'zadel' ? 'block' : 'none';
+  gsAsymmetrischVragen.style.display = v === 'asymmetrisch' ? 'block' : 'none';
+  gsSchilddakvragen.style.display = v === 'schilddak' ? 'block' : 'none';
+  // Nokrichting geldt voor zadeldak én asymmetrisch dak
+  if(gsNokrichtingWrap) gsNokrichtingWrap.style.display = (v === 'zadel' || v === 'asymmetrisch') ? 'flex' : 'none';
+  updateAsymLabels();
+}
 gsDaktype.addEventListener('change', ()=>{
-  gsZadelvragen.style.display = gsDaktype.value === 'zadel' ? 'block' : 'none';
-  gsSchilddakvragen.style.display = gsDaktype.value === 'schilddak' ? 'block' : 'none';
+  updateDaktypeZichtbaarheid();
   renderResultaten();
 });
-document.getElementById('gs-nokrichting').addEventListener('change', renderResultaten);
+
+// Toggle asymmetrisch dak hoogte-inputs op basis van daktype
+function toggleAsymmetrischHoogteInputs(){
+  const daktype = document.getElementById('gs-daktype')?.value;
+  const isAsymmetrisch = daktype === 'asymmetrisch';
+  
+  console.log('toggleAsymmetrischHoogteInputs: isAsymmetrisch=', isAsymmetrisch, 'daktype=', daktype);
+  
+  // Begane grond — toggle gevelhoogte displays
+  const vloerNormaal = document.getElementById('vloer-gevelhoogte-normaal-wrap');
+  const vloerAsym = document.getElementById('vloer-gevelhoogte-asym-wrap');
+  if(vloerNormaal) vloerNormaal.style.display = isAsymmetrisch ? 'none' : 'flex';
+  if(vloerAsym) vloerAsym.style.display = isAsymmetrisch ? 'block' : 'none';
+  
+  // Extra verdiepingen — toggle gevelhoogte displays
+  extraVerdiepingen.forEach(v=>{
+    const evNormaal = document.getElementById('ev-gevelhoogte-normaal-wrap-'+v.id);
+    const evAsym = document.getElementById('ev-gevelhoogte-asym-wrap-'+v.id);
+    if(evNormaal) evNormaal.style.display = isAsymmetrisch ? 'none' : 'flex';
+    if(evAsym) evAsym.style.display = isAsymmetrisch ? 'block' : 'none';
+    updateVerdiepingUitkomst(v);
+  });
+  
+  // Labels (voor/achter of links/rechts) volgen de nokrichting
+  if(typeof updateAsymLabels === 'function') updateAsymLabels();
+
+  // Herbereken alles
+  updateVloer();
+  renderDakverdiepingEnTotaal();
+}
+
+// Voeg listener toe aan daktype-verandering
+const gsDaktypeElement = document.getElementById('gs-daktype');
+const toggleAsymmetrischCheckbox = document.getElementById('toggle-asymmetrisch-input');
+
+if(gsDaktypeElement){
+  gsDaktypeElement.addEventListener('change', ()=>{
+    // Update checkbox status op basis van daktype select
+    if(toggleAsymmetrischCheckbox){
+      toggleAsymmetrischCheckbox.checked = (gsDaktypeElement.value === 'asymmetrisch');
+    }
+    toggleAsymmetrischHoogteInputs();
+  });
+}
+
+// Bind checkbox aan toggle
+if(toggleAsymmetrischCheckbox){
+  toggleAsymmetrischCheckbox.addEventListener('change', ()=>{
+    // Set daktype select op basis van checkbox
+    if(gsDaktypeElement){
+      gsDaktypeElement.value = toggleAsymmetrischCheckbox.checked ? 'asymmetrisch' : 'geen';
+      // Trigger change event zodat alles wordt geupdate
+      gsDaktypeElement.dispatchEvent(new Event('change'));
+    }
+  });
+}
+
+// Init: toggle de inputs op basis van huidige daktype (AAN HET EINDE zodat alle variabelen gedefinieerd zijn)
+
+
+// Event listeners zijn al gedefinieerd in renderDakverdiepingEnTotaal() listeners
+// (geen need voor deze alte listeners)
+function kopgevelNamen(){
+  const nokrichting = document.getElementById('gs-nokrichting')?.value;
+  return nokrichting === 'zijgevel' ? ['Linkergevel', 'Rechtergevel'] : ['Voorgevel', 'Achtergevel'];
+}
+function updateWolfseindLabels(){
+  const [naamA, naamB] = kopgevelNamen();
+  document.getElementById('gs-wolfseind-a-label').textContent = `Wolfseind op kopgevel A (= ${naamA})`;
+  document.getElementById('gs-wolfseind-b-label').textContent = `Wolfseind op kopgevel B (= ${naamB})`;
+}
+document.getElementById('gs-nokrichting').addEventListener('change', ()=>{
+  updateWolfseindLabels();
+  updateAsymLabels();
+  renderResultaten();
+  if(typeof renderDakverdiepingEnTotaal === 'function') renderDakverdiepingEnTotaal();
+});
+updateWolfseindLabels();
+updateAsymLabels();
+
+['a','b'].forEach(kant=>{
+  const cb = document.getElementById(`gs-wolfseind-${kant}-actief`);
+  const velden = document.getElementById(`gs-wolfseind-${kant}-velden`);
+  cb.addEventListener('change', ()=>{
+    velden.style.display = cb.checked ? 'flex' : 'none';
+    renderResultaten();
+  });
+  document.getElementById(`gs-wolfseind-${kant}-hoogte`).addEventListener('input', renderResultaten);
+  document.getElementById(`gs-wolfseind-${kant}-hoek`).addEventListener('input', renderResultaten);
+});
+
+// Leest de wolfseind-instelling voor kopgevel 'a' of 'b'.
+// Geeft {actief, hoogte, hoek, geldig} terug. geldig=false als actief maar velden ontbreken/onlogisch.
+function leesWolfseind(kant){
+  const actief = document.getElementById(`gs-wolfseind-${kant}-actief`)?.checked || false;
+  if(!actief) return {actief:false, hoogte:0, hoek:0, geldig:false};
+  const hoogte = parseFloat(document.getElementById(`gs-wolfseind-${kant}-hoogte`)?.value);
+  const hoek = parseFloat(document.getElementById(`gs-wolfseind-${kant}-hoek`)?.value);
+  const geldig = !isNaN(hoogte) && hoogte > 0 && !isNaN(hoek) && hoek > 0 && hoek < 90;
+  return {actief:true, hoogte, hoek, geldig};
+}
+
+// Berekent het (afgeknotte) geveldriehoek-oppervlak voor één kopgevel.
+// basis = breedte van die kopgevel (loodrecht op de nok), hellingshoek = hoofddak.
+// Retourneert ook afstandW (hoe ver de nok aan die kant is ingekort) en topWidth (breedte bovenkant afkapping).
+function berekenWolfseindGevel(basis, hellingshoek, wolfseind){
+  const nokDriehoekHoogte = (basis/2) * Math.tan(deg2rad(hellingshoek));
+  if(!wolfseind.actief || !wolfseind.geldig || wolfseind.hoogte >= nokDriehoekHoogte){
+    return {opp: 0.5*basis*nokDriehoekHoogte, afgeknot:false, afstandW:0, topWidth:0, wolfseindVlakOpp:0};
+  }
+  const h = wolfseind.hoogte;
+  const topWidth = Math.max(basis - 2*h/Math.tan(deg2rad(hellingshoek)), 0);
+  const gevelOpp = h * (basis + topWidth) / 2;
+  const restHoogte = nokDriehoekHoogte - h;
+  const afstandW = restHoogte / Math.tan(deg2rad(wolfseind.hoek));
+  const wolfseindVlakOpp = 0.5 * topWidth * (restHoogte / Math.sin(deg2rad(wolfseind.hoek)));
+  return {opp: gevelOpp, afgeknot:true, afstandW, topWidth, restHoogte, wolfseindVlakOpp, nokDriehoekHoogte};
+}
 document.getElementById('gs-hellingshoek').addEventListener('input', renderResultaten);
 document.getElementById('gs-schilddak-hoogte-voor').addEventListener('input', renderResultaten);
 document.getElementById('gs-schilddak-hoogte-achter').addEventListener('input', renderResultaten);
 document.getElementById('gs-schilddak-helling-voor').addEventListener('input', renderResultaten);
 document.getElementById('gs-schilddak-helling-zij').addEventListener('input', renderResultaten);
 document.getElementById('gs-schilddak-helling-achter').addEventListener('input', renderResultaten);
+
+// Asymmetrisch dak event listeners
+document.getElementById('gs-asym-helling-voor').addEventListener('input', renderResultaten);
+document.getElementById('gs-asym-helling-achter').addEventListener('input', renderResultaten);
+
 // ---------- DAKKAPEL E.D. (state vooraf gedeclareerd, nodig voor renderResultaten hieronder) ----------
 let dakkapellen = []; // [{id, naam}]
 let volgendDakkapelId = 1;
@@ -1757,8 +2557,10 @@ const dakkapelDaktypeHint = document.getElementById('dakkapel-daktype-hint');
 // Links/Rechts als de nok loodrecht op de voorgevel staat, Voor/Achter als de nok
 // evenwijdig aan voor-/achtergevel loopt — zelfde conventie als bij de hoofddakvlakken.
 function dakvlakLabels(){
-  const nokrichting = document.getElementById('gs-nokrichting')?.value;
-  return nokrichting === 'voorachter' ? {A:'Links', B:'Rechts'} : {A:'Voor', B:'Achter'};
+  // Geldt voor zadeldak én asymmetrisch dak: een nok van voor naar achter geeft
+  // dakvlakken die naar links en rechts kijken, een nok evenwijdig aan de voorgevel
+  // geeft dakvlakken die naar voren en achteren kijken.
+  return nokLoopDwars() ? {A:'Links', B:'Rechts'} : {A:'Voor', B:'Achter'};
 }
 
 function updateDakvlakOpties(){
@@ -1790,6 +2592,28 @@ function renumberDakkapellen(){
 // driehoeken (rechthoekszijden hoogte en diepte), en het gat dat uit het hoofddakvlak
 // wordt gesneden is een rechthoek breedte × L, met L de schuine zijde van diezelfde
 // driehoek (L² = hoogte² + diepte²). Onafhankelijk van de hellingshoek van het hoofddak.
+// Koppelt dakkapel-hoogte en -diepte via de dakhelling van het gekozen dakvlak (A=voor, B=achter).
+// De wang loopt dan exact onder dezelfde hoek als het hoofddakvlak: hoogte = diepte × tan(helling).
+// 'bron' geeft aan welk veld de gebruiker net heeft ingevuld; het andere veld wordt overschreven.
+function syncDakkapelHoogteDiepte(id, bron){
+  const daktype = document.getElementById('gs-daktype')?.value;
+  if(daktype !== 'asymmetrisch') return; // koppeling alleen zinvol met een bekende hellingshoek per dakvlak
+  const asymData = berekenAsymmetrischDakData();
+  if(!asymData || !asymData.geldig) return;
+  const dakvlak = document.getElementById('dk-dakvlak-'+id)?.value || 'A';
+  const hellingshoek = dakvlak === 'A' ? asymData.hellVoor : asymData.hellAchter;
+  const tanHoek = Math.tan(hellingshoek * Math.PI / 180);
+  if(!tanHoek || tanHoek <= 0) return;
+
+  if(bron === 'hoogte'){
+    const h = parseFloat(document.getElementById('dk-hoogte-'+id)?.value);
+    if(!isNaN(h) && h > 0) document.getElementById('dk-diepte-'+id).value = (h/tanHoek).toFixed(2);
+  } else {
+    const d = parseFloat(document.getElementById('dk-diepte-'+id)?.value);
+    if(!isNaN(d) && d > 0) document.getElementById('dk-hoogte-'+id).value = (d*tanHoek).toFixed(2);
+  }
+}
+
 function berekenDakkapelData(dk){
   const breedte = parseFloat(document.getElementById('dk-breedte-'+dk.id)?.value);
   const hoogte = parseFloat(document.getElementById('dk-hoogte-'+dk.id)?.value);
@@ -1812,6 +2636,81 @@ function berekenDakkapelData(dk){
     id:dk.id, naam:dk.naam, dakvlak, breedte, hoogte, diepte, afstand, L,
     voorzijde, gatOpp, wangOpp, platDakOpp, geldig:true
   };
+}
+
+function berekenAsymmetrischDakData(){
+  const beukmaat = parseFloat(document.getElementById('gs-beukmaat')?.value);
+  const diepteInvoer = parseFloat(document.getElementById('gs-diepte')?.value);
+
+  // Welke as overspant het dakprofiel, en welke as loopt langs de nok?
+  // Nok dwars (voorachter): profiel over de BREEDTE, nok loopt over de diepte.
+  // Nok evenwijdig (zijgevel): profiel over de DIEPTE, nok loopt over de breedte.
+  const dwars = nokLoopDwars();
+  const d_ingevoerd = dwars ? beukmaat : diepteInvoer;  // overspanning (loodrecht op de nok)
+  const b = dwars ? diepteInvoer : beukmaat;            // noklengte (evenwijdig aan de nok)
+  
+  // Bereken CUMUL. GEVELHOOGTES uit verdiepingen!
+  const hVoor = calcCumulGeveHoogte('voor');
+  const hAchter = calcCumulGeveHoogte('achter');
+  
+  // Update display
+  document.getElementById('gs-asym-hoogte-voor-display').value = hVoor.toFixed(2);
+  document.getElementById('gs-asym-hoogte-achter-display').value = hAchter.toFixed(2);
+  
+  const hellVoor = parseFloat(document.getElementById('gs-asym-helling-voor')?.value);
+  const hellAchter = parseFloat(document.getElementById('gs-asym-helling-achter')?.value);
+  
+  if(isNaN(b) || isNaN(d_ingevoerd) || isNaN(hVoor) || isNaN(hAchter) || isNaN(hellVoor) || isNaN(hellAchter) || 
+     b<=0 || d_ingevoerd<=0 || hVoor<=0 || hAchter<=0 || hellVoor<=0 || hellAchter<=0){
+    return null;
+  }
+  
+  // Nok-positie berekenen
+  // h_nok = (h_voor × tan(θ_achter) + h_achter × tan(θ_voor) + d × tan(θ_voor) × tan(θ_achter)) / (tan(θ_voor) + tan(θ_achter))
+  const rad2deg = Math.PI/180;
+  const tanVoor = Math.tan(hellVoor * rad2deg);
+  const tanAchter = Math.tan(hellAchter * rad2deg);
+  
+  const h_nok = (hVoor * tanAchter + hAchter * tanVoor + d_ingevoerd * tanVoor * tanAchter) / (tanVoor + tanAchter);
+  
+  // Afstanden van nok naar voor- en achterkant
+  const d_voor = (h_nok - hVoor) / tanVoor;
+  const d_achter = (h_nok - hAchter) / tanAchter;
+  const d_werkelijk = d_voor + d_achter;
+  
+  // Validatie: afwijking checken
+  const afwijking_pct = Math.abs(d_werkelijk - d_ingevoerd) / d_ingevoerd * 100;
+  const tooMuchDeviation = afwijking_pct > 5;
+  
+  // Oppervlakten berekenen (hypotenusa × breedte / cos(helling))
+  const opVoor = b * Math.sqrt((h_nok - hVoor)**2 + d_voor**2); // nok-lengte × hypotenusa
+  const opAchter = b * Math.sqrt((h_nok - hAchter)**2 + d_achter**2);
+  const totaalOpp = opVoor + opAchter;
+  
+  // Formule opslaan voor Excel notitie
+  const formule = `h_nok = (${hVoor.toFixed(2)} × tan(${hellAchter.toFixed(1)}°) + ${hAchter.toFixed(2)} × tan(${hellVoor.toFixed(1)}°) + ${d_ingevoerd.toFixed(2)} × tan(${hellVoor.toFixed(1)}°) × tan(${hellAchter.toFixed(1)}°)) / (tan(${hellVoor.toFixed(1)}°) + tan(${hellAchter.toFixed(1)}°)) = ${h_nok.toFixed(3)}m`;
+  
+  return {
+    daktype: 'asymmetrisch',
+    geldig: !tooMuchDeviation,
+    hVoor, hAchter, hellVoor, hellAchter,
+    h_nok, d_voor, d_achter, d_ingevoerd, d_werkelijk, afwijking_pct,
+    opVoor, opAchter, totaalOpp,
+    tooMuchDeviation,
+    formule,
+    // richting-info: dwars = nok van voor naar achter (profiel over de breedte)
+    dwars, noklengte: b, overspanning: d_ingevoerd,
+    overspanningNaam: dwars ? 'breedte' : 'diepte'
+  };
+}
+
+// Helper: bereken CUMUL. Gevelhoogte (auto-berekend uit verdiepingen)
+function calcCumulGeveHoogte(zijde){
+  let totaal = getGevelhoogte('bg', zijde);
+  extraVerdiepingen.forEach(v => {
+    totaal += getGevelhoogte(v.id, zijde);
+  });
+  return totaal;
 }
 
 function berekenSchilddakData(){
@@ -1973,11 +2872,11 @@ function voegDakkapelToe(){
         <input type="text" inputmode="decimal" class="numeric-input" id="dk-breedte-${id}" step="0.01" placeholder="bv. 1.80">
       </div>
       <div class="field">
-        <label>Hoogte (m)</label>
+        <label>Hoogte (m) — verticale voorzijde</label>
         <input type="text" inputmode="decimal" class="numeric-input" id="dk-hoogte-${id}" step="0.01" placeholder="bv. 1.50">
       </div>
       <div class="field">
-        <label>Diepte (m)</label>
+        <label>Diepte (m) — auto uit dakhelling (overschrijfbaar)</label>
         <input type="text" inputmode="decimal" class="numeric-input" id="dk-diepte-${id}" step="0.01" placeholder="bv. 1.20">
       </div>
     </div>
@@ -1992,10 +2891,21 @@ function voegDakkapelToe(){
   dakkapellenContainer.appendChild(blok);
 
   blok.querySelector('button[data-dkid]').addEventListener('click', ()=>verwijderDakkapel(id));
-  document.getElementById('dk-dakvlak-'+id).addEventListener('change', ()=>{ renumberDakkapellen(); onDakkapelWijziging(); });
-  ['dk-breedte-','dk-hoogte-','dk-diepte-','dk-afstand-'].forEach(prefix=>{
-    document.getElementById(prefix+id).addEventListener('input', onDakkapelWijziging);
+  document.getElementById('dk-dakvlak-'+id).addEventListener('change', ()=>{
+    renumberDakkapellen();
+    syncDakkapelHoogteDiepte(id, 'hoogte'); // dakvlak (dus hellingshoek) wijzigt: herbereken diepte uit hoogte
+    onDakkapelWijziging();
   });
+  document.getElementById('dk-breedte-'+id).addEventListener('input', onDakkapelWijziging);
+  document.getElementById('dk-hoogte-'+id).addEventListener('input', ()=>{
+    syncDakkapelHoogteDiepte(id, 'hoogte');
+    onDakkapelWijziging();
+  });
+  document.getElementById('dk-diepte-'+id).addEventListener('input', ()=>{
+    syncDakkapelHoogteDiepte(id, 'diepte');
+    onDakkapelWijziging();
+  });
+  document.getElementById('dk-afstand-'+id).addEventListener('input', onDakkapelWijziging);
 
   renumberDakkapellen();
   renderDakkapelResultaat(dk);
@@ -2013,14 +2923,15 @@ btnToevoegenDakkapel.addEventListener('click', voegDakkapelToe);
 
 function updateDakkapelDaktypeHint(){
   const daktype = document.getElementById('gs-daktype')?.value;
-  const isZadel = daktype === 'zadel';
-  dakkapelDaktypeHint.style.display = isZadel ? 'none' : 'block';
-  btnToevoegenDakkapel.style.display = isZadel ? 'inline-block' : 'none';
-  dakkapellenContainer.style.display = isZadel ? 'block' : 'none';
+  const magDakkapel = daktype === 'zadel' || daktype === 'asymmetrisch';
+  dakkapelDaktypeHint.style.display = magDakkapel ? 'none' : 'block';
+  btnToevoegenDakkapel.style.display = magDakkapel ? 'inline-block' : 'none';
+  dakkapellenContainer.style.display = magDakkapel ? 'block' : 'none';
 }
 
 document.getElementById('gs-daktype')?.addEventListener('change', updateDakkapelDaktypeHint);
 document.getElementById('gs-nokrichting')?.addEventListener('change', updateDakvlakOpties);
+document.getElementById('gs-daktype')?.addEventListener('change', updateDakvlakOpties);
 updateDakkapelDaktypeHint();
 
 // ---------- TEKENING ----------
@@ -2045,9 +2956,21 @@ function huidigeMaten(){
   const hellingshoek = hh.hoek;
   const hellingDefault = hh.isDefault;
   const vloeroffsetCm = parseFloat(document.getElementById('gs-vloeroffset')?.value) || 0;
+  const geenZoldervloer = document.getElementById('gs-geen-zoldervloer')?.checked || false;
   const correctie = correctieVoorType(type);
   const voorAchterBreedte = isNaN(beuk) ? null : beuk + correctie;
-  return {type, beuk, diepte, hoogte, daktype, nokrichting, hellingshoek, hellingDefault, vloeroffsetCm, correctie, voorAchterBreedte};
+
+  // Wolfseind t.b.v. tekeningen: alleen zinvol bij zadeldak, basis = kopgevelbreedte (loodrecht op nok)
+  let wolfseindA = {actief:false, afgeknot:false}, wolfseindB = {actief:false, afgeknot:false};
+  if(daktype === 'zadel' && voorAchterBreedte !== null && !isNaN(diepte) && typeof leesWolfseind === 'function'){
+    const wolfseindBasis = nokrichting === 'voorachter' ? voorAchterBreedte : diepte;
+    const ruweA = leesWolfseind('a'), ruweB = leesWolfseind('b');
+    wolfseindA = berekenWolfseindGevel(wolfseindBasis, hellingshoek, ruweA);
+    wolfseindB = berekenWolfseindGevel(wolfseindBasis, hellingshoek, ruweB);
+    wolfseindA.actief = ruweA.actief; wolfseindB.actief = ruweB.actief;
+  }
+
+  return {type, beuk, diepte, hoogte, daktype, nokrichting, hellingshoek, hellingDefault, vloeroffsetCm, correctie, voorAchterBreedte, geenZoldervloer, wolfseindA, wolfseindB};
 }
 
 function svgEl(tag, attrs){
@@ -2126,7 +3049,7 @@ function tekenUitbouwProtrusiesPlattegrond(svg, x0, y0, w, h, uitbouwLijst){
   });
 }
 
-function tekenPlattegrondVerdieping(titel, breedte, diepte, hatchLinks, hatchRechts, uitbouwLijst){
+function tekenPlattegrondVerdieping(titel, breedte, diepte, hatchLinks, hatchRechts, uitbouwLijst, dakInfo){
   if(isNaN(breedte) || isNaN(diepte) || breedte<=0 || diepte<=0) return null;
   uitbouwLijst = uitbouwLijst || [];
   const {wrap, canvasWrap} = tekeningBlok(titel);
@@ -2163,7 +3086,44 @@ function tekenPlattegrondVerdieping(titel, breedte, diepte, hatchLinks, hatchRec
 
   tekenUitbouwProtrusiesPlattegrond(svg, x0, y0, w, h, uitbouwLijst);
 
-  const opp = breedte*diepte;
+  // Dak snijdt door deze verdieping heen (asymmetrisch dak): niet-bruikbare strook(en) bij
+  // voor- en/of achtergevel gestippeld markeren, net als bij de zolderverdieping-plattegrond.
+  // 'diepte'-as loopt hier van voorgevel (y0, boven) naar achtergevel (y0+h, onder).
+  let opp = breedte*diepte;
+  if(dakInfo){
+    const langsBreedte = dakInfo.as === 'breedte'; // nok van voor naar achter: stroken links/rechts
+    opp = (langsBreedte ? diepte : breedte) * dakInfo.bruikbareDiepte;
+    const x1Px = dakInfo.x1*SCALE, x2Px = dakInfo.x2*SCALE;
+    const eindPx = (langsBreedte ? breedte : diepte)*SCALE;
+    if(langsBreedte){
+      // stroken langs linker- en rechtergevel (verticale banen)
+      if(x1Px > 0){
+        svg.appendChild(svgEl('rect', {x:x0,y:y0,width:x1Px,height:h,fill:'none',stroke:'black','stroke-width':0.75,'stroke-dasharray':'3,2'}));
+        svg.appendChild(svgEl('text', {x:x0+x1Px/2,y:y0+h/2,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black','writing-mode':'tb'}));
+        svg.lastChild.textContent = '<1,50m';
+      }
+      if(x2Px < eindPx){
+        const strookW = w - x2Px;
+        svg.appendChild(svgEl('rect', {x:x0+x2Px,y:y0,width:strookW,height:h,fill:'none',stroke:'black','stroke-width':0.75,'stroke-dasharray':'3,2'}));
+        svg.appendChild(svgEl('text', {x:x0+x2Px+strookW/2,y:y0+h/2,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black','writing-mode':'tb'}));
+        svg.lastChild.textContent = '<1,50m';
+      }
+    } else {
+      // stroken langs voor- en achtergevel (horizontale banen)
+      if(x1Px > 0){
+        svg.appendChild(svgEl('rect', {x:x0,y:y0,width:w,height:x1Px,fill:'none',stroke:'black','stroke-width':0.75,'stroke-dasharray':'3,2'}));
+        svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+x1Px/2+3,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
+        svg.lastChild.textContent = '<1,50m';
+      }
+      if(x2Px < eindPx){
+        const strookH = h - x2Px;
+        svg.appendChild(svgEl('rect', {x:x0,y:y0+x2Px,width:w,height:strookH,fill:'none',stroke:'black','stroke-width':0.75,'stroke-dasharray':'3,2'}));
+        svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+x2Px+strookH/2+3,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
+        svg.lastChild.textContent = '<1,50m';
+      }
+    }
+  }
+
   svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h/2-2,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
   svg.lastChild.textContent = `${opp.toFixed(2)} m²`;
 
@@ -2186,6 +3146,7 @@ function tekenPlattegrondVerdieping(titel, breedte, diepte, hatchLinks, hatchRec
 // Plattegrond dakverdieping: volledige basis met uitgesloten <1,50m-stroken + bruikbare zone
 function tekenPlattegrondDakverdieping(m){
   if(m.daktype!=='zadel' || m.voorAchterBreedte===null || isNaN(m.diepte)) return null;
+  if(m.geenZoldervloer) return null; // open kap: geen vloeroppervlak om te tekenen
 
   const basis = m.nokrichting==='voorachter' ? m.voorAchterBreedte : m.diepte;
   const noklengte = m.nokrichting==='voorachter' ? m.diepte : m.voorAchterBreedte;
@@ -2239,6 +3200,117 @@ function tekenPlattegrondDakverdieping(m){
   return wrap;
 }
 
+// Plattegrond zolderverdieping bij ASYMMETRISCH dak: zelfde principe als hierboven, maar de
+// zoldervloerhoogte en het zadelprofiel bepalen de bruikbare strook (via zadelprofielSnijpunten,
+// dezelfde functie die ook de woonoppervlakte-berekening gebruikt — dus altijd consistent).
+function tekenPlattegrondDakverdiepingAsymmetrisch(m){
+  if(m.daktype!=='asymmetrisch' || isNaN(m.beuk) || isNaN(m.diepte)) return null;
+  if(m.geenZoldervloer) return null; // open kap: geen vloeroppervlak om te tekenen
+
+  const asymData = berekenAsymmetrischDakData();
+  if(!asymData || !asymData.geldig) return null;
+
+  const zoldervloerhoogte = calcZolderVloerHoogte('voor');
+  if(asymData.h_nok - zoldervloerhoogte <= 0) return null; // geen zolder beschikbaar
+
+  const dwars = nokLoopDwars();
+  const span = dwars ? m.beuk : m.diepte;      // as waarover het dak overspant
+  const langs = dwars ? m.diepte : m.beuk;     // as evenwijdig aan de nok
+  const snij = zadelprofielSnijpunten(zoldervloerhoogte, span, asymData);
+  const opp = langs * snij.bruikbareDiepte;
+
+  const dakNummer = extraVerdiepingen.length + 2;
+  const {wrap, canvasWrap} = tekeningBlok(`Verdieping ${dakNummer} — dakverdieping / zolder (plattegrond)`);
+
+  const w = m.beuk*SCALE, h = m.diepte*SCALE;
+  const viewW = w + 2*TK_MARGIN, viewH = h + 2*TK_MARGIN + (PRINT_MODE?10:20);
+  const svg = nieuweSvg(viewW, viewH);
+  const x0 = TK_MARGIN, y0 = TK_MARGIN;
+
+  svg.appendChild(svgEl('rect', {x:x0,y:y0,width:w,height:h,fill:'white',stroke:'black','stroke-width':1.5}));
+
+  const x1Px = snij.x1*SCALE, x2Px = snij.x2*SCALE;
+  const eindPx = span*SCALE;
+  if(dwars){
+    // stroken langs linker- en rechtergevel
+    if(x1Px > 0){
+      svg.appendChild(svgEl('rect', {x:x0,y:y0,width:x1Px,height:h,fill:'none',stroke:'black','stroke-width':0.75,'stroke-dasharray':'3,2'}));
+      svg.appendChild(svgEl('text', {x:x0+x1Px/2,y:y0+h/2,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black','writing-mode':'tb'}));
+      svg.lastChild.textContent = '<1,50m';
+    }
+    if(x2Px < eindPx){
+      const strookW = w - x2Px;
+      svg.appendChild(svgEl('rect', {x:x0+x2Px,y:y0,width:strookW,height:h,fill:'none',stroke:'black','stroke-width':0.75,'stroke-dasharray':'3,2'}));
+      svg.appendChild(svgEl('text', {x:x0+x2Px+strookW/2,y:y0+h/2,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black','writing-mode':'tb'}));
+      svg.lastChild.textContent = '<1,50m';
+    }
+  } else {
+    if(x1Px > 0){
+      svg.appendChild(svgEl('rect', {x:x0,y:y0,width:w,height:x1Px,fill:'none',stroke:'black','stroke-width':0.75,'stroke-dasharray':'3,2'}));
+      svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+x1Px/2+3,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
+      svg.lastChild.textContent = '<1,50m';
+    }
+    if(x2Px < eindPx){
+      const strookH = h - x2Px;
+      svg.appendChild(svgEl('rect', {x:x0,y:y0+x2Px,width:w,height:strookH,fill:'none',stroke:'black','stroke-width':0.75,'stroke-dasharray':'3,2'}));
+      svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+x2Px+strookH/2+3,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
+      svg.lastChild.textContent = '<1,50m';
+    }
+  }
+
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h/2-2,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
+  svg.lastChild.textContent = `${opp.toFixed(2)} m²`;
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h/2+10,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
+  svg.lastChild.textContent = `bruikbaar ${langs.toFixed(2)} × ${snij.bruikbareDiepte.toFixed(2)} m`;
+
+  svg.appendChild(svgEl('text', {x:x0+w/2,y:y0-7,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
+  svg.lastChild.textContent = `breedte ${m.beuk.toFixed(2)} m`;
+  const dDiepteLabel2 = svgEl('text', {x:x0-7,y:y0+h/2,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black',transform:`rotate(-90 ${x0-7} ${y0+h/2})`});
+  dDiepteLabel2.textContent = `diepte ${m.diepte.toFixed(2)} m (zoldervloer op ${zoldervloerhoogte.toFixed(2)}m)`;
+  svg.appendChild(dDiepteLabel2);
+
+  canvasWrap.appendChild(svg);
+  return wrap;
+}
+
+// Zelfde als tekenDakkapelOpDriehoek, maar dan voor het ASYMMETRISCHE profiel: de twee dakvlakken
+// hebben elk hun eigen hellingshoek en eigen gootlijnhoogte, en de nok zit niet per se in het midden.
+// linksDakvlak/rechtsDakvlak geven aan welk dakvlak (A=voor, B=achter) in DEZE tekening links resp.
+// rechts staat — dat wisselt tussen linker- en rechtergevelaanzicht (spiegeling).
+function tekenDakkapelOpAsymDriehoek(svg, x0, dLinksPx, dRechtsPx, yEaveLinks, yEaveRechts, hellLinks, hellRechts, linksDakvlak, rechtsDakvlak, lijst){
+  const tanLinks = Math.tan(deg2rad(hellLinks)) || 1;
+  const tanRechts = Math.tan(deg2rad(hellRechts)) || 1;
+  const nokX = x0 + dLinksPx;
+  lijst.forEach(d=>{
+    const isLinks = d.dakvlak === linksDakvlak;
+    if(d.dakvlak !== linksDakvlak && d.dakvlak !== rechtsDakvlak) return;
+    const afstandPx = Math.max(d.afstand||0, 0)*SCALE;
+    const hPx = d.hoogte*SCALE;
+    const diepPx = d.diepte*SCALE;
+    const tanHoek = isLinks ? tanLinks : tanRechts;
+    const eaveHoek = isLinks ? x0 : x0+dLinksPx+dRechtsPx;
+    const richting = isLinks ? 1 : -1;
+    const yEaveEigen = isLinks ? yEaveLinks : yEaveRechts;
+
+    let frontX = eaveHoek + richting*(afstandPx/tanHoek);
+    const grensBinnen = isLinks ? x0 : nokX;
+    const grensBuiten = isLinks ? nokX : x0+dLinksPx+dRechtsPx;
+    frontX = Math.min(Math.max(frontX, grensBinnen), grensBuiten);
+
+    const ruimteTotNok = isLinks ? (grensBuiten-frontX) : (frontX-grensBinnen);
+    const dPx = Math.max(Math.min(diepPx, ruimteTotNok-2), 4);
+
+    const ySlopeFront = yEaveEigen - afstandPx;
+    const yTopDakkapel = ySlopeFront - hPx;
+    const backX = frontX + richting*dPx;
+
+    svg.appendChild(svgEl('polygon', {points:`${frontX},${ySlopeFront} ${frontX},${yTopDakkapel} ${backX},${yTopDakkapel}`, fill:'white', stroke:'black','stroke-width':1.1}));
+    const lbl = svgEl('text', {x:(frontX+backX)/2,y:yTopDakkapel-4,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'});
+    lbl.textContent = d.naam;
+    svg.appendChild(lbl);
+  });
+}
+
 // Gevelaanzicht (voor- of zijgevel). heeftDriehoek = true tekent een driehoek erop (zadeldak-kant),
 // anders een gewone rechthoek (zoals bij een ware 2D-projectie van de andere as).
 // Tekent dakkapel(len) op de gevel MET de driehoek (de kopgevel): het silhouet steekt door de
@@ -2283,13 +3355,19 @@ function tekenDakkapelOpDriehoek(svg, x0, yEave, w, hellingshoek, lijst){
 // Tekent dakkapel(len) als kaders die vanaf de dakrand (eave-lijn) omhoog in het dakvlak steken.
 // Wordt alleen aangeroepen voor de gevel die het betreffende dakvlak (A/B) laat zien
 // (de gevel ZONDER driehoek — daar zie je het dakvlak immers "recht van voren").
-function tekenDakkapelSilhouetten(svg, x0, yEave, lijst){
-  const gapPx = 0.3*SCALE;
-  let cursor = 0;
-  lijst.forEach(d=>{
+// Tekent dakkapel(len) als kaders die vanaf de dakrand (eave-lijn) omhoog in het dakvlak steken.
+// Wordt alleen aangeroepen voor de gevel die het betreffende dakvlak (A/B) laat zien
+// (de gevel ZONDER driehoek — daar zie je het dakvlak immers "recht van voren").
+// Positionering: het MIDDELPUNT van elke dakkapel staat op fractie (i+1)/(n+1) van de gevelbreedte.
+// Bij 1 dakkapel op dit dakvlak → midden (1/2). Bij 2 → op 1/3 en 2/3 van de gevellijn-lengte.
+function tekenDakkapelSilhouetten(svg, x0, yEave, lijst, gevelBreedtePx){
+  const n = lijst.length;
+  lijst.forEach((d,i)=>{
     const bPx = d.breedte*SCALE, hPx = d.hoogte*SCALE;
     const afstandPx = Math.max(d.afstand||0, 0)*SCALE;
-    const rx = x0+cursor, ryOnder = yEave-afstandPx, ryBoven = ryOnder-hPx;
+    const fractie = (i+1)/(n+1);
+    const middenPx = (gevelBreedtePx!=null ? gevelBreedtePx : bPx) * fractie;
+    const rx = x0 + middenPx - bPx/2, ryOnder = yEave-afstandPx, ryBoven = ryOnder-hPx;
     svg.appendChild(svgEl('rect', {x:rx,y:ryBoven,width:bPx,height:hPx,fill:'white',stroke:'black','stroke-width':1.1}));
     const lbl = svgEl('text', {x:rx+bPx/2,y:ryBoven-4,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'});
     lbl.textContent = d.naam;
@@ -2297,7 +3375,6 @@ function tekenDakkapelSilhouetten(svg, x0, yEave, lijst){
     const maatLbl = svgEl('text', {x:rx+bPx/2,y:(ryBoven+ryOnder)/2+3,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'});
     maatLbl.textContent = `${d.breedte.toFixed(2)}×${d.hoogte.toFixed(2)} m`;
     svg.appendChild(maatLbl);
-    cursor += bPx + gapPx;
   });
 }
 
@@ -2351,11 +3428,303 @@ function tekenOverloopBoxen(svg, randX, yBase, lijst, richting, gap){
   });
 }
 
-function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellingshoek, dakvlakInfo, blokkage, weergaveGroepen, dakkapelLijst, dakkapelDataAlle){
-  if(isNaN(breedte) || isNaN(gevelhoogte) || breedte<=0) return null;
+// Langsdoorsnede over de volle noklengte, met de nok als middellijn (gestippeld, over de hele
+// lengte getekend zodat de inkorting door een wolfseind zichtbaar is). Bij een normaal zadeldak
+// (geen wolfseind) is dit een rechthoekig profiel: de nok start immers direct bij de kopgevel.
+function tekenDoorsnede_Asymmetrisch(m){
+  if(m.daktype!=='asymmetrisch') return null;
+  
+  const asymData = berekenAsymmetrischDakData();
+  if(!asymData || !asymData.geldig) return null;
+  
+  const zijNds = asymZijNamen();
+  const {wrap, canvasWrap} = tekeningBlok(`Doorsnede (dwars op de nok, asymmetrisch — ${zijNds.aKlein} links)`);
+  
+  // Overspanning in pixels: zijde A + zijde B
+  const dVoorPx = asymData.d_voor * SCALE;
+  const dAchterPx = asymData.d_achter * SCALE;
+  const totalDieptePx = dVoorPx + dAchterPx;
+  
+  // Hoogtes in pixels
+  const hVoorPx = asymData.hVoor * SCALE;
+  const hAchterPx = asymData.hAchter * SCALE;
+  const hNokPx = asymData.h_nok * SCALE;
+  
+  // Canvas afmetingen
+  const viewW = totalDieptePx + 2*TK_MARGIN;
+  const maxH = Math.max(hVoorPx, hAchterPx) + (hNokPx - Math.max(hVoorPx, hAchterPx)) + 2*TK_MARGIN + (PRINT_MODE?24:44);
+  
+  const svg = nieuweSvg(viewW, maxH);
+  const x0 = TK_MARGIN;
+  const yBase = maxH - TK_MARGIN;
+  
+  // Y-coördinaten (van beneden omhoog)
+  const yVoorTop = yBase - hVoorPx;
+  const yAchterTop = yBase - hAchterPx;
+  const yNok = yBase - hNokPx;
+  
+  // Geveldikte voor visualisatie
+  const gevelDikPx = 0.15 * SCALE;
+  
+  // Volledige omtrek: voorgevel → voorkant dak → nok → achterkant dak → achtergevel
+  const profilePunten = [
+    [x0, yBase],                                  // voorgevel onderkant
+    [x0, yVoorTop],                               // voorgevel top (links)
+    [x0 + dVoorPx, yNok],                         // nok
+    [x0 + dVoorPx + dAchterPx, yAchterTop],      // achtergevel top (rechts)
+    [x0 + dVoorPx + dAchterPx, yBase],           // achtergevel onderkant
+    [x0, yBase]                                   // terug naar start
+  ];
+  
+  svg.appendChild(svgEl('polyline', {
+    points: profilePunten.map(p => p.join(',')).join(' '),
+    fill: '#f5f0e8',
+    stroke: 'black',
+    'stroke-width': 1.5
+  }));
+  
+  // Nok-lijn (gestippeld)
+  svg.appendChild(svgEl('line', {
+    x1: x0 + dVoorPx,
+    y1: yNok,
+    x2: x0 + dVoorPx,
+    y2: yNok - 40,
+    stroke: '#666',
+    'stroke-width': 0.75,
+    'stroke-dasharray': '4,2'
+  }));
+  
+  // Labels
+  // Voorgevel
+  svg.appendChild(svgEl('text', {
+    x: x0 - 8,
+    y: (yVoorTop + yBase) / 2,
+    'text-anchor': 'end',
+    'font-size': tekstGrootte(),
+    fill: '#333'
+  }));
+  svg.lastChild.textContent = `${asymData.hVoor.toFixed(2)}m`;
+  
+  // Achtergevel
+  svg.appendChild(svgEl('text', {
+    x: x0 + dVoorPx + dAchterPx + 8,
+    y: (yAchterTop + yBase) / 2,
+    'text-anchor': 'start',
+    'font-size': tekstGrootte(),
+    fill: '#333'
+  }));
+  svg.lastChild.textContent = `${asymData.hAchter.toFixed(2)}m`;
+  
+  // Voorkant helling
+  svg.appendChild(svgEl('text', {
+    x: x0 + dVoorPx/2,
+    y: (yVoorTop + yNok) / 2 - 12,
+    'text-anchor': 'middle',
+    'font-size': tekstGrootte() * 0.8,
+    fill: '#555'
+  }));
+  svg.lastChild.textContent = `${asymData.hellVoor.toFixed(1)}°`;
+  
+  // Achterkant helling
+  svg.appendChild(svgEl('text', {
+    x: x0 + dVoorPx + dAchterPx/2,
+    y: (yAchterTop + yNok) / 2 - 12,
+    'text-anchor': 'middle',
+    'font-size': tekstGrootte() * 0.8,
+    fill: '#555'
+  }));
+  svg.lastChild.textContent = `${asymData.hellAchter.toFixed(1)}°`;
+  
+  // Nok-hoogte label
+  svg.appendChild(svgEl('text', {
+    x: x0 + dVoorPx,
+    y: yNok - 18,
+    'text-anchor': 'middle',
+    'font-size': tekstGrootte(),
+    fill: '#000',
+    'font-weight': 'bold'
+  }));
+  svg.lastChild.textContent = `Nok: ${asymData.h_nok.toFixed(3)}m`;
+  
+  // Diepte-annotation
+  svg.appendChild(svgEl('line', {
+    x1: x0,
+    y1: yBase + 16,
+    x2: x0 + dVoorPx + dAchterPx,
+    y2: yBase + 16,
+    stroke: '#999',
+    'stroke-width': 0.5
+  }));
+  svg.appendChild(svgEl('text', {
+    x: x0 + dVoorPx + dAchterPx/2,
+    y: yBase + 28,
+    'text-anchor': 'middle',
+    'font-size': tekstGrootte() * 0.85,
+    fill: '#666'
+  }));
+  const overspanLabel = asymData.overspanningNaam.charAt(0).toUpperCase() + asymData.overspanningNaam.slice(1);
+  svg.lastChild.textContent = `${overspanLabel} ${asymData.d_ingevoerd.toFixed(2)}m (berekend ${asymData.d_werkelijk.toFixed(2)}m)`;
+  
+  canvasWrap.appendChild(svg);
+  return wrap;
+}
+
+function tekenDoorsnede(m){
+  if(m.daktype!=='zadel' || m.voorAchterBreedte===null || isNaN(m.diepte) || isNaN(m.hoogte)) return null;
+  const basis = m.nokrichting==='voorachter' ? m.voorAchterBreedte : m.diepte;
+  const noklengte = m.nokrichting==='voorachter' ? m.diepte : m.voorAchterBreedte;
+  const nokDriehoekHoogte = (basis/2) * Math.tan(deg2rad(m.hellingshoek));
+  const nokhoogteAbs = m.hoogte + nokDriehoekHoogte;
+  const [naamA, naamB] = kopgevelNamen();
+  const wA = m.wolfseindA, wB = m.wolfseindB;
+
+  const {wrap, canvasWrap} = tekeningBlok('Doorsnede (langs de nok, nok als middellijn)');
+
+  const L = noklengte*SCALE, hGevel = m.hoogte*SCALE, hNok = nokDriehoekHoogte*SCALE;
+  const viewW = L + 2*TK_MARGIN;
+  const viewH = hGevel + hNok + 2*TK_MARGIN + (PRINT_MODE?24:44);
+  const svg = nieuweSvg(viewW, viewH);
+  const x0 = TK_MARGIN, yBase = viewH-TK_MARGIN, yEave = yBase-hGevel, yNok = yEave-hNok;
+
+  function afkapPunt(w, vanLinks){
+    if(!w || !w.afgeknot) return null;
+    const hBovenGootPx = (nokDriehoekHoogte - w.restHoogte)*SCALE;
+    const afstandPx = w.afstandW*SCALE;
+    return {
+      xGevel: vanLinks ? x0 : x0+L,
+      yGevelTop: yEave - hBovenGootPx,
+      xKnik: vanLinks ? x0+afstandPx : x0+L-afstandPx
+    };
+  }
+  const pA = afkapPunt(wA, true);
+  const pB = afkapPunt(wB, false);
+
+  let boven = [];
+  boven.push(pA ? [pA.xGevel,pA.yGevelTop] : [x0,yNok]);
+  if(pA) boven.push([pA.xKnik,yNok]);
+  if(pB) boven.push([pB.xKnik,yNok]);
+  boven.push(pB ? [pB.xGevel,pB.yGevelTop] : [x0+L,yNok]);
+
+  svg.appendChild(svgEl('rect', {x:x0,y:yEave,width:L,height:hGevel, fill:'white', stroke:'black','stroke-width':1.5}));
+  const roofPunten = [[x0,yEave], ...boven, [x0+L,yEave]];
+  svg.appendChild(svgEl('polyline', {points:roofPunten.map(p=>p.join(',')).join(' '), fill:'white', stroke:'black','stroke-width':1.5}));
+
+  // nok/middellijn: volledige lengte gestippeld, zodat de inkorting duidelijk zichtbaar is
+  svg.appendChild(svgEl('line', {x1:x0,y1:yNok,x2:x0+L,y2:yNok, stroke:'black','stroke-width':0.75,'stroke-dasharray':'6,3'}));
+  svg.appendChild(svgEl('text', {x:x0+L/2,y:yNok-6,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
+  svg.lastChild.textContent = `nok (middellijn) — ${nokhoogteAbs.toFixed(2)} m — ${m.hellingshoek}°`;
+
+  if(pA){
+    const hoekA = document.getElementById('gs-wolfseind-a-hoek')?.value || '';
+    svg.appendChild(svgEl('text', {x:pA.xGevel+4,y:pA.yGevelTop-4,'text-anchor':'start','font-size':tekstGrootte(),fill:'black'}));
+    svg.lastChild.textContent = `${naamA}: wolfseind ${(nokDriehoekHoogte-wA.restHoogte).toFixed(2)}m boven goot, ${hoekA}°`;
+  }
+  if(pB){
+    const hoekB = document.getElementById('gs-wolfseind-b-hoek')?.value || '';
+    svg.appendChild(svgEl('text', {x:pB.xGevel-4,y:pB.yGevelTop-4,'text-anchor':'end','font-size':tekstGrootte(),fill:'black'}));
+    svg.lastChild.textContent = `${naamB}: wolfseind ${(nokDriehoekHoogte-wB.restHoogte).toFixed(2)}m boven goot, ${hoekB}°`;
+  }
+
+  svg.appendChild(svgEl('text', {x:x0+L/2,y:yBase+12,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
+  svg.lastChild.textContent = `noklengte ${noklengte.toFixed(2)} m (${naamA} → ${naamB})`;
+  const hoogteLabel = svgEl('text', {x:x0-7,y:(yEave+yBase)/2,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black',transform:`rotate(-90 ${x0-7} ${(yEave+yBase)/2})`});
+  hoogteLabel.textContent = `hoogte ${m.hoogte.toFixed(2)} m`;
+  svg.appendChild(hoogteLabel);
+
+  canvasWrap.appendChild(svg);
+  return wrap;
+}
+
+function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellingshoek, dakvlakInfo, blokkage, weergaveGroepen, dakkapelLijst, dakkapelDataAlle, wolfseind, asymProfiel, asymSpiegelen){
+  if(isNaN(breedte) || breedte<=0) return null;
+  if(!asymProfiel && (gevelhoogte==null || isNaN(gevelhoogte))) return null;
   blokkage = blokkage || 0;
   weergaveGroepen = weergaveGroepen || {eigen:{links:[],geen:[],rechts:[]}, overloopLinks:[], overloopRechts:[]};
   const {wrap, canvasWrap} = tekeningBlok(titel);
+  const heeftWolfseind = !!(wolfseind && wolfseind.afgeknot);
+
+  const gap = 0.15*SCALE;
+
+  // extra breedte reserveren voor hoek-overloop die BUITEN de eigen gevel aansluit
+  const overloopLinksPx = weergaveGroepen.overloopLinks.reduce((s,it)=>s+it.breedte*SCALE,0) + Math.max(0,weergaveGroepen.overloopLinks.length-1)*gap;
+  const overloopRechtsPx = weergaveGroepen.overloopRechts.reduce((s,it)=>s+it.breedte*SCALE,0) + Math.max(0,weergaveGroepen.overloopRechts.length-1)*gap;
+  const extraLinks = overloopLinksPx>0 ? overloopLinksPx+gap : 0;
+  const extraRechts = overloopRechtsPx>0 ? overloopRechtsPx+gap : 0;
+
+  if(asymProfiel){
+    // Asymmetrisch profiel (linker/rechter gevel): geen enkele "gevelhoogte", het profiel loopt
+    // van de ene gootlijn schuin omhoog naar de nok en weer omlaag naar de andere gootlijn.
+    // 'breedte' is hier de diepte-as (front-to-back). Bij de Linkergevel staat de achtergevel
+    // links en de voorgevel rechts (spiegelen); bij de Rechtergevel is het andersom — zelfde
+    // conventie als voor uitbouwen (HOEK_AANZICHT_LINKS/RECHTS elders in de code).
+    const spiegel = !!asymSpiegelen;
+    const zijN = asymZijNamen(); // 'voorgevel/achtergevel' of 'linkergevel/rechtergevel'
+    const linksData = spiegel
+      ? {h: asymProfiel.hAchter, d: asymProfiel.d_achter, dakvlak:'B', naam: zijN.bKlein}
+      : {h: asymProfiel.hVoor,   d: asymProfiel.d_voor,   dakvlak:'A', naam: zijN.aKlein};
+    const rechtsData = spiegel
+      ? {h: asymProfiel.hVoor,   d: asymProfiel.d_voor,   dakvlak:'A', naam: zijN.aKlein}
+      : {h: asymProfiel.hAchter, d: asymProfiel.d_achter, dakvlak:'B', naam: zijN.bKlein};
+    const hellLinks = linksData.dakvlak==='A' ? asymProfiel.hellVoor : asymProfiel.hellAchter;
+    const hellRechts = rechtsData.dakvlak==='A' ? asymProfiel.hellVoor : asymProfiel.hellAchter;
+
+    const dLinksPx = linksData.d*SCALE, dRechtsPx = rechtsData.d*SCALE;
+    const w = dLinksPx + dRechtsPx;
+    const hLinksPx = linksData.h*SCALE, hRechtsPx = rechtsData.h*SCALE, hNokPx = asymProfiel.h_nok*SCALE;
+
+    const viewW = w + extraLinks + extraRechts + 2*TK_MARGIN;
+    const viewH = hNokPx + 2*TK_MARGIN + (PRINT_MODE?10:20);
+    const svg = nieuweSvg(viewW, viewH);
+    const x0 = TK_MARGIN + extraLinks, yBase = viewH-TK_MARGIN;
+    const yEaveLinks = yBase-hLinksPx, yEaveRechts = yBase-hRechtsPx, yNok = yBase-hNokPx;
+
+    svg.appendChild(svgEl('polygon', {points:`${x0},${yBase} ${x0},${yEaveLinks} ${x0+dLinksPx},${yNok} ${x0+dLinksPx+dRechtsPx},${yEaveRechts} ${x0+dLinksPx+dRechtsPx},${yBase}`, fill:'white', stroke:'black','stroke-width':1.5}));
+
+    svg.appendChild(svgEl('text', {x:x0+dLinksPx,y:yNok-6,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
+    svg.lastChild.textContent = `nok ${asymProfiel.h_nok.toFixed(2)} m`;
+
+    if(dakkapelDataAlle && dakkapelDataAlle.length){
+      tekenDakkapelOpAsymDriehoek(svg, x0, dLinksPx, dRechtsPx, yEaveLinks, yEaveRechts, hellLinks, hellRechts, linksData.dakvlak, rechtsData.dakvlak, dakkapelDataAlle);
+    }
+
+    // stippellijnen bij verdiepingsvloeren, over de volle breedte tot aan de nok-hoogte
+    verdiepingsvloerHoogtes().forEach(niveau=>{
+      if(niveau<=0 || niveau>=asymProfiel.h_nok) return;
+      const yVloer = yBase - niveau*SCALE;
+      svg.appendChild(svgEl('line', {x1:x0, y1:yVloer, x2:x0+w, y2:yVloer, stroke:'black', 'stroke-width':0.7, 'stroke-dasharray':'4,2.5'}));
+      svg.appendChild(svgEl('text', {x:x0+3, y:yVloer-2.5, 'text-anchor':'start', 'font-size':tekstGrootte(), fill:'black'}));
+      svg.lastChild.textContent = `${niveau.toFixed(2)} m`;
+    });
+
+    const eigenGroepen = weergaveGroepen.eigen || {links:[],geen:[],rechts:[]};
+    const eigenHeeft = eigenGroepen.links.length || eigenGroepen.geen.length || eigenGroepen.rechts.length;
+    if(eigenHeeft){
+      const geplaatst = positioneerMetHoek(eigenGroepen, w, 'breedte', gap);
+      tekenUitbouwSilhouetten(svg, x0, yBase, geplaatst);
+    }
+    if(weergaveGroepen.overloopLinks.length) tekenOverloopBoxen(svg, x0, yBase, weergaveGroepen.overloopLinks, -1, gap);
+    if(weergaveGroepen.overloopRechts.length) tekenOverloopBoxen(svg, x0+w, yBase, weergaveGroepen.overloopRechts, 1, gap);
+
+    // 2D-oppervlakte van het gevelprofiel (projectie, geen hypotenusa-correctie): twee trapezia
+    const oppVoor2D = ((asymProfiel.hVoor+asymProfiel.h_nok)/2) * asymProfiel.d_voor;
+    const oppAchter2D = ((asymProfiel.hAchter+asymProfiel.h_nok)/2) * asymProfiel.d_achter;
+    const oppTotaal = Math.max(oppVoor2D + oppAchter2D - blokkage, 0);
+    svg.appendChild(svgEl('text', {x:x0+w/2,y:yBase-Math.min(hLinksPx,hRechtsPx)/2,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
+    svg.lastChild.textContent = blokkage>0 ? `${oppTotaal.toFixed(2)} m² (− uitbouw)` : `${oppTotaal.toFixed(2)} m²`;
+
+    svg.appendChild(svgEl('text', {x:x0+w/2,y:yBase+12,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
+    svg.lastChild.textContent = `${asymOverspanningNaam()} ${breedte.toFixed(2)} m`;
+    const linksLabel = svgEl('text', {x:x0-7,y:(yEaveLinks+yBase)/2,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black',transform:`rotate(-90 ${x0-7} ${(yEaveLinks+yBase)/2})`});
+    linksLabel.textContent = `${linksData.naam} ${linksData.h.toFixed(2)} m`;
+    svg.appendChild(linksLabel);
+    const rechtsX = x0+w+7;
+    const rechtsLabel = svgEl('text', {x:rechtsX,y:(yEaveRechts+yBase)/2,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black',transform:`rotate(-90 ${rechtsX} ${(yEaveRechts+yBase)/2})`});
+    rechtsLabel.textContent = `${rechtsData.naam} ${rechtsData.h.toFixed(2)} m`;
+    svg.appendChild(rechtsLabel);
+
+    canvasWrap.appendChild(svg);
+    return wrap;
+  }
 
   let driehoekHoogte = 0;
   if(heeftDriehoek){
@@ -2368,14 +3737,7 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
   }
 
   const totaalHoogte = gevelhoogte + driehoekHoogte + stippelHoogteM;
-  const gap = 0.15*SCALE;
   const w = breedte*SCALE, hRect = gevelhoogte*SCALE, hTri = driehoekHoogte*SCALE, hStippel = stippelHoogteM*SCALE;
-
-  // extra breedte reserveren voor hoek-overloop die BUITEN de eigen gevel aansluit
-  const overloopLinksPx = weergaveGroepen.overloopLinks.reduce((s,it)=>s+it.breedte*SCALE,0) + Math.max(0,weergaveGroepen.overloopLinks.length-1)*gap;
-  const overloopRechtsPx = weergaveGroepen.overloopRechts.reduce((s,it)=>s+it.breedte*SCALE,0) + Math.max(0,weergaveGroepen.overloopRechts.length-1)*gap;
-  const extraLinks = overloopLinksPx>0 ? overloopLinksPx+gap : 0;
-  const extraRechts = overloopRechtsPx>0 ? overloopRechtsPx+gap : 0;
 
   const viewW = w + extraLinks + extraRechts + 2*TK_MARGIN;
   const viewH = hRect + hTri + hStippel + 2*TK_MARGIN + (dakvlakInfo ? (PRINT_MODE?14:30) : 0) + (PRINT_MODE?10:20);
@@ -2384,7 +3746,20 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
 
   svg.appendChild(svgEl('rect', {x:x0,y:yEave,width:w,height:hRect,fill:'white',stroke:'black','stroke-width':1.5}));
 
-  if(heeftDriehoek && driehoekHoogte>0){
+  if(heeftDriehoek && heeftWolfseind){
+    // afgeknotte kopgevel (trapezium) + wolfseindvlak als gestippelde 'receding' driehoek erboven,
+    // conform dezelfde conventie als de stippellijn-rechthoek bij een gevel zonder eigen driehoek.
+    const hBovenGoot = (driehoekHoogte - wolfseind.restHoogte) * SCALE; // = wolfseind.hoogte in px
+    const insetPx = (w/2) - (wolfseind.topWidth/2)*SCALE;
+    const yAfkap = yEave - hBovenGoot;
+    svg.appendChild(svgEl('polygon', {points:`${x0},${yEave} ${x0+w},${yEave} ${x0+w-insetPx},${yAfkap} ${x0+insetPx},${yAfkap}`, fill:'white', stroke:'black','stroke-width':1.5}));
+    svg.appendChild(svgEl('polygon', {points:`${x0+insetPx},${yAfkap} ${x0+w/2},${yTop} ${x0+w-insetPx},${yAfkap}`, fill:'none', stroke:'black','stroke-width':1,'stroke-dasharray':'5,3'}));
+    svg.appendChild(svgEl('text', {x:x0+w/2,y:yAfkap+11,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
+    svg.lastChild.textContent = `wolfseind vanaf ${(driehoekHoogte-wolfseind.restHoogte).toFixed(2)}m boven goot`;
+    if(dakkapelDataAlle && dakkapelDataAlle.length){
+      tekenDakkapelOpDriehoek(svg, x0, yEave, w, hellingshoek, dakkapelDataAlle);
+    }
+  } else if(heeftDriehoek && driehoekHoogte>0){
     svg.appendChild(svgEl('polygon', {points:`${x0},${yEave} ${x0+w/2},${yTop} ${x0+w},${yEave}`, fill:'white', stroke:'black','stroke-width':1.5}));
     if(dakkapelDataAlle && dakkapelDataAlle.length){
       tekenDakkapelOpDriehoek(svg, x0, yEave, w, hellingshoek, dakkapelDataAlle);
@@ -2394,7 +3769,7 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
   }
 
   if(dakkapelLijst && dakkapelLijst.length){
-    tekenDakkapelSilhouetten(svg, x0, yEave, dakkapelLijst);
+    tekenDakkapelSilhouetten(svg, x0, yEave, dakkapelLijst, w);
   }
 
   // stippellijnen bij verdiepingsvloeren, met hoogtemaat (t.b.v. EPA-invoer/bewijsvoering)
@@ -2419,7 +3794,7 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
   if(weergaveGroepen.overloopRechts.length) tekenOverloopBoxen(svg, x0+w, yBase, weergaveGroepen.overloopRechts, 1, gap);
 
   const oppRectNetto = Math.max(breedte*gevelhoogte - blokkage, 0);
-  const oppDriehoek = heeftDriehoek ? 0.5*breedte*driehoekHoogte : 0;
+  const oppDriehoek = heeftDriehoek ? (heeftWolfseind ? wolfseind.opp : 0.5*breedte*driehoekHoogte) : 0;
   const oppTotaal = oppRectNetto + oppDriehoek;
 
   svg.appendChild(svgEl('text', {x:x0+w/2,y:(yEave+yBase)/2,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
@@ -2441,7 +3816,7 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
     svg.lastChild.textContent = `nok ${totaalHoogte.toFixed(2)} m`;
   }
 
-  if(dakvlakInfo){
+  if(dakvlakInfo && dakvlakInfo.opp!=null){
     svg.appendChild(svgEl('text', {x:x0+w/2,y:yTop-18,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
     svg.lastChild.textContent = `dakvlak: ${dakvlakInfo.opp.toFixed(2)} m² — ${dakvlakInfo.hoek}°`;
   }
@@ -2456,12 +3831,20 @@ function renderTekeningResultatenTabel(){
   const regels = typeof samenvattingRegelsVerzamelen === 'function' ? samenvattingRegelsVerzamelen() : [];
   if(!regels.length){ container.innerHTML=''; return; }
 
+  // Voor invoer in andere software: alleen het kale getal kopiëren (geen label, geen eenheid).
+  // Bij waardes met meerdere getallen (bv. "1.20m boven goot, 60°") wordt het eerste getal gepakt.
+  function getalUitWaarde(waarde){
+    const tekst = String(waarde);
+    const match = tekst.match(/-?\d+(?:[.,]\d+)?/);
+    return match ? match[0].replace(',', '.') : tekst;
+  }
+
   let html = '<table class="resultaten-tabel"><thead><tr><th>Omschrijving</th><th>Waarde</th><th></th></tr></thead><tbody>';
   regels.forEach((r, i)=>{
     if(r.kop){
       html += `<tr class="kop"><td colspan="3">${r.kop}</td></tr>`;
     } else {
-      const copyTekst = `${r.label}: ${r.waarde}`.replace(/"/g,'&quot;');
+      const copyTekst = getalUitWaarde(r.waarde).replace(/"/g,'&quot;');
       html += `<tr>
         <td>${r.label}</td>
         <td class="waarde">${r.waarde}</td>
@@ -2513,7 +3896,9 @@ function renderTekening(targetContainerId){
 
   const uitbouwLijstAlle = alleUitbouwData().filter(d=>d.geldig);
 
-  const blokBG = tekenPlattegrondVerdieping('Begane grond (plattegrond)', m.beuk, m.diepte, hatchL, hatchR, uitbouwLijstAlle.filter(d=>d.lagen>0));
+  const bgVerdiepingshoogte = getVerdiepingshoogte('bg', null);
+  const bgDakInfo = verdiepingDakInfo('bg', bgVerdiepingshoogte, m.beuk, m.diepte);
+  const blokBG = tekenPlattegrondVerdieping('Begane grond (plattegrond)', m.beuk, m.diepte, hatchL, hatchR, uitbouwLijstAlle.filter(d=>d.lagen>0), bgDakInfo);
   if(blokBG) container.appendChild(blokBG);
 
   // Extra verdiepingen (allemaal, in volgorde)
@@ -2521,16 +3906,19 @@ function renderTekening(targetContainerId){
     const breedte = parseFloat(document.getElementById('ev-breedte-'+v.id)?.value);
     const diepte = parseFloat(document.getElementById('ev-diepte-'+v.id)?.value);
     const vloerIndex = i+1;
-    const blokV = tekenPlattegrondVerdieping(`Verdieping ${i+1} (plattegrond)`, breedte, diepte, hatchL, hatchR, uitbouwLijstAlle.filter(d=>d.lagen>vloerIndex));
+    const vHoogte = getVerdiepingshoogte(v.id, null);
+    const vDakInfo = verdiepingDakInfo(v.id, vHoogte, breedte, diepte);
+    const blokV = tekenPlattegrondVerdieping(`Verdieping ${i+1} (plattegrond)`, breedte, diepte, hatchL, hatchR, uitbouwLijstAlle.filter(d=>d.lagen>vloerIndex), vDakInfo);
     if(blokV) container.appendChild(blokV);
   });
 
   // Verdieping 2 / dakverdieping (plattegrond)
-  const blokDak = tekenPlattegrondDakverdieping(m);
+  const blokDak = m.daktype==='asymmetrisch' ? tekenPlattegrondDakverdiepingAsymmetrisch(m) : tekenPlattegrondDakverdieping(m);
   if(blokDak) container.appendChild(blokDak);
 
   // Gevelaanzichten
   const heeftZadel = m.daktype==='zadel';
+  const heeftAsymmetrisch = m.daktype==='asymmetrisch';
   const driehoekOpVoor = heeftZadel && m.nokrichting==='voorachter';
   const driehoekOpZij = heeftZadel && m.nokrichting==='zijgevel';
 
@@ -2549,10 +3937,32 @@ function renderTekening(targetContainerId){
     else dakvlakInfoVoor = info;
   }
 
-  const blokkageVG = blokkageOpGevel('VG', m.hoogte);
-  const blokkageAG = blokkageOpGevel('AG', m.hoogte);
-  const blokkageLG = blokkageOpGevel('LG', m.hoogte);
-  const blokkageRG = blokkageOpGevel('RG', m.hoogte);
+  // Asymmetrisch dak: cumulatieve gevelhoogtes + nok-data, analoog aan nokrichting='zijgevel'
+  // (voorgevel/achtergevel tonen het dakvlak plat met stippellijn, linker/rechtergevel het profiel)
+  let asymData = null, cumGevelVoorM = null, cumGevelAchterM = null;
+  // asymDwars: nok van voor naar achter → profiel op voor-/achtergevel i.p.v. op de zijgevels
+  const asymDwars = heeftAsymmetrisch && nokLoopDwars();
+  if(heeftAsymmetrisch){
+    asymData = berekenAsymmetrischDakData();
+    if(asymData && asymData.geldig){
+      cumGevelVoorM = calcCumulGeveHoogte('voor');   // = zijde A
+      cumGevelAchterM = calcCumulGeveHoogte('achter'); // = zijde B
+      // stippellijn-dakvolume komt op de gevels ZONDER profiel
+      if(asymDwars) dakvlakInfoZij = {nokhoogte: asymData.h_nok};
+      else dakvlakInfoVoor = {nokhoogte: asymData.h_nok};
+    }
+  }
+
+  const asymNok = asymData ? asymData.h_nok : 0;
+  const capHoogteVG = heeftAsymmetrisch ? (asymDwars ? asymNok : (cumGevelVoorM || 0)) : m.hoogte;
+  const capHoogteAG = heeftAsymmetrisch ? (asymDwars ? asymNok : (cumGevelAchterM || 0)) : m.hoogte;
+  const capHoogteLG = heeftAsymmetrisch ? (asymDwars ? (cumGevelVoorM || 0) : asymNok) : m.hoogte;
+  const capHoogteRG = heeftAsymmetrisch ? (asymDwars ? (cumGevelAchterM || 0) : asymNok) : m.hoogte;
+  const capHoogteZij = capHoogteLG;
+  const blokkageVG = blokkageOpGevel('VG', capHoogteVG);
+  const blokkageAG = blokkageOpGevel('AG', capHoogteAG);
+  const blokkageLG = blokkageOpGevel('LG', capHoogteLG);
+  const blokkageRG = blokkageOpGevel('RG', capHoogteRG);
 
   // Voor elk aanzicht: eigen uitbouwen + de "overloop" van élke uitbouw op een LOODRECHTE gevel.
   // Reden: in een zijaanzicht valt de breedte-as (links-rechts) helemaal weg — een uitbouw aan de
@@ -2575,27 +3985,60 @@ function renderTekening(targetContainerId){
   }
 
   // dakkapellen koppelen aan de gevel die het bijbehorende dakvlak (A/B) toont
-  // (de gevel ZONDER driehoek, waar je het dakvlak recht van voren ziet)
+  // (de gevel ZONDER profiel, waar je het dakvlak recht van voren ziet).
+  // Zowel zadeldak als asymmetrisch dak volgen nu dezelfde nokrichting-regel.
   const dakkapelDataAlle = typeof alleDakkapelData === 'function' ? alleDakkapelData().filter(d=>d.geldig) : [];
   const dakkapellenPerGevel = {VG:[], AG:[], LG:[], RG:[]};
+  const dkCodes = dakvlakGevelCodes();
   dakkapelDataAlle.forEach(d=>{
-    const gevelCode = m.nokrichting === 'voorachter'
-      ? (d.dakvlak==='A' ? 'LG' : 'RG')
-      : (d.dakvlak==='A' ? 'VG' : 'AG');
-    dakkapellenPerGevel[gevelCode].push(d);
+    dakkapellenPerGevel[d.dakvlak==='A' ? dkCodes.A : dkCodes.B].push(d);
   });
 
-  const blokVoor = tekenGevelaanzicht('Voorgevel (aanzicht)', m.voorAchterBreedte, m.hoogte, driehoekOpVoor, m.hellingshoek, dakvlakInfoVoor, blokkageVG, weergaveGroepenVoorGevel('VG'), dakkapellenPerGevel.VG, dakkapelDataAlle);
+  const asymProfiel = (asymData && asymData.geldig) ? asymData : null;
+
+  // Bij een asymmetrisch dak krijgt één gevelpaar het schuine profiel en het andere paar
+  // een rechthoek met stippellijn tot de nok. Welk paar dat is, volgt de nokrichting.
+  // 'spiegel' = staat dakhelft B links in dit aanzicht? (zelfde hoekconventie als bij uitbouwen)
+  const profielOpVoorAchter = heeftAsymmetrisch && asymDwars;
+  const profielOpZij = heeftAsymmetrisch && !asymDwars;
+
+  const blokVoor = heeftAsymmetrisch
+    ? (profielOpVoorAchter
+        ? tekenGevelaanzicht('Voorgevel (aanzicht)', m.voorAchterBreedte, null, false, null, null, blokkageVG, weergaveGroepenVoorGevel('VG'), [], dakkapelDataAlle, null, asymProfiel, false)
+        : tekenGevelaanzicht('Voorgevel (aanzicht)', m.voorAchterBreedte, cumGevelVoorM, false, null, dakvlakInfoVoor, blokkageVG, weergaveGroepenVoorGevel('VG'), dakkapellenPerGevel.VG, dakkapelDataAlle, null))
+    : tekenGevelaanzicht('Voorgevel (aanzicht)', m.voorAchterBreedte, m.hoogte, driehoekOpVoor, m.hellingshoek, dakvlakInfoVoor, blokkageVG, weergaveGroepenVoorGevel('VG'), dakkapellenPerGevel.VG, dakkapelDataAlle, driehoekOpVoor ? m.wolfseindA : null);
   if(blokVoor) container.appendChild(blokVoor);
 
-  const blokAchter = tekenGevelaanzicht('Achtergevel (aanzicht)', m.voorAchterBreedte, m.hoogte, driehoekOpVoor, m.hellingshoek, dakvlakInfoVoor, blokkageAG, weergaveGroepenVoorGevel('AG'), dakkapellenPerGevel.AG, dakkapelDataAlle);
+  const blokAchter = heeftAsymmetrisch
+    ? (profielOpVoorAchter
+        ? tekenGevelaanzicht('Achtergevel (aanzicht)', m.voorAchterBreedte, null, false, null, null, blokkageAG, weergaveGroepenVoorGevel('AG'), [], dakkapelDataAlle, null, asymProfiel, true)
+        : tekenGevelaanzicht('Achtergevel (aanzicht)', m.voorAchterBreedte, cumGevelAchterM, false, null, dakvlakInfoVoor, blokkageAG, weergaveGroepenVoorGevel('AG'), dakkapellenPerGevel.AG, dakkapelDataAlle, null))
+    : tekenGevelaanzicht('Achtergevel (aanzicht)', m.voorAchterBreedte, m.hoogte, driehoekOpVoor, m.hellingshoek, dakvlakInfoVoor, blokkageAG, weergaveGroepenVoorGevel('AG'), dakkapellenPerGevel.AG, dakkapelDataAlle, driehoekOpVoor ? m.wolfseindB : null);
   if(blokAchter) container.appendChild(blokAchter);
 
-  const blokLinks = tekenGevelaanzicht('Linkergevel (aanzicht)', m.diepte, m.hoogte, driehoekOpZij, m.hellingshoek, dakvlakInfoZij, blokkageLG, weergaveGroepenVoorGevel('LG'), dakkapellenPerGevel.LG, dakkapelDataAlle);
+  const blokLinks = heeftAsymmetrisch
+    ? (profielOpZij
+        ? tekenGevelaanzicht('Linkergevel (aanzicht)', m.diepte, null, false, null, null, blokkageLG, weergaveGroepenVoorGevel('LG'), [], dakkapelDataAlle, null, asymProfiel, true)
+        : tekenGevelaanzicht('Linkergevel (aanzicht)', m.diepte, cumGevelVoorM, false, null, dakvlakInfoZij, blokkageLG, weergaveGroepenVoorGevel('LG'), dakkapellenPerGevel.LG, dakkapelDataAlle, null))
+    : tekenGevelaanzicht('Linkergevel (aanzicht)', m.diepte, m.hoogte, driehoekOpZij, m.hellingshoek, dakvlakInfoZij, blokkageLG, weergaveGroepenVoorGevel('LG'), dakkapellenPerGevel.LG, dakkapelDataAlle, driehoekOpZij ? m.wolfseindA : null);
   if(blokLinks) container.appendChild(blokLinks);
 
-  const blokRechts = tekenGevelaanzicht('Rechtergevel (aanzicht)', m.diepte, m.hoogte, driehoekOpZij, m.hellingshoek, dakvlakInfoZij, blokkageRG, weergaveGroepenVoorGevel('RG'), dakkapellenPerGevel.RG, dakkapelDataAlle);
+  const blokRechts = heeftAsymmetrisch
+    ? (profielOpZij
+        ? tekenGevelaanzicht('Rechtergevel (aanzicht)', m.diepte, null, false, null, null, blokkageRG, weergaveGroepenVoorGevel('RG'), [], dakkapelDataAlle, null, asymProfiel, false)
+        : tekenGevelaanzicht('Rechtergevel (aanzicht)', m.diepte, cumGevelAchterM, false, null, dakvlakInfoZij, blokkageRG, weergaveGroepenVoorGevel('RG'), dakkapellenPerGevel.RG, dakkapelDataAlle, null))
+    : tekenGevelaanzicht('Rechtergevel (aanzicht)', m.diepte, m.hoogte, driehoekOpZij, m.hellingshoek, dakvlakInfoZij, blokkageRG, weergaveGroepenVoorGevel('RG'), dakkapellenPerGevel.RG, dakkapelDataAlle, driehoekOpZij ? m.wolfseindB : null);
   if(blokRechts) container.appendChild(blokRechts);
+
+  if(heeftZadel){
+    const blokDoorsnede = tekenDoorsnede(m);
+    if(blokDoorsnede) container.appendChild(blokDoorsnede);
+  }
+  
+  if(heeftAsymmetrisch){
+    const blokDoorsnede = tekenDoorsnede_Asymmetrisch(m);
+    if(blokDoorsnede) container.appendChild(blokDoorsnede);
+  }
 
   if(container.children.length === 0){
     container.innerHTML = '<p class="hint">Vul de Schil-tab verder in voor de tekeningen.</p>';
@@ -2628,12 +4071,12 @@ function tekenSvgElementOpCanvas(ctx, el){
     const x1=parseFloat(el.getAttribute('x1'))||0, y1=parseFloat(el.getAttribute('y1'))||0;
     const x2=parseFloat(el.getAttribute('x2'))||0, y2=parseFloat(el.getAttribute('y2'))||0;
     ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
-  } else if(tag==='polygon'){
+  } else if(tag==='polygon' || tag==='polyline'){
     const pts = (el.getAttribute('points')||'').trim().split(/\s+/).filter(Boolean).map(p=>p.split(',').map(Number));
     if(pts.length){
       ctx.beginPath();
       pts.forEach(([px,py],i)=>{ i===0 ? ctx.moveTo(px,py) : ctx.lineTo(px,py); });
-      ctx.closePath();
+      if(tag==='polygon') ctx.closePath();
       if(fill && fill!=='none') ctx.fill();
       if(stroke && stroke!=='none') ctx.stroke();
     }
@@ -2667,6 +4110,10 @@ function svgNaarCanvas(svg, pxPerMm){
     try{
       const vb = svg.viewBox.baseVal;
       const wMm = vb.width, hMm = vb.height;
+      if(!isFinite(wMm) || !isFinite(hMm) || wMm<=0 || hMm<=0){
+        reject(new Error(`Ongeldige tekening-afmeting (${wMm} × ${hMm}mm) — waarschijnlijk een lege of onvolledige invoer.`));
+        return;
+      }
       const canvas = document.createElement('canvas');
       canvas.width = Math.max(1, Math.round(wMm*pxPerMm));
       canvas.height = Math.max(1, Math.round(hMm*pxPerMm));
@@ -2696,7 +4143,7 @@ function samenvattingRegelsVerzamelen(){
   const dakSpans = document.getElementById('dakverdieping-output').querySelectorAll('span');
   if(dakSpans.length>=2){
     const dakLabel = document.getElementById('dakverdieping-nummer-label').textContent;
-    regels.push({label:dakLabel+' (dakverdieping)', waarde: dakSpans[dakSpans.length-1].textContent});
+    regels.push({label:dakLabel, waarde: dakSpans[dakSpans.length-1].textContent});
   }
   alleUitbouwData().filter(d=>d.geldig).forEach(d=>{
     regels.push({label:d.naam+' (vloeroppervlak)', waarde: d.vloerOpp.toFixed(2)+' m²'});
@@ -2736,12 +4183,51 @@ function samenvattingRegelsVerzamelen(){
   regels.push({label:'Gevelhoogte', waarde: (document.getElementById('gs-hoogte').value||'—') + ' m'});
   const daktypeEl = document.getElementById('gs-daktype');
   regels.push({label:'Daktype', waarde: daktypeEl.selectedOptions[0].textContent});
-  if(daktypeEl.value==='zadel'){
+  if(daktypeEl.value==='zadel' || daktypeEl.value==='asymmetrisch'){
     regels.push({label:'Nokrichting', waarde: document.getElementById('gs-nokrichting').selectedOptions[0].textContent});
+  }
+  if(daktypeEl.value==='zadel'){
     const hhSam = leesHellingshoek();
     regels.push({label:'Hellingshoek', waarde: hhSam.isDefault ? `${DAK_DEFAULT_HOEK}° (standaard!)` : hhSam.hoek + '°'});
+    if(document.getElementById('gs-geen-zoldervloer')?.checked){
+      regels.push({label:'Zoldervloer', waarde:'Geen — open kap'});
+    }
+    const [naamSamA, naamSamB] = kopgevelNamen();
+    const wASam = leesWolfseind('a'), wBSam = leesWolfseind('b');
+    if(wASam.actief) regels.push({label:`Wolfseind ${naamSamA}`, waarde: wASam.geldig ? `${wASam.hoogte.toFixed(2)}m boven goot, ${wASam.hoek}°` : 'onvolledig ingevuld'});
+    if(wBSam.actief) regels.push({label:`Wolfseind ${naamSamB}`, waarde: wBSam.geldig ? `${wBSam.hoogte.toFixed(2)}m boven goot, ${wBSam.hoek}°` : 'onvolledig ingevuld'});
   }
-  if(daktypeEl.value==='schilddak'){
+  if(daktypeEl.value==='asymmetrisch'){
+    const asymData = berekenAsymmetrischDakData();
+    if(asymData && asymData.geldig){
+      const zijNpdf = asymZijNamen();
+      const spanNaamPdf = asymData.overspanningNaam;
+      regels.push({kop:'Asymmetrisch dak — invoer'});
+      regels.push({label:`Gevelhoogte ${zijNpdf.aKlein}`, waarde: asymData.hVoor.toFixed(2) + ' m'});
+      regels.push({label:`Gevelhoogte ${zijNpdf.bKlein}`, waarde: asymData.hAchter.toFixed(2) + ' m'});
+      regels.push({label:`Dakhelling ${zijNpdf.aKlein}`, waarde: asymData.hellVoor.toFixed(1) + '°'});
+      regels.push({label:`Dakhelling ${zijNpdf.bKlein}`, waarde: asymData.hellAchter.toFixed(1) + '°'});
+      regels.push({label:`Gegeven ${spanNaamPdf} (overspanning)`, waarde: asymData.d_ingevoerd.toFixed(2) + ' m'});
+      regels.push({label:`Berekende ${spanNaamPdf}`, waarde: asymData.d_werkelijk.toFixed(2) + ' m (' + Math.abs(asymData.afwijking_pct).toFixed(1) + '% afwijking)'});
+      regels.push({label:'Noklengte', waarde: asymData.noklengte.toFixed(2) + ' m'});
+      regels.push({label:'Nok­hoogte', waarde: asymData.h_nok.toFixed(3) + ' m'});
+      regels.push({kop:'Asymmetrisch dak — dakvlak­ten (EPA)'});
+      // Dakkapel-opening(en) aftrekken per dakvlak (A=voor, B=achter), consistent met de Schil-tab.
+      const dakkapelGatPerVlakPdf = {A:0, B:0};
+      dakkapelDataVoorPdf.forEach(d=>{ dakkapelGatPerVlakPdf[d.dakvlak] = (dakkapelGatPerVlakPdf[d.dakvlak]||0) + d.gatOpp; });
+      const nettoVoorPdf = Math.max(asymData.opVoor - (dakkapelGatPerVlakPdf.A||0), 0);
+      const nettoAchterPdf = Math.max(asymData.opAchter - (dakkapelGatPerVlakPdf.B||0), 0);
+      const dakNaamPdf = asymData.dwars ? {A:'Dak linkerzijde', B:'Dak rechterzijde'} : {A:'Voordak', B:'Achterdak'};
+      regels.push({label:dakNaamPdf.A, waarde: nettoVoorPdf.toFixed(2) + ' m²' + ((dakkapelGatPerVlakPdf.A||0)>0 ? ` (bruto ${asymData.opVoor.toFixed(2)} m² - dakkapel(len) ${dakkapelGatPerVlakPdf.A.toFixed(2)} m²)` : '')});
+      regels.push({label:dakNaamPdf.B, waarde: nettoAchterPdf.toFixed(2) + ' m²' + ((dakkapelGatPerVlakPdf.B||0)>0 ? ` (bruto ${asymData.opAchter.toFixed(2)} m² - dakkapel(len) ${dakkapelGatPerVlakPdf.B.toFixed(2)} m²)` : '')});
+      regels.push({label:'Totaal dak­oppervlak', waarde: (nettoVoorPdf+nettoAchterPdf).toFixed(2) + ' m²'});
+      regels.push({kop:'Formule (nokpositie-berekening)'});
+      regels.push({label:'', waarde: asymData.formule});
+    } else if(asymData && asymData.tooMuchDeviation){
+      regels.push({kop:'Asymmetrisch dak — AFWIJKING TE GROOT'});
+      regels.push({label:'Fout', waarde: `Berekende ${asymData.overspanningNaam} (${asymData.d_werkelijk.toFixed(2)}m) wijkt meer dan 5% af van ingevoerd (${asymData.d_ingevoerd.toFixed(2)}m). Controleer je maten!`});
+    }
+  } else if(daktypeEl.value==='schilddak'){
     const schildData = berekenSchilddakData();
     if(schildData && schildData.geldig){
       regels.push({label:'Gevelhoogte voor', waarde: schildData.hVoor.toFixed(2) + ' m'});
@@ -2824,17 +4310,17 @@ async function exporteerPDF(){
   btn.textContent = 'PDF maken…';
   btn.disabled = true;
 
-  SCALE = 10;       // 1m = 10mm op papier = exact 1:100
-  TK_MARGIN = 18;   // compacte marge, meer tekeningen per pagina
-  PRINT_MODE = true;
-  renderTekening('print-export-container');
-  const blokken = [...document.getElementById('print-export-container').children];
-  const samenvattingRegels = samenvattingRegelsVerzamelen();
-  SCALE = 20;
-  TK_MARGIN = 45;
-  PRINT_MODE = false;
-
   try{
+    SCALE = 10;       // 1m = 10mm op papier = exact 1:100
+    TK_MARGIN = 18;   // compacte marge, meer tekeningen per pagina
+    PRINT_MODE = true;
+    renderTekening('print-export-container');
+    const blokken = [...document.getElementById('print-export-container').children];
+    const samenvattingRegels = samenvattingRegelsVerzamelen();
+    SCALE = 20;
+    TK_MARGIN = 45;
+    PRINT_MODE = false;
+
     const { jsPDF } = window.jspdf;
     const pageW = 420, pageH = 297, margin = 8, gap = 3, titelH = 4;
     const pdf = new jsPDF({orientation:'landscape', unit:'mm', format:'a3'});
@@ -2941,6 +4427,9 @@ async function exporteerPDF(){
     const melding = (err && err.message) ? err.message : String(err);
     alert('PDF maken mislukt: ' + melding);
   } finally {
+    SCALE = 20;
+    TK_MARGIN = 45;
+    PRINT_MODE = false;
     btn.textContent = oudeTekst;
     btn.disabled = false;
   }
@@ -2960,6 +4449,20 @@ function veldWaarde(id){
   const el = document.getElementById(id);
   return el ? el.value : '';
 }
+
+// Excel gebruikt leesbare gevelcodes (LG/RG/VG/AG) i.p.v. de interne A/B.
+// Welke code bij welke dakhelft hoort volgt de nokrichting.
+function dakvlakNaarGevelcode(waarde){
+  const codes = dakvlakGevelCodes();
+  return waarde === 'B' ? codes.B : codes.A;
+}
+function gevelcodeNaarDakvlak(waarde){
+  const v = String(waarde === undefined || waarde === null ? '' : waarde).trim().toUpperCase();
+  if(v === 'A' || v === 'B') return v;           // oude bestanden
+  if(v === 'AG' || v === 'RG') return 'B';
+  if(v === 'VG' || v === 'LG') return 'A';
+  return 'A';
+}
 function veldZetten(id, waarde){
   const el = document.getElementById(id);
   if(!el || waarde===undefined || waarde===null || waarde==='') return;
@@ -2976,23 +4479,40 @@ function verzamelInvoerData(){
   push('Gevel', 1, 'beukmaat', veldWaarde('gs-beukmaat'));
   push('Gevel', 1, 'diepte', veldWaarde('gs-diepte'));
   push('Gevel', 1, 'hoogte', veldWaarde('gs-hoogte'));
+  push('Gevel', 1, 'wolfseind-a-actief', document.getElementById('gs-wolfseind-a-actief')?.checked ? '1' : '0');
+  push('Gevel', 1, 'wolfseind-a-hoogte', veldWaarde('gs-wolfseind-a-hoogte'));
+  push('Gevel', 1, 'wolfseind-a-hoek', veldWaarde('gs-wolfseind-a-hoek'));
+  push('Gevel', 1, 'wolfseind-b-actief', document.getElementById('gs-wolfseind-b-actief')?.checked ? '1' : '0');
+  push('Gevel', 1, 'wolfseind-b-hoogte', veldWaarde('gs-wolfseind-b-hoogte'));
+  push('Gevel', 1, 'wolfseind-b-hoek', veldWaarde('gs-wolfseind-b-hoek'));
   push('Gevel', 1, 'daktype', veldWaarde('gs-daktype'));
   push('Gevel', 1, 'nokrichting', veldWaarde('gs-nokrichting'));
   push('Gevel', 1, 'hellingshoek', veldWaarde('gs-hellingshoek'));
+  push('Gevel', 1, 'asym-helling-voor', veldWaarde('gs-asym-helling-voor'));
+  push('Gevel', 1, 'asym-helling-achter', veldWaarde('gs-asym-helling-achter'));
   push('Gevel', 1, 'schilddak-hoogte-voor', veldWaarde('gs-schilddak-hoogte-voor'));
   push('Gevel', 1, 'schilddak-hoogte-achter', veldWaarde('gs-schilddak-hoogte-achter'));
   push('Gevel', 1, 'schilddak-helling-voor', veldWaarde('gs-schilddak-helling-voor'));
   push('Gevel', 1, 'schilddak-helling-zij', veldWaarde('gs-schilddak-helling-zij'));
   push('Gevel', 1, 'schilddak-helling-achter', veldWaarde('gs-schilddak-helling-achter'));
   push('Gevel', 1, 'vloeroffset', veldWaarde('gs-vloeroffset'));
+  push('Gevel', 1, 'geen-zoldervloer', document.getElementById('gs-geen-zoldervloer')?.checked ? '1' : '0');
 
   push('BeganeGrond', 1, 'lengte', veldWaarde('vloer-lengte'));
   push('BeganeGrond', 1, 'breedte', veldWaarde('vloer-breedte'));
-  push('BeganeGrond', 1, 'hoogte', veldWaarde('vloer-hoogte'));
+  push('BeganeGrond', 1, 'verdiepingshoogte', veldWaarde('vloer-verdiepingshoogte'));
+  push('BeganeGrond', 1, 'gevelhoogte', veldWaarde('vloer-gevelhoogte'));
+  const gcodes = dakvlakGevelCodes();
+  push('BeganeGrond', 1, 'gevelhoogte-'+gcodes.A, veldWaarde('vloer-gevelhoogte-voor'));
+  push('BeganeGrond', 1, 'gevelhoogte-'+gcodes.B, veldWaarde('vloer-gevelhoogte-achter'));
 
   extraVerdiepingen.forEach((v,i)=>{
     push('Verdieping', i+1, 'breedte', veldWaarde('ev-breedte-'+v.id));
     push('Verdieping', i+1, 'diepte', veldWaarde('ev-diepte-'+v.id));
+    push('Verdieping', i+1, 'verdiepingshoogte', veldWaarde('ev-verdiepingshoogte-'+v.id));
+    push('Verdieping', i+1, 'gevelhoogte', veldWaarde('ev-gevelhoogte-'+v.id));
+    push('Verdieping', i+1, 'gevelhoogte-'+gcodes.A, veldWaarde('ev-gevelhoogte-voor-'+v.id));
+    push('Verdieping', i+1, 'gevelhoogte-'+gcodes.B, veldWaarde('ev-gevelhoogte-achter-'+v.id));
   });
 
   uitbouwen.forEach((u,i)=>{
@@ -3006,7 +4526,7 @@ function verzamelInvoerData(){
   });
 
   dakkapellen.forEach((dk,i)=>{
-    push('Dakkapel', i+1, 'dakvlak', veldWaarde('dk-dakvlak-'+dk.id));
+    push('Dakkapel', i+1, 'dakvlak', dakvlakNaarGevelcode(veldWaarde('dk-dakvlak-'+dk.id)));
     push('Dakkapel', i+1, 'breedte', veldWaarde('dk-breedte-'+dk.id));
     push('Dakkapel', i+1, 'hoogte', veldWaarde('dk-hoogte-'+dk.id));
     push('Dakkapel', i+1, 'diepte', veldWaarde('dk-diepte-'+dk.id));
@@ -3026,6 +4546,20 @@ function groepeerInvoerRijen(rows){
   return Object.values(groepen);
 }
 
+// Leest de gevelhoogte van dakhelft A/B uit een Invoer-groep. Nieuwe bestanden gebruiken
+// gevelhoogte-VG/-AG of gevelhoogte-LG/-RG, oude bestanden gevelhoogte-voor/-achter.
+function gevelhoogteUitVelden(velden, zijde){
+  const codes = dakvlakGevelCodes();
+  const eigen = velden['gevelhoogte-'+(zijde==='B' ? codes.B : codes.A)];
+  if(eigen !== undefined && eigen !== '') return eigen;
+  const alt = zijde==='B' ? ['gevelhoogte-AG','gevelhoogte-RG','gevelhoogte-achter']
+                          : ['gevelhoogte-VG','gevelhoogte-LG','gevelhoogte-voor'];
+  for(const k of alt){
+    if(velden[k] !== undefined && velden[k] !== '') return velden[k];
+  }
+  return '';
+}
+
 function vulInvoerDataIn(rows){
   const groepen = groepeerInvoerRijen(rows);
 
@@ -3036,21 +4570,50 @@ function vulInvoerDataIn(rows){
     veldZetten('gs-diepte', gevel.velden.diepte);
     veldZetten('gs-hoogte', gevel.velden.hoogte);
     veldZetten('gs-daktype', gevel.velden.daktype);
-    veldZetten('gs-nokrichting', gevel.velden.nokrichting);
+    // Nokrichting: bestanden van vóór deze versie hebben bij een asymmetrisch dak
+    // geen (of een niet-gebruikte) nokrichting. Toen lag de nok altijd evenwijdig
+    // aan de voorgevel, dus daar vallen we op terug — anders zou zo'n bestand
+    // stilzwijgend als "dwarse nok" worden ingelezen en heel andere maten geven.
+    const nokUitBestand = gevel.velden.nokrichting;
+    if(nokUitBestand === undefined || nokUitBestand === ''){
+      if(gevel.velden.daktype === 'asymmetrisch') veldZetten('gs-nokrichting', 'zijgevel');
+    } else {
+      veldZetten('gs-nokrichting', nokUitBestand);
+    }
     veldZetten('gs-hellingshoek', gevel.velden.hellingshoek);
+    veldZetten('gs-asym-helling-voor', gevel.velden['asym-helling-voor']);
+    veldZetten('gs-asym-helling-achter', gevel.velden['asym-helling-achter']);
     veldZetten('gs-schilddak-hoogte-voor', gevel.velden['schilddak-hoogte-voor']);
     veldZetten('gs-schilddak-hoogte-achter', gevel.velden['schilddak-hoogte-achter']);
     veldZetten('gs-schilddak-helling-voor', gevel.velden['schilddak-helling-voor']);
     veldZetten('gs-schilddak-helling-zij', gevel.velden['schilddak-helling-zij']);
     veldZetten('gs-schilddak-helling-achter', gevel.velden['schilddak-helling-achter']);
     veldZetten('gs-vloeroffset', gevel.velden.vloeroffset);
+    const gzWaarde = gevel.velden['geen-zoldervloer'];
+    const gzCb = document.getElementById('gs-geen-zoldervloer');
+    if(gzCb) gzCb.checked = (gzWaarde === '1' || gzWaarde === 1 || gzWaarde === true);
+
+    ['a','b'].forEach(kant=>{
+      const actiefWaarde = gevel.velden[`wolfseind-${kant}-actief`];
+      const cb = document.getElementById(`gs-wolfseind-${kant}-actief`);
+      const velden = document.getElementById(`gs-wolfseind-${kant}-velden`);
+      if(cb){
+        cb.checked = (actiefWaarde === '1' || actiefWaarde === 1 || actiefWaarde === true);
+        if(velden) velden.style.display = cb.checked ? 'flex' : 'none';
+      }
+      veldZetten(`gs-wolfseind-${kant}-hoogte`, gevel.velden[`wolfseind-${kant}-hoogte`]);
+      veldZetten(`gs-wolfseind-${kant}-hoek`, gevel.velden[`wolfseind-${kant}-hoek`]);
+    });
   }
 
   const bg = groepen.find(g=>g.sectie==='BeganeGrond');
   if(bg){
     veldZetten('vloer-lengte', bg.velden.lengte);
     veldZetten('vloer-breedte', bg.velden.breedte);
-    veldZetten('vloer-hoogte', bg.velden.hoogte);
+    veldZetten('vloer-verdiepingshoogte', bg.velden.verdiepingshoogte);
+    veldZetten('vloer-gevelhoogte', bg.velden.gevelhoogte);
+    veldZetten('vloer-gevelhoogte-voor', gevelhoogteUitVelden(bg.velden, 'A'));
+    veldZetten('vloer-gevelhoogte-achter', gevelhoogteUitVelden(bg.velden, 'B'));
   }
 
   // Dynamische secties: eerst alles verwijderen, dan opnieuw opbouwen
@@ -3062,6 +4625,10 @@ function vulInvoerDataIn(rows){
     const v = extraVerdiepingen[extraVerdiepingen.length-1];
     veldZetten('ev-breedte-'+v.id, g.velden.breedte);
     veldZetten('ev-diepte-'+v.id, g.velden.diepte);
+    veldZetten('ev-verdiepingshoogte-'+v.id, g.velden.verdiepingshoogte);
+    veldZetten('ev-gevelhoogte-'+v.id, g.velden.gevelhoogte);
+    veldZetten('ev-gevelhoogte-voor-'+v.id, gevelhoogteUitVelden(g.velden, 'A'));
+    veldZetten('ev-gevelhoogte-achter-'+v.id, gevelhoogteUitVelden(g.velden, 'B'));
     v.breedteTouched = true; v.diepteTouched = true;
   });
 
@@ -3084,7 +4651,7 @@ function vulInvoerDataIn(rows){
   groepen.filter(g=>g.sectie==='Dakkapel').sort((a,b)=>a.index-b.index).forEach(g=>{
     voegDakkapelToe();
     const dk = dakkapellen[dakkapellen.length-1];
-    veldZetten('dk-dakvlak-'+dk.id, g.velden.dakvlak);
+    veldZetten('dk-dakvlak-'+dk.id, gevelcodeNaarDakvlak(g.velden.dakvlak));
     veldZetten('dk-breedte-'+dk.id, g.velden.breedte);
     veldZetten('dk-hoogte-'+dk.id, g.velden.hoogte);
     veldZetten('dk-diepte-'+dk.id, g.velden.diepte);
@@ -3092,8 +4659,13 @@ function vulInvoerDataIn(rows){
   });
 
   if(typeof updateAutoGevelhoogte==='function') updateAutoGevelhoogte();
+  if(typeof updateWolfseindLabels==='function') updateWolfseindLabels();
+  if(typeof updateDaktypeZichtbaarheid==='function') updateDaktypeZichtbaarheid();
+  if(typeof updateAsymLabels==='function') updateAsymLabels();
+  if(typeof updateDakvlakOpties==='function') updateDakvlakOpties();
   updateVloer();
   renderDakverdiepingEnTotaal();
+  if(typeof renderResultaten==='function') renderResultaten();
 }
 
 function xlsxKolomBreedtes(aoa){
@@ -3114,6 +4686,12 @@ function xlsxRand(){
 function xlsxStijlHeader(){
   return {font:{bold:true, color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'A8472E'}}, alignment:{vertical:'center'}, border:xlsxRand()};
 }
+function xlsxStijlHeaderInvoer(){
+  return {font:{bold:true, color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'2E5A8F'}}, alignment:{vertical:'center'}, border:xlsxRand()};
+}
+function xlsxStijlNormaalInvoer(){
+  return {fill:{fgColor:{rgb:'EAF0F7'}}, border:xlsxRand(), alignment:{vertical:'center'}};
+}
 function xlsxStijlKop(){
   return {font:{bold:true, color:{rgb:'1D2520'}}, fill:{fgColor:{rgb:'E7E3D8'}}, alignment:{vertical:'center'}, border:xlsxRand()};
 }
@@ -3129,6 +4707,19 @@ function xlsxOpmaakToepassen(ws, aantalKolommen, kopRijen, headerRij){
     if(r===headerRij) stijl = xlsxStijlHeader();
     else if(kopRijen.has(r)) stijl = xlsxStijlKop();
     else stijl = xlsxStijlNormaal();
+    for(let c=0; c<aantalKolommen; c++){
+      const adres = XLSX.utils.encode_cell({r,c});
+      if(!ws[adres]) ws[adres] = {t:'s', v:''};
+      ws[adres].s = stijl;
+    }
+  }
+}
+
+function xlsxOpmaakToepassenInvoer(ws, aantalKolommen, headerRij){
+  if(!ws['!ref']) return;
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for(let r=range.s.r; r<=range.e.r; r++){
+    const stijl = (r===headerRij) ? xlsxStijlHeaderInvoer() : xlsxStijlNormaalInvoer();
     for(let c=0; c<aantalKolommen; c++){
       const adres = XLSX.utils.encode_cell({r,c});
       if(!ws[adres]) ws[adres] = {t:'s', v:''};
@@ -3159,7 +4750,7 @@ function bouwWerkboek(){
 
   const wsInvoer = XLSX.utils.aoa_to_sheet(invoerAoa);
   wsInvoer['!cols'] = xlsxKolomBreedtes(invoerAoa);
-  xlsxOpmaakToepassen(wsInvoer, 4, new Set(), 0);
+  xlsxOpmaakToepassenInvoer(wsInvoer, 4, 0);
 
   XLSX.utils.book_append_sheet(wb, wsOutput, 'Output');
   XLSX.utils.book_append_sheet(wb, wsInvoer, 'Invoer');
@@ -3246,6 +4837,10 @@ document.querySelectorAll('.tab').forEach(tab=>{
     if(mode==='tekening' && typeof renderTekening==='function') renderTekening();
   });
 });
+
+// === FINAL INIT ===
+toggleAsymmetrischHoogteInputs(); // Toggle de inputs op basis van huidige daktype
+updateDaktypeZichtbaarheid();     // Nokrichting-vraag tonen/verbergen + labels zetten
 </script>
 </body>
 </html>
