@@ -1583,14 +1583,14 @@ vb.addEventListener('input', ()=>{
 });
 // Listeners voor Begane Grond hoogte-inputs
 document.getElementById('vloer-verdiepingshoogte').addEventListener('input', ()=>{ updateAutoGevelhoogte(); renderDakverdiepingEnTotaal(); });
-document.getElementById('vloer-gevelhoogte').addEventListener('input', ()=>{ renderResultaten(); renderDakverdiepingEnTotaal(); });
+document.getElementById('vloer-gevelhoogte').addEventListener('input', ()=>{ updateAutoGevelhoogte(); renderResultaten(); renderDakverdiepingEnTotaal(); });
 
 // Gevelhoogte asymmetrisch (voeg listeners toe met null-check)
 const vloerGevelhoogVoor = document.getElementById('vloer-gevelhoogte-voor');
-if(vloerGevelhoogVoor) vloerGevelhoogVoor.addEventListener('input', ()=>{ renderResultaten(); renderDakverdiepingEnTotaal(); });
+if(vloerGevelhoogVoor) vloerGevelhoogVoor.addEventListener('input', ()=>{ updateAutoGevelhoogte(); renderResultaten(); renderDakverdiepingEnTotaal(); });
 
 const vloerGevelhoogAchter = document.getElementById('vloer-gevelhoogte-achter');
-if(vloerGevelhoogAchter) vloerGevelhoogAchter.addEventListener('input', ()=>{ renderResultaten(); renderDakverdiepingEnTotaal(); });
+if(vloerGevelhoogAchter) vloerGevelhoogAchter.addEventListener('input', ()=>{ updateAutoGevelhoogte(); renderResultaten(); renderDakverdiepingEnTotaal(); });
 
 document.getElementById('gs-vloeroffset').addEventListener('input', ()=>{ updateAutoGevelhoogte(); renderDakverdiepingEnTotaal(); });
 document.getElementById('gs-geen-zoldervloer').addEventListener('change', renderDakverdiepingEnTotaal);
@@ -1914,10 +1914,19 @@ const gsHoogte = document.getElementById('gs-hoogte');
 let gsHoogteTouched = false;
 gsHoogte.addEventListener('input', (e)=>{ if(e.isTrusted) gsHoogteTouched = true; });
 
-// updateAutoGevelhoogte() wil niet meer gebruikt — gevelhoogtes zijn nu auto-berekend
-// (was: gsHoogte.value = autoGevelhoogte(), maar autoGevelhoogte() is nu alleen voor zoldervloer-context)
+// Vult "Gevelhoogte (m) — auto" op de Schil-tab met de som van de per-verdieping
+// gevelhoogtes (BG + alle extra verdiepingen). Dat veld voedt de gevelaanzichten en de
+// doorsnede bij zadel-/plat-/schilddak. Bij asymmetrisch dak gebeurt de hoogteberekening
+// apart (calcCumulGeveHoogte per zijde in berekenAsymmetrischDakData()) en raakt deze
+// functie het veld niet aan. Handmatige invoer (gsHoogteTouched) heeft altijd voorrang.
 function updateAutoGevelhoogte(){
-  // PLACEHOLDER: deze functie doet nu niks (gevelhoogtes worden auto-berekend in berekenAsymmetrischDakData())
+  if(!gsHoogteTouched && typeof calcCumulGeveHoogte === 'function'){
+    const daktype = document.getElementById('gs-daktype')?.value;
+    if(daktype !== 'asymmetrisch'){
+      const som = calcCumulGeveHoogte(null);
+      gsHoogte.value = (som > 0) ? som.toFixed(2) : '';
+    }
+  }
   if(typeof renderResultaten === 'function') renderResultaten();
 }
 
@@ -2454,6 +2463,7 @@ function updateDaktypeZichtbaarheid(){
 }
 gsDaktype.addEventListener('change', ()=>{
   updateDaktypeZichtbaarheid();
+  if(typeof updateAutoGevelhoogte==='function') updateAutoGevelhoogte();
   renderResultaten();
 });
 
