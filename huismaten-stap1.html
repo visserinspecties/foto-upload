@@ -2178,7 +2178,7 @@ function renderResultaten(){
         const blocked = blokkageOpGevel(r.gevelKey, r.capHoogte);
         if(blocked<=0) return r;
         const afgetrokken = Math.min(blocked, r.opp);
-        return {label: r.label + ` - uitbouw ${afgetrokken.toFixed(2)} m²`, opp: Math.max(r.opp-blocked,0)};
+        return Object.assign({}, r, {label: r.label + ` - uitbouw ${afgetrokken.toFixed(2)} m²`, opp: Math.max(r.opp-blocked,0)});
       });
     }
   } else {
@@ -2243,7 +2243,7 @@ function renderResultaten(){
     const blocked = blokkageOpGevel(r.gevelKey, hoogte);
     if(blocked<=0) return r;
     const afgetrokken = Math.min(blocked, r.opp);
-    return {label: r.label + ` - uitbouw ${afgetrokken.toFixed(2)} m²`, opp: Math.max(r.opp-blocked,0)};
+    return Object.assign({}, r, {label: r.label + ` - uitbouw ${afgetrokken.toFixed(2)} m²`, opp: Math.max(r.opp-blocked,0)});
   });
   }
 
@@ -2370,6 +2370,57 @@ function renderResultaten(){
     });
   }
   rows = rows.concat(dakkapelRows);
+
+  // ============================================================
+  // Optelregels per oriëntatie (Σ VG/AG/LG/RG) en Σ platte daken
+  // ------------------------------------------------------------
+  // De losse regels hierboven blijven gewoon staan. Deze regels erbij tellen
+  // op wat bij elkaar hoort, zodat je kunt kiezen: los invoeren (dakkapel als
+  // eigen bouwdeel) of in één keer de hele gevel-oriëntatie.
+  //
+  // Voorzijde van een uitbouw/dakkapel telt bij de gevel-oriëntatie waar hij op
+  // staat / uit gesneden is: het gat in de hoofdgevel (al verrekend in de netto
+  // hoofdgevel-opp hierboven) en het naar-voren-geschoven stuk zijn dezelfde
+  // oppervlakte, dus gewoon optellen geeft de juiste, onveranderde totaalmaat.
+  // De wangen (links/rechts altijd identiek van maat) horen bij de twee gevels
+  // loodrecht op die voorzijde — welke van de twee fysiek links of rechts is,
+  // maakt voor het totaal niet uit.
+  // ============================================================
+  function perpendiculairePaar(orientatie){
+    return (orientatie === 'VG' || orientatie === 'AG') ? ['LG','RG'] : ['VG','AG'];
+  }
+
+  const gevelTotalen = {VG:0, AG:0, LG:0, RG:0};
+  rows.forEach(r=>{ if(r.gevelKey && r.opp) gevelTotalen[r.gevelKey] += r.opp; });
+
+  let plattedakenTotaal = 0;
+  const uitbouwDataGeldig = alleUitbouwData().filter(d=>d.geldig);
+  uitbouwDataGeldig.forEach(d=>{
+    gevelTotalen[d.gevel] = (gevelTotalen[d.gevel]||0) + d.front;
+    perpendiculairePaar(d.gevel).forEach(zij=>{ gevelTotalen[zij] = (gevelTotalen[zij]||0) + d.zijkant; });
+    if(d.daktype === 'plat'){
+      plattedakenTotaal += d.dakRows.reduce((s,r)=>s+r.opp,0); // = breedte×diepte
+    }
+  });
+
+  const dakkapelDataGeldig = typeof alleDakkapelData === 'function' ? alleDakkapelData().filter(d=>d.geldig) : [];
+  dakkapelDataGeldig.forEach(d=>{
+    const orient = dakvlakNaarGevelcode(d.dakvlak); // A/B → VG/AG of LG/RG, volgt de nokrichting
+    gevelTotalen[orient] = (gevelTotalen[orient]||0) + d.voorzijde;
+    perpendiculairePaar(orient).forEach(zij=>{ gevelTotalen[zij] = (gevelTotalen[zij]||0) + d.wangOpp; });
+    plattedakenTotaal += d.platDakOpp;
+  });
+
+  if(uitbouwDataGeldig.length > 0 || dakkapelDataGeldig.length > 0){
+    ['VG','AG','LG','RG'].forEach(key=>{
+      if(gevelTotalen[key] > 0){
+        rows.push({label:`Σ Totaal ${GEVEL_LABELS[key]} (${key}, incl. uitbouw/dakkapel)`, opp: gevelTotalen[key]});
+      }
+    });
+    if(plattedakenTotaal > 0){
+      rows.push({label:'Σ Totaal platte daken (uitbouw + dakkapel)', opp: plattedakenTotaal});
+    }
+  }
 
   let html = '<div class="lines-list" style="max-height:none;">';
   rows.forEach(r=>{
