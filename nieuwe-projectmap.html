@@ -171,6 +171,9 @@
     <button class="btn btn-secondary" id="copy-alles" onclick="kopieerAlleGegevens()">📋 Kopieer alle opdrachtgever-gegevens</button>
     <p class="hint" style="margin:-4px 0 12px 4px;">Handig om in één keer in een agenda-afspraak te plakken.</p>
 
+    <button class="btn btn-secondary" id="copy-edge-epsys" onclick="kopieerEdgeOpdrachtEpSys()">🌐 Kopieer EP-Sys gegevens (voor Edge-shortcut)</button>
+    <p class="hint" style="margin:-4px 0 12px 4px;">Plak dit ná de "/nieuw-epsys-klant" shortcut-chip in de Claude-sidebar (Edge).</p>
+
     <!-- Voorbeeld mapnaam -->
     <div class="card">
       <label>Mapnaam wordt</label>
@@ -526,6 +529,58 @@ function kopieerAlleGegevens() {
   kopieerNaarKlembord(regels.join('\n'), 'copy-alles');
 }
 
+// ── Edge-opdracht: kant-en-klare instructie + gegevens voor Claude for Edge,
+// om een nieuwe lead ("Offerte aanvraag") in EP-Sys aan te maken. Bedoeld om
+// onderweg te kopiëren en later (bv. thuis op de pc) in Claude for Edge te
+// plakken — dus geen automatische actie hier, puur tekst op het klembord.
+// Bouwt de Edge-opdracht als platte tekst. Wordt gebruikt door zowel de
+// kopieerknop (klembord) als het opdrachtgever-bestand (zodat je 'm ook later
+// nog uit de projectmap kunt halen). Geeft null terug als er te weinig is
+// ingevuld om een zinnige opdracht van te maken.
+function bouwEdgeOpdrachtTekst() {
+  const postcode    = document.getElementById('inp-postcode').value.trim().toUpperCase();
+  const huisnummer  = document.getElementById('inp-huisnummer').value.trim();
+  const toevoeging  = document.getElementById('inp-toevoeging').value.trim();
+  const aanhef      = document.getElementById('inp-aanhef').value;
+  const voornaam    = document.getElementById('inp-voornaam').value.trim();
+  const achternaam  = document.getElementById('inp-achternaam').value.trim();
+  const email       = document.getElementById('inp-email').value.trim();
+  const telefoon    = document.getElementById('inp-telefoon').value.trim();
+
+  if (!postcode && !huisnummer && !achternaam) return null;
+
+  const aanhefRadio = aanhef === 'heer' ? 'De heer' : aanhef === 'mevrouw' ? 'Mevrouw' : aanhef === 'familie' ? 'Familie' : '(niet opgegeven)';
+
+  const gegevensRegels = [
+    `- Postcode: ${postcode || '(niet opgegeven)'}`,
+    `- Huisnummer: ${huisnummer || '(niet opgegeven)'}`,
+    `- Huisnummer toevoeging: ${toevoeging || '(geen)'}`,
+    `- Aanhef: ${aanhefRadio}`,
+    `- Voornaam: ${voornaam || '(niet opgegeven)'}`,
+    `- Achternaam: ${achternaam || '(niet opgegeven)'}`,
+    `- E-mailadres: ${email || '(niet opgegeven)'}`,
+    `- Telefoonnummer: ${telefoon || '(niet opgegeven)'}`
+  ].join('\n');
+
+  // Alleen het gegevensblok — de stappen zelf staan al in de "/nieuw-epsys-klant"
+  // shortcut in Claude for Edge. Deze tekst plak je daar ná het shortcut-chipje.
+  return `GEGEVENS VOOR NIEUWE LEAD (EP-Sys)
+${gegevensRegels}
+
+Vraag mij om bevestiging voordat je op "Opslaan" of "Nieuw project starten" klikt als iets onduidelijk is.`;
+}
+
+
+function kopieerEdgeOpdrachtEpSys() {
+  const opdracht = bouwEdgeOpdrachtTekst();
+  if (!opdracht) {
+    setStatus('❌ Vul minimaal postcode/huisnummer of een achternaam in voor de Edge-opdracht', 'error');
+    return;
+  }
+  kopieerNaarKlembord(opdracht, 'copy-edge-epsys');
+}
+
+
 // ── Graph: opdrachtgever-tekstbestand wegschrijven in de hoofdmap ──
 function bepaalAanhefLabel(code) {
   if (code === 'heer')     return 'De heer';
@@ -557,6 +612,13 @@ async function maakOpdrachtgeverBestand(projectPad, mapnaam) {
     `Project: ${mapnaam}`
   ].join('\r\n');
 
+  // Edge-opdracht (EP-Sys) eronder plakken, zodat je 'm later ook nog uit de
+  // projectmap kunt kopiëren als je 'm onderweg niet meteen ergens hebt bewaard.
+  const edgeOpdracht = bouwEdgeOpdrachtTekst();
+  const inhoudCompleet = edgeOpdracht
+    ? inhoud + '\r\n\r\n' + '='.repeat(60) + '\r\n\r\n' + edgeOpdracht.replace(/\n/g, '\r\n')
+    : inhoud;
+
   // Bestandsnaam = mapnaam + naam opdrachtgever (indien bekend)
   const bestandBasis = sanitizeMapnaam([mapnaam, naamRegel].filter(Boolean).join(' - '));
   const bestandNaam  = `${bestandBasis}.txt`;
@@ -566,7 +628,7 @@ async function maakOpdrachtgeverBestand(projectPad, mapnaam) {
   const resp = await fetch(putUrl, {
     method: 'PUT',
     headers: { Authorization: 'Bearer '+token, 'Content-Type': 'text/plain' },
-    body: inhoud
+    body: inhoudCompleet
   });
   if (!resp.ok) throw new Error('opdrachtgever-bestand mislukt');
   return true;
