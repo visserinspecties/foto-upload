@@ -250,6 +250,107 @@
     }
     @page{ size:A3 landscape; margin:10mm; }
   }
+  /* Modal stijlen */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.active {
+    display: flex;
+  }
+  .modal-content {
+    background: white;
+    border-radius: 10px;
+    padding: 24px;
+    max-width: 500px;
+    width: 90%;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    border: 1px solid var(--line);
+  }
+  .modal-content h2 {
+    margin: 0 0 16px;
+    font-size: 1.1rem;
+    color: var(--ink);
+  }
+  .modal-content p {
+    margin: 0 0 14px;
+    font-size: 0.9rem;
+    color: #6b6555;
+    line-height: 1.4;
+  }
+  .modal-folder-list {
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    max-height: 250px;
+    overflow-y: auto;
+    margin-bottom: 14px;
+    background: #fafaf8;
+  }
+  .modal-folder-item {
+    padding: 10px 12px;
+    border-bottom: 1px solid #e8e5dc;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.15s;
+  }
+  .modal-folder-item:hover {
+    background: var(--accent-soft);
+  }
+  .modal-folder-item.selected {
+    background: var(--accent-soft);
+    border-left: 3px solid var(--accent);
+    padding-left: 9px;
+    font-weight: 600;
+  }
+  .modal-folder-item:last-child {
+    border-bottom: none;
+  }
+  .modal-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+  .modal-buttons button {
+    padding: 9px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--line);
+    background: white;
+    color: var(--ink);
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all 0.15s;
+  }
+  .modal-buttons button:hover {
+    background: #f0f0f0;
+  }
+  .modal-buttons button.btn-confirm {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+  .modal-buttons button.btn-confirm:hover {
+    background: #8a3924;
+  }
+  .modal-buttons button.btn-confirm:disabled {
+    background: #cfc9b8;
+    cursor: not-allowed;
+    border-color: #cfc9b8;
+  }
+  .modal-loading {
+    text-align: center;
+    padding: 20px;
+    color: #6b6555;
+    font-size: 0.9rem;
+  }
 </style>
 </head>
 <body>
@@ -277,15 +378,50 @@
     <button class="btn-secondary" id="btn-tekening-pdf">Exporteer naar PDF (A3 liggend)</button>
     <button class="btn-secondary" id="btn-tekening-excel">Exporteer naar Excel</button>
     <button class="btn-secondary" id="btn-tekening-upload" style="display:none;">Upload naar projectmap</button>
+    <button class="btn-secondary" id="btn-tekening-lokaal" style="display:none;">💾 Bewaar in map… (offline)</button>
+    <button class="btn-secondary" id="btn-tekening-share" style="display:none;">📤 Delen / open in app</button>
   </div>
   <div id="upload-status" style="font-size:12px; margin:-6px 0 10px;"></div>
-  <div id="excel-dropzone" style="margin:0 0 14px; border:2px dashed var(--line); border-radius:8px; padding:12px; text-align:center; font-size:0.82rem; color:#6b6555; cursor:pointer;">
-    <span id="excel-dropzone-tekst">📥 Sleep hier een aangepaste Excel-export (tabblad "Invoer") naartoe om de velden opnieuw in te lezen — of klik om een bestand te kiezen</span>
-    <input type="file" id="excel-input" accept=".xlsx" style="display:none;">
+  <div style="display: flex; gap: 10px; margin-bottom: 14px;">
+    <div id="excel-dropzone" style="flex: 1; border:2px dashed var(--line); border-radius:8px; padding:12px; text-align:center; font-size:0.82rem; color:#6b6555; cursor:pointer;">
+      <span id="excel-dropzone-tekst">📥 Sleep hier een aangepaste Excel-export (tabblad "Invoer") naartoe om de velden opnieuw in te lezen — of klik om een bestand te kiezen</span>
+      <input type="file" id="excel-input" accept=".xlsx" style="display:none;">
+    </div>
+    <button id="btn-excel-from-onedrive" class="btn-secondary" style="white-space: nowrap;">📂 Laad uit OneDrive</button>
   </div>
   <p class="hint">Vaste schaal 1:100 — zwart-wit lijntekening</p>
   <div id="tekening-resultaten-tabel"></div>
   <div id="tekening-container"></div>
+</div>
+
+<!-- MODAL VOOR ONEDRIVE MAPKEUZE -->
+<div class="modal-overlay" id="modal-onedrive">
+  <div class="modal-content">
+    <h2>Opslaan in OneDrive</h2>
+    <p id="modal-onedrive-title" style="margin-bottom: 12px; font-weight: 500; color: var(--ink);">Selecteer waar u de PDF en Excel wilt opslaan:</p>
+    <div id="modal-folder-list" class="modal-folder-list">
+      <div class="modal-loading">📂 Mappen laden...</div>
+    </div>
+    <div class="modal-buttons">
+      <button id="modal-cancel">Annuleren</button>
+      <button id="modal-confirm" class="btn-confirm" disabled>Opslaan</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL VOOR EXCEL UPLOAD UIT ONEDRIVE -->
+<div class="modal-overlay" id="modal-onedrive-load">
+  <div class="modal-content">
+    <h2>Laad Excel uit OneDrive</h2>
+    <p id="modal-load-title" style="margin-bottom: 12px; font-weight: 500; color: var(--ink);">Selecteer waar u de Excel wilt laden:</p>
+    <div id="modal-folder-list-load" class="modal-folder-list">
+      <div class="modal-loading">📂 Mappen laden...</div>
+    </div>
+    <div class="modal-buttons">
+      <button id="modal-load-cancel">Annuleren</button>
+      <button id="modal-load-confirm" class="btn-confirm" disabled>Laden</button>
+    </div>
+  </div>
 </div>
 
 <div id="print-export-container" class="print-only"></div>
@@ -4365,115 +4501,261 @@ function samenvattingTekenen(pdf, x, y, breedteMm, regels){
   return cy - y;
 }
 
-async function exporteerPDF(){
+// ============================================================
+// ONEDRIVE INTEGRATIE — mappen selecteren en bestanden opslaan
+// ============================================================
+
+let geselecteerdeOnedrivePath = null;
+let onederiveMappen = [];
+
+async function laadOnedriveMappen() {
+  try {
+    const token = await graphRefreshToken();
+
+    const response = await fetch('https://graph.microsoft.com/v1.0/me/drive/root/children?$filter=folder ne null', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+
+    if (!response.ok) throw new Error('OneDrive mappen laden mislukt');
+
+    const data = await response.json();
+    return data.value || [];
+  } catch (err) {
+    console.error('OneDrive fout:', err);
+    alert('Kon OneDrive mappen niet laden: ' + err.message);
+    return [];
+  }
+}
+
+// forSaving: true = "opslaan" modal, false = "laden" modal
+// onConfirm(mapId): callback die wordt aangeroepen zodra de gebruiker een map heeft
+//   gekozen en op de bevestigingsknop klikt. Krijgt de gekozen map-id mee.
+// onCancel(): optionele callback bij annuleren.
+function showMapSelectModal(forSaving, onConfirm, onCancel) {
+  const modalId = forSaving ? 'modal-onedrive' : 'modal-onedrive-load';
+  const listId = forSaving ? 'modal-folder-list' : 'modal-folder-list-load';
+  const confirmId = forSaving ? 'modal-confirm' : 'modal-load-confirm';
+  const cancelId = forSaving ? 'modal-cancel' : 'modal-load-cancel';
+
+  const modal = document.getElementById(modalId);
+  const listEl = document.getElementById(listId);
+  const confirmBtn = document.getElementById(confirmId);
+  const cancelBtn = document.getElementById(cancelId);
+
+  let gekozenMapId = null;
+  confirmBtn.disabled = true;
+
+  // Toon loading state
+  listEl.innerHTML = '<div class="modal-loading">📂 Mappen laden...</div>';
+  modal.classList.add('active');
+
+  // Laad mappen
+  laadOnedriveMappen().then(mappen => {
+    if (mappen.length === 0) {
+      listEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #6b6555;">📭 Geen mappen gevonden in uw OneDrive root</div>';
+      confirmBtn.disabled = true;
+      return;
+    }
+
+    listEl.innerHTML = '';
+    mappen.forEach(map => {
+      const div = document.createElement('div');
+      div.className = 'modal-folder-item';
+      div.textContent = map.name;
+      div.dataset.path = map.id;
+      div.addEventListener('click', () => {
+        document.querySelectorAll('#' + listId + ' .modal-folder-item').forEach(el => {
+          el.classList.remove('selected');
+        });
+        div.classList.add('selected');
+        gekozenMapId = map.id;
+        confirmBtn.disabled = false;
+      });
+      listEl.appendChild(div);
+    });
+  });
+
+  cancelBtn.addEventListener('click', function onCancelClick() {
+    modal.classList.remove('active');
+    cancelBtn.removeEventListener('click', onCancelClick);
+    if (onCancel) onCancel();
+  }, { once: true });
+
+  confirmBtn.addEventListener('click', function onConfirmClick() {
+    modal.classList.remove('active');
+    confirmBtn.removeEventListener('click', onConfirmClick);
+    if (onConfirm) onConfirm(gekozenMapId);
+  }, { once: true });
+}
+
+async function uploadBestandNaarOnedrive(blob, bestandsnaam, mapId) {
+  try {
+    const token = await graphRefreshToken();
+
+    const targetPath = mapId ? `https://graph.microsoft.com/v1.0/me/drive/items/${mapId}:/${bestandsnaam}:/content`
+                              : `https://graph.microsoft.com/v1.0/me/drive/root:/${bestandsnaam}:/content`;
+
+    const response = await fetch(targetPath, {
+      method: 'PUT',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/octet-stream'
+      },
+      body: blob
+    });
+
+    if (!response.ok) throw new Error('Upload naar OneDrive mislukt');
+
+    return await response.json();
+  } catch (err) {
+    console.error('OneDrive upload fout:', err);
+    throw err;
+  }
+}
+
+// Bouwt de PDF en geeft {blob, bestandsnaam, mislukt} terug, zonder te downloaden
+// of te uploaden — wordt hergebruikt door zowel de OneDrive-export als de
+// lokale-map-export.
+async function genereerPdfBlob(){
+  SCALE = 10;
+  TK_MARGIN = 18;
+  PRINT_MODE = true;
+  renderTekening('print-export-container');
+  const blokken = [...document.getElementById('print-export-container').children];
+  const samenvattingRegels = samenvattingRegelsVerzamelen();
+  SCALE = 20;
+  TK_MARGIN = 45;
+  PRINT_MODE = false;
+
+  const { jsPDF } = window.jspdf;
+  const pageW = 420, pageH = 297, margin = 8, gap = 3, titelH = 4;
+  const pdf = new jsPDF({orientation:'landscape', unit:'mm', format:'a3'});
+  let cursorX = margin, cursorY = margin, rowH = 0;
+
+  const samenvattingBreedte = 95;
+  const samenvattingHoogte = samenvattingTekenen(pdf, cursorX, cursorY+4, samenvattingBreedte, samenvattingRegels);
+  cursorX = margin + samenvattingBreedte + gap*2;
+  rowH = samenvattingHoogte + 4;
+
+  const items = [];
+  const mislukt = [];
+  for(const blok of blokken){
+    const svg = blok.querySelector('svg');
+    if(!svg) continue;
+    const titel = blok.querySelector('div').textContent;
+    try{
+      const {canvas, wMm, hMm} = await svgNaarCanvas(svg, 6);
+      items.push({titel, canvas, wMm, hMm});
+    } catch(itemFout){
+      console.error('Kon tekening niet omzetten:', titel, itemFout);
+      mislukt.push(titel);
+    }
+  }
+  if(items.length === 0){
+    throw new Error('Geen enkele tekening kon worden omgezet naar de PDF.' + (mislukt.length ? ' (' + mislukt.join(', ') + ')' : ''));
+  }
+  items.sort((a,b)=> b.hMm - a.hMm);
+
+  let titelHoogteGebruikt = titelH;
+  for(const it of items){
+    const titelRuimte = 5;
+    const itemH = it.hMm + titelRuimte;
+
+    if(cursorX !== margin && cursorX + it.wMm > pageW - margin){
+      cursorX = margin;
+      cursorY += rowH + gap;
+      rowH = 0;
+    }
+    if(cursorY !== margin && cursorY + itemH > pageH - margin){
+      pdf.addPage();
+      cursorX = margin; cursorY = margin; rowH = 0;
+    }
+
+    pdf.setFont(undefined,'bold');
+    pdf.setFontSize(9);
+    pdf.text(it.titel, cursorX, cursorY + 3.5);
+    pdf.addImage(it.canvas.toDataURL('image/png'), 'PNG', cursorX, cursorY + titelRuimte, it.wMm, it.hMm);
+
+    cursorX += it.wMm + gap;
+    rowH = Math.max(rowH, itemH);
+  }
+
+  const logoBreedte = 24, logoHoogte = logoBreedte/LOGO_ASPECT;
+  const logoY = pageH - margin + (margin-logoHoogte)/2;
+  const totaalPaginas = pdf.internal.getNumberOfPages();
+  for(let p=1; p<=totaalPaginas; p++){
+    pdf.setPage(p);
+    pdf.setFont(undefined,'normal');
+    pdf.setFontSize(8);
+    pdf.text('schaal 1:100', pageW-margin-logoBreedte-3, pageH-margin+5.5, {align:'right'});
+    pdf.addImage(LOGO_VISSER_B64, 'PNG', pageW-margin-logoBreedte, logoY, logoBreedte, logoHoogte);
+  }
+
+  const blob = pdf.output('blob');
+  const bestandsnaam = huidigeBasisbestandsnaam() + '.pdf';
+  return { blob, bestandsnaam, mislukt };
+}
+
+// Bouwt de Excel en geeft {blob, bestandsnaam} terug, zonder te downloaden of te uploaden.
+function genereerExcelBlob(){
+  const wb = bouwWerkboek();
+  const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+  const blob = new Blob([wbout], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const bestandsnaam = huidigeBasisbestandsnaam() + '.xlsx';
+  return { blob, bestandsnaam };
+}
+
+function downloadBlobNaarBrowser(blob, bestandsnaam){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = bestandsnaam;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 10000);
+}
+
+async function exporteerPDFMet(){
+  // Deze functie voert de daadwerkelijke PDF export uit met de geselecteerde OneDrive map
   const btn = document.getElementById('btn-tekening-pdf');
   const oudeTekst = btn.textContent;
   btn.textContent = 'PDF maken…';
   btn.disabled = true;
 
   try{
-    SCALE = 10;       // 1m = 10mm op papier = exact 1:100
-    TK_MARGIN = 18;   // compacte marge, meer tekeningen per pagina
-    PRINT_MODE = true;
-    renderTekening('print-export-container');
-    const blokken = [...document.getElementById('print-export-container').children];
-    const samenvattingRegels = samenvattingRegelsVerzamelen();
-    SCALE = 20;
-    TK_MARGIN = 45;
-    PRINT_MODE = false;
+    const { blob, bestandsnaam: pdfBestandsnaam, mislukt } = await genereerPdfBlob();
+    downloadBlobNaarBrowser(blob, pdfBestandsnaam);
 
-    const { jsPDF } = window.jspdf;
-    const pageW = 420, pageH = 297, margin = 8, gap = 3, titelH = 4;
-    const pdf = new jsPDF({orientation:'landscape', unit:'mm', format:'a3'});
-    let cursorX = margin, cursorY = margin, rowH = 0;
+    // Onthoud de laatst gemaakte PDF zodat de "Delen"-knop hem kan openen in een andere app
+    laatstePdfBlob = blob;
+    laatstePdfNaam = pdfBestandsnaam;
+    toonDeelknopIndienMogelijk();
 
-    // Samenvatting linksboven op pagina 1
-    const samenvattingBreedte = 95;
-    const samenvattingHoogte = samenvattingTekenen(pdf, cursorX, cursorY+4, samenvattingBreedte, samenvattingRegels);
-    cursorX = margin + samenvattingBreedte + gap*2;
-    rowH = samenvattingHoogte + 4;
-
-    // Eerst alle tekeningen rasteren (canvas+afmetingen), dan op hoogte sorteren voor een dichtere vakverdeling
-    const items = [];
-    const mislukt = [];
-    for(const blok of blokken){
-      const svg = blok.querySelector('svg');
-      if(!svg) continue;
-      const titel = blok.querySelector('div').textContent;
-      try{
-        const {canvas, wMm, hMm} = await svgNaarCanvas(svg, 6);
-        items.push({titel, canvas, wMm, hMm});
-      } catch(itemFout){
-        console.error('Kon tekening niet omzetten:', titel, itemFout);
-        mislukt.push(titel);
-      }
-    }
-    if(items.length === 0){
-      throw new Error('Geen enkele tekening kon worden omgezet naar de PDF.' + (mislukt.length ? ' (' + mislukt.join(', ') + ')' : ''));
-    }
-    items.sort((a,b)=> b.hMm - a.hMm);
-
-    let titelHoogteGebruikt = titelH;
-    for(const it of items){
-      const titelRuimte = 5; // mm voor de grotere titel
-      const itemH = it.hMm + titelRuimte;
-
-      if(cursorX !== margin && cursorX + it.wMm > pageW - margin){
-        cursorX = margin;
-        cursorY += rowH + gap;
-        rowH = 0;
-      }
-      if(cursorY !== margin && cursorY + itemH > pageH - margin){
-        pdf.addPage();
-        cursorX = margin; cursorY = margin; rowH = 0;
-      }
-
-      pdf.setFont(undefined,'bold');
-      pdf.setFontSize(9);
-      pdf.text(it.titel, cursorX, cursorY + 3.5);
-      pdf.addImage(it.canvas.toDataURL('image/png'), 'PNG', cursorX, cursorY + titelRuimte, it.wMm, it.hMm);
-
-      cursorX += it.wMm + gap;
-      rowH = Math.max(rowH, itemH);
-    }
-
-    // Logo Visser Inspecties + schaal-aanduiding, samen in de onderrand van elke pagina (vast, niet verwijderbaar)
-    const logoBreedte = 24, logoHoogte = logoBreedte/LOGO_ASPECT;
-    const logoY = pageH - margin + (margin-logoHoogte)/2;
-    const totaalPaginas = pdf.internal.getNumberOfPages();
-    for(let p=1; p<=totaalPaginas; p++){
-      pdf.setPage(p);
-      pdf.setFont(undefined,'normal');
-      pdf.setFontSize(8);
-      pdf.text('schaal 1:100', pageW-margin-logoBreedte-3, pageH-margin+5.5, {align:'right'});
-      pdf.addImage(LOGO_VISSER_B64, 'PNG', pageW-margin-logoBreedte, logoY, logoBreedte, logoHoogte);
-    }
-
-    const blob = pdf.output('blob');
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = huidigeBasisbestandsnaam() + '.pdf';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url), 10000);
-
-    let uploadMelding = '';
     const statusEl = document.getElementById('upload-status');
-    if (projectGekoppeld()) {
+    statusEl.textContent = '';
+
+    // Upload naar OneDrive als map geselecteerd
+    if (geselecteerdeOnedrivePath) {
+      statusEl.textContent = '⏳ Uploaden naar OneDrive...';
+      try {
+        await uploadBestandNaarOnedrive(blob, pdfBestandsnaam, geselecteerdeOnedrivePath);
+        statusEl.textContent = `✅ Geüpload naar OneDrive`;
+      } catch(uploadErr){
+        statusEl.textContent = `⚠️ Upload naar OneDrive mislukt: ${uploadErr.message}`;
+      }
+    } else if (projectGekoppeld()) {
       statusEl.textContent = '⏳ Uploaden naar projectmap...';
       try {
-        const bestandsnaam = await uploadPdfNaarProjectmap(blob);
-        statusEl.textContent = `✅ Geüpload naar projectmap: "${bestandsnaam}"`;
+        const uploadNaam = await uploadPdfNaarProjectmap(blob);
+        statusEl.textContent = `✅ Geüpload naar projectmap: "${uploadNaam}"`;
       } catch(uploadErr){
         statusEl.textContent = `⚠️ Upload naar projectmap mislukt: ${uploadErr.message}`;
       }
     }
 
-    // Excel-export (output + invoer) hoort bij dezelfde PDF-export
     try {
-      const excelNaam = await exporteerExcel();
+      const excelNaam = await exporteerExcelMet();
       statusEl.textContent += (statusEl.textContent ? ' — ' : '') + `📊 Excel gemaakt: "${excelNaam}"`;
     } catch(excelErr) {
       console.error('Excel-export mislukt:', excelErr);
@@ -4481,7 +4763,7 @@ async function exporteerPDF(){
     }
 
     if(mislukt.length){
-      alert('PDF is gemaakt, maar deze tekening(en) konden niet worden meegenomen: ' + mislukt.join(', ') + uploadMelding);
+      alert('PDF is gemaakt, maar deze tekening(en) konden niet worden meegenomen: ' + mislukt.join(', '));
     }
   } catch(err){
     console.error(err);
@@ -4493,11 +4775,148 @@ async function exporteerPDF(){
     PRINT_MODE = false;
     btn.textContent = oudeTekst;
     btn.disabled = false;
+    geselecteerdeOnedrivePath = null;
   }
 }
-document.getElementById('btn-tekening-pdf').addEventListener('click', exporteerPDF);
-document.getElementById('btn-tekening-upload').addEventListener('click', exporteerPDF);
+
+// ============================================================
+// LOKALE MAP OPSLAAN — werkt volledig offline. Gebruikt de File
+// System Access API (showDirectoryPicker) om rechtstreeks in een
+// door de gebruiker gekozen map te schrijven, bv. een lokaal
+// gesynchroniseerde OneDrive-map. Werkt in Chrome/Edge op Windows
+// en macOS; niet op iPadOS/Safari (daar is de "Delen"-knop het
+// alternatief — zie handlePdfShare hierboven).
+// ============================================================
+
+function lokaalOpslaanMogelijk(){
+  return typeof window.showDirectoryPicker === 'function';
+}
+
+async function exporteerNaarLokaleMap(){
+  const btn = document.getElementById('btn-tekening-lokaal');
+  if(!btn) return;
+  const oudeTekst = btn.textContent;
+
+  let mapHandle;
+  try {
+    mapHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+  } catch (err) {
+    // Gebruiker heeft het mapkeuze-venster geannuleerd — geen foutmelding nodig
+    if (err && err.name === 'AbortError') return;
+    console.error('Map kiezen mislukt:', err);
+    alert('Map kiezen mislukt: ' + (err && err.message ? err.message : err));
+    return;
+  }
+
+  btn.textContent = 'Bezig met opslaan…';
+  btn.disabled = true;
+  const statusEl = document.getElementById('upload-status');
+
+  try {
+    const { blob: pdfBlob, bestandsnaam: pdfNaam, mislukt } = await genereerPdfBlob();
+    const pdfFileHandle = await mapHandle.getFileHandle(pdfNaam, { create: true });
+    const pdfWritable = await pdfFileHandle.createWritable();
+    await pdfWritable.write(pdfBlob);
+    await pdfWritable.close();
+
+    // Onthoud de laatst gemaakte PDF zodat de "Delen"-knop hem ook kan gebruiken
+    laatstePdfBlob = pdfBlob;
+    laatstePdfNaam = pdfNaam;
+    toonDeelknopIndienMogelijk();
+
+    const { blob: excelBlob, bestandsnaam: excelNaam } = genereerExcelBlob();
+    const excelFileHandle = await mapHandle.getFileHandle(excelNaam, { create: true });
+    const excelWritable = await excelFileHandle.createWritable();
+    await excelWritable.write(excelBlob);
+    await excelWritable.close();
+
+    statusEl.textContent = `✅ Opgeslagen in gekozen map: "${pdfNaam}" en "${excelNaam}"`;
+
+    if(mislukt.length){
+      alert('PDF is opgeslagen, maar deze tekening(en) konden niet worden meegenomen: ' + mislukt.join(', '));
+    }
+  } catch(err){
+    console.error(err);
+    const melding = (err && err.message) ? err.message : String(err);
+    statusEl.textContent = `⚠️ Opslaan in map mislukt: ${melding}`;
+    alert('Opslaan in map mislukt: ' + melding);
+  } finally {
+    SCALE = 20;
+    TK_MARGIN = 45;
+    PRINT_MODE = false;
+    btn.textContent = oudeTekst;
+    btn.disabled = false;
+  }
+}
+
+function startPdfExportMetMapkeuze() {
+  showMapSelectModal(true, (mapId) => {
+    // mapId kan null zijn als de gebruiker "Annuleren voor mapkeuze maar toch opslaan"
+    // niet is aangeboden — bij bevestigen is er altijd een map gekozen (knop is
+    // pas actief als een map is aangeklikt).
+    geselecteerdeOnedrivePath = mapId;
+    exporteerPDFMet().catch(err => {
+      console.error(err);
+      alert('PDF maken mislukt: ' + (err && err.message ? err.message : err));
+    });
+  });
+}
+
+document.getElementById('btn-tekening-pdf').addEventListener('click', startPdfExportMetMapkeuze);
+document.getElementById('btn-tekening-upload').addEventListener('click', startPdfExportMetMapkeuze);
 initProjectBanner();
+
+// ============================================================
+// DELEN — open de zojuist gemaakte PDF direct in een andere app
+// (bv. PDF Expert op iPad) via het systeem-deelvenster.
+// ============================================================
+
+let laatstePdfBlob = null;
+let laatstePdfNaam = null;
+
+function pdfKanGedeeldWorden(blob, naam) {
+  if (!navigator.share || !navigator.canShare) return false;
+  try {
+    const testFile = new File([blob], naam, { type: 'application/pdf' });
+    return navigator.canShare({ files: [testFile] });
+  } catch (e) {
+    return false;
+  }
+}
+
+function toonDeelknopIndienMogelijk() {
+  const deelBtn = document.getElementById('btn-tekening-share');
+  if (laatstePdfBlob && pdfKanGedeeldWorden(laatstePdfBlob, laatstePdfNaam)) {
+    deelBtn.style.display = '';
+  } else {
+    deelBtn.style.display = 'none';
+  }
+}
+
+document.getElementById('btn-tekening-share').addEventListener('click', async () => {
+  if (!laatstePdfBlob) return;
+  try {
+    const file = new File([laatstePdfBlob], laatstePdfNaam, { type: 'application/pdf' });
+    await navigator.share({
+      files: [file],
+      title: laatstePdfNaam
+    });
+  } catch (err) {
+    // AbortError = gebruiker heeft het deelvenster zelf gesloten, geen foutmelding nodig
+    if (err && err.name !== 'AbortError') {
+      console.error('Delen mislukt:', err);
+      alert('Delen mislukt: ' + (err && err.message ? err.message : err));
+    }
+  }
+});
+
+// Toon de "Bewaar in map… (offline)"-knop alleen als de browser dit ondersteunt
+// (Chrome/Edge op Windows en macOS — niet Safari/iPadOS, ook niet Edge op iPad
+// omdat die onder de motorkap ook Safari/WebKit gebruikt).
+if (lokaalOpslaanMogelijk()) {
+  document.getElementById('btn-tekening-lokaal').style.display = '';
+}
+document.getElementById('btn-tekening-lokaal').addEventListener('click', exporteerNaarLokaleMap);
 
 // ============================================================
 // EXCEL EXPORT / IMPORT — werkblad 1 "Output" (berekend),
@@ -4836,6 +5255,27 @@ async function exporteerExcel(){
   return bestandsnaam;
 }
 
+async function exporteerExcelMet(){
+  const wb = bouwWerkboek();
+  const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+  const blob = new Blob([wbout], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const bestandsnaam = huidigeBasisbestandsnaam() + '.xlsx';
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = bestandsnaam;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 10000);
+
+  // Upload naar OneDrive als map geselecteerd
+  if (geselecteerdeOnedrivePath) {
+    await uploadBestandNaarOnedrive(blob, bestandsnaam, geselecteerdeOnedrivePath);
+  } else if(projectGekoppeld()){
+    await uploadBestandNaarProjectmap(blob, bestandsnaam);
+  }
+  return bestandsnaam;
+}
+
 document.getElementById('btn-tekening-excel').addEventListener('click', ()=>{
   exporteerExcel().catch(err=>{
     console.error(err);
@@ -4859,6 +5299,71 @@ excelInput.addEventListener('change', e=>{
   if(e.target.files.length) verwerkExcelBestand(e.target.files[0]);
   excelInput.value = '';
 });
+
+// Event listener voor "Laad uit OneDrive" knop
+document.getElementById('btn-excel-from-onedrive').addEventListener('click', () => {
+  showMapSelectModal(false, async (mapId) => {
+    if (!mapId) return;
+    try {
+      const token = await graphRefreshToken();
+
+      // Laad bestanden uit de geselecteerde map
+      const response = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${mapId}/children?$filter=name endswith '.xlsx'`, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+
+      if (!response.ok) throw new Error('Kan bestanden niet laden uit OneDrive map');
+
+      const data = await response.json();
+      const excelFiles = data.value || [];
+
+      if (excelFiles.length === 0) {
+        alert('Geen Excel-bestanden (.xlsx) gevonden in deze map');
+        return;
+      }
+
+      // Als er maar één bestand is, laad het direct
+      if (excelFiles.length === 1) {
+        await laadExcelVanOnedrive(excelFiles[0], token);
+      } else {
+        // Als er meerdere zijn, laat gebruiker kiezen (eenvoudige benadering)
+        const keuze = prompt('Welk bestand wilt u laden?\n\n' + excelFiles.map((f, i) => `${i + 1}. ${f.name}`).join('\n') + '\n\nVoer het nummer in:');
+        if (keuze && excelFiles[parseInt(keuze) - 1]) {
+          await laadExcelVanOnedrive(excelFiles[parseInt(keuze) - 1], token);
+        }
+      }
+    } catch (err) {
+      console.error('OneDrive Excel laden mislukt:', err);
+      alert('Excel van OneDrive laden mislukt: ' + err.message);
+    }
+  });
+});
+
+async function laadExcelVanOnedrive(file, token) {
+  try {
+    const downloadUrl = file['@microsoft.graph.downloadUrl'];
+    if (!downloadUrl) {
+      // Alternatief: gebruik /content endpoint
+      const contentUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`;
+      const response = await fetch(contentUrl, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if (!response.ok) throw new Error('Kan bestand niet downloaden');
+      const blob = await response.blob();
+      const tempFile = new File([blob], file.name, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      await verwerkExcelBestand(tempFile);
+    } else {
+      const response = await fetch(downloadUrl);
+      if (!response.ok) throw new Error('Kan bestand niet downloaden');
+      const blob = await response.blob();
+      const tempFile = new File([blob], file.name, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      await verwerkExcelBestand(tempFile);
+    }
+  } catch (err) {
+    console.error('LaadExcelVanOnedrive fout:', err);
+    throw err;
+  }
+}
 
 async function verwerkExcelBestand(file){
   try{
