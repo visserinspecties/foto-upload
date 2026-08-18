@@ -4505,8 +4505,6 @@ function samenvattingTekenen(pdf, x, y, breedteMm, regels){
 // ONEDRIVE INTEGRATIE — mappen selecteren en bestanden opslaan
 // ============================================================
 
-let geselecteerdeOnedrivePath = null;
-let onederiveMappen = [];
 
 async function laadOnedriveMappen() {
   try {
@@ -4717,53 +4715,42 @@ function downloadBlobNaarBrowser(blob, bestandsnaam){
 }
 
 async function exporteerPDFMet(){
-  // Deze functie voert de daadwerkelijke PDF export uit met de geselecteerde OneDrive map
   const btn = document.getElementById('btn-tekening-pdf');
   const oudeTekst = btn.textContent;
   btn.textContent = 'PDF maken…';
   btn.disabled = true;
+  const statusEl = document.getElementById('upload-status');
+  statusEl.textContent = '';
 
   try{
-    const { blob, bestandsnaam: pdfBestandsnaam, mislukt } = await genereerPdfBlob();
-    downloadBlobNaarBrowser(blob, pdfBestandsnaam);
+    // 1. PDF genereren en ALTIJD meteen lokaal downloaden — werkt ook zonder
+    //    internet en zonder inlogstatus. Dit mag nooit wachten op OneDrive.
+    const { blob: pdfBlob, bestandsnaam: pdfNaam, mislukt } = await genereerPdfBlob();
+    downloadBlobNaarBrowser(pdfBlob, pdfNaam);
 
     // Onthoud de laatst gemaakte PDF zodat de "Delen"-knop hem kan openen in een andere app
-    laatstePdfBlob = blob;
-    laatstePdfNaam = pdfBestandsnaam;
+    laatstePdfBlob = pdfBlob;
+    laatstePdfNaam = pdfNaam;
     toonDeelknopIndienMogelijk();
 
-    const statusEl = document.getElementById('upload-status');
-    statusEl.textContent = '';
+    // 2. Excel ook meteen lokaal genereren en downloaden
+    const { blob: excelBlob, bestandsnaam: excelNaam } = genereerExcelBlob();
+    downloadBlobNaarBrowser(excelBlob, excelNaam);
 
-    // Upload naar OneDrive als map geselecteerd
-    if (geselecteerdeOnedrivePath) {
-      statusEl.textContent = '⏳ Uploaden naar OneDrive...';
-      try {
-        await uploadBestandNaarOnedrive(blob, pdfBestandsnaam, geselecteerdeOnedrivePath);
-        statusEl.textContent = `✅ Geüpload naar OneDrive`;
-      } catch(uploadErr){
-        statusEl.textContent = `⚠️ Upload naar OneDrive mislukt: ${uploadErr.message}`;
-      }
-    } else if (projectGekoppeld()) {
-      statusEl.textContent = '⏳ Uploaden naar projectmap...';
-      try {
-        const uploadNaam = await uploadPdfNaarProjectmap(blob);
-        statusEl.textContent = `✅ Geüpload naar projectmap: "${uploadNaam}"`;
-      } catch(uploadErr){
-        statusEl.textContent = `⚠️ Upload naar projectmap mislukt: ${uploadErr.message}`;
-      }
-    }
-
-    try {
-      const excelNaam = await exporteerExcelMet();
-      statusEl.textContent += (statusEl.textContent ? ' — ' : '') + `📊 Excel gemaakt: "${excelNaam}"`;
-    } catch(excelErr) {
-      console.error('Excel-export mislukt:', excelErr);
-      statusEl.textContent += (statusEl.textContent ? ' — ' : '') + `⚠️ Excel-export mislukt: ${excelErr.message}`;
-    }
+    statusEl.textContent = `✅ Lokaal gedownload: "${pdfNaam}" en "${excelNaam}"`;
 
     if(mislukt.length){
       alert('PDF is gemaakt, maar deze tekening(en) konden niet worden meegenomen: ' + mislukt.join(', '));
+    }
+
+    // 3. Pas hierna, als niet-blokkerende extra stap, vragen of het ook naar
+    //    OneDrive moet — precies zoals gevraagd: "op het eind expliciet vragen".
+    //    Zonder internet slaan we deze vraag gewoon over (geen zin een modal te
+    //    tonen die toch niets kan laden).
+    if (navigator.onLine) {
+      vraagOneDriveMapEnUpload(pdfBlob, pdfNaam, excelBlob, excelNaam);
+    } else {
+      statusEl.textContent += ' · 📵 geen internet — niet naar OneDrive geüpload (lokaal bestand is wel klaar)';
     }
   } catch(err){
     console.error(err);
@@ -4775,8 +4762,36 @@ async function exporteerPDFMet(){
     PRINT_MODE = false;
     btn.textContent = oudeTekst;
     btn.disabled = false;
-    geselecteerdeOnedrivePath = null;
   }
+}
+
+// Toont, ná de lokale download, de OneDrive-mapkeuze. Bij bevestigen wordt naar
+// die gekozen map geüpload. Bij annuleren (en als de tool aan een project is
+// gekoppeld) valt het terug op de oude automatische upload naar de projectmap —
+// zodat je gewoonte om dit venster gewoon weg te klikken niets breekt.
+function vraagOneDriveMapEnUpload(pdfBlob, pdfNaam, excelBlob, excelNaam){
+  const statusEl = document.getElementById('upload-status');
+
+  showMapSelectModal(true, async (mapId) => {
+    statusEl.textContent += ' · ⏳ uploaden naar OneDrive...';
+    try {
+      await uploadBestandNaarOnedrive(pdfBlob, pdfNaam, mapId);
+      await uploadBestandNaarOnedrive(excelBlob, excelNaam, mapId);
+      statusEl.textContent = statusEl.textContent.replace('⏳ uploaden naar OneDrive...', '✅ geüpload naar OneDrive');
+    } catch(uploadErr){
+      statusEl.textContent = statusEl.textContent.replace('⏳ uploaden naar OneDrive...', `⚠️ upload naar OneDrive mislukt: ${uploadErr.message}`);
+    }
+  }, async () => {
+    if (!projectGekoppeld()) return; // niets gekozen, niet gekoppeld → lokale download blijft gewoon staan
+    statusEl.textContent += ' · ⏳ uploaden naar projectmap...';
+    try {
+      await uploadBestandNaarProjectmap(pdfBlob, pdfNaam);
+      await uploadBestandNaarProjectmap(excelBlob, excelNaam);
+      statusEl.textContent = statusEl.textContent.replace('⏳ uploaden naar projectmap...', '✅ geüpload naar projectmap');
+    } catch(uploadErr){
+      statusEl.textContent = statusEl.textContent.replace('⏳ uploaden naar projectmap...', `⚠️ upload naar projectmap mislukt: ${uploadErr.message}`);
+    }
+  });
 }
 
 // ============================================================
@@ -4849,21 +4864,15 @@ async function exporteerNaarLokaleMap(){
   }
 }
 
-function startPdfExportMetMapkeuze() {
-  showMapSelectModal(true, (mapId) => {
-    // mapId kan null zijn als de gebruiker "Annuleren voor mapkeuze maar toch opslaan"
-    // niet is aangeboden — bij bevestigen is er altijd een map gekozen (knop is
-    // pas actief als een map is aangeklikt).
-    geselecteerdeOnedrivePath = mapId;
-    exporteerPDFMet().catch(err => {
-      console.error(err);
-      alert('PDF maken mislukt: ' + (err && err.message ? err.message : err));
-    });
+function startPdfExport() {
+  exporteerPDFMet().catch(err => {
+    console.error(err);
+    alert('PDF maken mislukt: ' + (err && err.message ? err.message : err));
   });
 }
 
-document.getElementById('btn-tekening-pdf').addEventListener('click', startPdfExportMetMapkeuze);
-document.getElementById('btn-tekening-upload').addEventListener('click', startPdfExportMetMapkeuze);
+document.getElementById('btn-tekening-pdf').addEventListener('click', startPdfExport);
+document.getElementById('btn-tekening-upload').addEventListener('click', startPdfExport);
 initProjectBanner();
 
 // ============================================================
@@ -5250,27 +5259,6 @@ async function exporteerExcel(){
   setTimeout(()=>URL.revokeObjectURL(url), 10000);
 
   if(projectGekoppeld()){
-    await uploadBestandNaarProjectmap(blob, bestandsnaam);
-  }
-  return bestandsnaam;
-}
-
-async function exporteerExcelMet(){
-  const wb = bouwWerkboek();
-  const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
-  const blob = new Blob([wbout], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-  const bestandsnaam = huidigeBasisbestandsnaam() + '.xlsx';
-
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = bestandsnaam;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url), 10000);
-
-  // Upload naar OneDrive als map geselecteerd
-  if (geselecteerdeOnedrivePath) {
-    await uploadBestandNaarOnedrive(blob, bestandsnaam, geselecteerdeOnedrivePath);
-  } else if(projectGekoppeld()){
     await uploadBestandNaarProjectmap(blob, bestandsnaam);
   }
   return bestandsnaam;
