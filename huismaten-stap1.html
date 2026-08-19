@@ -4533,7 +4533,7 @@ function wisIosBestanden(){
 // Op iOS mag een webpagina niet zelf een bestand wegschrijven. Daarom zetten we
 // het bestand klaar achter één knop: die opent het normale deelmenu, waar
 // "Bewaar in Bestanden" en je pdf-app in staan.
-function zetIosBestandKlaar(blob, bestandsnaam, mime){
+function zetIosBestandKlaar(blob, bestandsnaam, mime, alOpgeslagen){
   const vak = document.getElementById('ios-bestanden');
   vak.style.display = 'block';
 
@@ -4541,7 +4541,9 @@ function zetIosBestandKlaar(blob, bestandsnaam, mime){
   knop.type = 'button';
   knop.className = 'btn-secondary';
   knop.style.cssText = 'display:block; width:100%; margin-bottom:6px; text-align:left;';
-  knop.textContent = `📄 ${bestandsnaam} — opslaan / openen`;
+  knop.textContent = alOpgeslagen
+    ? `📄 ${bestandsnaam} — bekijken of elders bewaren`
+    : `📄 ${bestandsnaam} — opslaan / openen`;
   knop.addEventListener('click', async () => {
     const bestand = new File([blob], bestandsnaam, { type: mime || 'application/octet-stream' });
     if (navigator.canShare && navigator.canShare({ files:[bestand] })) {
@@ -4821,32 +4823,40 @@ async function exporteerPDF(opties = {}){
       statusEl.textContent = meldingen.concat(extra ? [extra] : []).join(' — ');
     };
 
-    // 1. Het bestand veiligstellen. Dit gebeurt ALTIJD als eerste en werkt
-    //    zonder internet en zonder inloggen.
+    wisIosBestanden();
+
+    // 1. Zelf een map aangewezen? Dan gaat alles daarheen en zijn we klaar.
     if (opties.doelMap) {
       await schrijfNaarMap(opties.doelMap, pdfNaam, blob);
       meldingen.push(`💾 "${pdfNaam}" in de gekozen map gezet`);
-    } else {
-      wisIosBestanden();
-      downloadNaarBrowser(blob, pdfNaam, 'application/pdf');
-      meldingen.push(isIOS()
-        ? `📄 "${pdfNaam}" staat klaar — tik op de knop hieronder om 'm op te slaan`
-        : `⬇️ "${pdfNaam}" gedownload`);
-    }
-    toonStatus();
-
-    // 2. Projectmap-upload blijft ongewijzigd werken als deze tool aan een
-    //    project gekoppeld is.
-    if (projectGekoppeld() && !navigator.onLine) {
-      meldingen.push('📵 geen internet — nog niet naar de projectmap gestuurd');
       toonStatus();
-    } else if (projectGekoppeld()) {
-      toonStatus('⏳ uploaden naar projectmap…');
-      try {
-        await uploadPdfNaarProjectmap(blob);
-        meldingen.push(`📁 ook in de projectmap van "${actiefProjectNaam()}" gezet`);
-      } catch(uploadErr){
-        meldingen.push(`⚠️ projectmap-upload mislukt: ${uploadErr.message}`);
+    } else {
+      // 2. Eerst proberen recht in de projectmap te zetten. Dát is de plek waar
+      //    je het bestand wilt hebben — geen zoektocht door downloadmappen.
+      let pdfStaatGoed = false;
+      if (projectGekoppeld() && navigator.onLine) {
+        toonStatus('⏳ opslaan in de projectmap…');
+        try {
+          await uploadPdfNaarProjectmap(blob);
+          pdfStaatGoed = true;
+          meldingen.push(`📁 PDF opgeslagen in 020 AANTEKENINGEN van "${actiefProjectNaam()}"`);
+        } catch(uploadErr){
+          meldingen.push(`⚠️ projectmap mislukt: ${uploadErr.message}`);
+        }
+      } else if (projectGekoppeld()) {
+        meldingen.push('📵 geen internet — nog niet in de projectmap');
+      }
+      toonStatus();
+
+      // 3. Lokale kopie. Op de pc gewoon downloaden zoals altijd. Op iPad/iPhone
+      //    kan dat niet, dus daar zetten we het achter een knop — en als het al
+      //    veilig in de projectmap staat, is die knop alleen nog om te kijken.
+      if (!isIOS()) {
+        downloadNaarBrowser(blob, pdfNaam, 'application/pdf');
+        meldingen.push(pdfStaatGoed ? '⬇️ ook naar je downloadmap' : `⬇️ "${pdfNaam}" naar je downloadmap`);
+      } else {
+        zetIosBestandKlaar(blob, pdfNaam, 'application/pdf', pdfStaatGoed);
+        if (!pdfStaatGoed) meldingen.push('📄 tik op de knop hieronder om de PDF op te slaan');
       }
       toonStatus();
     }
@@ -4855,7 +4865,9 @@ async function exporteerPDF(opties = {}){
     let excel = null;
     try {
       excel = await exporteerExcel(opties);
-      meldingen.push(`📊 Excel gemaakt: "${excel.bestandsnaam}"`);
+      meldingen.push(excel.inProjectmap
+        ? '📊 Excel er ook bij gezet'
+        : `📊 Excel gemaakt: "${excel.bestandsnaam}"`);
     } catch(excelErr) {
       console.error('Excel-export mislukt:', excelErr);
       meldingen.push(`⚠️ Excel-export mislukt: ${excelErr.message}`);
@@ -4866,11 +4878,10 @@ async function exporteerPDF(opties = {}){
       alert('PDF is gemaakt, maar deze tekening(en) konden niet worden meegenomen: ' + mislukt.join(', '));
     }
 
-    // 4. Tot slot pas: vragen in welke OneDrive-map het óók moet komen.
-    //    Alleen als OneDrive echt bereikbaar is (online + eerder ingelogd) en je
-    //    niet al zelf een map hebt aangewezen. Kan dat niet, dan gebeurt er
-    //    helemaal niets extra's — de PDF staat dan al veilig op je apparaat.
-    if (!opties.doelMap && await onedriveBeschikbaar()) {
+    // 4. Alleen als er nog géén project gekozen is, vragen we waar het heen moet.
+    //    Hangt de tool al aan een project, dan is die vraag overbodig — dan staat
+    //    het hierboven al in de juiste projectmap.
+    if (!opties.doelMap && !projectGekoppeld() && await onedriveBeschikbaar()) {
       const keuze = await kiesOnedrive({
         titel: 'In welke OneDrive-map moeten de PDF en Excel ook komen?',
         knopTekst: 'Hier opslaan'
@@ -5251,21 +5262,38 @@ async function exporteerExcel(opties = {}){
   const blob = new Blob([wbout], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
   const bestandsnaam = huidigeBasisbestandsnaam() + '.xlsx';
 
+  const MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
   if (opties.doelMap) {
     await schrijfNaarMap(opties.doelMap, bestandsnaam, blob);
-  } else {
-    downloadNaarBrowser(blob, bestandsnaam,
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    return { blob, bestandsnaam, inProjectmap:false };
   }
 
-  if(projectGekoppeld() && navigator.onLine){
-    await uploadBestandNaarProjectmap(blob, bestandsnaam);
+  // Net als bij de PDF: eerst naar de projectmap, daarna pas een lokale kopie.
+  let inProjectmap = false;
+  if (projectGekoppeld() && navigator.onLine) {
+    try {
+      await uploadBestandNaarProjectmap(blob, bestandsnaam);
+      inProjectmap = true;
+    } catch(_) { /* niet fataal — hieronder komt sowieso een lokale kopie */ }
   }
-  return { blob, bestandsnaam };
+
+  if (!isIOS()) {
+    downloadNaarBrowser(blob, bestandsnaam, MIME);
+  } else {
+    zetIosBestandKlaar(blob, bestandsnaam, MIME, inProjectmap);
+  }
+  return { blob, bestandsnaam, inProjectmap };
 }
 
 document.getElementById('btn-tekening-excel').addEventListener('click', ()=>{
-  exporteerExcel().catch(err=>{
+  wisIosBestanden();
+  document.getElementById('upload-status').textContent = '';
+  exporteerExcel().then(r=>{
+    document.getElementById('upload-status').textContent = r.inProjectmap
+      ? `📁 Excel opgeslagen in 020 AANTEKENINGEN van "${actiefProjectNaam()}"`
+      : `📊 Excel gemaakt: "${r.bestandsnaam}"`;
+  }).catch(err=>{
     console.error(err);
     alert('Excel maken mislukt: ' + (err && err.message ? err.message : err));
   });
