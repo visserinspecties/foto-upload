@@ -1399,6 +1399,9 @@ const extraVerdiepingenContainer = document.getElementById('extra-verdiepingen-c
 const btnToevoegenVerdieping = document.getElementById('btn-toevoegen-verdieping');
 let extraVerdiepingen = []; // [{id, breedteTouched, diepteTouched}]
 let volgendVerdiepingId = 1;
+// Laatst berekende zoldervloeroppervlak (dakverdieping), bijgehouden door renderDakverdiepingEnTotaal()
+// zodat de samenvatting (A3/Excel/preview) 'm kan gebruiken zonder DOM-tekst te hoeven parsen.
+let laatsteZolderOppervlak = null;
 
 function verdiepingOppervlakte(v){
   const b = parseFloat(document.getElementById('ev-breedte-'+v.id).value);
@@ -1706,6 +1709,10 @@ function renderDakverdiepingEnTotaal(){
       <span style="font-size:1.3rem;font-weight:700;font-family:var(--mono);white-space:nowrap;margin-left:10px;">${dakverdiepingOpp.toFixed(2)} m²</span>
     </div>` + (hh.isDefault ? `<p class="hint" style="color:#a8472e;">⚠ Geen hellingshoek ingevuld — gerekend met standaard ${DAK_DEFAULT_HOEK}°. Vul de echte hoek in voor een correcte berekening.</p>` : '');
   }
+
+  // Onthouden voor de samenvatting (Woonoppervlakte-groepering per verdieping): alleen een
+  // echte zoldervloer telt (niet bij open kap of onvolledige invoer).
+  laatsteZolderOppervlak = (geenZoldervloer || dakverdiepingOpp==null) ? null : dakverdiepingOpp;
 
   let total = 0;
   const bg = bgOppervlakte();
@@ -4342,21 +4349,115 @@ function schoneLabel(tekst){
   return tekst.split(' (')[0].trim();
 }
 
+// Leest het numerieke m²-getal uit een geformatteerde tekst als "12.34 m²".
+// Regels in meters (bv. "Nokhoogte ... m") leveren null op — die tellen niet mee in een m²-totaal.
+function m2Waarde(tekst){
+  const t = String(tekst);
+  if(t.indexOf('m²') === -1) return null;
+  const m = t.replace(',', '.').match(/-?\d+(?:\.\d+)?/);
+  return m ? parseFloat(m[0]) : null;
+}
+
+// Verdeelt het woonoppervlak per bouwlaag: hoofdgebouw + de uitbouwen die op die laag
+// meetellen (een uitbouw van bv. 2 bouwlagen telt mee op de begane grond én verdieping 1 —
+// altijd gerekend vanaf de begane grond omhoog). De zolderverdieping (indien aanwezig)
+// krijgt de dakkapel-vloeroppervlaktes erbij.
+function woonoppervlakGroepenVerzamelen(){
+  const vloeren = [];
+  vloeren.push({naam:'Begane grond', basis: bgOppervlakte()});
+  extraVerdiepingen.forEach((v,i)=>{
+    vloeren.push({naam:'Verdieping '+(i+1), basis: verdiepingOppervlakte(v)});
+  });
+  const heeftZolder = laatsteZolderOppervlak != null;
+  if(heeftZolder) vloeren.push({naam:'Zolderverdieping', basis: laatsteZolderOppervlak});
+  vloeren.forEach(v=> v.items = []);
+
+  alleUitbouwData().filter(d=>d.geldig).forEach(d=>{
+    const perVloer = d.breedte * d.diepte;
+    for(let i=0; i<d.lagen; i++){
+      const idx = Math.min(i, vloeren.length-1);
+      vloeren[idx].items.push({label:d.naam, opp:perVloer});
+    }
+  });
+
+  const dakkapelData = (typeof alleDakkapelData==='function' ? alleDakkapelData() : []).filter(d=>d.geldig);
+  let dakkapelZonderVloer = [];
+  if(heeftZolder){
+    const zolder = vloeren[vloeren.length-1];
+    dakkapelData.forEach(d=> zolder.items.push({label:d.naam+' (vloeroppervlak)', opp:d.platDakOpp}));
+  } else {
+    // Geen zoldervloer (open kap) om de dakkapel-vloeroppervlaktes aan te hangen —
+    // apart tonen zodat ze toch zichtbaar blijven (tellen wel mee in het eindtotaal).
+    dakkapelZonderVloer = dakkapelData.map(d=>({label:d.naam+' (vloeroppervlak)', opp:d.platDakOpp}));
+  }
+
+  return {vloeren, dakkapelZonderVloer};
+}
+
+// Groepeert de losse regels uit '#gs-resultaten' (gevels, hoofddak-, uitbouw- en
+// dakkapel-oppervlaktes) in drie categorieën — gevels, schuine daken, platte daken —
+// zodat de samenvatting per categorie een subtotaal kan tonen i.p.v. één lange platte lijst.
+function schilRegelsGegroepeerd(){
+  const rijen = Array.from(document.querySelectorAll('#gs-resultaten .lines-list > div')).map(rij=>{
+    const spans = rij.querySelectorAll('span');
+    return spans.length>=2 ? {label: spans[0].textContent, waarde: spans[1].textContent} : null;
+  }).filter(Boolean);
+
+  const uitbouwNamen = alleUitbouwData().filter(d=>d.geldig).map(d=>d.naam);
+  const dakkapelNamen = (typeof alleDakkapelData==='function' ? alleDakkapelData() : []).filter(d=>d.geldig).map(d=>d.naam);
+
+  const groepen = {gevel:[], schuin:[], plat:[]};
+
+  rijen.forEach(r=>{
+    const lbl = r.label;
+    if(lbl.startsWith('Σ Totaal')) return; // vervangen door de subtotalen hieronder
+
+    const ubNaam = uitbouwNamen.find(n => lbl.startsWith(n + ' — '));
+    if(ubNaam){
+      const deel = lbl.slice(ubNaam.length + 3);
+      if(deel.startsWith('Plat dak')) groepen.plat.push(r);
+      else if(deel.startsWith('Dak Links') || deel.startsWith('Dak Rechts')) groepen.schuin.push(r);
+      else groepen.gevel.push(r); // voorzijde / linkerwang / rechterwang
+      return;
+    }
+    const dkNaam = dakkapelNamen.find(n => lbl.startsWith(n + ' — '));
+    if(dkNaam){
+      const deel = lbl.slice(dkNaam.length + 3);
+      if(deel.startsWith('plat dak')) groepen.plat.push(r);
+      else groepen.gevel.push(r); // voorzijde / wang links / wang rechts
+      return;
+    }
+    // Asymmetrisch hoofddak wordt al met bruto/netto-detail getoond onder 'Asymmetrisch dak —
+    // dakvlak­ten (EPA)' verderop — niet nogmaals meetellen via deze algemene lijst. Het label
+    // hangt af van de nokrichting: 'Dak voorkant/achterkant' (nok evenwijdig) of 'Dak
+    // linkerzijde/rechterzijde' (nok dwars).
+    if(lbl.startsWith('Dak voorkant') || lbl.startsWith('Dak achterkant') ||
+       lbl.startsWith('Dak linkerzijde') || lbl.startsWith('Dak rechterzijde')) return;
+    if(lbl.startsWith('Plat dak (')){ groepen.plat.push(r); return; }
+    if(lbl.startsWith('Dak Links') || lbl.startsWith('Dak Rechts') || lbl.startsWith('Dak Voor') ||
+       lbl.startsWith('Dak Achter') || lbl.startsWith('Wolfseindvlak') ||
+       lbl.startsWith('Nokhoogte') || lbl.startsWith('Volle nok resteert')){
+      groepen.schuin.push(r); return;
+    }
+    groepen.gevel.push(r); // Voorgevel / Achtergevel / Linker gevel / Rechter gevel / Vloer BG — schil
+  });
+
+  return groepen;
+}
+
 function samenvattingRegelsVerzamelen(){
   const regels = [];
+
+  // ---------------- Woonoppervlakte, per verdieping ----------------
   regels.push({kop:'Woonoppervlakte'});
-  regels.push({label:'Begane grond', waarde: (document.getElementById('vloer-uitkomst').textContent||'—') + ' m²'});
-  extraVerdiepingen.forEach((v,i)=>{
-    regels.push({label:'Verdieping '+(i+1), waarde: (document.getElementById('ev-uitkomst-'+v.id).textContent||'—') + ' m²'});
+  const {vloeren, dakkapelZonderVloer} = woonoppervlakGroepenVerzamelen();
+  vloeren.forEach(v=>{
+    regels.push({label:v.naam, waarde:(v.basis!=null ? v.basis.toFixed(2) : '—') + ' m²'});
+    v.items.forEach(it=> regels.push({label:it.label, waarde: it.opp.toFixed(2)+' m²'}));
+    const subtotaal = (v.basis||0) + v.items.reduce((s,it)=>s+it.opp,0);
+    regels.push({label:'Totaal woonoppervlak '+v.naam.toLowerCase(), waarde: subtotaal.toFixed(2)+' m²'});
   });
-  const dakSpans = document.getElementById('dakverdieping-output').querySelectorAll('span');
-  if(dakSpans.length>=2){
-    const dakLabel = document.getElementById('dakverdieping-nummer-label').textContent;
-    regels.push({label:dakLabel, waarde: dakSpans[dakSpans.length-1].textContent});
-  }
-  alleUitbouwData().filter(d=>d.geldig).forEach(d=>{
-    regels.push({label:d.naam+' (vloeroppervlak)', waarde: d.vloerOpp.toFixed(2)+' m²'});
-  });
+  dakkapelZonderVloer.forEach(it=> regels.push({label:it.label, waarde: it.opp.toFixed(2)+' m²'}));
   regels.push({label:'Totaal woonoppervlakte', waarde: (document.getElementById('totaal-woonoppervlak').textContent||'—') + ' m²'});
 
   const uitbouwDataVoorPdf = alleUitbouwData().filter(d=>d.geldig);
@@ -4374,12 +4475,10 @@ function samenvattingRegelsVerzamelen(){
     dakkapelDataVoorPdf.forEach(d=>{
       regels.push({label:d.naam, waarde:`dak ${dkLabels[d.dakvlak]}, ${d.breedte.toFixed(2)}×${d.hoogte.toFixed(2)}×${d.diepte.toFixed(2)}m (b×h×d)`});
     });
-    regels.push({kop:'Dakkapel(len) — oppervlaktes'});
+    // Voorzijde/wangen/plat dak staan verderop bij 'Gevel — oppervlaktes' en 'Platte daken' —
+    // hier alleen nog het gat in het hoofddakvlak (al verrekend in de nettomaat van dat dakvlak).
+    regels.push({kop:'Dakkapel(len) — gat in hoofddakvlak'});
     dakkapelDataVoorPdf.forEach(d=>{
-      regels.push({label:`${d.naam} — voorzijde`, waarde: d.voorzijde.toFixed(2)+' m²'});
-      regels.push({label:`${d.naam} — wang links`, waarde: d.wangOpp.toFixed(2)+' m²'});
-      regels.push({label:`${d.naam} — wang rechts`, waarde: d.wangOpp.toFixed(2)+' m²'});
-      regels.push({label:`${d.naam} — plat dak`, waarde: d.platDakOpp.toFixed(2)+' m²'});
       regels.push({label:`${d.naam} — gat in hoofddakvlak`, waarde: d.gatOpp.toFixed(2)+' m²'});
     });
   }
@@ -4406,6 +4505,10 @@ function samenvattingRegelsVerzamelen(){
     if(wASam.actief) regels.push({label:`Wolfseind ${naamSamA}`, waarde: wASam.geldig ? `${wASam.hoogte.toFixed(2)}m boven goot, ${wASam.hoek}°` : 'onvolledig ingevuld'});
     if(wBSam.actief) regels.push({label:`Wolfseind ${naamSamB}`, waarde: wBSam.geldig ? `${wBSam.hoogte.toFixed(2)}m boven goot, ${wBSam.hoek}°` : 'onvolledig ingevuld'});
   }
+  // Hoofddak-oppervlak van asymmetrisch/schilddak-daktypes telt straks mee in 'Totaal schuine
+  // daken' hieronder (bij zadel/plat komt dat al automatisch mee via de Schil-tab-lijst).
+  let hoofddakSchuinExtra = 0;
+
   if(daktypeEl.value==='asymmetrisch'){
     const asymData = berekenAsymmetrischDakData();
     if(asymData && asymData.geldig){
@@ -4432,6 +4535,7 @@ function samenvattingRegelsVerzamelen(){
       regels.push({label:'Totaal dak­oppervlak', waarde: (nettoVoorPdf+nettoAchterPdf).toFixed(2) + ' m²'});
       regels.push({kop:'Formule (nokpositie-berekening)'});
       regels.push({label:'', waarde: asymData.formule});
+      hoofddakSchuinExtra = nettoVoorPdf + nettoAchterPdf;
     } else if(asymData && asymData.tooMuchDeviation){
       regels.push({kop:'Asymmetrisch dak — AFWIJKING TE GROOT'});
       regels.push({label:'Fout', waarde: `Berekende ${asymData.overspanningNaam} (${asymData.d_werkelijk.toFixed(2)}m) wijkt meer dan 5% af van ingevoerd (${asymData.d_ingevoerd.toFixed(2)}m). Controleer je maten!`});
@@ -4450,16 +4554,29 @@ function samenvattingRegelsVerzamelen(){
       regels.push({label:'Zijdak rechts', waarde: schildData.opZijRechts.toFixed(2) + ' m²'});
       regels.push({label:'Achterdak', waarde: schildData.opAchter.toFixed(2) + ' m²'});
       regels.push({label:'Totaal dak­oppervlak', waarde: schildData.totaalOpp.toFixed(2) + ' m²'});
+      hoofddakSchuinExtra = schildData.totaalOpp;
     }
   }
 
+  // ---------------- Schil, per type/oriëntatie ----------------
+  const schilGroepen = schilRegelsGegroepeerd();
+
   regels.push({kop:'Gevel — oppervlaktes'});
-  document.querySelectorAll('#gs-resultaten .lines-list > div').forEach(rij=>{
-    const spans = rij.querySelectorAll('span');
-    if(spans.length>=2){
-      regels.push({label: schoneLabel(spans[0].textContent), waarde: spans[1].textContent});
-    }
-  });
+  schilGroepen.gevel.forEach(r=> regels.push({label: schoneLabel(r.label), waarde: r.waarde}));
+
+  const totaalSchuin = schilGroepen.schuin.reduce((s,r)=> s + (m2Waarde(r.waarde)||0), 0) + hoofddakSchuinExtra;
+  if(schilGroepen.schuin.length>0 || totaalSchuin>0){
+    regels.push({kop:'Schuine daken'});
+    schilGroepen.schuin.forEach(r=> regels.push({label: schoneLabel(r.label), waarde: r.waarde}));
+    if(totaalSchuin>0) regels.push({label:'Totaal schuine daken', waarde: totaalSchuin.toFixed(2)+' m²'});
+  }
+
+  const totaalPlat = schilGroepen.plat.reduce((s,r)=> s + (m2Waarde(r.waarde)||0), 0);
+  if(schilGroepen.plat.length>0){
+    regels.push({kop:'Platte daken'});
+    schilGroepen.plat.forEach(r=> regels.push({label: schoneLabel(r.label), waarde: r.waarde}));
+    if(totaalPlat>0) regels.push({label:'Totaal platte daken', waarde: totaalPlat.toFixed(2)+' m²'});
+  }
 
   return regels;
 }
