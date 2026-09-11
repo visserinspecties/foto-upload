@@ -1,0 +1,608 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>MWA Dossiercontrole</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --ground:#f2f5f4;
+    --panel:#ffffff;
+    --panel-sunk:#eaefed;
+    --ink:#141d1b;
+    --ink-soft:#54615e;
+    --ink-faint:#7d8a86;
+    --line:#d6dedb;
+    --line-strong:#b9c5c1;
+    --accent:#0e5c54;
+    --accent-soft:#e2efec;
+    --on-accent:#ffffff;
+    --ok:#2c7a3f;
+    --warn:#9a6b0c;
+    --crit:#a1332a;
+    --shadow:0 1px 2px rgba(20,29,27,.06);
+    --r:6px;
+    --f-display:"Archivo","Helvetica Neue",Arial,sans-serif;
+    --f-body:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+    --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --ground:#101615;
+      --panel:#171f1e;
+      --panel-sunk:#1d2725;
+      --ink:#e7ece9;
+      --ink-soft:#a3b0ac;
+      --ink-faint:#7d8a86;
+      --line:#293432;
+      --line-strong:#3a4744;
+      --accent:#54b7a7;
+      --accent-soft:#182f2c;
+      --on-accent:#0d1615;
+      --ok:#63b471;
+      --warn:#d0a13c;
+      --crit:#e0776b;
+      --shadow:0 1px 2px rgba(0,0,0,.3);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#101615;
+    --panel:#171f1e;
+    --panel-sunk:#1d2725;
+    --ink:#e7ece9;
+    --ink-soft:#a3b0ac;
+    --ink-faint:#7d8a86;
+    --line:#293432;
+    --line-strong:#3a4744;
+    --accent:#54b7a7;
+    --accent-soft:#182f2c;
+    --on-accent:#0d1615;
+    --ok:#63b471;
+    --warn:#d0a13c;
+    --crit:#e0776b;
+    --shadow:0 1px 2px rgba(0,0,0,.3);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    background:var(--ground);
+    color:var(--ink);
+    font-family:var(--f-body);
+    font-size:15px;
+    line-height:1.55;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1120px;margin:0 auto;padding:0 20px;padding-block:28px 56px}
+  a{color:var(--accent)}
+
+  /* ---------- header ---------- */
+  header.top{
+    display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;
+    gap:16px;
+    border-bottom:2px solid var(--ink);
+    padding-bottom:14px;margin-bottom:24px;
+  }
+  .eyebrow{
+    font-family:var(--f-mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-faint);margin:0 0 6px;
+  }
+  h1{
+    font-family:var(--f-display);font-weight:700;font-size:clamp(24px,3.4vw,34px);
+    line-height:1.05;letter-spacing:-.015em;margin:0;text-wrap:balance;
+  }
+  .top .sub{font-size:13.5px;color:var(--ink-soft);max-width:44ch;margin:6px 0 0}
+
+  /* ---------- layout ---------- */
+  .cols{display:grid;grid-template-columns:296px minmax(0,1fr);gap:28px;align-items:start}
+  @media (max-width:860px){.cols{grid-template-columns:1fr;gap:22px}}
+
+  .rail{position:sticky;top:20px;display:flex;flex-direction:column;gap:16px}
+  @media (max-width:860px){.rail{position:static}}
+
+  .card{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+    padding:16px;box-shadow:var(--shadow);
+  }
+  .card h2{
+    font-family:var(--f-mono);font-size:11px;letter-spacing:.13em;text-transform:uppercase;
+    color:var(--ink-faint);font-weight:500;margin:0 0 12px;
+  }
+
+  /* ---------- project picker ---------- */
+  .field{display:flex;flex-direction:column;gap:5px;margin-bottom:10px}
+  .field label{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint)}
+  select,input[type=text]{
+    font-family:var(--f-body);font-size:14px;color:var(--ink);
+    background:var(--panel-sunk);border:1px solid var(--line-strong);border-radius:4px;
+    padding:7px 8px;width:100%;
+  }
+  select:focus-visible,input:focus-visible,button:focus-visible{
+    outline:2px solid var(--accent);outline-offset:1px;
+  }
+  .btn{
+    font-family:var(--f-body);font-size:13px;font-weight:500;
+    background:var(--panel-sunk);color:var(--ink);
+    border:1px solid var(--line-strong);border-radius:4px;padding:7px 11px;cursor:pointer;
+  }
+  .btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+  .btn.primary:hover{opacity:.88;color:var(--on-accent);border-color:var(--accent)}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap}
+
+  /* ---------- meter ---------- */
+  .meter-num{
+    font-family:var(--f-display);font-weight:700;font-size:38px;line-height:1;
+    letter-spacing:-.02em;font-variant-numeric:tabular-nums;
+  }
+  .meter-num span{font-size:17px;font-weight:500;color:var(--ink-faint)}
+  .bar{height:7px;background:var(--panel-sunk);border-radius:99px;overflow:hidden;margin:11px 0 9px;display:flex}
+  .bar i{display:block;height:100%;background:var(--ok);transition:width .25s ease}
+  .bar i.nvt{background:var(--line-strong)}
+  .meter-note{font-size:12.5px;color:var(--ink-soft);margin:0}
+  .meter-note b{color:var(--crit);font-weight:600}
+
+  /* ---------- reference ---------- */
+  dl.ref{margin:0;display:grid;grid-template-columns:1fr auto;gap:6px 10px;font-size:12.5px}
+  dl.ref dt{color:var(--ink-soft)}
+  dl.ref dd{margin:0;font-family:var(--f-mono);font-variant-numeric:tabular-nums;text-align:right}
+  .ref-head{
+    font-family:var(--f-mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ink-faint);margin:14px 0 6px;grid-column:1/-1;
+  }
+  .ref-head:first-child{margin-top:0}
+
+  /* ---------- checklist ---------- */
+  section.group{margin-bottom:26px}
+  .group-head{display:flex;align-items:baseline;gap:10px;margin:0 0 4px}
+  .group-head h3{
+    font-family:var(--f-display);font-weight:600;font-size:18px;letter-spacing:-.01em;margin:0;
+  }
+  .group-head .count{font-family:var(--f-mono);font-size:11.5px;color:var(--ink-faint);font-variant-numeric:tabular-nums}
+  .group-hint{font-size:13px;color:var(--ink-soft);margin:0 0 12px;max-width:62ch}
+
+  ul.items{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+  li.item{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+    box-shadow:var(--shadow);
+    display:grid;grid-template-columns:auto minmax(0,1fr);gap:0 14px;
+    padding:13px 15px 13px 12px;
+    border-left:3px solid transparent;
+  }
+  li.item[data-weight="kritiek"]{border-left-color:var(--crit)}
+  li.item[data-weight="let-op"]{border-left-color:var(--warn)}
+  li.item[data-state="ok"]{background:var(--accent-soft);border-color:var(--line)}
+  li.item[data-state="nvt"]{opacity:.62}
+
+  .marks{display:flex;flex-direction:column;gap:5px;padding-top:2px}
+  .mark{
+    width:26px;height:26px;display:grid;place-items:center;cursor:pointer;
+    border:1px solid var(--line-strong);border-radius:4px;background:var(--panel-sunk);
+    font-family:var(--f-mono);font-size:11px;color:var(--ink-faint);padding:0;
+  }
+  .mark:hover{border-color:var(--accent);color:var(--accent)}
+  .mark[aria-pressed="true"]{background:var(--ok);border-color:var(--ok);color:var(--on-accent)}
+  .mark.nvt[aria-pressed="true"]{background:var(--line-strong);border-color:var(--line-strong);color:var(--ink)}
+
+  .body .ttl{
+    font-family:var(--f-display);font-weight:600;font-size:15.5px;letter-spacing:-.005em;
+    margin:0 0 3px;display:flex;flex-wrap:wrap;align-items:center;gap:8px;
+  }
+  .chip{
+    font-family:var(--f-mono);font-size:10.5px;letter-spacing:.04em;
+    color:var(--ink-soft);background:var(--panel-sunk);
+    border:1px solid var(--line);border-radius:3px;padding:1px 5px;font-weight:400;
+  }
+  .chip.crit{color:var(--crit);border-color:var(--crit);background:transparent;text-transform:uppercase;letter-spacing:.08em}
+  .chip.warn{color:var(--warn);border-color:var(--warn);background:transparent;text-transform:uppercase;letter-spacing:.08em}
+  .chip.opt{color:var(--ink-faint);font-style:normal}
+  .body p.d{font-size:13.2px;color:var(--ink-soft);margin:0;max-width:66ch}
+  .body input.note{
+    margin-top:9px;font-family:var(--f-mono);font-size:12px;
+    background:transparent;border:0;border-bottom:1px dashed var(--line-strong);
+    border-radius:0;padding:3px 1px;
+  }
+  .body input.note::placeholder{color:var(--ink-faint);font-style:italic}
+
+  /* ---------- footers / banners ---------- */
+  .banner{
+    font-size:12.8px;color:var(--ink-soft);background:var(--panel-sunk);
+    border:1px solid var(--line);border-left:3px solid var(--warn);border-radius:4px;
+    padding:9px 12px;margin-bottom:18px;
+  }
+  .banner[hidden]{display:none!important}
+  footer.src{
+    margin-top:34px;padding-top:14px;border-top:1px solid var(--line);
+    font-size:12.2px;color:var(--ink-faint);max-width:70ch;
+  }
+  .saving{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);min-height:14px}
+
+  @media print{
+    body{background:#fff}
+    .rail .card:first-child,.marks .mark:hover{box-shadow:none}
+    .btn,.banner{display:none}
+    li.item{break-inside:avoid}
+    .cols{grid-template-columns:1fr}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <p class="eyebrow">BRL 9500-MWA · § 6.7.4</p>
+      <h1>MWA Dossiercontrole</h1>
+      <p class="sub">Loop dit af vóór je een maatwerkadvies registreert. Alles wat hier open staat, staat straks in het controlerapport van de CI.</p>
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="btn-print">Afdrukken</button>
+    </div>
+  </header>
+
+  <div class="banner" id="local-banner" hidden>
+    Opslag niet beschikbaar — je vinkjes blijven alleen in deze browser bewaard.
+  </div>
+
+  <div class="cols">
+    <aside class="rail">
+      <div class="card">
+        <h2>Project</h2>
+        <div class="field">
+          <label for="proj-select">Dossier</label>
+          <select id="proj-select"></select>
+        </div>
+        <div class="field">
+          <label for="proj-name">Omschrijving</label>
+          <input type="text" id="proj-name" placeholder="Adres of projectnummer">
+        </div>
+        <div class="btn-row">
+          <button class="btn primary" id="btn-new">Nieuw dossier</button>
+          <button class="btn" id="btn-del">Verwijderen</button>
+        </div>
+        <p class="saving" id="saving-state"></p>
+      </div>
+
+      <div class="card">
+        <h2>Volledigheid</h2>
+        <div class="meter-num" id="meter-num">0<span>/15</span></div>
+        <div class="bar"><i id="bar-ok" style="width:0"></i><i class="nvt" id="bar-nvt" style="width:0"></i></div>
+        <p class="meter-note" id="meter-note">Nog niets afgevinkt.</p>
+      </div>
+
+      <div class="card">
+        <h2>Toetswaarden bij de hand</h2>
+        <dl class="ref">
+          <p class="ref-head">Fit — afwijking</p>
+          <dt>Basisfit, jaarverbruik per energiedrager</dt><dd>5 %</dd>
+          <dt>Detailfit, helling regressielijn</dt><dd>5 %</dd>
+          <dt>Detailfit, stook-/koelgrens</dt><dd>1 °C</dd>
+          <dt>Detailfit, basisverbruiklijn</dt><dd>5 %</dd>
+          <p class="ref-head">Alternatieve rekenwaarden</p>
+          <dt>Douchepijp-WTW η<sub>W;sh;rcd</sub></dt><dd>0,58</dd>
+          <dt>Douchegoot-WTW η<sub>W;sh;rcd</sub></dt><dd>0,45</dd>
+          <dt>PV monokristallijn</dt><dd>200 Wp/m²</dd>
+        </dl>
+      </div>
+    </aside>
+
+    <main id="list"></main>
+  </div>
+
+  <footer class="src">
+    Checkpunten volgens BRL 9500-MWA § 6.7.4 (projectdossier), § 4.2.1 t/m § 4.2.8 (te verrichten activiteiten) en ISSO 82.2 / 75.2, 3e druk. Kritiek-markering volgens de afwijkingscategorieën in de BRL: een ontbrekende intake, inzet van niet-vakbekwame personen en een dossier dat geen volledig beeld geeft van de kwaliteit van advies en werkzaamheden zijn kritieke afwijkingen.
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var SECTIONS = [
+    { title:"Vóór het advies",
+      hint:"Dit moet vastliggen vóórdat je begint met adviseren. Een ontbrekende intake is de meest voorkomende kritieke afwijking.",
+      items:[
+        { id:"intake", ref:"§ 4.2.1", weight:"kritiek", t:"Actueel intakeformulier",
+          d:"Wensen en doelen van de opdrachtgever, financiële én technische randvoorwaarden, MJOP, wettelijke eisen en subsidies/financiering. Vóór het opstellen van het advies schriftelijk aan de opdrachtgever verstrekt.",
+          note:"vindplaats / datum verstrekt" },
+        { id:"informeren", ref:"§ 4.2.2", t:"Bewijs van schriftelijk informeren",
+          d:"Vijf punten: registratie in het landelijk gegevensbestand, aanvullende technische gegevens voor het renovatiepaspoort, recht om het volledige projectdossier op te vragen, mogelijk controleonderzoek door de CI, en intrekking van een maatwerkadvies.",
+          note:"mail / bijlage" }
+      ]},
+    { title:"Opname & gegevens",
+      hint:"De opname zelf plus alles wat je bij een maatwerkadvies extra vastlegt bovenop de labelopname.",
+      items:[
+        { id:"opname", ref:"ISSO 82.1 / 75.1", t:"Opnamegegevens",
+          d:"Inclusief onderbouwing van iedere invoerparameter die afwijkt van ISSO.", note:"opnameformulier / foto's" },
+        { id:"methodiek", ref:"§ 6.7.4", t:"Vermelding basis- of detailopname",
+          d:"Eén regel in het dossier — wordt structureel vergeten.", note:"basis / detail" },
+        { id:"nulmeting", ref:"BRL 9500-W", optional:true, t:"Verwijzing naar het nulmeting-dossier",
+          d:"Bij een nulmeting: een herleidbare verwijzing naar het projectdossier dat je daarvoor volgens BRL 9500-W hebt opgesteld.", note:"registratienummer" },
+        { id:"hergebruik", ref:"§ 6.7.4", optional:true, t:"Controlebewijs overgenomen EP-rapport",
+          d:"Gebruik je een bestaand, geldig energieprestatierapport — van jezelf of van een andere certificaathouder — dan hoort er bewijs in dat je de overgenomen gegevens hebt gecontroleerd.", note:"controleblad / datum" },
+        { id:"aanvullend", ref:"ISSO 82.2 § 2.6–2.8", t:"Aanvullende parameters met onderbouwing",
+          d:"Gebruiksprofiel (NTA 8800, standaardprofiel of vrije invoer — bij vrije invoer ook de controle van de interne warmtelast), locatiespecifiek klimaatstation en UHI-effect, en de objectgebonden keuzes.",
+          note:"onderbouwing keuzes" }
+      ]},
+    { title:"Berekening & onderbouwing",
+      hint:"Hier zitten de niet-kritieke afwijkingen die snel kritiek worden omdat het dossier geen volledig beeld meer geeft.",
+      items:[
+        { id:"nietfitten", ref:"§ 4.2.4", weight:"let-op", t:"Onderbouwing als er niet gefit is",
+          d:"Ook het afzien van het aanpassen van gebruikers- en objectafhankelijke parameters onderbouw je. Ontbreekt dit, dan is het minimaal een niet-kritieke afwijking — en het wordt ook als kritiek beoordeeld.",
+          note:"reden / verwijzing" },
+        { id:"besparing", ref:"§ 6.7.4", t:"Onderbouwing van de besparingsberekening",
+          d:"Met een herleidbare verwijzing naar de gebruikte (kosten)kentallen. Let ook op realistische maatregelen en terugverdientijd — beide staan in de lijst veelgemaakte fouten.",
+          note:"bron kentallen" },
+        { id:"bestanden", ref:"§ 6.7.4", t:"Digitale rekenbestanden",
+          d:"De feitelijke bestanden van alle uitgevoerde berekeningen, inclusief de varianten per renovatiestap voor de gestapelde labels.",
+          note:"mapnaam / bestandsnamen" }
+      ]},
+    { title:"Registratie & levering",
+      hint:"Registreren gaat vóór leveren. En leg vast wie wat heeft gedaan.",
+      items:[
+        { id:"verantw", ref:"§ 4.2.8", weight:"kritiek", t:"Verantwoordelijkheden vastgelegd",
+          d:"Wie is verantwoordelijk voor het opstellen en registreren van het maatwerkadvies, en wie voor de opname. Inzet van niet-vakbekwame personen is een kritieke afwijking.",
+          note:"naam(en) + rol" },
+        { id:"soort", ref:"§ 4.2.8", t:"Keuze: maatwerkadvies of MWA + renovatiepaspoort",
+          d:"Jij bepaalt dit. Het predicaat 'Renovatiepaspoort' krijg je alleen als alle drie de renovatiestappen in het advies zitten.",
+          note:"gekozen vorm" },
+        { id:"mwa", ref:"§ 6.7.4", weight:"kritiek", t:"Het geleverde maatwerkadvies",
+          d:"De versie zoals de opdrachtgever hem heeft ontvangen. Leveren gebeurt ná registratie.", note:"versie / leverdatum" },
+        { id:"rp", ref:"§ 6.7.4", optional:true, t:"Het geleverde renovatiepaspoort",
+          d:"Met een energielabel per renovatiestap, waarbij elk label ook de maatregelen van de voorgaande stappen bevat.", note:"versie / leverdatum" },
+        { id:"toelichting", ref:"§ 4.2.7", t:"Mondelinge toelichting aangeboden",
+          d:"Je moet aanbieden het advies mondeling toe te lichten. De mail waarin je dat aanbiedt is je bewijs.", note:"datum aanbod" }
+      ]},
+    { title:"Nazorg",
+      hint:"Blijft aan het dossier hangen zolang het dossier bestaat.",
+      items:[
+        { id:"klachten", ref:"§ 6.7.4", optional:true, t:"Alle correspondentie bij klachten",
+          d:"Ook als de klacht inmiddels is opgelost.", note:"verwijzing" }
+      ]}
+  ];
+
+  var ALL = [];
+  SECTIONS.forEach(function(s){ s.items.forEach(function(i){ ALL.push(i); }); });
+  var TOTAL = ALL.length;
+
+  // ---------- state ----------
+  var db = null;
+  var projects = [];          // [{id, naam, checks:{}, notes:{}, created}]
+  var currentId = null;
+  var saveTimer = null;
+
+  var LS = "mwa-dossiers-v1";
+  function lsRead(){
+    try { return JSON.parse(localStorage.getItem(LS) || "[]"); } catch(e){ return []; }
+  }
+  function lsWrite(){
+    try { localStorage.setItem(LS, JSON.stringify(projects)); } catch(e){}
+  }
+
+  function newProject(naam){
+    return { id:"p"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+             naam: naam || "Nieuw dossier", checks:{}, notes:{}, created:new Date().toISOString() };
+  }
+  function current(){
+    for (var i=0;i<projects.length;i++) if (projects[i].id===currentId) return projects[i];
+    return null;
+  }
+
+  function flash(msg){
+    var el = document.getElementById("saving-state");
+    el.textContent = msg;
+    if (msg) setTimeout(function(){ if (el.textContent===msg) el.textContent=""; }, 1600);
+  }
+
+  function persist(){
+    lsWrite();
+    var p = current();
+    if (!db || !p) return;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function(){
+      db.doc("dossiers/"+p.id).set({ naam:p.naam, checks:p.checks, notes:p.notes, created:p.created })
+        .then(function(){ flash("opgeslagen"); })
+        .catch(function(){ flash("opslaan mislukt"); });
+    }, 400);
+  }
+
+  // ---------- rendering ----------
+  function renderList(){
+    var host = document.getElementById("list");
+    host.textContent = "";
+    var p = current();
+
+    SECTIONS.forEach(function(sec){
+      var done = 0;
+      sec.items.forEach(function(it){ if (p && p.checks[it.id]) done++; });
+
+      var section = document.createElement("section");
+      section.className = "group";
+
+      var head = document.createElement("div");
+      head.className = "group-head";
+      var h3 = document.createElement("h3");
+      h3.textContent = sec.title;
+      var cnt = document.createElement("span");
+      cnt.className = "count";
+      cnt.textContent = done + "/" + sec.items.length;
+      head.appendChild(h3); head.appendChild(cnt);
+      section.appendChild(head);
+
+      var hint = document.createElement("p");
+      hint.className = "group-hint";
+      hint.textContent = sec.hint;
+      section.appendChild(hint);
+
+      var ul = document.createElement("ul");
+      ul.className = "items";
+
+      sec.items.forEach(function(it){
+        var state = (p && p.checks[it.id]) || "";
+        var li = document.createElement("li");
+        li.className = "item";
+        li.setAttribute("data-state", state);
+        if (it.weight) li.setAttribute("data-weight", it.weight);
+
+        var marks = document.createElement("div");
+        marks.className = "marks";
+        marks.appendChild(mkMark(it, "ok", "✓", "Aanwezig in dossier", state));
+        marks.appendChild(mkMark(it, "nvt", "–", "Niet van toepassing", state));
+        li.appendChild(marks);
+
+        var body = document.createElement("div");
+        body.className = "body";
+
+        var ttl = document.createElement("p");
+        ttl.className = "ttl";
+        ttl.appendChild(document.createTextNode(it.t));
+        ttl.appendChild(chip(it.ref, ""));
+        if (it.weight === "kritiek") ttl.appendChild(chip("kritiek", "crit"));
+        if (it.weight === "let-op") ttl.appendChild(chip("kan kritiek worden", "warn"));
+        if (it.optional) ttl.appendChild(chip("indien van toepassing", "opt"));
+        body.appendChild(ttl);
+
+        var d = document.createElement("p");
+        d.className = "d";
+        d.textContent = it.d;
+        body.appendChild(d);
+
+        var inp = document.createElement("input");
+        inp.type = "text";
+        inp.className = "note";
+        inp.id = "note-" + it.id;
+        inp.placeholder = it.note;
+        inp.value = (p && p.notes[it.id]) || "";
+        inp.addEventListener("input", function(){
+          var cp = current(); if (!cp) return;
+          cp.notes[it.id] = inp.value;
+          persist();
+        });
+        body.appendChild(inp);
+
+        li.appendChild(body);
+        ul.appendChild(li);
+      });
+
+      section.appendChild(ul);
+      host.appendChild(section);
+    });
+
+    renderMeter();
+  }
+
+  function mkMark(it, value, glyph, label, state){
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "mark" + (value === "nvt" ? " nvt" : "");
+    b.textContent = glyph;
+    b.title = label;
+    b.setAttribute("aria-label", label + ": " + it.t);
+    b.setAttribute("aria-pressed", state === value ? "true" : "false");
+    b.addEventListener("click", function(){
+      var p = current(); if (!p) return;
+      p.checks[it.id] = (p.checks[it.id] === value) ? "" : value;
+      persist();
+      renderList();
+    });
+    return b;
+  }
+
+  function chip(text, cls){
+    var s = document.createElement("span");
+    s.className = "chip" + (cls ? " " + cls : "");
+    s.textContent = text;
+    return s;
+  }
+
+  function renderMeter(){
+    var p = current();
+    var ok = 0, nvt = 0, openKritiek = [];
+    ALL.forEach(function(it){
+      var v = p ? p.checks[it.id] : "";
+      if (v === "ok") ok++;
+      else if (v === "nvt") nvt++;
+      else if (it.weight === "kritiek") openKritiek.push(it.t);
+    });
+
+    document.getElementById("meter-num").innerHTML =
+      (ok + nvt) + '<span>/' + TOTAL + '</span>';
+    document.getElementById("bar-ok").style.width = (ok / TOTAL * 100) + "%";
+    document.getElementById("bar-nvt").style.width = (nvt / TOTAL * 100) + "%";
+
+    var note = document.getElementById("meter-note");
+    note.textContent = "";
+    if (ok + nvt === 0){
+      note.textContent = "Nog niets afgevinkt.";
+    } else if (openKritiek.length){
+      note.appendChild(document.createTextNode(openKritiek.length + " kritiek punt" + (openKritiek.length>1?"en":"") + " open: "));
+      var b = document.createElement("b");
+      b.textContent = openKritiek.join(", ") + ".";
+      note.appendChild(b);
+    } else if (ok + nvt === TOTAL){
+      note.textContent = "Dossier compleet — " + nvt + " punt" + (nvt===1?"":"en") + " als niet van toepassing gemarkeerd.";
+    } else {
+      note.textContent = (TOTAL - ok - nvt) + " punten open, geen kritieke.";
+    }
+  }
+
+  function renderPicker(){
+    var sel = document.getElementById("proj-select");
+    sel.textContent = "";
+    projects.forEach(function(p){
+      var o = document.createElement("option");
+      o.value = p.id;
+      o.textContent = p.naam || "(zonder naam)";
+      if (p.id === currentId) o.selected = true;
+      sel.appendChild(o);
+    });
+    var p = current();
+    document.getElementById("proj-name").value = p ? (p.naam || "") : "";
+  }
+
+  // ---------- wiring ----------
+  document.getElementById("proj-select").addEventListener("change", function(e){
+    currentId = e.target.value;
+    renderPicker(); renderList();
+  });
+
+  document.getElementById("proj-name").addEventListener("input", function(e){
+    var p = current(); if (!p) return;
+    p.naam = e.target.value;
+    var sel = document.getElementById("proj-select");
+    if (sel.selectedOptions[0]) sel.selectedOptions[0].textContent = p.naam || "(zonder naam)";
+    persist();
+  });
+
+  document.getElementById("btn-new").addEventListener("click", function(){
+    var p = newProject("");
+    projects.unshift(p);
+    currentId = p.id;
+    renderPicker(); renderList();
+    persist();
+    document.getElementById("proj-name").focus();
+  });
+
+  document.getElementById("btn-del").addEventListener("click", function(){
+    var p = current(); if (!p) return;
+    if (!confirm("Dossier \"" + (p.naam || "zonder naam") + "\" verwijderen?")) return;
+    projects = projects.filter(function(x){ return x.id !== p.id; });
+    if (db) db.doc("dossiers/"+p.id).delete().catch(function(){});
+    if (!projects.length) projects.push(newProject(""));
+    currentId = projects[0].id;
+    lsWrite();
+    renderPicker(); renderList();
+  });
+
+  document.getElementById("btn-print").addEventListener("click", function(){ window.print(); });
+
+  // ---------- boot ----------
+  projects = lsRead();
+  if (!projects.length) projects.push(newProject(""));
+  currentId = projects[0].id;
+  renderPicker();
+  renderList();
+
+  // Cloud-sync (window.claude.use) is only available on the hosted artifact link.
+  // In this standalone file, data is saved locally in this browser only (localStorage).
+  document.getElementById("local-banner").hidden = false;
+})();
+</script>
+
+</body></html>
