@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Visser Inspecties – Tools</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="VI Tools">
+<meta name="theme-color" content="#0f4c81">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230f4c81'/%3E%3Ctext x='50' y='68' font-size='55' text-anchor='middle' fill='white' font-family='Arial'%3EV%3C/text%3E%3C/svg%3E">
+<style>
+  :root {
+    --blauw: #0f4c81;
+    --blauw-donker: #0a3760;
+    --achtergrond: #f4f6f8;
+    --kaart: #ffffff;
+    --tekst: #1c2733;
+    --subtekst: #5b6b7a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--achtergrond);
+    color: var(--tekst);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px 16px 48px;
+  }
+  header {
+    width: 100%;
+    max-width: 480px;
+    text-align: center;
+    margin-bottom: 28px;
+  }
+  header h1 {
+    font-size: 1.4rem;
+    margin: 0 0 4px;
+    color: var(--blauw-donker);
+  }
+  header p {
+    margin: 0;
+    color: var(--subtekst);
+    font-size: 0.9rem;
+  }
+  .lijst {
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  a.tool {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--kaart);
+    border-radius: 14px;
+    padding: 18px 20px;
+    text-decoration: none;
+    color: var(--tekst);
+    box-shadow: 0 1px 3px rgba(15, 76, 129, 0.12);
+    border: 1px solid #e4e9ee;
+    transition: transform 0.08s ease, box-shadow 0.08s ease;
+  }
+  a.tool:active {
+    transform: scale(0.98);
+    box-shadow: 0 1px 2px rgba(15, 76, 129, 0.15);
+  }
+  .icoon {
+    flex: 0 0 auto;
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: var(--blauw);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+  }
+  .tekst {
+    flex: 1 1 auto;
+  }
+  .tekst .naam {
+    font-weight: 600;
+    font-size: 1.02rem;
+  }
+  .tekst .omschrijving {
+    font-size: 0.82rem;
+    color: var(--subtekst);
+    margin-top: 2px;
+  }
+  .pijl {
+    color: var(--subtekst);
+    font-size: 1.1rem;
+  }
+  footer {
+    margin-top: 36px;
+    font-size: 0.78rem;
+    color: var(--subtekst);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+  <header>
+    <h1>Visser Inspecties</h1>
+    <p>Kies een tool</p>
+  </header>
+
+  <div class="lijst">
+    <a class="tool" href="foto-upload.html">
+      <div class="icoon">📷</div>
+      <div class="tekst">
+        <div class="naam">Foto-upload</div>
+        <div class="omschrijving">Projectfoto's uploaden per nummer</div>
+      </div>
+      <div class="pijl">›</div>
+    </a>
+
+    <a class="tool" href="MWA-Dossiercontrole.html">
+      <div class="icoon">📋</div>
+      <div class="tekst">
+        <div class="naam">MWA Dossiercontrole</div>
+        <div class="omschrijving">Dossier controleren</div>
+      </div>
+      <div class="pijl">›</div>
+    </a>
+
+    <a class="tool" href="huismaten-stap1.html">
+      <div class="icoon">📐</div>
+      <div class="tekst">
+        <div class="naam">Huismaten</div>
+        <div class="omschrijving">Gevel-, dak- en vloeroppervlaktes meten</div>
+      </div>
+      <div class="pijl">›</div>
+    </a>
+
+    <a class="tool" href="nieuwe-projectmap.html">
+      <div class="icoon">📁</div>
+      <div class="tekst">
+        <div class="naam">Nieuwe projectmap</div>
+        <div class="omschrijving">OneDrive-projectmap aanmaken</div>
+      </div>
+      <div class="pijl">›</div>
+    </a>
+  </div>
+
+  <footer>visserinspecties.github.io/foto-upload</footer>
+
+</body>
+</html>
