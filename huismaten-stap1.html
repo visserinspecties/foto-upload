@@ -3701,6 +3701,194 @@ function tekenDoorsnede(m){
   return wrap;
 }
 
+// ============================================================
+// DWARSDOORSNEDE — loodrecht op de nok, voor elk daktype.
+// Toont bouwlagen met vloerdiktes, vrije hoogtes, vloerniveaus, gootlijnen, dakprofiel
+// met hellingshoeken en nok, de 1,50m-lijn met de bruikbare breedte op de zolder (en op
+// verdiepingen waar het dak doorheen snijdt), dakkapellen en uitbouwen in doorsnede.
+// Links in de tekening ligt dakhelft A (VG, of LG bij een nok van voor naar achter).
+// ============================================================
+function tekenDwarsdoorsnede(m){
+  const R = laatsteResultaat || herbereken();
+  if(!R) return null;
+  const daktype = huidigDaktype();
+  const vd = getVloerdikte();
+  const beuk = veldGetal('gs-beukmaat'), diepte = veldGetal('gs-diepte');
+  if(isNaN(beuk) || isNaN(diepte)) return null;
+  const correctie = correctieVoorType(document.getElementById('gs-type')?.value);
+  const bS = beuk + correctie;
+
+  // --- profiel in doorsnede-coördinaten: x van 0 (links) tot W, hoogte in m ---
+  let W, links, rechts, profiel, hL, hR, hellL, hellR, nokX = null, nokH = null, richting;
+  if(isProfielDak(daktype)){
+    const d = R.dak;
+    if(!d || !d.geldig) return null;
+    W = d.span; links = d.codes.A; rechts = d.codes.B;
+    hL = d.hA; hR = d.hB; hellL = d.hellA; hellR = d.hellB; nokX = d.dA; nokH = d.hNok;
+    profiel = [[0, hL], [nokX, nokH], [W, hR]];
+  } else if(daktype === 'schilddak'){
+    const s = R.schild;
+    if(!s || !s.geldig) return null;
+    if(s.nokEvenwijdig){
+      W = s.d; links = 'VG'; rechts = 'AG'; hellL = s.hellVoor; hellR = s.hellAchter;
+      nokX = s.H / s.tV;
+    } else {
+      W = s.b; links = 'LG'; rechts = 'RG'; hellL = hellR = s.hellZij;
+      nokX = W/2;
+    }
+    hL = hR = s.h; nokH = s.nokhoogte;
+    profiel = [[0, hL], [nokX, nokH], [W, hR]];
+  } else {
+    const h = veldGetal('gs-hoogte');
+    if(isNaN(h) || h <= 0) return null;
+    W = diepte; links = 'VG'; rechts = 'AG'; hL = hR = h;
+    profiel = [[0, h], [W, h]];
+  }
+  richting = (links === 'VG') ? 'diepte' : 'breedte';
+  const dakHoogteOp = x => {           // hoogte van de dakrand/het dakvlak boven x
+    for(let i=0; i<profiel.length-1; i++){
+      const [x1,y1] = profiel[i], [x2,y2] = profiel[i+1];
+      if(x >= x1 - 1e-9 && x <= x2 + 1e-9) return x2===x1 ? Math.max(y1,y2) : y1 + (y2-y1)*(x-x1)/(x2-x1);
+    }
+    return profiel[profiel.length-1][1];
+  };
+
+  // --- uitbouwen die in deze doorsnede uitsteken (aan de linker- of rechtergevel) ---
+  const ub = alleUitbouwData().filter(d=>d.geldig && (d.gevel===links || d.gevel===rechts));
+  const ubL = ub.filter(d=>d.gevel===links), ubR = ub.filter(d=>d.gevel===rechts);
+  const extraL = ubL.reduce((mx,d)=>Math.max(mx,d.diepte),0), extraR = ubR.reduce((mx,d)=>Math.max(mx,d.diepte),0);
+
+  const fs = tekstGrootte();
+  const S = SCALE;
+  const topM = Math.max(nokH || 0, hL, hR, ...ub.map(d=>d.hoogte)) ;
+  const margeL = TK_MARGIN + extraL*S + fs*9;     // ruimte voor niveau-labels links
+  const margeR = TK_MARGIN + extraR*S + fs*5;
+  const viewW = W*S + margeL + margeR;
+  const viewH = topM*S + TK_MARGIN*2 + fs*9;
+  const {wrap, canvasWrap} = tekeningBlok(`Doorsnede${nokH != null ? ' (dwars op de nok)' : ''} — ${GEVEL_NAAM[links]} links, ${GEVEL_NAAM[rechts].toLowerCase()} rechts`);
+  const svg = nieuweSvg(viewW, viewH);
+  const x0 = margeL, yBase = viewH - TK_MARGIN - fs*4;
+  const X = x => x0 + x*S, Y = h => yBase - h*S;
+  const tekst = (x, y, t, opt) => {
+    opt = opt || {};
+    const el = svgEl('text', {x, y, 'text-anchor': opt.anchor || 'middle', 'font-size': fs*(opt.schaal||1), fill: opt.kleur || 'black'});
+    if(opt.rot) el.setAttribute('transform', `rotate(-90 ${x} ${y})`);
+    el.textContent = t; svg.appendChild(el); return el;
+  };
+
+  // maaiveld / peil
+  svg.appendChild(svgEl('line', {x1:X(-extraL)-fs*2, y1:yBase, x2:X(W+extraR)+fs*2, y2:yBase, stroke:'#777', 'stroke-width':0.6}));
+  tekst(X(-extraL)-fs*2, yBase+fs*1.2, '± 0 (bovenkant BG-vloer)', {anchor:'start', schaal:0.8, kleur:'#555'});
+
+  // --- vloeren en vrije hoogtes ---
+  const vloeren = R.woon.vloeren;
+  const nietZolder = vloeren.filter(v=>v.id!=='zolder');
+  nietZolder.forEach((v, i)=>{
+    if(i > 0){
+      // tussenvloer onder deze bouwlaag
+      svg.appendChild(svgEl('rect', {x:X(0), y:Y(v.niveau), width:W*S, height:vd*S, fill:'#d9d9d9', stroke:'black', 'stroke-width':0.5}));
+    }
+    if(i > 0) tekst(X(0) - extraL*S - fs*0.8, Y(v.niveau) + fs*0.35, `+${n2(v.niveau)}`, {anchor:'end', schaal:0.9});
+    const hv = v.verdiepingshoogte;
+    if(hv > 0){
+      const xm = X(W*0.5);
+      tekst(xm, Y(v.niveau + hv/2) - fs*0.2, `${v.naam.toLowerCase()} — vrije hoogte ${n2(hv)} m`, {schaal:0.9});
+      // plafondlijn (onderkant vloer erboven) gestippeld
+      svg.appendChild(svgEl('line', {x1:X(0), y1:Y(v.niveau+hv), x2:X(W), y2:Y(v.niveau+hv), stroke:'#999', 'stroke-width':0.4, 'stroke-dasharray':'2,2'}));
+    }
+  });
+  const zolder = vloeren.find(v=>v.id==='zolder');
+  if(zolder){
+    // zoldervloer: alleen tot waar het dak hem raakt
+    svg.appendChild(svgEl('rect', {x:X(0), y:Y(zolder.niveau), width:W*S, height:vd*S, fill:'#d9d9d9', stroke:'black', 'stroke-width':0.5}));
+    tekst(X(0) - extraL*S - fs*0.8, Y(zolder.niveau) + fs*0.35, `+${n2(zolder.niveau)}`, {anchor:'end', schaal:0.9});
+  }
+
+  // --- 1,50m-lijn: op de zolder en op verdiepingen waar het dak doorheen snijdt ---
+  vloeren.filter(v=>v.dakInfo).forEach(v=>{
+    const info = v.dakInfo;
+    let x1, x2;
+    if(info.type === 'strook'){ x1 = info.x1; x2 = info.x2; }
+    else if(info.type === 'rand'){ x1 = richting==='diepte' ? info.voor : info.links; x2 = W - (richting==='diepte' ? info.achter : info.rechts); }
+    else return;
+    const lijn = v.niveau + MIN_HOOGTE_WOON;
+    // uitgesloten zones (< 1,50 m) licht gearceerd
+    [[0, x1], [x2, W]].forEach(([a, b])=>{
+      if(b - a < 0.01) return;
+      const pts = [[a, v.niveau], [b, v.niveau]];
+      pts.push([b, Math.min(lijn, dakHoogteOp(b))]);
+      pts.push([a, Math.min(lijn, dakHoogteOp(a))]);
+      svg.appendChild(svgEl('polygon', {points: pts.map(([x,h])=>`${X(x)},${Y(h)}`).join(' '), fill:'#ececec', stroke:'none'}));
+    });
+    svg.appendChild(svgEl('line', {x1:X(x1), y1:Y(lijn), x2:X(x2), y2:Y(lijn), stroke:'black', 'stroke-width':0.8, 'stroke-dasharray':'4,2'}));
+    [x1, x2].forEach(x=>{
+      if(x <= 0.001 || x >= W - 0.001) return;
+      svg.appendChild(svgEl('line', {x1:X(x), y1:Y(v.niveau), x2:X(x), y2:Y(lijn), stroke:'black', 'stroke-width':0.6, 'stroke-dasharray':'2,2'}));
+    });
+    tekst(X((x1+x2)/2), Y(lijn) - fs*0.4, `1,50 m boven ${v.id==='zolder' ? 'zoldervloer' : 'vloer ' + v.naam.toLowerCase()}`, {schaal:0.85});
+    // maatlijn bruikbare breedte net boven de vloer
+    const yM = Y(v.niveau) - fs*0.9;
+    svg.appendChild(svgEl('line', {x1:X(x1), y1:yM, x2:X(x2), y2:yM, stroke:'black', 'stroke-width':0.5}));
+    tekst(X((x1+x2)/2), yM - fs*0.4, `bruikbaar ${n2(Math.max(x2-x1,0))} m`, {schaal:0.85});
+  });
+
+  // --- gevels (groen) en dak (rood) ---
+  svg.appendChild(svgEl('line', {x1:X(0), y1:Y(0), x2:X(0), y2:Y(hL), stroke:KLEUR.gevel, 'stroke-width':1.6}));
+  svg.appendChild(svgEl('line', {x1:X(W), y1:Y(0), x2:X(W), y2:Y(hR), stroke:KLEUR.gevel, 'stroke-width':1.6}));
+  svg.appendChild(svgEl('polyline', {points: profiel.map(([x,h])=>`${X(x)},${Y(h)}`).join(' '), fill:'none', stroke:KLEUR.dak, 'stroke-width':1.8}));
+  // gootlijnhoogtes
+  tekst(X(0) - extraL*S - fs*5.2, Y(hL/2), `${GEVEL_NAAM[links].toLowerCase()} ${n2(hL)} m`, {rot:true, kleur:KLEUR.gevel, schaal:0.9});
+  tekst(X(W) + extraR*S + fs*1.6, Y(hR/2), `${GEVEL_NAAM[rechts].toLowerCase()} ${n2(hR)} m`, {rot:true, kleur:KLEUR.gevel, schaal:0.9});
+  if(nokH != null){
+    tekst(X(nokX), Y(nokH) - fs*0.7, `nok ${n2(nokH)} m`, {kleur:KLEUR.dak});
+    const xLh = nokX*0.72, xRh = nokX + (W-nokX)*0.28;
+    tekst(X(xLh) - fs*0.6, Y(dakHoogteOp(xLh)) - fs*0.4, `${String(hellL).replace('.',',')}°`, {kleur:KLEUR.dak, anchor:'end', schaal:0.9});
+    tekst(X(xRh) + fs*0.6, Y(dakHoogteOp(xRh)) - fs*0.4, `${String(hellR).replace('.',',')}°`, {kleur:KLEUR.dak, anchor:'start', schaal:0.9});
+  } else {
+    tekst(X(W/2), Y(hL) - fs*0.6, daktype==='plat' ? 'plat dak' : 'bovenkant gevel', {kleur:KLEUR.dak, schaal:0.9});
+  }
+
+  // --- dakkapellen (in doorsnede: wang als driehoek, plat dakje rood) ---
+  if(isProfielDak(daktype) && R.dak && R.dak.geldig){
+    alleDakkapelData().filter(d=>d.geldig).forEach(d=>{
+      const opA = d.dakvlak === 'A';
+      const t = opA ? R.dak.tA : R.dak.tB;
+      const hP = opA ? hL : hR;
+      const voet = Math.max(0, d.afstand || 0);
+      const xVoet = opA ? voet / t : W - voet / t;
+      const hVoet = hP + voet;
+      const hTop = hVoet + d.hoogte;
+      const xAchter = opA ? xVoet + d.diepte : xVoet - d.diepte;
+      svg.appendChild(svgEl('polygon', {points:`${X(xVoet)},${Y(hVoet)} ${X(xVoet)},${Y(hTop)} ${X(xAchter)},${Y(hTop)}`, fill:'white', stroke:KLEUR.gevel, 'stroke-width':1.1}));
+      svg.appendChild(svgEl('line', {x1:X(xVoet), y1:Y(hTop), x2:X(xAchter), y2:Y(hTop), stroke:KLEUR.dak, 'stroke-width':1.4}));
+      tekst(X((xVoet+xAchter)/2), Y(hTop) - fs*0.5, d.naam, {schaal:0.85});
+    });
+  }
+
+  // --- uitbouwen in doorsnede ---
+  [[ubL, -1], [ubR, 1]].forEach(([lijst, zijde])=>{
+    lijst.forEach(d=>{
+      const xa = zijde < 0 ? -d.diepte : W, xb = zijde < 0 ? 0 : W + d.diepte;
+      svg.appendChild(svgEl('rect', {x:X(xa), y:Y(d.hoogte), width:d.diepte*S, height:d.hoogte*S, fill:'white', stroke:KLEUR.gevel, 'stroke-width':1.1}));
+      svg.appendChild(svgEl('line', {x1:X(xa), y1:Y(d.hoogte), x2:X(xb), y2:Y(d.hoogte), stroke:KLEUR.dak, 'stroke-width':1.4}));
+      tekst(X((xa+xb)/2), Y(d.hoogte) - fs*0.5, d.naam, {schaal:0.85});
+      tekst(X((xa+xb)/2), Y(d.hoogte/2), `${n2(d.hoogte)} m`, {schaal:0.85});
+    });
+  });
+
+  // --- maatvoering onderaan ---
+  const yMaat = yBase + fs*2.6;
+  svg.appendChild(svgEl('line', {x1:X(0), y1:yMaat, x2:X(W), y2:yMaat, stroke:'black', 'stroke-width':0.5}));
+  [0, W].forEach(x=> svg.appendChild(svgEl('line', {x1:X(x), y1:yMaat-fs*0.4, x2:X(x), y2:yMaat+fs*0.4, stroke:'black', 'stroke-width':0.5})));
+  tekst(X(W/2), yMaat + fs*1.3, `${richting} ${n2(W)} m`);
+  if(nokX != null && Math.abs(nokX - W/2) > 0.01){
+    tekst(X(nokX), yMaat - fs*0.5, `nok op ${n2(nokX)} m`, {schaal:0.8, kleur:KLEUR.dak});
+  }
+
+  canvasWrap.appendChild(svg);
+  return wrap;
+}
+
 function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellingshoek, dakvlakInfo, blokkage, weergaveGroepen, dakkapelLijst, dakkapelDataAlle, wolfseind, asymProfiel, asymSpiegelen){
   if(isNaN(breedte) || breedte<=0) return null;
   if(!asymProfiel && (gevelhoogte==null || isNaN(gevelhoogte))) return null;
@@ -4159,14 +4347,13 @@ function renderTekening(targetContainerId){
     : tekenGevelaanzicht('Rechtergevel (aanzicht)', m.diepte, m.hoogte, driehoekOpZij, m.hellingshoek, dakvlakInfoZij, blokkageRG, weergaveGroepenVoorGevel('RG'), dakkapellenPerGevel.RG, dakkapelDataAlle, driehoekOpZij ? m.wolfseindB : null);
   if(blokRechts) container.appendChild(blokRechts);
 
-  if(heeftZadel){
-    const blokDoorsnede = tekenDoorsnede(m);
-    if(blokDoorsnede) container.appendChild(blokDoorsnede);
-  }
-  
-  if(heeftAsymmetrisch){
-    const blokDoorsnede = tekenDoorsnede_Asymmetrisch(m);
-    if(blokDoorsnede) container.appendChild(blokDoorsnede);
+  // Dwarsdoorsnede (alle daktypes); de langsdoorsnede alleen bij een wolfseind, omdat die
+  // daar de afkapping laat zien.
+  const blokDwars = tekenDwarsdoorsnede(m);
+  if(blokDwars) container.appendChild(blokDwars);
+  if(heeftZadel && ((m.wolfseindA && m.wolfseindA.afgeknot) || (m.wolfseindB && m.wolfseindB.afgeknot))){
+    const blokLangs = tekenDoorsnede(m);
+    if(blokLangs) container.appendChild(blokLangs);
   }
 
   if(container.children.length === 0){
@@ -4818,9 +5005,9 @@ async function exporteerPDF(opties = {}){
       if(!lijst.length) continue;
       // 1. Past de hele categorie rechts naast de laatste rij? Dan daar (eigen kop, eigen blok).
       if(laatsteRij){
-        const naast = pak(lijst, laatsteRij.xEind + gap*4, laatsteRij.y - katKop);
+        const naast = pak(lijst, laatsteRij.xEind + gap*4, laatsteRij.y);
         if(naast.past){
-          tekenCatKop(cat, laatsteRij.xEind + gap*4, laatsteRij.y - katKop, false);
+          tekenCatKop(cat, laatsteRij.xEind + gap*4, laatsteRij.y, false);
           naast.pl.forEach(tekenItem);
           cursorY = Math.max(cursorY, naast.eindY + gap*3);
           laatsteRij = null;
