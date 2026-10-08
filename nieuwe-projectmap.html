@@ -21,11 +21,12 @@
     .container { padding:16px; }
     .card { background:#fff; border-radius:12px; padding:16px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,0.08); }
     .card label { font-size:13px; font-weight:600; color:#8e8e93; text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:8px; }
+    .card label.sub { font-size:12px; text-transform:none; letter-spacing:0; margin-bottom:4px; }
     .row { display:flex; gap:10px; }
     .row > div { flex:1; }
-    input[type="text"], input[type="number"], select {
+    input[type="text"], input[type="number"], input[type="date"], input[type="time"], select {
       width:100%; padding:10px 12px; border:1px solid #e5e5ea; border-radius:8px;
-      font-size:16px; background:#f9f9f9; color:#1c1c1e;
+      font-size:16px; background:#f9f9f9; color:#1c1c1e; font-family:inherit;
     }
     input::placeholder { color:#c7c7cc; }
     .path-display { background:#f2f2f7; border-radius:8px; padding:10px 12px; font-size:13px; color:#1c1c1e; font-family:monospace; word-break:break-all; min-height:36px; }
@@ -45,6 +46,7 @@
     #login-screen p { color:#636366; margin-bottom:32px; font-size:15px; }
     #app-screen { display:none; }
     .hint { font-size:12px; color:#8e8e93; margin-top:6px; font-style:italic; }
+    .sectie-kop { font-size:13px; font-weight:700; color:#636366; text-transform:uppercase; letter-spacing:0.5px; margin:18px 4px 8px; }
 
     /* Kopieerknopjes bij opdrachtgever-velden */
     .copy-row { display:flex; gap:8px; align-items:flex-end; }
@@ -55,6 +57,37 @@
     }
     .btn-copy:active { opacity:0.7; }
     .btn-copy.copied { background:#34c759; color:#fff; }
+
+    /* Keuzerondjes (woningtype) */
+    .keuze-groep { display:flex; gap:8px; }
+    .card label.keuze {
+      flex:1; display:flex; align-items:center; gap:8px; margin:0; padding:10px 12px;
+      border:1px solid #e5e5ea; border-radius:8px; background:#f9f9f9; cursor:pointer;
+      font-size:15px; font-weight:500; color:#1c1c1e; text-transform:none; letter-spacing:0;
+    }
+    .card label.keuze:has(input:checked) { border-color:#007aff; background:#eaf3ff; }
+    .card label.keuze input { width:18px; height:18px; }
+
+    /* Prijs met euroteken */
+    .prijs-veld { position:relative; }
+    .prijs-veld span { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#8e8e93; font-size:16px; }
+    .prijs-veld input { padding-left:28px; }
+
+    /* Oriëntatie */
+    .orient-grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; margin-top:10px; }
+    .orient-vak { background:#f2f2f7; border-radius:8px; padding:8px 4px; text-align:center; }
+    .orient-vak .code { font-size:11px; color:#8e8e93; font-weight:600; }
+    .orient-vak .richting { font-size:18px; font-weight:700; color:#1c1c1e; }
+    #orient-kaart svg { width:100%; height:240px; display:block; margin-top:10px; background:#fafafa; border-radius:8px; }
+
+    /* Screenshot */
+    .plak-zone {
+      border:2px dashed #c7c7cc; border-radius:10px; padding:16px; text-align:center;
+      color:#8e8e93; font-size:14px; background:#fafafa;
+    }
+    .plak-zone img { max-width:100%; max-height:260px; border-radius:6px; display:block; margin:0 auto; }
+    .plak-knoppen { display:flex; gap:8px; margin-top:8px; }
+    .plak-knoppen .btn-copy { flex:1; }
 
     /* Wachtrij-kaart */
     .queue-card { display:flex; justify-content:space-between; align-items:center; }
@@ -121,9 +154,58 @@
     </div>
 
     <button class="btn btn-secondary" onclick="zoekAdres()">🔍 Adres aanvullen opzoeken</button>
-    <p class="hint" style="margin:-4px 0 12px 4px;">Vul in wat je weet en klik op zoeken — ontbrekende velden worden aangevuld.</p>
+    <p class="hint" style="margin:-4px 0 12px 4px;">Vul in wat je weet en klik op zoeken — ontbrekende velden worden aangevuld. Met huisnummer haalt de tool ook bouwjaar, oppervlakte en gevel-oriëntatie uit de BAG.</p>
+
+    <!-- Woninggegevens uit de BAG -->
+    <div class="sectie-kop">Woning</div>
+    <div class="card">
+      <label>Woninggegevens (BAG)</label>
+      <div class="row">
+        <div>
+          <label class="sub">Bouwjaar</label>
+          <input type="number" id="inp-bouwjaar" placeholder="bijv. 1965">
+        </div>
+        <div>
+          <label class="sub">Gebruiksoppervlakte (m²)</label>
+          <input type="number" id="inp-oppervlakte" placeholder="bijv. 68">
+        </div>
+      </div>
+      <p class="hint" id="bag-info">Wordt ingevuld na "Adres aanvullen opzoeken" (met huisnummer).</p>
+    </div>
+
+    <div class="card">
+      <label>Gevel-oriëntatie</label>
+      <label class="sub">Voorgevel wijst naar</label>
+      <select id="inp-orient-vg" onchange="orientatieHandmatigGewijzigd()">
+        <option value="">— onbekend —</option>
+        <option value="N">N (noord)</option>
+        <option value="NO">NO (noordoost)</option>
+        <option value="O">O (oost)</option>
+        <option value="ZO">ZO (zuidoost)</option>
+        <option value="Z">Z (zuid)</option>
+        <option value="ZW">ZW (zuidwest)</option>
+        <option value="W">W (west)</option>
+        <option value="NW">NW (noordwest)</option>
+      </select>
+      <div class="orient-grid" id="orient-grid"></div>
+      <div id="orient-kaart"></div>
+      <p class="hint" id="orient-info">Voorgevel = gevel naar de straat van het adres. Linker- en rechtergevel gezien vanaf de straat. Noord is boven.</p>
+    </div>
+
+    <div class="card">
+      <label>Screenshot BAG-viewer <span style="text-transform:none; font-weight:400;">(optioneel)</span></label>
+      <div class="plak-zone" id="plak-zone">Druk <b>Ctrl+V</b> om een screenshot te plakken, of gebruik de knoppen hieronder.</div>
+      <div class="plak-knoppen">
+        <button class="btn-copy" onclick="plakScreenshotKnop()">📋 Plakken</button>
+        <button class="btn-copy" onclick="document.getElementById('inp-screenshot').click()">🖼️ Kies bestand</button>
+        <button class="btn-copy" id="btn-screenshot-weg" onclick="verwijderScreenshot()" style="display:none;">✖ Weg</button>
+      </div>
+      <input type="file" id="inp-screenshot" accept="image/*" style="display:none" onchange="screenshotGekozen(this)">
+      <p class="hint">Wordt opgeslagen in 020 AANTEKENINGEN als "BAG [mapnaam]".</p>
+    </div>
 
     <!-- Opdrachtgever -->
+    <div class="sectie-kop">Opdrachtgever</div>
     <div class="card">
       <label>Aanhef <span style="text-transform:none; font-weight:400;">(optioneel)</span></label>
       <select id="inp-aanhef">
@@ -171,6 +253,38 @@
     <button class="btn btn-secondary" id="copy-alles" onclick="kopieerAlleGegevens()">📋 Kopieer alle opdrachtgever-gegevens</button>
     <p class="hint" style="margin:-4px 0 12px 4px;">Handig om in één keer in een agenda-afspraak te plakken.</p>
 
+    <!-- Afspraak -->
+    <div class="sectie-kop">Afspraak &amp; EP-Sys</div>
+    <div class="card">
+      <label>Afspraak opname <span style="text-transform:none; font-weight:400;">(optioneel — mag leeg)</span></label>
+      <div class="row">
+        <div>
+          <label class="sub">Datum</label>
+          <input type="date" id="inp-afspraak-datum">
+        </div>
+        <div>
+          <label class="sub">Tijd</label>
+          <input type="time" id="inp-afspraak-tijd" step="300">
+        </div>
+      </div>
+    </div>
+
+    <!-- EP-Sys -->
+    <div class="card">
+      <label>Woningtype (EP-Sys)</label>
+      <div class="keuze-groep">
+        <label class="keuze"><input type="radio" name="woningtype" value="eengezinswoning"> Eengezinswoning</label>
+        <label class="keuze"><input type="radio" name="woningtype" value="appartement"> Appartement</label>
+      </div>
+      <p class="hint" id="woningtype-hint"></p>
+
+      <label style="margin-top:14px;">Afgesproken prijs incl. btw <span style="text-transform:none; font-weight:400;">(optioneel)</span></label>
+      <div class="prijs-veld">
+        <span>€</span>
+        <input type="text" id="inp-prijs" inputmode="decimal" placeholder="325">
+      </div>
+    </div>
+
     <button class="btn btn-secondary" id="copy-edge-epsys" onclick="kopieerEdgeOpdrachtEpSys()">🌐 Kopieer EP-Sys gegevens (voor Edge-shortcut)</button>
     <p class="hint" style="margin:-4px 0 12px 4px;">Plak dit ná de "/nieuw-epsys-klant" shortcut-chip in de Claude-sidebar (Edge).</p>
 
@@ -181,6 +295,7 @@
     </div>
 
     <button class="btn btn-primary" id="btn-maak-map" onclick="maakProjectmap()" disabled>📁 Projectmap aanmaken</button>
+    <button class="btn btn-secondary" onclick="formulierLeegmaken()">🧹 Formulier leegmaken (volgend project)</button>
 
     <!-- Wachtrij (voor als er geen internet is) -->
     <div class="card queue-card">
@@ -224,6 +339,9 @@ const SUBMAPPEN = [
   "090 NAGEKOMEN INFORMATIE",
   "099 VERVALLEN"
 ];
+
+// Map binnen het project waar de BAG-screenshot terechtkomt
+const SCREENSHOT_SUBMAP = "020 AANTEKENINGEN";
 
 // Sjabloonbestanden die uit de root van "0_In Behandeling" gekopieerd worden
 const TEMPLATE_BESTANDEN = [
@@ -318,6 +436,7 @@ function toonLogin() { document.getElementById('login-screen').style.display='fl
 
 // ── Init ──────────────────────────────────────────────────────
 async function init() {
+  toonOrientatie();
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code'), error = params.get('error');
   if (error) { document.getElementById('debug').textContent = params.get('error_description')||error; toonLogin(); return; }
@@ -330,6 +449,267 @@ async function init() {
     catch(e) { localStorage.removeItem('rt'); }
   }
   toonLogin();
+}
+
+// ══════════════════════════════════════════════════════════════
+// ── Gevel-oriëntatie: rekenkern (RD-coördinaten, x = oost, y = noord)
+// ══════════════════════════════════════════════════════════════
+const WINDRICHTINGEN = ['N','NO','O','ZO','Z','ZW','W','NW'];
+
+function normHoek(a) { return ((a % 360) + 360) % 360; }
+function hoekVerschil(a, b) { const d = Math.abs(normHoek(a) - normHoek(b)); return d > 180 ? 360 - d : d; }
+function hoekNaarWindrichting(a) { return WINDRICHTINGEN[Math.round(normHoek(a) / 45) % 8]; }
+// Kompashoek (0 = N, 90 = O) van een vector (dx, dy)
+function kompasHoek(dx, dy) { return normHoek(Math.atan2(dx, dy) * 180 / Math.PI); }
+
+function parseRdPunt(wkt) {
+  const m = /POINT\(([\d.\-]+) ([\d.\-]+)\)/.exec(wkt || '');
+  return m ? [parseFloat(m[1]), parseFloat(m[2])] : null;
+}
+function parseRdLijnen(wkt) {
+  // MULTILINESTRING((x y,x y),(x y,...)) of LINESTRING(x y,...)
+  const lijnen = [];
+  const groepen = (wkt || '').match(/\(([^()]+)\)/g) || [];
+  for (const g of groepen) {
+    const pts = g.replace(/[()]/g, '').split(',').map(s => s.trim().split(/\s+/).map(Number));
+    if (pts.length >= 2) lijnen.push(pts);
+  }
+  return lijnen;
+}
+
+function dichtstbijPuntOpSegment(p, a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1];
+  const len2 = dx * dx + dy * dy;
+  let t = len2 ? ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  return [a[0] + t * dx, a[1] + t * dy];
+}
+function dichtstbijPuntOpLijnen(p, lijnen) {
+  let best = null, bestD = Infinity;
+  for (const l of lijnen) for (let i = 0; i < l.length - 1; i++) {
+    const q = dichtstbijPuntOpSegment(p, l[i], l[i + 1]);
+    const d = Math.hypot(q[0] - p[0], q[1] - p[1]);
+    if (d < bestD) { bestD = d; best = q; }
+  }
+  return best ? { punt: best, afstand: bestD } : null;
+}
+
+function puntInPolygoon(p, ring) {
+  let binnen = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i], [xj, yj] = ring[j];
+    if (((yi > p[1]) !== (yj > p[1])) && (p[0] < (xj - xi) * (p[1] - yi) / (yj - yi) + xi)) binnen = !binnen;
+  }
+  return binnen;
+}
+
+// Bepaalt de voorgevel: de pandgevel die naar de straat van het adres kijkt.
+// Stap 1: richting van het adrespunt naar het dichtstbijzijnde punt op de straat-as.
+// Stap 2: van de gevels van het pand die ongeveer die kant op kijken (≤ 50° afwijking)
+//         kiezen we de gevel die het dichtst bij de straat ligt; de loodlijn daarop
+//         (naar buiten) is de exacte voorgevelrichting.
+function bepaalOrientatie(adresPunt, straatLijnen, pandRing) {
+  const straat = dichtstbijPuntOpLijnen(adresPunt, straatLijnen);
+  if (!straat) return null;
+  const richtingStraat = kompasHoek(straat.punt[0] - adresPunt[0], straat.punt[1] - adresPunt[1]);
+
+  let voorgevelHoek = richtingStraat, bron = 'straatrichting';
+  if (pandRing && pandRing.length >= 4) {
+    // Draairichting van de ring bepalen (positief oppervlak = tegen de klok in)
+    let opp = 0;
+    for (let i = 0; i < pandRing.length - 1; i++) opp += pandRing[i][0] * pandRing[i + 1][1] - pandRing[i + 1][0] * pandRing[i][1];
+    const tegenKlok = opp > 0;
+    let beste = null;
+    for (let i = 0; i < pandRing.length - 1; i++) {
+      const a = pandRing[i], b = pandRing[i + 1];
+      const dx = b[0] - a[0], dy = b[1] - a[1];
+      const lengte = Math.hypot(dx, dy);
+      if (lengte < 2) continue; // kleine knikjes negeren
+      const nx = tegenKlok ? dy : -dy, ny = tegenKlok ? -dx : dx; // naar buiten gerichte loodlijn
+      const normaalHoek = kompasHoek(nx, ny);
+      const verschil = hoekVerschil(normaalHoek, richtingStraat);
+      if (verschil > 50) continue;
+      const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      const afst = dichtstbijPuntOpLijnen(mid, straatLijnen).afstand;
+      const score = afst + verschil * 0.05 - Math.min(lengte, 10) * 0.2;
+      if (!beste || score < beste.score) beste = { score, normaalHoek };
+    }
+    if (beste) { voorgevelHoek = beste.normaalHoek; bron = 'pandgevel'; }
+  }
+  return { hoek: Math.round(normHoek(voorgevelHoek)), bron, afstandTotStraat: Math.round(straat.afstand) };
+}
+
+// Afgeleide gevels uit de voorgevelrichting. Links/rechts = gezien vanaf de straat.
+function gevelsUitVoorgevel(vgRichting) {
+  const i = WINDRICHTINGEN.indexOf(vgRichting);
+  if (i < 0) return null;
+  return {
+    VG: WINDRICHTINGEN[i],
+    AG: WINDRICHTINGEN[(i + 4) % 8],
+    LG: WINDRICHTINGEN[(i + 2) % 8],
+    RG: WINDRICHTINGEN[(i + 6) % 8]
+  };
+}
+
+// ── BAG-verrijking via PDOK ───────────────────────────────────
+const PDOK_LS  = 'https://api.pdok.nl/bzk/locatieserver/search/v3_1';
+const PDOK_WFS = 'https://service.pdok.nl/lv/bag/wfs/v2_0';
+
+// Laatste BAG-resultaat (voor de kaart en de oriëntatie)
+let bagState = null;
+let orientatieBron = ''; // 'automatisch' of 'handmatig'
+
+async function wfsBbox(laag, x, y, d) {
+  const url = `${PDOK_WFS}?service=WFS&version=2.0.0&request=GetFeature&typeNames=bag:${laag}` +
+    `&outputFormat=application/json&srsName=EPSG:28992&bbox=${x - d},${y - d},${x + d},${y + d},urn:ogc:def:crs:EPSG::28992`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`BAG ${laag} niet bereikbaar (HTTP ${resp.status})`);
+  return (await resp.json()).features || [];
+}
+
+// doc = resultaat van de PDOK-locatieserver (type adres)
+async function haalBagGegevens(doc) {
+  const punt = parseRdPunt(doc.centroide_rd);
+  if (!punt) throw new Error('geen coördinaten bij dit adres');
+  const res = { punt, vboId: doc.adresseerbaarobject_id || '' };
+
+  // 1. Verblijfsobject: oppervlakte, gebruiksdoel, pand-id
+  const vbos = await wfsBbox('verblijfsobject', punt[0], punt[1], 1);
+  const vbo = vbos.find(f => f.properties.identificatie === res.vboId) || vbos[0];
+  if (vbo) {
+    res.oppervlakte  = vbo.properties.oppervlakte ?? '';
+    res.gebruiksdoel = vbo.properties.gebruiksdoel || '';
+    res.pandId       = vbo.properties.pandidentificatie || '';
+    res.bouwjaar     = vbo.properties.bouwjaar ?? '';
+  }
+
+  // 2. Pand: bouwjaar, aantal verblijfsobjecten, omtrek (+ buurpanden voor de kaart)
+  const panden = await wfsBbox('pand', punt[0], punt[1], 25);
+  const ringVan = f => f.geometry?.type === 'Polygon' ? f.geometry.coordinates[0]
+                     : f.geometry?.type === 'MultiPolygon' ? f.geometry.coordinates[0][0] : null;
+  const pand = panden.find(f => f.properties.identificatie === res.pandId)
+            || panden.find(f => ringVan(f) && puntInPolygoon(punt, ringVan(f)));
+  if (pand) {
+    res.bouwjaar  = pand.properties.bouwjaar ?? res.bouwjaar;
+    res.aantalVbo = pand.properties.aantal_verblijfsobjecten ?? '';
+    res.pandRing  = ringVan(pand);
+  }
+  res.buurPanden = panden.filter(f => f !== pand).map(ringVan).filter(Boolean);
+
+  // 3. Straat van het adres (as van de weg) → oriëntatie
+  if (doc.openbareruimte_id) {
+    const zoek = await fetch(`${PDOK_LS}/free?fq=type:weg&fq=openbareruimte_id:${doc.openbareruimte_id}&rows=1&fl=id,geometrie_rd`).then(r => r.json());
+    const weg = zoek.response?.docs?.[0];
+    if (weg?.geometrie_rd) {
+      res.straatLijnen = parseRdLijnen(weg.geometrie_rd);
+      res.orientatie = bepaalOrientatie(punt, res.straatLijnen, res.pandRing);
+    }
+  }
+  return res;
+}
+
+function leegBagVelden() {
+  bagState = null;
+  orientatieBron = '';
+  document.getElementById('inp-bouwjaar').value = '';
+  document.getElementById('inp-oppervlakte').value = '';
+  document.getElementById('inp-orient-vg').value = '';
+  document.getElementById('bag-info').textContent = 'Wordt ingevuld na "Adres aanvullen opzoeken" (met huisnummer).';
+  document.getElementById('woningtype-hint').textContent = '';
+  toonOrientatie();
+}
+
+function vulBagVelden(g) {
+  bagState = g;
+  document.getElementById('inp-bouwjaar').value    = g.bouwjaar ?? '';
+  document.getElementById('inp-oppervlakte').value = g.oppervlakte ?? '';
+
+  const info = [];
+  if (g.gebruiksdoel) info.push(`gebruiksdoel: ${g.gebruiksdoel}`);
+  if (g.aantalVbo !== undefined && g.aantalVbo !== '') info.push(`${g.aantalVbo} adres(sen) in het pand`);
+  document.getElementById('bag-info').textContent = info.length ? 'BAG: ' + info.join(' · ') : 'Geen pandgegevens gevonden in de BAG.';
+
+  // Voorstel woningtype: meer dan 1 adres in het pand → appartement
+  if (g.aantalVbo !== undefined && g.aantalVbo !== '') {
+    const voorstel = Number(g.aantalVbo) > 1 ? 'appartement' : 'eengezinswoning';
+    const radio = document.querySelector(`input[name="woningtype"][value="${voorstel}"]`);
+    if (radio) radio.checked = true;
+    document.getElementById('woningtype-hint').textContent =
+      `Voorstel op basis van de BAG (${g.aantalVbo} adres(sen) in het pand) — controleer en pas zo nodig aan.`;
+  }
+
+  if (g.orientatie) {
+    document.getElementById('inp-orient-vg').value = hoekNaarWindrichting(g.orientatie.hoek);
+    orientatieBron = 'automatisch';
+  }
+  toonOrientatie();
+}
+
+function orientatieHandmatigGewijzigd() {
+  orientatieBron = document.getElementById('inp-orient-vg').value ? 'handmatig' : '';
+  toonOrientatie();
+}
+
+// Toont de vier gevels + een klein kaartje (noord boven) ter controle
+function toonOrientatie() {
+  const vg = document.getElementById('inp-orient-vg').value;
+  const gevels = gevelsUitVoorgevel(vg);
+  const namen = { VG:'Voorgevel', AG:'Achtergevel', LG:'Linkergevel', RG:'Rechtergevel' };
+  document.getElementById('orient-grid').innerHTML = ['VG','AG','LG','RG'].map(k =>
+    `<div class="orient-vak"><div class="code">${k}</div><div class="richting">${gevels ? gevels[k] : '–'}</div><div class="code" style="font-weight:400">${namen[k]}</div></div>`
+  ).join('');
+
+  const info = document.getElementById('orient-info');
+  if (bagState?.orientatie && orientatieBron === 'automatisch') {
+    info.textContent = `Automatisch bepaald: voorgevel ${bagState.orientatie.hoek}° (${hoekNaarWindrichting(bagState.orientatie.hoek)}). Linker- en rechtergevel gezien vanaf de straat. Noord is boven. Controleer met het kaartje.`;
+  } else if (orientatieBron === 'handmatig') {
+    info.textContent = 'Handmatig ingesteld. Linker- en rechtergevel gezien vanaf de straat. Noord is boven.';
+  } else {
+    info.textContent = 'Voorgevel = gevel naar de straat van het adres. Linker- en rechtergevel gezien vanaf de straat. Noord is boven.';
+  }
+  tekenOrientatieKaart(gevels);
+}
+
+function tekenOrientatieKaart(gevels) {
+  const el = document.getElementById('orient-kaart');
+  if (!bagState?.punt || !bagState?.pandRing) { el.innerHTML = ''; return; }
+  const [px, py] = bagState.punt;
+  const R = 30; // halve breedte kaart in meters
+  // SVG-coördinaten: x = oost, y = -noord (zodat noord boven staat)
+  const pt = ([x, y]) => `${(x - px).toFixed(2)},${(-(y - py)).toFixed(2)}`;
+  const poly = ring => ring.map(pt).join(' ');
+
+  const buren = (bagState.buurPanden || []).map(r => `<polygon points="${poly(r)}" fill="#e3e3e8" stroke="#c7c7cc" stroke-width="0.3"/>`).join('');
+  const straten = (bagState.straatLijnen || []).map(l => `<polyline points="${l.map(pt).join(' ')}" fill="none" stroke="#f5d76e" stroke-width="5" stroke-linecap="round"/>`).join('');
+  const pand = `<polygon points="${poly(bagState.pandRing)}" fill="#bcd3f5" stroke="#1f4e9c" stroke-width="0.6"/>`;
+
+  // Labels VG/AG/LG/RG rond het adrespunt, op de juiste windrichting
+  let labels = '';
+  if (gevels) {
+    const basis = (orientatieBron === 'automatisch' && bagState.orientatie) ? bagState.orientatie.hoek
+                : WINDRICHTINGEN.indexOf(gevels.VG) * 45;
+    const plaats = { VG: basis, AG: basis + 180, LG: basis + 90, RG: basis + 270 };
+    for (const k of ['VG','AG','LG','RG']) {
+      const a = plaats[k] * Math.PI / 180, r = 17;
+      const x = Math.sin(a) * r, y = -Math.cos(a) * r;
+      const kleur = k === 'VG' ? '#d0021b' : '#1c1c1e';
+      labels += `<text x="${x.toFixed(1)}" y="${(y + 1.4).toFixed(1)}" font-size="4" font-weight="700" text-anchor="middle" fill="${kleur}">${k} ${gevels[k]}</text>`;
+    }
+    const a = basis * Math.PI / 180;
+    labels += `<line x1="0" y1="0" x2="${(Math.sin(a) * 11).toFixed(1)}" y2="${(-Math.cos(a) * 11).toFixed(1)}" stroke="#d0021b" stroke-width="0.8" marker-end="url(#pijl)"/>`;
+  }
+
+  el.innerHTML = `
+    <svg viewBox="${-R} ${-R * 0.8} ${2 * R} ${1.6 * R}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+      <defs><marker id="pijl" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d0021b"/></marker></defs>
+      ${straten}${buren}${pand}
+      <circle cx="0" cy="0" r="0.9" fill="#1f4e9c"/>
+      ${labels}
+      <g transform="translate(${R - 5},${-R * 0.8 + 10})">
+        <path d="M0,-4 L2,2 L0,1 L-2,2 Z" fill="#1c1c1e"/>
+        <text x="0" y="-5" font-size="3.5" font-weight="700" text-anchor="middle">N</text>
+      </g>
+    </svg>`;
 }
 
 // ── PDOK adresopzoek ──────────────────────────────────────────
@@ -357,12 +737,13 @@ async function zoekAdres() {
     return;
   }
   if (toevoeging) params.append('fq', `huisnummertoevoeging:${toevoeging}`);
-  params.append('fl', 'straatnaam,woonplaatsnaam,postcode,huisnummer,huisnummertoevoeging');
+  params.append('fl', 'straatnaam,woonplaatsnaam,postcode,huisnummer,huisnummertoevoeging,centroide_rd,adresseerbaarobject_id,openbareruimte_id');
   params.append('rows', '5');
 
+  leegBagVelden();
   setStatus('<span class="spinner"></span> Adres opzoeken...', 'loading');
   try {
-    const url = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?${params.toString()}`;
+    const url = `${PDOK_LS}/free?${params.toString()}`;
     const resp = await fetch(url);
     const data = await resp.json();
     const docs = data.response?.docs || [];
@@ -376,11 +757,102 @@ async function zoekAdres() {
     document.getElementById('inp-straat').value  = d.straatnaam || straat;
     document.getElementById('inp-plaats').value  = d.woonplaatsnaam || plaats;
     if (d.postcode) document.getElementById('inp-postcode').value = d.postcode;
-    setStatus(`✅ Gevonden: ${d.straatnaam || ''} ${d.huisnummer || ''}${d.huisnummertoevoeging || ''}, ${d.postcode || ''} ${d.woonplaatsnaam || ''}`.replace(/\s+/g,' ').trim(), 'success');
+    const gevonden = `${d.straatnaam || ''} ${d.huisnummer || ''}${d.huisnummertoevoeging || ''}, ${d.postcode || ''} ${d.woonplaatsnaam || ''}`.replace(/\s+/g,' ').trim();
+    updateMapnaamPreview();
+
+    // BAG-gegevens alleen ophalen als er een huisnummer is (anders weten we niet wélke woning)
+    if (!huisnummer) {
+      setStatus(`✅ Gevonden: ${gevonden} — geen huisnummer, dus geen BAG-gegevens opgehaald`, 'success');
+      return;
+    }
+    setStatus(`<span class="spinner"></span> Gevonden: ${gevonden} — BAG-gegevens ophalen...`, 'loading');
+    try {
+      const g = await haalBagGegevens(d);
+      vulBagVelden(g);
+      const delen = [];
+      if (g.bouwjaar) delen.push(`bouwjaar ${g.bouwjaar}`);
+      if (g.orientatie) delen.push(`voorgevel ${hoekNaarWindrichting(g.orientatie.hoek)}`);
+      setStatus(`✅ Gevonden: ${gevonden}${delen.length ? ' · ' + delen.join(' · ') : ''}`, 'success');
+    } catch(e) {
+      setStatus(`✅ Gevonden: ${gevonden} · ⚠️ BAG-gegevens ophalen mislukt (${e.message}) — vul zelf in`, 'error');
+    }
   } catch(e) {
     setStatus('❌ Opzoeken mislukt: '+e.message+' — vul handmatig in', 'error');
   }
   updateMapnaamPreview();
+}
+
+// ── Screenshot BAG-viewer: plakken / kiezen ───────────────────
+let screenshotBlob = null;
+
+function zetScreenshot(blob) {
+  if (!blob || !blob.type.startsWith('image/')) return;
+  screenshotBlob = blob;
+  const url = URL.createObjectURL(blob);
+  document.getElementById('plak-zone').innerHTML = `<img src="${url}" alt="Screenshot BAG-viewer">`;
+  document.getElementById('btn-screenshot-weg').style.display = '';
+}
+
+function verwijderScreenshot() {
+  screenshotBlob = null;
+  document.getElementById('plak-zone').innerHTML = 'Druk <b>Ctrl+V</b> om een screenshot te plakken, of gebruik de knoppen hieronder.';
+  document.getElementById('btn-screenshot-weg').style.display = 'none';
+  document.getElementById('inp-screenshot').value = '';
+}
+
+function screenshotGekozen(input) {
+  if (input.files && input.files[0]) zetScreenshot(input.files[0]);
+}
+
+// Ctrl+V overal op de pagina: als er een afbeelding op het klembord staat, wordt dat de screenshot
+document.addEventListener('paste', (e) => {
+  const items = e.clipboardData?.items || [];
+  for (const it of items) {
+    if (it.type && it.type.startsWith('image/')) {
+      const f = it.getAsFile();
+      if (f) { zetScreenshot(f); e.preventDefault(); return; }
+    }
+  }
+});
+
+async function plakScreenshotKnop() {
+  try {
+    const items = await navigator.clipboard.read();
+    for (const it of items) {
+      const type = it.types.find(t => t.startsWith('image/'));
+      if (type) { zetScreenshot(await it.getType(type)); return; }
+    }
+    setStatus('⚠️ Geen afbeelding op het klembord gevonden', 'error');
+  } catch(e) {
+    setStatus('⚠️ Plakken via de knop werkt hier niet — gebruik Ctrl+V of "Kies bestand"', 'error');
+  }
+}
+
+// Graph "simple upload" kan maximaal 4 MB aan. Grotere screenshots zetten we om naar JPEG.
+async function verkleinIndienNodig(blob) {
+  if (blob.size <= 3.5 * 1024 * 1024) return blob;
+  const bitmap = await createImageBitmap(blob);
+  const schaal = Math.min(1, 2400 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(bitmap.width * schaal);
+  canvas.height = Math.round(bitmap.height * schaal);
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  return await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.85));
+}
+
+async function slaScreenshotOp(projectPad, g) {
+  if (!g.screenshot) return false;
+  const blob = await verkleinIndienNodig(g.screenshot);
+  const ext = blob.type === 'image/jpeg' ? 'jpg' : blob.type === 'image/webp' ? 'webp' : 'png';
+  const pad = `${projectPad}/${SCREENSHOT_SUBMAP}/BAG ${g.mapnaam}.${ext}`;
+  const token = await getToken();
+  const resp = await fetch(`https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(pad)}:/content`, {
+    method: 'PUT', headers: { Authorization: 'Bearer ' + token, 'Content-Type': blob.type || 'image/png' }, body: blob
+  });
+  if (!resp.ok) throw new Error('upload screenshot mislukt');
+  return true;
 }
 
 // ── Mapnaam opbouwen ──────────────────────────────────────────
@@ -409,6 +881,90 @@ function updateMapnaamPreview() {
   const naam = berekenMapnaam();
   document.getElementById('mapnaam-preview').textContent = naam || 'Vul de velden in...';
   document.getElementById('btn-maak-map').disabled = !naam;
+}
+
+// ── Alle formuliergegevens in één keer vastleggen ─────────────
+// Dit object gaat mee naar de projectmap, de wachtrij en de Huismaten-kopie,
+// zodat later verwerken nooit de gegevens van een ánder (nieuw ingevuld) project pakt.
+function verzamelGegevens() {
+  const waarde = id => document.getElementById(id).value.trim();
+  const vg = waarde('inp-orient-vg');
+  return {
+    mapnaam:      berekenMapnaam(),
+    postcode:     waarde('inp-postcode').replace(/\s/g,'').toUpperCase(),
+    plaats:       waarde('inp-plaats'),
+    straat:       waarde('inp-straat'),
+    huisnummer:   waarde('inp-huisnummer'),
+    toevoeging:   waarde('inp-toevoeging'),
+    aanhef:       document.getElementById('inp-aanhef').value,
+    voornaam:     waarde('inp-voornaam'),
+    achternaam:   waarde('inp-achternaam'),
+    email:        waarde('inp-email'),
+    telefoon:     waarde('inp-telefoon'),
+    bouwjaar:     waarde('inp-bouwjaar'),
+    oppervlakte:  waarde('inp-oppervlakte'),
+    aantalAdressenInPand: bagState?.aantalVbo ?? '',
+    woningtype:   document.querySelector('input[name="woningtype"]:checked')?.value || '',
+    orientatie:   gevelsUitVoorgevel(vg),           // { VG, AG, LG, RG } of null
+    orientatieHoek: (orientatieBron === 'automatisch' && bagState?.orientatie) ? bagState.orientatie.hoek : null,
+    orientatieBron: vg ? orientatieBron : '',
+    afspraakDatum: waarde('inp-afspraak-datum'),
+    afspraakTijd:  waarde('inp-afspraak-tijd'),
+    prijs:         waarde('inp-prijs'),
+    screenshot:    screenshotBlob
+  };
+}
+
+// ── Opmaak-hulpjes ────────────────────────────────────────────
+function bepaalAanhefLabel(code) {
+  if (code === 'heer')     return 'De heer';
+  if (code === 'mevrouw')  return 'Mevrouw';
+  if (code === 'familie')  return 'Familie';
+  return '';
+}
+
+function naamRegelVan(g) {
+  return [bepaalAanhefLabel(g.aanhef), g.voornaam, g.achternaam].filter(Boolean).join(' ');
+}
+
+function adresRegelVan(g) {
+  const nr = g.huisnummer ? g.huisnummer + (g.toevoeging || '') : '';
+  return [[g.straat, nr].filter(Boolean).join(' '), [g.postcode, g.plaats].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+}
+
+// "325" / "325,5" / "1.250,00" / "325.50" → "€ 325,00"
+function formatPrijs(tekst) {
+  if (!tekst) return '';
+  let s = tekst.replace(/[€\s]/g, '');
+  s = s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s;
+  const n = parseFloat(s);
+  if (isNaN(n)) return tekst;
+  return n.toLocaleString('nl-NL', { style: 'currency', currency: 'EUR' });
+}
+
+// "2026-10-18" + "10:00" → "zondag 18 oktober 2026 rond 10:00 uur"
+function formatAfspraak(datum, tijd) {
+  if (!datum && !tijd) return '';
+  let tekst = '';
+  if (datum) {
+    const d = new Date(datum + 'T12:00:00');
+    tekst = d.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  }
+  if (tijd) tekst += (tekst ? ' ' : '') + `rond ${tijd} uur`;
+  return tekst;
+}
+
+function woningtypeLabel(w) {
+  return w === 'appartement' ? 'Appartement' : w === 'eengezinswoning' ? 'Eengezinswoning' : '';
+}
+
+function orientatieRegel(g) {
+  if (!g.orientatie) return '';
+  const o = g.orientatie;
+  const extra = g.orientatieBron === 'automatisch'
+    ? ` (automatisch bepaald${g.orientatieHoek !== null && g.orientatieHoek !== undefined ? ', voorgevel ' + g.orientatieHoek + '°' : ''})`
+    : g.orientatieBron === 'handmatig' ? ' (handmatig ingesteld)' : '';
+  return `VG ${o.VG} · AG ${o.AG} · LG ${o.LG} · RG ${o.RG}${extra}`;
 }
 
 // ── Graph: map aanmaken ───────────────────────────────────────
@@ -465,11 +1021,23 @@ async function schrijfTekstbestand(pad, tekst) {
 }
 
 // ── Huismaten-tool: projectgebonden kopie maken in 020 AANTEKENINGEN ──
-async function maakHuismatenKopie(projectPad, naam) {
+// Projectgegevens gaan mee als PROJECT_GEGEVENS, maar alleen als het Huismaten-sjabloon
+// de regel  const PROJECT_GEGEVENS = "__PROJECT_GEGEVENS__";  bevat (anders verandert er niets).
+async function maakHuismatenKopie(projectPad, g) {
+  const naam = g.mapnaam;
   const sjabloon = await haalBestandAlsTekst(`${ROOT_PATH}/${HUISMATEN_TEMPLATE_BESTAND}`);
+  const { screenshot, ...zonderAfbeelding } = g;
+  const projectGegevens = {
+    ...zonderAfbeelding,
+    naamOpdrachtgever: naamRegelVan(g),
+    adres: adresRegelVan(g),
+    afspraak: formatAfspraak(g.afspraakDatum, g.afspraakTijd),
+    prijsTekst: formatPrijs(g.prijs)
+  };
   const gevuld = sjabloon
     .replace('const PROJECT_NAAM = "__PROJECT_NAAM__";', `const PROJECT_NAAM = ${JSON.stringify(naam)};`)
-    .replace('const PROJECT_PAD  = "__PROJECT_PAD__";', `const PROJECT_PAD  = ${JSON.stringify(projectPad + '/020 AANTEKENINGEN')};`);
+    .replace('const PROJECT_PAD  = "__PROJECT_PAD__";', `const PROJECT_PAD  = ${JSON.stringify(projectPad + '/020 AANTEKENINGEN')};`)
+    .replace('const PROJECT_GEGEVENS = "__PROJECT_GEGEVENS__";', `const PROJECT_GEGEVENS = ${JSON.stringify(projectGegevens)};`);
   const doelbestand = `Huismaten ${naam}.html`;
   await schrijfTekstbestand(`${projectPad}/020 AANTEKENINGEN/${doelbestand}`, gevuld);
   return doelbestand;
@@ -504,62 +1072,43 @@ function kopieerVeld(veldId, knopId) {
 }
 
 function kopieerVolledigeNaam() {
-  const aanhef     = document.getElementById('inp-aanhef').value;
-  const voornaam   = document.getElementById('inp-voornaam').value.trim();
-  const achternaam = document.getElementById('inp-achternaam').value.trim();
-  const naamRegel  = [bepaalAanhefLabel(aanhef), voornaam, achternaam].filter(Boolean).join(' ');
+  const naamRegel = naamRegelVan(verzamelGegevens());
   if (!naamRegel) return;
   kopieerNaarKlembord(naamRegel, 'copy-volledige-naam');
 }
 
 function kopieerAlleGegevens() {
-  const aanhef     = document.getElementById('inp-aanhef').value;
-  const voornaam   = document.getElementById('inp-voornaam').value.trim();
-  const achternaam = document.getElementById('inp-achternaam').value.trim();
-  const email      = document.getElementById('inp-email').value.trim();
-  const telefoon   = document.getElementById('inp-telefoon').value.trim();
-  const naamRegel  = [bepaalAanhefLabel(aanhef), voornaam, achternaam].filter(Boolean).join(' ');
-
-  const regels = [];
-  if (naamRegel) regels.push(naamRegel);
-  if (email)     regels.push(email);
-  if (telefoon)  regels.push(telefoon);
+  const g = verzamelGegevens();
+  const regels = [naamRegelVan(g), g.email, g.telefoon].filter(Boolean);
   if (regels.length === 0) return;
-
   kopieerNaarKlembord(regels.join('\n'), 'copy-alles');
 }
 
-// ── Edge-opdracht: kant-en-klare instructie + gegevens voor Claude for Edge,
-// om een nieuwe lead ("Offerte aanvraag") in EP-Sys aan te maken. Bedoeld om
-// onderweg te kopiëren en later (bv. thuis op de pc) in Claude for Edge te
-// plakken — dus geen automatische actie hier, puur tekst op het klembord.
-// Bouwt de Edge-opdracht als platte tekst. Wordt gebruikt door zowel de
-// kopieerknop (klembord) als het opdrachtgever-bestand (zodat je 'm ook later
-// nog uit de projectmap kunt halen). Geeft null terug als er te weinig is
-// ingevuld om een zinnige opdracht van te maken.
-function bouwEdgeOpdrachtTekst() {
-  const postcode    = document.getElementById('inp-postcode').value.trim().toUpperCase();
-  const huisnummer  = document.getElementById('inp-huisnummer').value.trim();
-  const toevoeging  = document.getElementById('inp-toevoeging').value.trim();
-  const aanhef      = document.getElementById('inp-aanhef').value;
-  const voornaam    = document.getElementById('inp-voornaam').value.trim();
-  const achternaam  = document.getElementById('inp-achternaam').value.trim();
-  const email       = document.getElementById('inp-email').value.trim();
-  const telefoon    = document.getElementById('inp-telefoon').value.trim();
+// ── Edge-opdracht: gegevensblok voor de "/nieuw-epsys-klant" shortcut ──
+// Wordt gebruikt door de kopieerknop (klembord) én het opdrachtgever-bestand.
+// Geeft null terug als er te weinig is ingevuld voor een zinnige opdracht.
+function bouwEdgeOpdrachtTekst(g) {
+  if (!g.postcode && !g.huisnummer && !g.achternaam) return null;
 
-  if (!postcode && !huisnummer && !achternaam) return null;
-
-  const aanhefRadio = aanhef === 'heer' ? 'De heer' : aanhef === 'mevrouw' ? 'Mevrouw' : aanhef === 'familie' ? 'Familie' : '(niet opgegeven)';
+  const aanhefRadio = bepaalAanhefLabel(g.aanhef) || '(niet opgegeven)';
+  const wilGraag = g.woningtype
+    ? `(EP-W/B) Energielabel basismethodiek ${g.woningtype}`
+    : '(niet opgegeven — vraag het mij)';
+  const afspraak = formatAfspraak(g.afspraakDatum, g.afspraakTijd);
+  const prijs = formatPrijs(g.prijs);
 
   const gegevensRegels = [
-    `- Postcode: ${postcode || '(niet opgegeven)'}`,
-    `- Huisnummer: ${huisnummer || '(niet opgegeven)'}`,
-    `- Huisnummer toevoeging: ${toevoeging || '(geen)'}`,
+    `- Postcode: ${g.postcode || '(niet opgegeven)'}`,
+    `- Huisnummer: ${g.huisnummer || '(niet opgegeven)'}`,
+    `- Huisnummer toevoeging: ${g.toevoeging || '(geen)'}`,
     `- Aanhef: ${aanhefRadio}`,
-    `- Voornaam: ${voornaam || '(niet opgegeven)'}`,
-    `- Achternaam: ${achternaam || '(niet opgegeven)'}`,
-    `- E-mailadres: ${email || '(niet opgegeven)'}`,
-    `- Telefoonnummer: ${telefoon || '(niet opgegeven)'}`
+    `- Voornaam: ${g.voornaam || '(niet opgegeven)'}`,
+    `- Achternaam: ${g.achternaam || '(niet opgegeven)'}`,
+    `- E-mailadres: ${g.email || '(niet opgegeven)'}`,
+    `- Telefoonnummer: ${g.telefoon || '(niet opgegeven)'}`,
+    `- Wil graag: ${wilGraag}`,
+    `- Interne opmerking: ${prijs ? 'Prijs: ' + prijs + ' incl. btw' : '(leeg)'}`,
+    `- Opname opmerking: ${afspraak ? 'Afspraak opname: ' + afspraak + '.' : '(leeg)'}`
   ].join('\n');
 
   // Alleen het gegevensblok — de stappen zelf staan al in de "/nieuw-epsys-klant"
@@ -570,9 +1119,8 @@ ${gegevensRegels}
 Vraag mij om bevestiging voordat je op "Opslaan" of "Nieuw project starten" klikt als iets onduidelijk is.`;
 }
 
-
 function kopieerEdgeOpdrachtEpSys() {
-  const opdracht = bouwEdgeOpdrachtTekst();
+  const opdracht = bouwEdgeOpdrachtTekst(verzamelGegevens());
   if (!opdracht) {
     setStatus('❌ Vul minimaal postcode/huisnummer of een achternaam in voor de Edge-opdracht', 'error');
     return;
@@ -580,55 +1128,63 @@ function kopieerEdgeOpdrachtEpSys() {
   kopieerNaarKlembord(opdracht, 'copy-edge-epsys');
 }
 
-
 // ── Graph: opdrachtgever-tekstbestand wegschrijven in de hoofdmap ──
-function bepaalAanhefLabel(code) {
-  if (code === 'heer')     return 'De heer';
-  if (code === 'mevrouw')  return 'Mevrouw';
-  if (code === 'familie')  return 'Familie';
-  return '';
-}
-
-async function maakOpdrachtgeverBestand(projectPad, mapnaam) {
-  const aanhef     = document.getElementById('inp-aanhef').value;
-  const voornaam   = document.getElementById('inp-voornaam').value.trim();
-  const achternaam = document.getElementById('inp-achternaam').value.trim();
-  const email      = document.getElementById('inp-email').value.trim();
-  const telefoon   = document.getElementById('inp-telefoon').value.trim();
+async function maakOpdrachtgeverBestand(projectPad, g) {
+  const naamRegel = naamRegelVan(g);
+  const afspraak  = formatAfspraak(g.afspraakDatum, g.afspraakTijd);
+  const prijs     = formatPrijs(g.prijs);
 
   // Niets ingevuld? Dan ook geen bestand aanmaken.
-  if (!voornaam && !achternaam && !email && !telefoon) return false;
+  const ietsIngevuld = naamRegel || g.email || g.telefoon || g.bouwjaar || g.oppervlakte ||
+                       g.woningtype || g.orientatie || afspraak || prijs;
+  if (!ietsIngevuld) return false;
 
-  const naamRegel = [bepaalAanhefLabel(aanhef), voornaam, achternaam].filter(Boolean).join(' ');
-
-  const inhoud = [
+  const regels = [
     'OPDRACHTGEVER',
     '=============',
     '',
     `Naam: ${naamRegel || '-'}`,
-    `E-mailadres: ${email || '-'}`,
-    `Telefoonnummer: ${telefoon || '-'}`,
+    `E-mailadres: ${g.email || '-'}`,
+    `Telefoonnummer: ${g.telefoon || '-'}`,
     '',
-    `Project: ${mapnaam}`
-  ].join('\r\n');
+    'WONING',
+    '======',
+    '',
+    `Adres: ${adresRegelVan(g) || '-'}`,
+    `Bouwjaar: ${g.bouwjaar || '-'}`,
+    `Gebruiksoppervlakte (BAG): ${g.oppervlakte ? g.oppervlakte + ' m²' : '-'}`,
+    `Adressen in pand (BAG): ${g.aantalAdressenInPand !== '' && g.aantalAdressenInPand !== undefined ? g.aantalAdressenInPand : '-'}`,
+    `Woningtype: ${woningtypeLabel(g.woningtype) || '-'}`,
+    `Oriëntatie gevels: ${orientatieRegel(g) || '-'}`,
+    '  (VG = voorgevel, AG = achtergevel, LG/RG = linker-/rechtergevel gezien vanaf de straat)',
+    '',
+    'AFSPRAAK & PRIJS',
+    '================',
+    '',
+    `Afspraak opname: ${afspraak || 'nog niet gepland'}`,
+    `Afgesproken prijs: ${prijs ? prijs + ' incl. btw' : '-'}`,
+    '',
+    `Project: ${g.mapnaam}`
+  ];
+  const inhoud = regels.join('\r\n');
 
   // Edge-opdracht (EP-Sys) eronder plakken, zodat je 'm later ook nog uit de
   // projectmap kunt kopiëren als je 'm onderweg niet meteen ergens hebt bewaard.
-  const edgeOpdracht = bouwEdgeOpdrachtTekst();
+  const edgeOpdracht = bouwEdgeOpdrachtTekst(g);
   const inhoudCompleet = edgeOpdracht
     ? inhoud + '\r\n\r\n' + '='.repeat(60) + '\r\n\r\n' + edgeOpdracht.replace(/\n/g, '\r\n')
     : inhoud;
 
   // Bestandsnaam = mapnaam + naam opdrachtgever (indien bekend)
-  const bestandBasis = sanitizeMapnaam([mapnaam, naamRegel].filter(Boolean).join(' - '));
+  const bestandBasis = sanitizeMapnaam([g.mapnaam, naamRegel].filter(Boolean).join(' - '));
   const bestandNaam  = `${bestandBasis}.txt`;
 
   const token = await getToken();
   const putUrl = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(projectPad + '/' + bestandNaam)}:/content`;
   const resp = await fetch(putUrl, {
     method: 'PUT',
-    headers: { Authorization: 'Bearer '+token, 'Content-Type': 'text/plain' },
-    body: inhoudCompleet
+    headers: { Authorization: 'Bearer '+token, 'Content-Type': 'text/plain; charset=utf-8' },
+    body: '﻿' + inhoudCompleet // BOM, zodat Kladblok ² en ë goed toont
   });
   if (!resp.ok) throw new Error('opdrachtgever-bestand mislukt');
   return true;
@@ -788,6 +1344,7 @@ async function verwerkLater() {
 
 
 // ── IndexedDB: offline wachtrij voor projectmappen ───────────
+// Bewaart het complete gegevens-object (incl. screenshot), niet alleen de mapnaam.
 const DB_NAAM_MAP    = 'projectmapQueueDB';
 const STORE_NAAM_MAP = 'wachtrij';
 
@@ -805,11 +1362,11 @@ function openMapWachtrijDB() {
   });
 }
 
-async function voegToeAanMapWachtrij(naam) {
+async function voegToeAanMapWachtrij(gegevens) {
   const db = await openMapWachtrijDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAAM_MAP, 'readwrite');
-    tx.objectStore(STORE_NAAM_MAP).add({ naam, ts: Date.now() });
+    tx.objectStore(STORE_NAAM_MAP).add({ naam: gegevens.mapnaam, gegevens, ts: Date.now() });
     tx.oncomplete = () => resolve();
     tx.onerror    = (e) => reject(e.target.error);
   });
@@ -844,7 +1401,8 @@ async function refreshQueueUI() {
 
 // ── Hoofdactie: projectmap aanmaken (of in wachtrij zetten) ──
 async function maakProjectmap() {
-  const naam = berekenMapnaam();
+  const g = verzamelGegevens();
+  const naam = g.mapnaam;
   if (!naam) return;
 
   const btn = document.getElementById('btn-maak-map');
@@ -853,20 +1411,20 @@ async function maakProjectmap() {
   // Geen internet? Meteen in de wachtrij, niet eens proberen.
   if (!navigator.onLine) {
     try {
-      await voegToeAanMapWachtrij(naam);
+      await voegToeAanMapWachtrij(g);
       await refreshQueueUI();
-      setStatus(`📥 Geen internet — "${naam}" toegevoegd aan wachtrij`, 'success');
+      setStatus(`📥 Geen internet — "${naam}" toegevoegd aan wachtrij (met alle gegevens)`, 'success');
     } catch(e) { setStatus('❌ Opslaan mislukt: '+e.message, 'error'); }
     btn.disabled = false;
     return;
   }
 
   try {
-    await voerProjectmapUit(naam);
+    await voerProjectmapUit(g);
   } catch(e) {
     // Verbinding viel weg tijdens het werk — alsnog in de wachtrij, niets gaat verloren
     try {
-      await voegToeAanMapWachtrij(naam);
+      await voegToeAanMapWachtrij(g);
       await refreshQueueUI();
       setStatus(`⚠️ Verbinding mislukt (${e.message}) — "${naam}" in wachtrij gezet`, 'error');
     } catch(e2) { setStatus('❌ Mislukt: '+e2.message, 'error'); }
@@ -876,7 +1434,8 @@ async function maakProjectmap() {
 }
 
 // ── Daadwerkelijke Graph-acties: map + submappen + bestanden ─
-async function voerProjectmapUit(naam) {
+async function voerProjectmapUit(g) {
+  const naam = g.mapnaam;
   let bestondAl = false;
   setStatus(`<span class="spinner"></span> Map aanmaken: ${naam}...`, 'loading');
   try {
@@ -905,7 +1464,7 @@ async function voerProjectmapUit(naam) {
 
   let huismatenMelding = '';
   try {
-    await maakHuismatenKopie(projectPad, naam);
+    await maakHuismatenKopie(projectPad, g);
     huismatenMelding = ' · Huismaten-tool klaargezet in 020 AANTEKENINGEN';
   } catch(e) {
     huismatenMelding = ' · ⚠️ Huismaten-tool klaarzetten mislukt: ' + e.message;
@@ -913,10 +1472,21 @@ async function voerProjectmapUit(naam) {
 
   let opdrachtgeverMelding = '';
   try {
-    const aangemaakt = await maakOpdrachtgeverBestand(projectPad, naam);
+    const aangemaakt = await maakOpdrachtgeverBestand(projectPad, g);
     if (aangemaakt) opdrachtgeverMelding = ' · opdrachtgever-bestand toegevoegd';
   } catch(e) {
     opdrachtgeverMelding = ' · ⚠️ opdrachtgever-bestand mislukt';
+  }
+
+  let screenshotMelding = '';
+  if (g.screenshot) {
+    setStatus(`<span class="spinner"></span> Screenshot opslaan: ${naam}...`, 'loading');
+    try {
+      await slaScreenshotOp(projectPad, g);
+      screenshotMelding = ' · BAG-screenshot opgeslagen';
+    } catch(e) {
+      screenshotMelding = ' · ⚠️ screenshot opslaan mislukt';
+    }
   }
 
   const keuze = await vraagTaakKeuze(naam);
@@ -942,7 +1512,7 @@ async function voerProjectmapUit(naam) {
   const melding = bestondAl
     ? `✅ Map bestond al — aangevuld met submappen/bestanden: "${naam}"`
     : `✅ Projectmap aangemaakt: "${naam}"`;
-  setStatus(`${melding} (${gekopieerd} bestanden gekopieerd${overgeslagen ? ', '+overgeslagen+' niet gevonden' : ''})${huismatenMelding}${opdrachtgeverMelding}${taakMelding}`, 'success');
+  setStatus(`${melding} (${gekopieerd} bestanden gekopieerd${overgeslagen ? ', '+overgeslagen+' niet gevonden' : ''})${huismatenMelding}${opdrachtgeverMelding}${screenshotMelding}${taakMelding}`, 'success');
 }
 
 // ── Wachtrij verwerken (zodra er weer internet is) ───────────
@@ -956,7 +1526,9 @@ async function verwerkWachtrij() {
   for (const item of items) {
     btn.textContent = `📤 ${gelukt+1}/${items.length}...`;
     try {
-      await voerProjectmapUit(item.naam);
+      // Oude wachtrij-items (van vóór deze versie) hebben alleen een naam
+      const g = item.gegevens || { mapnaam: item.naam };
+      await voerProjectmapUit(g);
       await verwijderUitMapWachtrij(item.id);
       gelukt++;
     } catch(e) {
@@ -970,6 +1542,19 @@ async function verwerkWachtrij() {
   if (gelukt === items.length) {
     setStatus(`✅ ${gelukt} projectmap(pen) uit wachtrij verwerkt`, 'success');
   }
+}
+
+// ── Formulier leegmaken voor het volgende project ─────────────
+function formulierLeegmaken() {
+  document.querySelectorAll('#app-screen input[type="text"], #app-screen input[type="number"], #app-screen input[type="date"], #app-screen input[type="time"]')
+    .forEach(el => el.value = '');
+  document.getElementById('inp-aanhef').value = '';
+  document.querySelectorAll('input[name="woningtype"]').forEach(r => r.checked = false);
+  verwijderScreenshot();
+  leegBagVelden();
+  updateMapnaamPreview();
+  setStatus('', '');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function setStatus(msg, type) {
