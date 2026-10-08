@@ -1055,6 +1055,38 @@ function projectGegevens() {
   return (PROJECT_GEGEVENS && typeof PROJECT_GEGEVENS === 'object') ? PROJECT_GEGEVENS : null;
 }
 
+// ── Gevel-oriëntatie uit de Nieuwe-Projectmap-app ─────────────
+// Geeft per gevel {richting:'ZW', hoek:205} terug, of null als er geen oriëntatie bekend is.
+// LG/RG = linker-/rechtergevel gezien vanaf de straat (zelfde conventie als de plattegrond hier).
+const WINDRICHTINGEN_8 = ['N','NO','O','ZO','Z','ZW','W','NW'];
+const GEVEL_HOEK_T_O_V_VG = {VG:0, AG:180, LG:90, RG:270};
+function gevelOrientatie(code) {
+  const pg = projectGegevens();
+  const o = pg && pg.orientatie;
+  if (!o || !o[code]) return null;
+  const vgIdx = WINDRICHTINGEN_8.indexOf(o.VG);
+  // Exacte hoek als die automatisch bepaald is, anders het midden van de windrichting (ZW = 225°)
+  const vgHoek = (typeof pg.orientatieHoek === 'number') ? pg.orientatieHoek : (vgIdx >= 0 ? vgIdx * 45 : null);
+  const hoek = vgHoek == null ? null : (((Math.round(vgHoek + GEVEL_HOEK_T_O_V_VG[code])) % 360) + 360) % 360;
+  return { richting: o[code], hoek };
+}
+// "ZW, 205°" (of '' zonder oriëntatie)
+function orientTekst(code) {
+  const g = gevelOrientatie(code);
+  return g ? `${g.richting}${g.hoek != null ? ', ' + g.hoek + '°' : ''}` : '';
+}
+// "VG, ZW, 205°" of gewoon "VG"
+function gevelCodeMetOrient(code) {
+  const t = orientTekst(code);
+  return t ? `${code}, ${t}` : code;
+}
+// Titel van een gevelaanzicht, bv. "Voorgevel (aanzicht) — VG, ZW, 205°"
+function aanzichtTitel(code) {
+  const namen = {VG:'Voorgevel', AG:'Achtergevel', LG:'Linkergevel', RG:'Rechtergevel'};
+  const t = orientTekst(code);
+  return `${namen[code]} (aanzicht)` + (t ? ` — ${code}, ${t}` : '');
+}
+
 // ── OneDrive-upload: hergebruikt de inlogsessie van de Nieuwe-Projectmap-app ──
 // (zelfde origin op GitHub Pages, dus zelfde localStorage — geen aparte login nodig
 // zolang je al eens via de Projectmap-app bent ingelogd op dit apparaat/browser.)
@@ -2082,7 +2114,7 @@ function renderAlles(R){
     ['VG','AG','LG','RG'].forEach(code=>{
       const rij = S.regels.filter(r=>r.groep==='gevel' && r.orient===code);
       rij.forEach(r=> h += regelHtml(r.label, r.opp==null ? '—' : fm(r.opp)+' m²', {detail:r.detail, formule:r.formule, kleur:'gevel'}));
-      h += regelHtml(`Σ ${GEVEL_NAAM[code]} (${code})`, fm(S.perOrient[code])+' m²', {sub:true, kleur:'gevel'});
+      h += regelHtml(`Σ ${GEVEL_NAAM[code]} (${gevelCodeMetOrient(code)})`, fm(S.perOrient[code])+' m²', {sub:true, kleur:'gevel'});
     });
     [['vloer','Vloeren (grond / kruipruimte)','Totaal vloeren'],['schuin','Schuine daken','Totaal schuine daken'],['plat','Platte daken','Totaal platte daken']].forEach(([g, kop, tot])=>{
       const rij = S.regels.filter(r=>r.groep===g);
@@ -4785,30 +4817,30 @@ function renderTekening(targetContainerId){
 
   const blokVoor = heeftAsymmetrisch
     ? (profielOpVoorAchter
-        ? tekenGevelaanzicht('Voorgevel (aanzicht)', m.voorAchterBreedte, null, false, null, null, blokkageVG, weergaveGroepenVoorGevel('VG'), [], dakkapelDataAlle, null, asymProfiel, false)
-        : tekenGevelaanzicht('Voorgevel (aanzicht)', m.voorAchterBreedte, cumGevelVoorM, false, null, dakvlakInfoVoor, blokkageVG, weergaveGroepenVoorGevel('VG'), dakkapellenPerGevel.VG, dakkapelDataAlle, null))
-    : tekenGevelaanzicht('Voorgevel (aanzicht)', m.voorAchterBreedte, m.hoogte, driehoekOpVoor, m.hellingshoek, dakvlakInfoVoor, blokkageVG, weergaveGroepenVoorGevel('VG'), dakkapellenPerGevel.VG, dakkapelDataAlle, driehoekOpVoor ? m.wolfseindA : null);
+        ? tekenGevelaanzicht(aanzichtTitel('VG'), m.voorAchterBreedte, null, false, null, null, blokkageVG, weergaveGroepenVoorGevel('VG'), [], dakkapelDataAlle, null, asymProfiel, false)
+        : tekenGevelaanzicht(aanzichtTitel('VG'), m.voorAchterBreedte, cumGevelVoorM, false, null, dakvlakInfoVoor, blokkageVG, weergaveGroepenVoorGevel('VG'), dakkapellenPerGevel.VG, dakkapelDataAlle, null))
+    : tekenGevelaanzicht(aanzichtTitel('VG'), m.voorAchterBreedte, m.hoogte, driehoekOpVoor, m.hellingshoek, dakvlakInfoVoor, blokkageVG, weergaveGroepenVoorGevel('VG'), dakkapellenPerGevel.VG, dakkapelDataAlle, driehoekOpVoor ? m.wolfseindA : null);
   if(blokVoor) container.appendChild(blokVoor);
 
   const blokAchter = heeftAsymmetrisch
     ? (profielOpVoorAchter
-        ? tekenGevelaanzicht('Achtergevel (aanzicht)', m.voorAchterBreedte, null, false, null, null, blokkageAG, weergaveGroepenVoorGevel('AG'), [], dakkapelDataAlle, null, asymProfiel, true)
-        : tekenGevelaanzicht('Achtergevel (aanzicht)', m.voorAchterBreedte, cumGevelAchterM, false, null, dakvlakInfoVoor, blokkageAG, weergaveGroepenVoorGevel('AG'), dakkapellenPerGevel.AG, dakkapelDataAlle, null))
-    : tekenGevelaanzicht('Achtergevel (aanzicht)', m.voorAchterBreedte, m.hoogte, driehoekOpVoor, m.hellingshoek, dakvlakInfoVoor, blokkageAG, weergaveGroepenVoorGevel('AG'), dakkapellenPerGevel.AG, dakkapelDataAlle, driehoekOpVoor ? m.wolfseindB : null);
+        ? tekenGevelaanzicht(aanzichtTitel('AG'), m.voorAchterBreedte, null, false, null, null, blokkageAG, weergaveGroepenVoorGevel('AG'), [], dakkapelDataAlle, null, asymProfiel, true)
+        : tekenGevelaanzicht(aanzichtTitel('AG'), m.voorAchterBreedte, cumGevelAchterM, false, null, dakvlakInfoVoor, blokkageAG, weergaveGroepenVoorGevel('AG'), dakkapellenPerGevel.AG, dakkapelDataAlle, null))
+    : tekenGevelaanzicht(aanzichtTitel('AG'), m.voorAchterBreedte, m.hoogte, driehoekOpVoor, m.hellingshoek, dakvlakInfoVoor, blokkageAG, weergaveGroepenVoorGevel('AG'), dakkapellenPerGevel.AG, dakkapelDataAlle, driehoekOpVoor ? m.wolfseindB : null);
   if(blokAchter) container.appendChild(blokAchter);
 
   const blokLinks = heeftAsymmetrisch
     ? (profielOpZij
-        ? tekenGevelaanzicht('Linkergevel (aanzicht)', m.diepte, null, false, null, null, blokkageLG, weergaveGroepenVoorGevel('LG'), [], dakkapelDataAlle, null, asymProfiel, true)
-        : tekenGevelaanzicht('Linkergevel (aanzicht)', m.diepte, cumGevelVoorM, false, null, dakvlakInfoZij, blokkageLG, weergaveGroepenVoorGevel('LG'), dakkapellenPerGevel.LG, dakkapelDataAlle, null))
-    : tekenGevelaanzicht('Linkergevel (aanzicht)', m.diepte, m.hoogte, driehoekOpZij, m.hellingshoek, dakvlakInfoZij, blokkageLG, weergaveGroepenVoorGevel('LG'), dakkapellenPerGevel.LG, dakkapelDataAlle, driehoekOpZij ? m.wolfseindA : null);
+        ? tekenGevelaanzicht(aanzichtTitel('LG'), m.diepte, null, false, null, null, blokkageLG, weergaveGroepenVoorGevel('LG'), [], dakkapelDataAlle, null, asymProfiel, true)
+        : tekenGevelaanzicht(aanzichtTitel('LG'), m.diepte, cumGevelVoorM, false, null, dakvlakInfoZij, blokkageLG, weergaveGroepenVoorGevel('LG'), dakkapellenPerGevel.LG, dakkapelDataAlle, null))
+    : tekenGevelaanzicht(aanzichtTitel('LG'), m.diepte, m.hoogte, driehoekOpZij, m.hellingshoek, dakvlakInfoZij, blokkageLG, weergaveGroepenVoorGevel('LG'), dakkapellenPerGevel.LG, dakkapelDataAlle, driehoekOpZij ? m.wolfseindA : null);
   if(blokLinks) container.appendChild(blokLinks);
 
   const blokRechts = heeftAsymmetrisch
     ? (profielOpZij
-        ? tekenGevelaanzicht('Rechtergevel (aanzicht)', m.diepte, null, false, null, null, blokkageRG, weergaveGroepenVoorGevel('RG'), [], dakkapelDataAlle, null, asymProfiel, false)
-        : tekenGevelaanzicht('Rechtergevel (aanzicht)', m.diepte, cumGevelAchterM, false, null, dakvlakInfoZij, blokkageRG, weergaveGroepenVoorGevel('RG'), dakkapellenPerGevel.RG, dakkapelDataAlle, null))
-    : tekenGevelaanzicht('Rechtergevel (aanzicht)', m.diepte, m.hoogte, driehoekOpZij, m.hellingshoek, dakvlakInfoZij, blokkageRG, weergaveGroepenVoorGevel('RG'), dakkapellenPerGevel.RG, dakkapelDataAlle, driehoekOpZij ? m.wolfseindB : null);
+        ? tekenGevelaanzicht(aanzichtTitel('RG'), m.diepte, null, false, null, null, blokkageRG, weergaveGroepenVoorGevel('RG'), [], dakkapelDataAlle, null, asymProfiel, false)
+        : tekenGevelaanzicht(aanzichtTitel('RG'), m.diepte, cumGevelAchterM, false, null, dakvlakInfoZij, blokkageRG, weergaveGroepenVoorGevel('RG'), dakkapellenPerGevel.RG, dakkapelDataAlle, null))
+    : tekenGevelaanzicht(aanzichtTitel('RG'), m.diepte, m.hoogte, driehoekOpZij, m.hellingshoek, dakvlakInfoZij, blokkageRG, weergaveGroepenVoorGevel('RG'), dakkapellenPerGevel.RG, dakkapelDataAlle, driehoekOpZij ? m.wolfseindB : null);
   if(blokRechts) container.appendChild(blokRechts);
 
   // Dwarsdoorsnede (alle daktypes); de langsdoorsnede alleen bij een wolfseind, omdat die
@@ -4936,10 +4968,13 @@ function samenvattingRegelsVerzamelen(){
   // Bewust géén prijs, e-mail of telefoon: deze PDF/Excel kan naar derden.
   const pg = projectGegevens();
   const schoon = t => String(t || '').replace(/[<>]/g, '').trim();
-  if(pg && (pg.adres || pg.naamOpdrachtgever)){
+  if(pg && (pg.adres || pg.naamOpdrachtgever || pg.orientatie)){
     kop('Project');
     if(pg.adres) info('Adres woning', null, '', schoon(pg.adres));
     if(pg.naamOpdrachtgever) info('Opdrachtgever', null, '', schoon(pg.naamOpdrachtgever));
+    ['VG','AG','LG','RG'].forEach(code=>{
+      if(gevelOrientatie(code)) info(`Oriëntatie ${GEVEL_NAAM[code].toLowerCase()}`, null, '', gevelCodeMetOrient(code));
+    });
   } else if(actiefProjectNaam()){
     kop('Project');
     info('Project', null, '', schoon(actiefProjectNaam()));
@@ -5024,7 +5059,7 @@ function samenvattingRegelsVerzamelen(){
   kop('Schil — gevels per oriëntatie', 'gevel');
   ['VG','AG','LG','RG'].forEach(code=>{
     S.regels.filter(r=>r.groep==='gevel' && r.orient===code).forEach(r=> item(r.label, r.opp, r.detail, r.formule, 'gevel'));
-    sub(`Σ ${GEVEL_NAAM[code]} (${code})`, S.perOrient[code], 'gevel');
+    sub(`Σ ${GEVEL_NAAM[code]} (${gevelCodeMetOrient(code)})`, S.perOrient[code], 'gevel');
   });
   eind('Totaal gevels', S.totalen.gevel, 'gevel');
   [['vloer','Schil — vloeren (grond / kruipruimte)','Totaal vloeren'],
