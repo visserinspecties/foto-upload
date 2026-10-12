@@ -321,6 +321,10 @@
   <!-- Op iPad/iPhone kan een webpagina niet zelf downloaden; daar verschijnen
        de klaargezette bestanden hier als knop, die het deelmenu opent. -->
   <div id="ios-bestanden" style="display:none; margin:0 0 12px;"></div>
+  <!-- Grote melding na elke export: staat het in OneDrive, ja of nee? -->
+  <div id="export-banner" style="display:none; margin:0 0 12px; padding:14px 16px; border-radius:8px; font-size:1rem; line-height:1.4; font-weight:600;"></div>
+  <!-- Vangnet: de laatste exports blijven in deze browser bewaard, ook als de upload mislukt. -->
+  <div id="laatst-gemaakt" style="display:none; margin:0 0 12px;"></div>
   <div id="excel-dropzone" style="margin:0 0 8px; border:2px dashed var(--line); border-radius:8px; padding:12px; text-align:center; font-size:0.82rem; color:#6b6555; cursor:pointer;">
     <span id="excel-dropzone-tekst">📥 Sleep hier een aangepaste Excel-export (tabblad "Invoer") naartoe om de velden opnieuw in te lezen — of klik om een bestand te kiezen</span>
     <input type="file" id="excel-input" accept=".xlsx" style="display:none;">
@@ -650,7 +654,7 @@
   <p class="hint">Elk nieuw raam krijgt dit glastype. Pas je het glastype van één raam aan, dan blijft die keuze staan als je het standaard glastype later wijzigt. Per stuk, per verdieping en per oriëntatie — informatief, telt niet mee in de bruto gevel-m² (netto gebeurt in VABI). Dakramen (Velux) en ramen in een dakkapel-aanzicht: kies bij Oriëntatie het dakvlak.</p>
   <div id="ramendeuren-container"></div>
   <div class="btn-row" style="margin:8px 0 14px;">
-    <button class="btn-secondary" id="btn-toevoegen-ramendeur">+ Raam/deur toevoegen</button>
+    <button class="btn-secondary" id="btn-toevoegen-ramendeur">+ Toevoegen (kopie van vorige)</button>
   </div>
   <div id="ramendeuren-waarschuwing"></div>
   <div id="ramendeuren-resultaten"></div>
@@ -1045,10 +1049,10 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var n,r,i,a,
 // Deze twee regels worden automatisch ingevuld door de Nieuwe-Projectmap-app
 // op het moment dat zij deze tool in de "020 AANTEKENINGEN"-map van een project zet.
 // Staan ze leeg (zoals in dit basisbestand), dan is er geen project gekoppeld.
-const PROJECT_NAAM = "__PROJECT_NAAM__";
-const PROJECT_PAD  = "__PROJECT_PAD__"; // pad naar de "020 AANTEKENINGEN"-map van dit project
+const PROJECT_NAAM = "";
+const PROJECT_PAD  = ""; // pad naar de "020 AANTEKENINGEN"-map van dit project
 // Projectgegevens (adres, opdrachtgever, ...) uit de Nieuwe-Projectmap-app. Leeg in het basisbestand.
-const PROJECT_GEGEVENS = "__PROJECT_GEGEVENS__";
+const PROJECT_GEGEVENS = "";
 
 // Geeft de projectgegevens als object terug, of null als deze kopie er geen heeft.
 function projectGegevens() {
@@ -1154,8 +1158,8 @@ function huidigeBasisbestandsnaam() {
   return huismatenVersie > 1 ? `${basis}_v${huismatenVersie}` : basis;
 }
 
-async function uploadBestandNaarProjectmap(blob, bestandsnaam) {
-  const pad = actiefProjectPad();
+async function uploadBestandNaarProjectmap(blob, bestandsnaam, padOverride) {
+  const pad = padOverride || actiefProjectPad();
   if (!pad) throw new Error('Er is nog geen project gekozen.');
   const token = await graphRefreshToken();
   const url = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(pad)}/${encodeURIComponent(bestandsnaam)}:/content`;
@@ -1170,6 +1174,201 @@ async function uploadBestandNaarProjectmap(blob, bestandsnaam) {
 
 async function uploadPdfNaarProjectmap(blob) {
   return uploadBestandNaarProjectmap(blob, huidigeBasisbestandsnaam() + '.pdf');
+}
+
+// ── Vangnet: elke export wordt eerst in de browser bewaard ────────────────
+// Zo is een bestand nooit weg als de upload naar OneDrive mislukt (hotspot, token, ...).
+// Bewaard in IndexedDB (blijft na verversen staan); terugval: werkgeheugen van de pagina.
+const BACKUP_DB = 'huismaten-backup', BACKUP_STORE = 'exports', BACKUP_MAX = 10;
+let backupGeheugen = [];
+
+function backupDb() {
+  return new Promise((res, rej) => {
+    if (!window.indexedDB) { rej(new Error('geen indexedDB')); return; }
+    const rq = indexedDB.open(BACKUP_DB, 1);
+    rq.onupgradeneeded = () => rq.result.createObjectStore(BACKUP_STORE, { keyPath: 'id' });
+    rq.onsuccess = () => res(rq.result);
+    rq.onerror = () => rej(rq.error);
+  });
+}
+async function backupAlle() {
+  let lijst = [];
+  try {
+    const db = await backupDb();
+    lijst = await new Promise((res, rej) => {
+      const rq = db.transaction(BACKUP_STORE).objectStore(BACKUP_STORE).getAll();
+      rq.onsuccess = () => res(rq.result || []);
+      rq.onerror = () => rej(rq.error);
+    });
+  } catch (_) { /* terugval hieronder */ }
+  // geheugen aanvullen (bv. als IndexedDB niet werkt)
+  backupGeheugen.forEach(r => { if (!lijst.some(x => x.id === r.id)) lijst.push(r); });
+  return lijst.sort((a, b) => b.tijd - a.tijd);
+}
+async function backupSchrijf(rec) {
+  backupGeheugen = backupGeheugen.filter(r => r.id !== rec.id);
+  backupGeheugen.push(rec);
+  try {
+    const db = await backupDb();
+    await new Promise((res, rej) => {
+      const tx = db.transaction(BACKUP_STORE, 'readwrite');
+      tx.objectStore(BACKUP_STORE).put(rec);
+      tx.oncomplete = res; tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error);
+    });
+  } catch (_) { /* blijft in geheugen */ }
+}
+async function backupOpruimen() {
+  const lijst = await backupAlle();
+  const weg = lijst.slice(BACKUP_MAX);
+  if (!weg.length) return;
+  backupGeheugen = backupGeheugen.filter(r => !weg.some(w => w.id === r.id));
+  try {
+    const db = await backupDb();
+    await new Promise((res) => {
+      const tx = db.transaction(BACKUP_STORE, 'readwrite');
+      weg.forEach(w => tx.objectStore(BACKUP_STORE).delete(w.id));
+      tx.oncomplete = res; tx.onerror = res; tx.onabort = res;
+    });
+  } catch (_) {}
+}
+
+// Bewaart een kopie en geeft het record terug. Status: 'bezig' | 'ok' | 'mislukt' | 'offline' | 'geenproject'
+async function bewaarExportKopie(blob, naam, mime) {
+  const rec = {
+    id: Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+    naam, mime: mime || 'application/octet-stream', blob, tijd: Date.now(),
+    status: 'bezig', fout: '',
+    projectNaam: actiefProjectNaam() || '', projectPad: actiefProjectPad() || ''
+  };
+  await backupSchrijf(rec);
+  await backupOpruimen();
+  return rec;
+}
+async function zetExportStatus(rec, status, fout) {
+  if (!rec) return;
+  rec.status = status; rec.fout = fout || '';
+  await backupSchrijf(rec);
+}
+
+// Bepaalt de status na een upload-poging en probeert de upload.
+async function probeerUploadMetVangnet(rec) {
+  if (!rec) return;
+  if (!projectGekoppeld()) { await zetExportStatus(rec, 'geenproject'); return; }
+  if (!navigator.onLine)  { await zetExportStatus(rec, 'offline'); return; }
+  try {
+    await uploadBestandNaarProjectmap(rec.blob, rec.naam);
+    await zetExportStatus(rec, 'ok');
+  } catch (e) {
+    await zetExportStatus(rec, 'mislukt', (e && e.message) ? e.message : String(e));
+  }
+}
+
+const EXPORT_STATUS_TEKST = {
+  ok: '✅ in OneDrive',
+  mislukt: '❌ upload MISLUKT',
+  offline: '📵 geen internet — niet geüpload',
+  geenproject: 'ℹ️ geen project gekozen — niet geüpload',
+  bezig: '⏳ bezig…'
+};
+
+// Grote melding onder de export-knoppen. Rood zolang iets niet in OneDrive staat.
+function toonExportBanner(recs) {
+  const el = document.getElementById('export-banner');
+  if (!el) return;
+  const lijst = (recs || []).filter(Boolean);
+  if (!lijst.length) { el.style.display = 'none'; return; }
+  const fout = lijst.filter(r => r.status !== 'ok');
+  const naamTxt = r => `"${r.naam}"`;
+  if (!fout.length) {
+    el.style.cssText += ';display:block;background:#e3f1e3;color:#1d5a2b;border:2px solid #1d5a2b;';
+    el.innerHTML = '✅ ' + lijst.map(naamTxt).join(' en ') + ' staan in OneDrive.';
+  } else {
+    el.style.cssText += ';display:block;background:#fbe3dc;color:#8f2410;border:2px solid #8f2410;';
+    el.innerHTML = '⚠️ NIET IN ONEDRIVE: ' + fout.map(r =>
+      `${naamTxt(r)} — ${(EXPORT_STATUS_TEKST[r.status] || r.status).replace(/^\S+\s/, '')}${r.fout ? ' (' + r.fout + ')' : ''}`
+    ).join('; ')
+    + '<br><span style="font-weight:400;font-size:0.9rem;">Het bestand is wél bewaard in deze browser. Tik hieronder bij "Laatst gemaakt" op "Opnieuw uploaden" of "Delen / bewaren".</span>';
+  }
+  try { el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (_) {}
+}
+
+async function exportOpnieuwUploaden(id, knop) {
+  const lijst = await backupAlle();
+  const rec = lijst.find(r => r.id === id);
+  if (!rec) return;
+  if (knop) { knop.disabled = true; knop.textContent = '⏳ uploaden…'; }
+  if (!rec.projectPad) { await zetExportStatus(rec, 'geenproject'); }
+  else if (!navigator.onLine) { await zetExportStatus(rec, 'offline'); }
+  else {
+    try {
+      await uploadBestandNaarProjectmap(rec.blob, rec.naam, rec.projectPad);
+      await zetExportStatus(rec, 'ok');
+    } catch (e) {
+      await zetExportStatus(rec, 'mislukt', (e && e.message) ? e.message : String(e));
+    }
+  }
+  await toonLaatstGemaakt();
+  toonExportBanner([rec]);
+}
+
+async function exportDelenOfBewaren(id) {
+  const lijst = await backupAlle();
+  const rec = lijst.find(r => r.id === id);
+  if (!rec) return;
+  const bestand = new File([rec.blob], rec.naam, { type: rec.mime });
+  if (navigator.canShare && navigator.canShare({ files: [bestand] })) {
+    try { await navigator.share({ files: [bestand], title: rec.naam }); return; }
+    catch (err) { if (err && err.name === 'AbortError') return; }
+  }
+  const url = URL.createObjectURL(rec.blob);
+  if (isIOS()) { window.open(url, '_blank'); setTimeout(() => URL.revokeObjectURL(url), 60000); return; }
+  const a = document.createElement('a');
+  a.href = url; a.download = rec.naam;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+async function toonLaatstGemaakt() {
+  const vak = document.getElementById('laatst-gemaakt');
+  if (!vak) return;
+  const lijst = await backupAlle();
+  if (!lijst.length) { vak.style.display = 'none'; vak.innerHTML = ''; return; }
+  vak.style.display = 'block';
+  vak.innerHTML = '';
+  const kop = document.createElement('div');
+  kop.style.cssText = 'font-weight:600; margin-bottom:6px;';
+  kop.textContent = 'Laatst gemaakt (bewaard in deze browser)';
+  vak.appendChild(kop);
+  lijst.forEach(rec => {
+    const rij = document.createElement('div');
+    rij.style.cssText = 'border:1px solid var(--line); border-radius:8px; padding:8px 10px; margin-bottom:6px; background:#fbfaf6;';
+    const t = new Date(rec.tijd);
+    const tijd = t.toLocaleDateString('nl-NL', { day: 'numeric', month: 'numeric' }) + ' ' + t.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+    const kleur = rec.status === 'ok' ? '#1d5a2b' : (rec.status === 'bezig' ? '#6b6555' : '#8f2410');
+    const info = document.createElement('div');
+    info.style.cssText = 'font-size:0.85rem; margin-bottom:6px; word-break:break-word;';
+    info.innerHTML = '';
+    const naam = document.createElement('div'); naam.textContent = '📄 ' + rec.naam; naam.style.fontWeight = '600';
+    const status = document.createElement('div');
+    status.style.color = kleur;
+    status.textContent = `${tijd} — ${EXPORT_STATUS_TEKST[rec.status] || rec.status}${rec.fout ? ' (' + rec.fout + ')' : ''}`;
+    info.appendChild(naam); info.appendChild(status);
+    rij.appendChild(info);
+    const knoppen = document.createElement('div');
+    knoppen.className = 'btn-row';
+    if (rec.status !== 'ok' && rec.projectPad) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'btn-secondary'; b.textContent = '☁️ Opnieuw uploaden';
+      b.addEventListener('click', () => exportOpnieuwUploaden(rec.id, b));
+      knoppen.appendChild(b);
+    }
+    const d = document.createElement('button');
+    d.type = 'button'; d.className = 'btn-secondary'; d.textContent = '📤 Delen / bewaren';
+    d.addEventListener('click', () => exportDelenOfBewaren(rec.id));
+    knoppen.appendChild(d);
+    rij.appendChild(knoppen);
+    vak.appendChild(rij);
+  });
 }
 
 function initProjectBanner() {
@@ -3220,7 +3419,7 @@ const ramenDeurenContainer = document.getElementById('ramendeuren-container');
 const btnToevoegenRaamDeur = document.getElementById('btn-toevoegen-ramendeur');
 const rdStandaardGlasSel = document.getElementById('rd-standaard-glas');
 
-const RD_TYPE_LABELS = {raam:'Raam', deur:'Deur', deurmetraam:'Deur met raam erin', dakraam:'Dakraam (Velux e.d.)'};
+const RD_TYPE_LABELS = {raam:'Raam', deur:'Deur', paneel:'Paneel', deurmetraam:'Deur met raam erin', dakraam:'Dakraam (Velux e.d.)'};
 const RD_GLASTYPE_LABELS = {'':'— kies —', e:'Enkel glas', D:'Dubbel glas', Hr:'HR-glas', 'Hr+':'HR+-glas', '++':'HR++-glas', Vz:'Voorzetraam', '+++':'Triple glas'};
 const RD_ISOLATIE_LABELS = {on:'Ongeïsoleerd', iso:'Geïsoleerd'};
 const RD_VERDIEPING_ZOLDER = 'zolder';
@@ -3286,9 +3485,12 @@ function verversRamenDeurenOpties(){
 }
 
 function renumberRamenDeuren(){
+  // Doorlopende nummering per type (Raam 1, 2, 3 ... / Deur 1, 2 ...), ongeacht gevel of verdieping.
+  const teller = {};
   ramenDeuren.forEach((rd,i)=>{
     const type = document.getElementById('rd-type-'+rd.id)?.value;
-    rd.naam = `${RD_TYPE_LABELS[type] || 'Element'} ${i+1}`;
+    teller[type] = (teller[type] || 0) + 1;
+    rd.naam = `${RD_TYPE_LABELS[type] || 'Element'} ${teller[type]}`;
     const titelEl = document.getElementById('rd-titel-'+rd.id);
     if(titelEl) titelEl.textContent = rd.naam;
   });
@@ -3304,9 +3506,12 @@ function toggleRaamDeurVelden(id){
   const raamVeldenWrap = document.getElementById('rd-raamvelden-wrap-'+id);
   const glasWrap = document.getElementById('rd-glaswrap-'+id);
   const isoWrap = document.getElementById('rd-isowrap-'+id);
+  const zonWrap = document.getElementById('rd-zonwrap-'+id);
   const glasLabel = document.getElementById('rd-glaslabel-'+id);
   if(raamVeldenWrap) raamVeldenWrap.style.display = (type==='deurmetraam') ? 'flex' : 'none';
-  if(glasWrap) glasWrap.style.display = (type==='deur') ? 'none' : 'flex';
+  if(glasWrap) glasWrap.style.display = (type==='deur' || type==='paneel') ? 'none' : 'flex';
+  if(zonWrap) zonWrap.style.display = (type==='deur' || type==='paneel') ? 'none' : 'flex';
+  if((type==='deur' || type==='paneel')){ const zc = document.getElementById('rd-zonwering-'+id); if(zc) zc.checked = false; }
   if(isoWrap) isoWrap.style.display = (type==='deur' || type==='deurmetraam') ? 'flex' : 'none';
   if(glasLabel) glasLabel.textContent = (type==='deurmetraam') ? 'Glastype raam-in-deur' : 'Glastype';
 }
@@ -3326,7 +3531,7 @@ if(rdStandaardGlasSel){
   rdStandaardGlasSel.addEventListener('input', rdStandaardGlasGewijzigd);
 }
 
-function voegRaamDeurToe(){
+function voegRaamDeurToe(kopieerVan){
   const id = volgendRaamDeurId++;
   const rd = {id, naam:'Element', glasHandmatig:false};
   ramenDeuren.push(rd);
@@ -3353,6 +3558,7 @@ function voegRaamDeurToe(){
         <select id="rd-type-${id}">
           <option value="raam">Raam</option>
           <option value="deur">Deur</option>
+          <option value="paneel">Paneel</option>
           <option value="deurmetraam">Deur met raam erin</option>
           <option value="dakraam">Dakraam (Velux e.d.)</option>
         </select>
@@ -3387,6 +3593,10 @@ function voegRaamDeurToe(){
         <label>Deur</label>
         <select id="rd-isolatie-${id}">${isoOptiesHtml}</select>
       </div>
+      <div class="field" id="rd-zonwrap-${id}" style="flex:0 0 130px; flex-direction:row; align-items:flex-end; gap:8px; padding-bottom:10px;">
+        <input type="checkbox" id="rd-zonwering-${id}" style="width:auto; margin:0;">
+        <label for="rd-zonwering-${id}" style="margin:0;">Zonwering</label>
+      </div>
     </div>
     <div class="row" id="rd-raamvelden-wrap-${id}" style="display:none;">
       <p class="hint" style="flex:0 0 100%;margin:0 0 4px;">Raam-in-deur: afmeting van het glazen deel. Deuroppervlakte = deurmaat − raamoppervlakte; het raam telt apart mee met zijn eigen glastype.</p>
@@ -3408,7 +3618,7 @@ function voegRaamDeurToe(){
 
   blok.querySelector('button[data-rdid]').addEventListener('click', ()=>verwijderRaamDeur(id));
   document.getElementById('rd-type-'+id).addEventListener('change', ()=>{ toggleRaamDeurVelden(id); onRamenDeurenWijziging(); });
-  ['rd-orientatie-','rd-verdieping-','rd-aantal-','rd-breedte-','rd-hoogte-','rd-isolatie-','rd-raambreedte-','rd-raamhoogte-'].forEach(pref=>{
+  ['rd-orientatie-','rd-verdieping-','rd-aantal-','rd-breedte-','rd-hoogte-','rd-isolatie-','rd-raambreedte-','rd-raamhoogte-','rd-zonwering-'].forEach(pref=>{
     const el = document.getElementById(pref+id);
     if(el){ el.addEventListener('input', onRamenDeurenWijziging); el.addEventListener('change', onRamenDeurenWijziging); }
   });
@@ -3416,6 +3626,19 @@ function voegRaamDeurToe(){
   const glasHandler = ()=>{ rd.glasHandmatig = (glasSel.value !== rdStandaardGlas()); onRamenDeurenWijziging(); };
   glasSel.addEventListener('input', glasHandler);
   glasSel.addEventListener('change', glasHandler);
+
+  // Nieuw element = kopie van het vorige (incl. type, gevel, verdieping, maten, glas, zonwering).
+  if(kopieerVan && kopieerVan.id){
+    ['type','verdieping','orientatie','aantal','breedte','hoogte','glastype','isolatie','raambreedte','raamhoogte'].forEach(v=>{
+      const van = document.getElementById('rd-'+v+'-'+kopieerVan.id);
+      const naar = document.getElementById('rd-'+v+'-'+id);
+      if(van && naar) naar.value = van.value;
+    });
+    const zonVan = document.getElementById('rd-zonwering-'+kopieerVan.id);
+    const zonNaar = document.getElementById('rd-zonwering-'+id);
+    if(zonVan && zonNaar) zonNaar.checked = zonVan.checked;
+    rd.glasHandmatig = !!kopieerVan.glasHandmatig;
+  }
 
   toggleRaamDeurVelden(id);
   renumberRamenDeuren();
@@ -3431,7 +3654,7 @@ function verwijderRaamDeur(id){
   renderRamenDeurenResultaten();
 }
 
-if(btnToevoegenRaamDeur) btnToevoegenRaamDeur.addEventListener('click', voegRaamDeurToe);
+if(btnToevoegenRaamDeur) btnToevoegenRaamDeur.addEventListener('click', ()=>voegRaamDeurToe(ramenDeuren[ramenDeuren.length-1]));
 
 function berekenRaamDeurData(rd){
   const type = document.getElementById('rd-type-'+rd.id)?.value || 'raam';
@@ -3443,12 +3666,13 @@ function berekenRaamDeurData(rd){
   const verdieping = document.getElementById('rd-verdieping-'+rd.id)?.value || 'bg';
   const glastype = document.getElementById('rd-glastype-'+rd.id)?.value || '';
   const isolatie = document.getElementById('rd-isolatie-'+rd.id)?.value || 'on';
+  const zonweringAan = !!document.getElementById('rd-zonwering-'+rd.id)?.checked;
 
   if(isNaN(breedte) || isNaN(hoogte) || breedte<=0 || hoogte<=0){
     return {id:rd.id, naam:rd.naam, type, geldig:false};
   }
 
-  let raamOppStuk = 0, deurOppStuk = 0, raamBreedte=null, raamHoogte=null;
+  let raamOppStuk = 0, deurOppStuk = 0, paneelOppStuk = 0, raamBreedte=null, raamHoogte=null;
   if(type === 'deurmetraam'){
     raamBreedte = parseFloat(String(document.getElementById('rd-raambreedte-'+rd.id)?.value).replace(',','.'));
     raamHoogte = parseFloat(String(document.getElementById('rd-raamhoogte-'+rd.id)?.value).replace(',','.'));
@@ -3457,6 +3681,8 @@ function berekenRaamDeurData(rd){
     deurOppStuk = Math.max(breedte*hoogte - raamOppStuk, 0);
   } else if(type === 'deur'){
     deurOppStuk = breedte*hoogte;
+  } else if(type === 'paneel'){
+    paneelOppStuk = breedte*hoogte;
   } else { // raam of dakraam
     raamOppStuk = breedte*hoogte;
   }
@@ -3467,9 +3693,10 @@ function berekenRaamDeurData(rd){
     id:rd.id, naam:rd.naam, type, breedte, hoogte, aantal, glastype, isolatie, verdieping,
     raamBreedte, raamHoogte,
     orientatieRaw, gevelKey,
-    raamOpp: raamOppStuk*aantal, deurOpp: deurOppStuk*aantal,
-    raamOppStuk, deurOppStuk,
-    oppStuk: (raamOppStuk+deurOppStuk), geldig:true
+    raamOpp: raamOppStuk*aantal, deurOpp: deurOppStuk*aantal, paneelOpp: paneelOppStuk*aantal,
+    raamOppStuk, deurOppStuk, paneelOppStuk,
+    zonwering: zonweringAan && raamOppStuk>0,
+    oppStuk: (raamOppStuk+deurOppStuk+paneelOppStuk), geldig:true
   };
 }
 
@@ -3522,7 +3749,8 @@ function rdItemRegels(d){
     const isDR = d.type==='deurmetraam';
     const formule = isDR ? `${aantalTxt}${n2l(d.raamBreedte)} × ${n2l(d.raamHoogte)}` : `${aantalTxt}${n2l(d.breedte)} × ${n2l(d.hoogte)}`;
     uit.push({soort:'raam', opp:d.raamOpp, glastype:d.glastype, gevelKey:d.gevelKey,
-      label:`${d.naam}${isDR?' — raam in deur':''} — ${orient}`, detail: rdGlasLabel(d.glastype), formule});
+      zonwering:d.zonwering,
+      label:`${d.naam}${isDR?' — raam in deur':''} — ${orient}`, detail: rdGlasLabel(d.glastype) + (d.zonwering ? ', met zonwering' : ''), formule});
   }
   if(d.deurOpp>0){
     const isDR = d.type==='deurmetraam';
@@ -3531,6 +3759,11 @@ function rdItemRegels(d){
       : `${aantalTxt}${n2l(d.breedte)} × ${n2l(d.hoogte)}`;
     uit.push({soort:'deur', opp:d.deurOpp, isolatie:d.isolatie, gevelKey:d.gevelKey,
       label:`${d.naam}${isDR?' — deurdeel':''} — ${orient}`, detail: RD_ISOLATIE_LABELS[d.isolatie] || d.isolatie, formule});
+  }
+  if(d.paneelOpp>0){
+    const n2 = x => (Math.round(x*100)/100).toFixed(2);
+    uit.push({soort:'paneel', opp:d.paneelOpp, gevelKey:d.gevelKey,
+      label:`${d.naam} — ${orient}`, detail:'Paneel', formule:`${aantalTxt}${n2(d.breedte)} × ${n2(d.hoogte)}`});
   }
   return uit;
 }
@@ -3545,6 +3778,8 @@ function renderRamenDeurenResultaten(){
     const delen = [];
     if(d.raamOpp>0) delen.push(`raam ${d.raamOpp.toFixed(2)} m²`);
     if(d.deurOpp>0) delen.push(`deur ${d.deurOpp.toFixed(2)} m²`);
+    if(d.paneelOpp>0) delen.push(`paneel ${d.paneelOpp.toFixed(2)} m²`);
+    if(d.zonwering) delen.push('met zonwering');
     el.textContent = `${delen.join(' + ')} — ${ramenDeurenOrientatieLabel(d.gevelKey)}, ${ramenDeurenVerdiepingLabel(d.verdieping)}${d.aantal>1 ? ' (×'+d.aantal+')' : ''}`;
   });
 
@@ -3561,15 +3796,15 @@ function renderRamenDeurenResultaten(){
       rdVerdiepingVolgorde().forEach(v=>{
         const sel = geldig.filter(d=>d.verdieping===v);
         if(!sel.length) return;
-        const raam = sel.reduce((s,d)=>s+d.raamOpp,0), deur = sel.reduce((s,d)=>s+d.deurOpp,0);
-        html += rij(ramenDeurenVerdiepingLabel(v), `raam ${raam.toFixed(2)} m² · deur ${deur.toFixed(2)} m²`);
+        const raam = sel.reduce((s,d)=>s+d.raamOpp,0), deur = sel.reduce((s,d)=>s+d.deurOpp,0), paneel = sel.reduce((s,d)=>s+d.paneelOpp,0);
+        html += rij(ramenDeurenVerdiepingLabel(v), `raam ${raam.toFixed(2)} m² · deur ${deur.toFixed(2)} m²` + (paneel>0 ? ` · paneel ${paneel.toFixed(2)} m²` : ''));
       });
       html += '</div><p class="hint" style="margin-top:12px;">Σ per oriëntatie:</p><div class="lines-list" style="max-height:none;">';
       ['VG','AG','LG','RG'].forEach(key=>{
         const sel = geldig.filter(d=>d.gevelKey===key);
         if(!sel.length) return;
-        const raam = sel.reduce((s,d)=>s+d.raamOpp,0), deur = sel.reduce((s,d)=>s+d.deurOpp,0);
-        html += rij(`${GEVEL_LABELS[key]} (${key})`, `raam ${raam.toFixed(2)} m² · deur ${deur.toFixed(2)} m²`);
+        const raam = sel.reduce((s,d)=>s+d.raamOpp,0), deur = sel.reduce((s,d)=>s+d.deurOpp,0), paneel = sel.reduce((s,d)=>s+d.paneelOpp,0);
+        html += rij(`${GEVEL_LABELS[key]} (${key})`, `raam ${raam.toFixed(2)} m² · deur ${deur.toFixed(2)} m²` + (paneel>0 ? ` · paneel ${paneel.toFixed(2)} m²` : ''));
       });
       html += '</div>';
       container.innerHTML = html;
@@ -3620,13 +3855,17 @@ function ramenDeurenSamenvattingRegels(regels){
     if(!sel.length) return;
     const groepen = {};
     sel.forEach(d=> rdItemRegels(d).forEach(r=>{
-      const sleutel = r.soort==='raam' ? 'raam|'+(r.glastype||'') : 'deur|'+(r.isolatie||'on');
-      if(!groepen[sleutel]) groepen[sleutel] = {soort:r.soort, glastype:r.glastype, isolatie:r.isolatie, opp:0};
+      const sleutel = r.soort==='raam' ? 'raam|'+(r.glastype||'')+'|'+(r.zonwering?'zon':'')
+                    : r.soort==='paneel' ? 'paneel'
+                    : 'deur|'+(r.isolatie||'on');
+      if(!groepen[sleutel]) groepen[sleutel] = {soort:r.soort, glastype:r.glastype, isolatie:r.isolatie, zonwering:r.zonwering, opp:0};
       groepen[sleutel].opp += r.opp;
     }));
     let som = 0;
     Object.values(groepen).forEach(gr=>{
-      const naam = gr.soort==='raam' ? `Ramen ${rdGlasLabel(gr.glastype).toLowerCase()}` : `Deuren ${(RD_ISOLATIE_LABELS[gr.isolatie]||gr.isolatie).toLowerCase()}`;
+      const naam = gr.soort==='raam' ? `Ramen ${rdGlasLabel(gr.glastype).toLowerCase()}${gr.zonwering ? ', met zonwering' : ''}`
+                 : gr.soort==='paneel' ? 'Panelen'
+                 : `Deuren ${(RD_ISOLATIE_LABELS[gr.isolatie]||gr.isolatie).toLowerCase()}`;
       item(`${GEVEL_LABELS[key]} (${key}): ${naam}`, gr.opp, '', '');
       som += gr.opp;
     });
@@ -5587,6 +5826,8 @@ async function exporteerPDF(opties = {}){
     };
 
     wisIosBestanden();
+    let pdfRec = null;
+    if (!opties.doelMap) pdfRec = await bewaarExportKopie(blob, pdfNaam, 'application/pdf');
 
     // 1. Zelf een map aangewezen? Dan gaat alles daarheen en zijn we klaar.
     if (opties.doelMap) {
@@ -5602,12 +5843,17 @@ async function exporteerPDF(opties = {}){
         try {
           await uploadPdfNaarProjectmap(blob);
           pdfStaatGoed = true;
+          await zetExportStatus(pdfRec, 'ok');
           meldingen.push(`📁 PDF opgeslagen in 020 AANTEKENINGEN van "${actiefProjectNaam()}"`);
         } catch(uploadErr){
+          await zetExportStatus(pdfRec, 'mislukt', uploadErr && uploadErr.message ? uploadErr.message : String(uploadErr));
           meldingen.push(`⚠️ projectmap mislukt: ${uploadErr.message}`);
         }
       } else if (projectGekoppeld()) {
+        await zetExportStatus(pdfRec, 'offline');
         meldingen.push('📵 geen internet — nog niet in de projectmap');
+      } else {
+        await zetExportStatus(pdfRec, 'geenproject');
       }
       toonStatus();
 
@@ -5653,7 +5899,8 @@ async function exporteerPDF(opties = {}){
         toonStatus('⏳ uploaden naar OneDrive…');
         try {
           await odUpload(blob, pdfNaam, keuze.id);
-          if (excel) await odUpload(excel.blob, excel.bestandsnaam, keuze.id);
+          await zetExportStatus(pdfRec, 'ok');
+          if (excel) { await odUpload(excel.blob, excel.bestandsnaam, keuze.id); await zetExportStatus(excel.rec, 'ok'); }
           meldingen.push(`☁️ ook opgeslagen in ${keuze.pad}`);
         } catch(odErr) {
           meldingen.push(`⚠️ OneDrive-upload mislukt: ${odErr.message}`);
@@ -5661,6 +5908,7 @@ async function exporteerPDF(opties = {}){
         toonStatus();
       }
     }
+    if (!opties.doelMap) { await toonLaatstGemaakt(); toonExportBanner([pdfRec, excel && excel.rec]); }
   } catch(err){
     console.error(err);
     const melding = (err && err.message) ? err.message : String(err);
@@ -5697,6 +5945,7 @@ mapKnop.addEventListener('click', async () => {
 // Eerder gekozen project weer oppakken (werkt ook zonder internet).
 gekozenProject = laadGekozenProject();
 initProjectBanner();
+toonLaatstGemaakt();
 
 // ============================================================
 // EXCEL EXPORT / IMPORT — werkblad 1 "Output" (berekend),
@@ -5815,6 +6064,7 @@ function verzamelInvoerData(){
     push('RaamDeur', i+1, 'isolatie', veldWaarde('rd-isolatie-'+rd.id));
     push('RaamDeur', i+1, 'raambreedte', veldWaarde('rd-raambreedte-'+rd.id));
     push('RaamDeur', i+1, 'raamhoogte', veldWaarde('rd-raamhoogte-'+rd.id));
+    push('RaamDeur', i+1, 'zonwering', document.getElementById('rd-zonwering-'+rd.id)?.checked ? '1' : '0');
   });
 
   return rows;
@@ -5958,6 +6208,8 @@ function vulInvoerDataIn(rows){
       veldZetten('rd-isolatie-'+rd.id, g.velden.isolatie || 'on');
       veldZetten('rd-raambreedte-'+rd.id, g.velden.raambreedte);
       veldZetten('rd-raamhoogte-'+rd.id, g.velden.raamhoogte);
+      const zwCb = document.getElementById('rd-zonwering-'+rd.id);
+      if(zwCb) zwCb.checked = isEen(g.velden.zonwering);
       toggleRaamDeurVelden(rd.id);
     });
     verversRamenDeurenOpties();
@@ -6211,30 +6463,28 @@ async function exporteerExcel(opties = {}){
     return { blob, bestandsnaam, inProjectmap:false };
   }
 
-  // Net als bij de PDF: eerst naar de projectmap, daarna pas een lokale kopie.
-  let inProjectmap = false;
-  if (projectGekoppeld() && navigator.onLine) {
-    try {
-      await uploadBestandNaarProjectmap(blob, bestandsnaam);
-      inProjectmap = true;
-    } catch(_) { /* niet fataal — hieronder komt sowieso een lokale kopie */ }
-  }
+  // Eerst een kopie in de browser (vangnet), dan naar de projectmap, daarna een lokale kopie.
+  const rec = await bewaarExportKopie(blob, bestandsnaam, MIME);
+  await probeerUploadMetVangnet(rec);
+  const inProjectmap = rec.status === 'ok';
 
   if (!isIOS()) {
     downloadNaarBrowser(blob, bestandsnaam, MIME);
   } else {
     zetIosBestandKlaar(blob, bestandsnaam, MIME, inProjectmap);
   }
-  return { blob, bestandsnaam, inProjectmap };
+  return { blob, bestandsnaam, inProjectmap, rec };
 }
 
 document.getElementById('btn-tekening-excel').addEventListener('click', ()=>{
   wisIosBestanden();
   document.getElementById('upload-status').textContent = '';
-  exporteerExcel().then(r=>{
+  exporteerExcel().then(async r=>{
     document.getElementById('upload-status').textContent = r.inProjectmap
       ? `📁 Excel opgeslagen in 020 AANTEKENINGEN van "${actiefProjectNaam()}"`
       : `📊 Excel gemaakt: "${r.bestandsnaam}"`;
+    await toonLaatstGemaakt();
+    toonExportBanner([r.rec]);
   }).catch(err=>{
     console.error(err);
     alert('Excel maken mislukt: ' + (err && err.message ? err.message : err));
