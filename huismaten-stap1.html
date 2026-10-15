@@ -1115,6 +1115,8 @@ function laadGekozenProject() {
     const ruw = localStorage.getItem(PROJECT_BEWAARSLEUTEL);
     if (!ruw) return null;
     const p = JSON.parse(ruw);
+    // Een eerder fout opgeslagen keuze (projectnaam "020 AANTEKENINGEN") niet meer gebruiken.
+    if (p && p.naam === '020 AANTEKENINGEN') return null;
     return (p && p.naam && p.pad) ? p : null;
   } catch(_) { return null; }
 }
@@ -1351,6 +1353,12 @@ async function uploadBestandNaarProjectmap(blob, bestandsnaam, padOverride) {
   const pad = padOverride || actiefProjectPad();
   if (!pad) throw new Error('Er is nog geen project gekozen.');
   const token = await graphRefreshToken();
+  // Eerst controleren of de projectmap echt bestaat. Een upload naar een onbestaand pad
+  // maakt namelijk stilletjes nieuwe (foute) mappen aan.
+  let bestaat;
+  try { bestaat = await fetch(`https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(pad)}`, { headers: { Authorization: 'Bearer ' + token } }); }
+  catch (_) { throw new Error('Geen verbinding met OneDrive.'); }
+  if (bestaat.status === 404) throw new Error(`Projectmap bestaat niet in OneDrive: ${pad} — niet geüpload. Kies het project opnieuw.`);
   const url = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(pad)}/${encodeURIComponent(bestandsnaam)}:/content`;
   const resp = await fetch(url, { method: 'PUT', headers: { Authorization: 'Bearer ' + token }, body: blob });
   if (!resp.ok) {
@@ -1613,12 +1621,20 @@ async function kiesProjectDialoog() {
   });
   if (!keuze || keuze.type !== 'map') return;
 
-  // Je kiest de projectmap zelf; de bestanden gaan naar de submap 020 AANTEKENINGEN.
-  const projectnaam = keuze.naam || keuze.pad.split(' / ').pop();
-  gekozenProject = {
-    naam: projectnaam,
-    pad : `${PROJECTEN_ROOT}/${projectnaam}/020 AANTEKENINGEN`
-  };
+  // Het écht gekozen pad gebruiken (niet alleen de laatste mapnaam). Je mag de projectmap kiezen
+  // óf direct de submap 020 AANTEKENINGEN: in beide gevallen gaan de bestanden naar die submap.
+  const SUBMAP = '020 AANTEKENINGEN';
+  const delen = String(keuze.pad || '').replace(/^OneDrive( \/ )?/, '').split(' / ').filter(Boolean);
+  if (!delen.length) { alert('Kies een projectmap, niet de hoofdmap van OneDrive.'); return; }
+  let projectnaam, doelDelen;
+  if (delen[delen.length - 1] === SUBMAP && delen.length >= 2) {
+    projectnaam = delen[delen.length - 2];
+    doelDelen = delen;
+  } else {
+    projectnaam = delen[delen.length - 1];
+    doelDelen = [...delen, SUBMAP];
+  }
+  gekozenProject = { naam: projectnaam, pad: doelDelen.join('/') };
   bewaarGekozenProject(gekozenProject);
   initProjectBanner();
   controleerOneDrive();
