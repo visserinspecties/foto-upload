@@ -298,6 +298,8 @@
   </div>
   <img id="header-logo" class="header-logo" alt="Visser Inspecties">
 </div>
+<!-- OneDrive-status: altijd zichtbaar bovenin. Groen = verbonden en projectmap gecontroleerd, rood = niet. -->
+<div id="od-status" style="font-size:13px; font-weight:600; margin:-10px 0 8px; padding:8px 10px; border-radius:6px; background:#efece3; color:#6b6555; display:flex; flex-wrap:wrap; gap:8px; align-items:center;">☁️ OneDrive: controleren…</div>
 <div id="project-banner" style="display:none; font-size:12px; color:#6b6555; margin:-10px 0 14px; padding:6px 10px; background:#efece3; border-radius:6px;"></div>
 
 <div class="tabs">
@@ -1091,9 +1093,9 @@ function aanzichtTitel(code) {
   return `${namen[code]} (aanzicht)` + (t ? ` — ${code}, ${t}` : '');
 }
 
-// ── OneDrive-upload: hergebruikt de inlogsessie van de Nieuwe-Projectmap-app ──
-// (zelfde origin op GitHub Pages, dus zelfde localStorage — geen aparte login nodig
-// zolang je al eens via de Projectmap-app bent ingelogd op dit apparaat/browser.)
+// ── OneDrive-upload: deelt de inlogsessie met de Nieuwe-Projectmap-app ──
+// (zelfde origin op GitHub Pages, dus zelfde localStorage. Inloggen kan nu ook hier zelf,
+// via de knop in de statusbalk bovenin; zie startLogin().)
 const GRAPH_CLIENT_ID = 'fdf237c9-bf46-47fa-ab3d-a8834a73e284';
 const GRAPH_TENANT_ID = '984fd1fb-3d68-4c94-aff2-47f699fb5dae';
 const GRAPH_SCOPE = 'https://graph.microsoft.com/Files.ReadWrite offline_access';
@@ -1136,17 +1138,204 @@ function projectGekoppeld() {
   return !!actiefProjectPad();
 }
 
+// Foutcodes (e.code): 'geen-login' | 'verlopen' | 'netwerk' — de statusbalk bovenin kijkt hiernaar.
 async function graphRefreshToken() {
   const rt = localStorage.getItem('rt');
-  if (!rt) throw new Error('Nog niet ingelogd — open eerst de Projectmap-app en log daar in met je Microsoft-account.');
-  const resp = await fetch(`https://login.microsoftonline.com/${GRAPH_TENANT_ID}/oauth2/v2.0/token`, {
-    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ client_id: GRAPH_CLIENT_ID, grant_type: 'refresh_token', refresh_token: rt, scope: GRAPH_SCOPE })
-  });
-  const data = await resp.json();
-  if (!data.access_token) throw new Error(data.error_description || 'Inloggen mislukt — log opnieuw in via de Projectmap-app.');
+  if (!rt) { const e = new Error('Niet ingelogd bij OneDrive — tik bovenaan op "Inloggen".'); e.code = 'geen-login'; throw e; }
+  let resp;
+  try {
+    resp = await fetch(`https://login.microsoftonline.com/${GRAPH_TENANT_ID}/oauth2/v2.0/token`, {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ client_id: GRAPH_CLIENT_ID, grant_type: 'refresh_token', refresh_token: rt, scope: GRAPH_SCOPE })
+    });
+  } catch (err) {
+    const e = new Error('Geen verbinding met Microsoft.'); e.code = 'netwerk'; throw e;
+  }
+  const data = await resp.json().catch(() => ({}));
+  if (!data.access_token) {
+    // Alleen bij een echte afwijzing de oude sleutel weggooien, nooit bij een netwerkfout.
+    if (data.error === 'invalid_grant' || data.error === 'interaction_required') { try { localStorage.removeItem('rt'); } catch(_) {} }
+    const e = new Error('Inlog verlopen — tik bovenaan op "Inloggen".'); e.code = 'verlopen'; throw e;
+  }
   if (data.refresh_token) localStorage.setItem('rt', data.refresh_token);
   return data.access_token;
+}
+
+// ── Eigen inlog (PKCE) ────────────────────────────────────────────────
+// Werkt alleen op het vaste adres (visserinspecties.github.io): alleen daar delen deze tool en
+// de Projectmap-app dezelfde opslag. Een kopie die je uit OneDrive opent draait ergens anders
+// en kan dus nooit inloggen — de balk bovenin zegt dat dan.
+// Het adres van deze pagina moet in Entra staan als redirect-URI (platform "Single-page application").
+const LOGIN_SCOPE = 'https://graph.microsoft.com/Files.ReadWrite https://graph.microsoft.com/Tasks.ReadWrite offline_access';
+const LOGIN_VASTE_ORIGIN = 'https://visserinspecties.github.io';
+const LOGIN_PKCE = 'huismaten_pkce_v', LOGIN_KLAAR = 'huismaten_login_klaar', LOGIN_MODUS = 'huismaten_login_modus';
+
+function loginRedirectUri() { return location.origin + location.pathname; }
+function loginMogelijk() { return location.origin === LOGIN_VASTE_ORIGIN; }
+
+function loginB64url(buf) {
+  return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+async function loginBouwUrl() {
+  const verifier = loginB64url(crypto.getRandomValues(new Uint8Array(32)));
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+  localStorage.setItem(LOGIN_PKCE, verifier);
+  const params = new URLSearchParams({
+    client_id: GRAPH_CLIENT_ID, response_type: 'code', redirect_uri: loginRedirectUri(),
+    scope: LOGIN_SCOPE, code_challenge: loginB64url(digest), code_challenge_method: 'S256',
+    state: 'huismaten', domain_hint: 'organizations'
+  });
+  return `https://login.microsoftonline.com/${GRAPH_TENANT_ID}/oauth2/v2.0/authorize?${params}`;
+}
+
+// Inloggen in een pop-up, zodat de pagina en alles wat je hebt ingevuld blijven staan.
+async function startLogin() {
+  if (!loginMogelijk()) {
+    alert('Inloggen kan alleen via het vaste adres:\n' + LOGIN_VASTE_ORIGIN + '/foto-upload/huismaten-stap1.html\n\nDeze kopie draait ergens anders (bijvoorbeeld in de OneDrive-app) en kan niet inloggen. Open de tool via het vaste adres in Safari of Edge.');
+    return;
+  }
+  const popup = window.open('', 'huismaten_login', 'width=520,height=720');
+  try {
+    const url = await loginBouwUrl();
+    try { localStorage.removeItem(LOGIN_KLAAR); } catch(_) {}
+    if (popup && !popup.closed) {
+      localStorage.setItem(LOGIN_MODUS, 'popup:' + Date.now());
+      popup.location.href = url;
+      wachtOpLogin(popup);
+    } else {
+      if (!confirm('De pop-up is geblokkeerd. Inloggen in dit venster? Wat je in de tool hebt ingevuld maar nog niet geëxporteerd, kan dan verloren gaan.')) return;
+      localStorage.setItem(LOGIN_MODUS, 'pagina');
+      location.href = url;
+    }
+  } catch (e) {
+    try { if (popup) popup.close(); } catch(_) {}
+    alert('Inloggen starten mislukt: ' + (e && e.message ? e.message : e));
+  }
+}
+
+function wachtOpLogin(popup) {
+  const start = Date.now();
+  const timer = setInterval(async () => {
+    let klaar = null; try { klaar = localStorage.getItem(LOGIN_KLAAR); } catch(_) {}
+    const afgebroken = popup.closed || (Date.now() - start > 5 * 60 * 1000);
+    if (klaar || afgebroken) {
+      clearInterval(timer);
+      try { localStorage.removeItem(LOGIN_KLAAR); } catch(_) {}
+      try { popup.close(); } catch(_) {}
+      await controleerOneDrive();
+      try { await toonLaatstGemaakt(); } catch(_) {}
+    }
+  }, 800);
+}
+
+// Draait bij elke start: komt deze pagina terug van Microsoft (met ?code=…), dan wordt de
+// inlog hier afgerond. Geeft true terug als dat het geval was.
+async function verwerkLoginCallback() {
+  const p = new URLSearchParams(location.search);
+  if (p.get('state') !== 'huismaten' || !(p.get('code') || p.get('error'))) return false;
+  const popupModus = (localStorage.getItem(LOGIN_MODUS) || '').startsWith('popup');
+  const scherm = document.createElement('div');
+  scherm.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#fff;color:#1c1c1e;display:flex;flex-direction:column;'
+    + 'align-items:center;justify-content:center;text-align:center;font:600 18px -apple-system,Segoe UI,sans-serif;padding:24px;gap:16px;';
+  scherm.textContent = 'Inloggen afronden…';
+  document.body.appendChild(scherm);
+  const knop = (tekst, actie) => {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = tekst;
+    b.style.cssText = 'padding:12px 20px;font-size:16px;border-radius:8px;border:1px solid #999;background:#f2f2f7;';
+    b.addEventListener('click', actie); scherm.appendChild(b);
+  };
+  try {
+    if (p.get('error')) throw new Error(p.get('error_description') || p.get('error'));
+    const verifier = localStorage.getItem(LOGIN_PKCE);
+    if (!verifier) throw new Error('inlogpoging niet gevonden — probeer opnieuw');
+    const resp = await fetch(`https://login.microsoftonline.com/${GRAPH_TENANT_ID}/oauth2/v2.0/token`, {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ client_id: GRAPH_CLIENT_ID, grant_type: 'authorization_code', code: p.get('code'),
+        redirect_uri: loginRedirectUri(), code_verifier: verifier, scope: LOGIN_SCOPE })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!data.refresh_token) throw new Error(data.error_description || 'token ophalen mislukt');
+    localStorage.setItem('rt', data.refresh_token);
+    localStorage.setItem('rt_login_ts', String(Date.now()));
+    localStorage.removeItem(LOGIN_PKCE);
+    localStorage.setItem(LOGIN_KLAAR, String(Date.now()));
+    history.replaceState({}, '', location.pathname);
+    if (popupModus) {
+      scherm.textContent = '✅ Ingelogd. Dit venster sluit vanzelf — lukt dat niet, ga dan terug naar de tab met de tool.';
+      setTimeout(() => { try { window.close(); } catch(_) {} }, 400);
+    } else {
+      scherm.remove();
+    }
+  } catch (e) {
+    history.replaceState({}, '', location.pathname);
+    scherm.textContent = '❌ Inloggen mislukt: ' + (e && e.message ? e.message : e);
+    knop(popupModus ? 'Venster sluiten' : 'Terug naar de tool', () => { if (popupModus) { try { window.close(); } catch(_) {} } scherm.remove(); });
+  }
+  return true;
+}
+
+// ── OneDrive-statusbalk bovenin ──────────────────────────────────────
+// Controleert inlog + of de gekozen projectmap echt bestaat. Op elk moment aan te roepen
+// (bij openen, terugkeren naar de tab, internet terug, projectwissel, mislukte upload).
+const OD_KLEUREN = {
+  ok:   ['#e3f1e3', '#1d5a2b'],
+  fout: ['#fbe3dc', '#8f2410'],
+  let:  ['#fff1d6', '#7a4b00'],
+  neutraal: ['#efece3', '#6b6555']
+};
+function zetOdBalk(soort, tekst, knoppen) {
+  const el = document.getElementById('od-status');
+  if (!el) return;
+  const [achtergrond, tekstkleur] = OD_KLEUREN[soort || 'neutraal'];
+  el.style.background = achtergrond;
+  el.style.color = tekstkleur;
+  el.textContent = tekst;
+  (knoppen || []).forEach(([label, actie]) => {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = label;
+    b.style.cssText = 'padding:4px 12px;font-size:12px;font-weight:600;border:1px solid currentColor;background:white;color:inherit;border-radius:5px;cursor:pointer;';
+    b.addEventListener('click', actie); el.appendChild(b);
+  });
+}
+
+let odControleLoopt = false;
+async function controleerOneDrive() {
+  if (odControleLoopt) return;
+  odControleLoopt = true;
+  try {
+    zetOdBalk('neutraal', '☁️ OneDrive: controleren…');
+    const inloggen = ['🔐 Inloggen', startLogin];
+    const opnieuw = ['Controleer', controleerOneDrive];
+    if (!navigator.onLine) {
+      zetOdBalk('let', '📵 Geen internet — exports blijven bewaard in de browser en kun je later uploaden.', [opnieuw]);
+      return;
+    }
+    if (!loginMogelijk()) {
+      zetOdBalk('fout', '⛔ Deze kopie draait niet op het vaste adres en kan niet uploaden. Open de tool via visserinspecties.github.io in Safari of Edge.');
+      return;
+    }
+    let token;
+    try { token = await graphRefreshToken(); }
+    catch (e) {
+      if (e.code === 'netwerk') zetOdBalk('let', '⚠️ Microsoft is nu niet bereikbaar (slecht bereik?). Exports blijven bewaard in de browser.', [opnieuw]);
+      else zetOdBalk('fout', e.code === 'verlopen' ? '❌ OneDrive: inlog verlopen — exports worden NIET geüpload.' : '❌ OneDrive: niet ingelogd — exports worden NIET geüpload.', [inloggen]);
+      return;
+    }
+    const pad = actiefProjectPad();
+    const uren = (() => { const t = Number(localStorage.getItem('rt_login_ts')); return t ? Math.floor((Date.now() - t) / 3600000) : null; })();
+    const leeftijd = (uren !== null && uren >= 18) ? ` · ingelogd ${uren} u geleden, log straks opnieuw in` : '';
+    if (!pad) {
+      zetOdBalk('let', '☁️ OneDrive verbonden — maar nog geen project gekozen' + leeftijd, [['Kies project', kiesProjectDialoog], opnieuw]);
+      return;
+    }
+    let resp;
+    try { resp = await fetch(`https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(pad)}`, { headers: { Authorization: 'Bearer ' + token } }); }
+    catch (_) { zetOdBalk('let', '⚠️ OneDrive verbonden, maar de projectmap kon niet gecontroleerd worden (geen bereik).', [opnieuw]); return; }
+    if (resp.ok) zetOdBalk('ok', `✅ OneDrive verbonden · exports gaan naar: ${pad}${leeftijd}`, [opnieuw]);
+    else if (resp.status === 404) zetOdBalk('fout', `❌ Projectmap niet gevonden in OneDrive: ${pad}`, [['Kies project', kiesProjectDialoog], opnieuw]);
+    else zetOdBalk('fout', `❌ OneDrive gaf een fout (${resp.status}) bij het controleren van de projectmap.`, [inloggen, opnieuw]);
+  } finally {
+    odControleLoopt = false;
+  }
 }
 
 // Versienummer van deze sessie: 1 = origineel, 2+ = na inlezen van een aangepaste Excel-export.
@@ -1260,6 +1449,7 @@ async function probeerUploadMetVangnet(rec) {
     await zetExportStatus(rec, 'ok');
   } catch (e) {
     await zetExportStatus(rec, 'mislukt', (e && e.message) ? e.message : String(e));
+    controleerOneDrive(); // balk bovenin meteen rood/oranje met de juiste knop
   }
 }
 
@@ -1401,6 +1591,7 @@ function initProjectBanner() {
         gekozenProject = null;
         bewaarGekozenProject(null);
         initProjectBanner();
+        controleerOneDrive();
       });
       banner.appendChild(los);
     }
@@ -1412,7 +1603,7 @@ function initProjectBanner() {
 // Laat de projectmappen onder "0_In Behandeling" zien en onthoudt je keuze.
 async function kiesProjectDialoog() {
   if (!(await onedriveBeschikbaar())) {
-    alert('Geen verbinding met OneDrive.\n\nJe hebt nu geen internet, óf je bent op dit apparaat/deze browser nog niet ingelogd via de Projectmap-app.\n\nKies je project even wanneer je wél verbinding hebt — daarna onthoudt de tool het en werkt het ook offline.');
+    alert('Geen verbinding met OneDrive.\n\nJe hebt nu geen internet, óf je bent niet (meer) ingelogd. Tik bovenaan op "Inloggen" (of "Controleer") en probeer het opnieuw.\n\nKies je project even wanneer je wél verbinding hebt — daarna onthoudt de tool het en werkt het ook offline.');
     return;
   }
   const keuze = await kiesOnedrive({
@@ -1430,6 +1621,7 @@ async function kiesProjectDialoog() {
   };
   bewaarGekozenProject(gekozenProject);
   initProjectBanner();
+  controleerOneDrive();
 }
 
 const DAK_DEFAULT_HOEK = 45;
@@ -5848,6 +6040,7 @@ async function exporteerPDF(opties = {}){
         } catch(uploadErr){
           await zetExportStatus(pdfRec, 'mislukt', uploadErr && uploadErr.message ? uploadErr.message : String(uploadErr));
           meldingen.push(`⚠️ projectmap mislukt: ${uploadErr.message}`);
+          controleerOneDrive(); // balk bovenin meteen bijwerken met de juiste knop
         }
       } else if (projectGekoppeld()) {
         await zetExportStatus(pdfRec, 'offline');
@@ -5946,6 +6139,13 @@ mapKnop.addEventListener('click', async () => {
 gekozenProject = laadGekozenProject();
 initProjectBanner();
 toonLaatstGemaakt();
+
+// OneDrive-status: eerst een eventuele inlog afronden, daarna de balk bovenin vullen.
+// Daarna opnieuw controleren bij internet terug / terug naar deze tab.
+verwerkLoginCallback().catch(() => {}).then(() => controleerOneDrive());
+window.addEventListener('online', () => controleerOneDrive());
+window.addEventListener('offline', () => controleerOneDrive());
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') controleerOneDrive(); });
 
 // ============================================================
 // EXCEL EXPORT / IMPORT — werkblad 1 "Output" (berekend),
@@ -6512,7 +6712,7 @@ excelInput.addEventListener('change', e=>{
 // daarna op het .xlsx-bestand tikken.
 document.getElementById('btn-excel-onedrive').addEventListener('click', async ()=>{
   if(!(await onedriveBeschikbaar())){
-    alert('Geen verbinding met OneDrive.\n\nDat kan twee dingen betekenen: je hebt nu geen internet, of je bent op dit apparaat/deze browser nog niet ingelogd via de Projectmap-app.\n\nJe kunt altijd een Excel-bestand hierboven naar het sleepvak slepen — dat werkt ook offline.');
+    alert('Geen verbinding met OneDrive.\n\nDat kan twee dingen betekenen: je hebt nu geen internet, of je bent niet (meer) ingelogd — tik dan bovenaan op "Inloggen".\n\nJe kunt altijd een Excel-bestand hierboven naar het sleepvak slepen — dat werkt ook offline.');
     return;
   }
   const keuze = await kiesOnedrive({
