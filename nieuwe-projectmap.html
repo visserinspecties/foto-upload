@@ -1053,9 +1053,38 @@ async function schrijfProjectgegevens(projectPad, g) {
     naamOpdrachtgever: naamRegelVan(g),
     orientatie: g.orientatie || null,
     orientatieHoek: g.orientatieHoek ?? null,
-    orientatieBron: g.orientatieBron || ''
+    orientatieBron: g.orientatieBron || '',
+    bouwjaar: g.bouwjaar || '',
+    oppervlakte: g.oppervlakte || '',
+    gebruiksdoel: bagState?.gebruiksdoel || ''
   };
   await schrijfTekstbestand(`${projectPad}/020 AANTEKENINGEN/projectgegevens.json`, JSON.stringify(data, null, 2), 'application/json');
+  // Kaartje (BAG-pand, rode voorgevelpijl, VG/AG/LG/RG) als plaatje, voor in de PDF van Huismaten
+  const kaart = await maakKaartPng();
+  if (kaart) {
+    const token = await getToken();
+    const pad = `${projectPad}/020 AANTEKENINGEN/kaartje.png`;
+    const resp = await fetch(`https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(pad)}:/content`, {
+      method: 'PUT', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'image/png' }, body: kaart
+    });
+    if (!resp.ok) throw new Error('kaartje opslaan mislukt');
+  }
+}
+
+// Zet het oriëntatiekaartje (SVG op het scherm) om naar een PNG. Null als er geen kaartje is.
+async function maakKaartPng() {
+  const svg = document.querySelector('#orient-kaart svg');
+  if (!svg) return null;
+  const kloon = svg.cloneNode(true);
+  const W = 1000, H = 800;
+  kloon.setAttribute('width', W); kloon.setAttribute('height', H);
+  kloon.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  kloon.setAttribute('font-family', 'Helvetica, Arial, sans-serif');
+  const bron = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(kloon));
+  const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = bron; });
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const cx = c.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, W, H); cx.drawImage(img, 0, 0, W, H);
+  return await new Promise(res => c.toBlob(res, 'image/png'));
 }
 
 // ── Klembord: losse velden en alles-in-één-keer kopiëren ────

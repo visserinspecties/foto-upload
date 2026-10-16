@@ -1060,7 +1060,9 @@ const PROJECT_GEGEVENS = "";
 // Terugval voor de webversie: projectgegevens.json uit de map 020 AANTEKENINGEN van het gekozen project
 // (door de Projectmap-app geschreven). Wordt onthouden per projectpad, dus ook offline beschikbaar.
 let gekozenGegevens = null;
+let gekozenKaart = null; // dataURL van kaartje.png
 const PG_SLEUTEL = pad => 'huismaten_pg:' + pad;
+const KAART_SLEUTEL = pad => 'huismaten_kaart:' + pad;
 
 function projectGegevens() {
   if (PROJECT_GEGEVENS && typeof PROJECT_GEGEVENS === 'object') return PROJECT_GEGEVENS;
@@ -1068,10 +1070,11 @@ function projectGegevens() {
 }
 
 function pgUitCache() {
-  gekozenGegevens = null;
+  gekozenGegevens = null; gekozenKaart = null;
   const pad = actiefProjectPad();
   if (!pad) return;
   try { const r = localStorage.getItem(PG_SLEUTEL(pad)); if (r) gekozenGegevens = JSON.parse(r); } catch(_) {}
+  try { gekozenKaart = localStorage.getItem(KAART_SLEUTEL(pad)) || null; } catch(_) {}
 }
 
 // Haalt projectgegevens.json op (stil: faalt het, dan blijft de cache of 'geen gegevens' staan).
@@ -1089,6 +1092,15 @@ async function laadProjectGegevens() {
     if (actiefProjectPad() !== pad) return; // intussen ander project gekozen
     gekozenGegevens = data;
     try { localStorage.setItem(PG_SLEUTEL(pad), JSON.stringify(data)); } catch(_) {}
+    // Kaartje (BAG-pand met oriëntatie): optioneel, apart bestand naast projectgegevens.json
+    try {
+      const k = await fetch(`https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(pad)}/kaartje.png:/content`, { headers: { Authorization: 'Bearer ' + token } });
+      if (k.ok) {
+        const blob = await k.blob();
+        const url = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(blob); });
+        if (actiefProjectPad() === pad) { gekozenKaart = url; try { localStorage.setItem(KAART_SLEUTEL(pad), url); } catch(_) {} }
+      } else if (k.status === 404) { gekozenKaart = null; try { localStorage.removeItem(KAART_SLEUTEL(pad)); } catch(_) {} }
+    } catch(_) {}
   } catch(_) { /* offline of niet ingelogd: cache blijft staan */ }
 }
 
@@ -1630,7 +1642,7 @@ function initProjectBanner() {
       los.addEventListener('click', () => {
         gekozenProject = null;
         bewaarGekozenProject(null);
-        gekozenGegevens = null;
+        gekozenGegevens = null; gekozenKaart = null;
         initProjectBanner();
         controleerOneDrive();
       });
@@ -5938,11 +5950,37 @@ async function exporteerPDF(opties = {}){
     }
     const items = [];
     const mislukt = [];
+    // Projectblok (kaartje met oriëntatie + kerngegevens), vooraan: cat 0
+    try {
+      const pgK = projectGegevens();
+      if (gekozenKaart && !vastProject()) {
+        const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = gekozenKaart; });
+        const wMm = 85, hMm = wMm * img.height / img.width;
+        const regels = [];
+        const schoonK = t => String(t || '').replace(/[<>]/g, '').trim();
+        if (pgK && pgK.adres) regels.push(schoonK(pgK.adres));
+        const kern = [];
+        if (pgK && pgK.bouwjaar) kern.push('bouwjaar ' + schoonK(pgK.bouwjaar));
+        if (pgK && pgK.oppervlakte) kern.push(schoonK(pgK.oppervlakte) + ' m² (BAG)');
+        if (pgK && pgK.gebruiksdoel) kern.push(schoonK(pgK.gebruiksdoel));
+        if (kern.length) regels.push(kern.join(' · '));
+        const tekstH = regels.length ? 4 + regels.length * 3.6 : 0;
+        const c = document.createElement('canvas');
+        c.width = Math.round(wMm * PX); c.height = Math.round((hMm + tekstH) * PX);
+        const cx = c.getContext('2d');
+        cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height);
+        cx.drawImage(img, 0, 0, c.width, Math.round(hMm * PX));
+        cx.strokeStyle = '#c7c7cc'; cx.lineWidth = 1; cx.strokeRect(0.5, 0.5, c.width - 1, Math.round(hMm * PX) - 1);
+        cx.fillStyle = '#1c1c1e'; cx.textBaseline = 'top';
+        regels.forEach((t, i) => { cx.font = (i === 0 ? '600 ' : '400 ') + Math.round(2.9 * PX) + 'px sans-serif'; cx.fillText(t, 0, Math.round((hMm + 1.5 + i * 3.6) * PX)); });
+        items.push({titel: 'Ligging en oriëntatie', cat: 0, canvas: c, wMm: wMm, hMm: hMm + tekstH});
+      }
+    } catch (kaartFout) { console.error('Kaartje niet in PDF gezet:', kaartFout); }
     for(const blok of blokken){
       const svg = blok.querySelector('svg');
       if(!svg) continue;
       const titel = blok.querySelector('div').textContent;
-      const cat = /plattegrond/i.test(titel) ? 0 : /doorsnede/i.test(titel) ? 2 : 1;
+      const cat = /plattegrond/i.test(titel) ? 1 : /doorsnede/i.test(titel) ? 3 : 2;
       try{
         const r = await svgNaarCanvas(svg, PX);
         const c = bijsnijden(r.canvas);
@@ -5960,6 +5998,7 @@ async function exporteerPDF(opties = {}){
     // Een categorie blijft bij elkaar: past hij niet meer op de rest van de pagina,
     // dan begint hij op een nieuwe pagina. Volgorde binnen een categorie = tekenvolgorde.
     const CATS = [
+      {naam:'Project', kleur:[90,90,90]},
       {naam:'Plattegronden — horizontale vlakken', kleur:KLEUR_RGB.vloer},
       {naam:'Gevelaanzichten — verticale vlakken', kleur:KLEUR_RGB.gevel},
       {naam:'Doorsnede', kleur:KLEUR_RGB.dak}
