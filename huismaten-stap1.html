@@ -1057,8 +1057,39 @@ const PROJECT_PAD  = ""; // pad naar de "020 AANTEKENINGEN"-map van dit project
 const PROJECT_GEGEVENS = "";
 
 // Geeft de projectgegevens als object terug, of null als deze kopie er geen heeft.
+// Terugval voor de webversie: projectgegevens.json uit de map 020 AANTEKENINGEN van het gekozen project
+// (door de Projectmap-app geschreven). Wordt onthouden per projectpad, dus ook offline beschikbaar.
+let gekozenGegevens = null;
+const PG_SLEUTEL = pad => 'huismaten_pg:' + pad;
+
 function projectGegevens() {
-  return (PROJECT_GEGEVENS && typeof PROJECT_GEGEVENS === 'object') ? PROJECT_GEGEVENS : null;
+  if (PROJECT_GEGEVENS && typeof PROJECT_GEGEVENS === 'object') return PROJECT_GEGEVENS;
+  return gekozenGegevens;
+}
+
+function pgUitCache() {
+  gekozenGegevens = null;
+  const pad = actiefProjectPad();
+  if (!pad) return;
+  try { const r = localStorage.getItem(PG_SLEUTEL(pad)); if (r) gekozenGegevens = JSON.parse(r); } catch(_) {}
+}
+
+// Haalt projectgegevens.json op (stil: faalt het, dan blijft de cache of 'geen gegevens' staan).
+async function laadProjectGegevens() {
+  pgUitCache();
+  const pad = actiefProjectPad();
+  if (!pad || vastProject()) return;
+  try {
+    const token = await graphRefreshToken();
+    const resp = await fetch(`https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(pad)}/projectgegevens.json:/content`, { headers: { Authorization: 'Bearer ' + token } });
+    if (resp.status === 404) { try { localStorage.removeItem(PG_SLEUTEL(pad)); } catch(_) {} gekozenGegevens = null; return; }
+    if (!resp.ok) return;
+    const data = JSON.parse(await resp.text());
+    if (!data || typeof data !== 'object') return;
+    if (actiefProjectPad() !== pad) return; // intussen ander project gekozen
+    gekozenGegevens = data;
+    try { localStorage.setItem(PG_SLEUTEL(pad), JSON.stringify(data)); } catch(_) {}
+  } catch(_) { /* offline of niet ingelogd: cache blijft staan */ }
 }
 
 // ── Gevel-oriëntatie uit de Nieuwe-Projectmap-app ─────────────
@@ -1577,7 +1608,8 @@ function initProjectBanner() {
 
   const tekst = document.createElement('span');
   const naam = actiefProjectNaam();
-  tekst.textContent = naam ? `📁 Project: ${naam}` : '📁 Nog geen project gekozen';
+  const pgBanner = projectGegevens();
+  tekst.textContent = naam ? `📁 Project: ${naam}` + (pgBanner && (pgBanner.adres || pgBanner.naamOpdrachtgever) ? ' · ✓ projectgegevens geladen' : ' · geen projectgegevens') : '📁 Nog geen project gekozen';
   banner.appendChild(tekst);
 
   // Bij een vaste koppeling (kopie uit de projectmap) valt er niets te kiezen.
@@ -1598,6 +1630,7 @@ function initProjectBanner() {
       los.addEventListener('click', () => {
         gekozenProject = null;
         bewaarGekozenProject(null);
+        gekozenGegevens = null;
         initProjectBanner();
         controleerOneDrive();
       });
@@ -1636,6 +1669,7 @@ async function kiesProjectDialoog() {
   }
   gekozenProject = { naam: projectnaam, pad: doelDelen.join('/') };
   bewaarGekozenProject(gekozenProject);
+  await laadProjectGegevens();
   initProjectBanner();
   controleerOneDrive();
 }
@@ -6153,13 +6187,14 @@ mapKnop.addEventListener('click', async () => {
 
 // Eerder gekozen project weer oppakken (werkt ook zonder internet).
 gekozenProject = laadGekozenProject();
+pgUitCache();
 initProjectBanner();
 toonLaatstGemaakt();
 
 // OneDrive-status: eerst een eventuele inlog afronden, daarna de balk bovenin vullen.
 // Daarna opnieuw controleren bij internet terug / terug naar deze tab.
-verwerkLoginCallback().catch(() => {}).then(() => controleerOneDrive());
-window.addEventListener('online', () => controleerOneDrive());
+verwerkLoginCallback().catch(() => {}).then(() => controleerOneDrive()).then(() => laadProjectGegevens()).then(() => initProjectBanner());
+window.addEventListener('online', () => { controleerOneDrive(); laadProjectGegevens().then(() => initProjectBanner()); });
 window.addEventListener('offline', () => controleerOneDrive());
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') controleerOneDrive(); });
 
