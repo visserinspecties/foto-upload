@@ -2,7 +2,7 @@
    Pagina's: eerst internet proberen (max. 4 s), anders de laatst bewaarde versie.
    Lettertypes en iconen: uit de bewaarde kopie, op de achtergrond bijwerken.
    Inloggen en OneDrive (Microsoft) gaan nooit via deze opslag. */
-const CACHE = 'vi-tools-v1';
+const CACHE = 'vi-tools-v2';
 const START = ['./', 'index.html', 'foto-upload.html', 'icons/icon-180.png', 'icons/icon-192.png'];
 
 self.addEventListener('install', e => {

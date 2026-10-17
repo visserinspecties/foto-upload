@@ -209,79 +209,124 @@ input[type=file]{display:none}
 <div id="layer"></div>
 
 <script>
-/* ───── Instellingen (ongewijzigd t.o.v. de vorige foto-upload, zodat de inlog blijft werken) ───── */
+/* ───── Instellingen (eigen inlog ongewijzigd t.o.v. de vorige foto-upload) ───── */
 const CLIENT_ID  = 'fdf237c9-bf46-47fa-ab3d-a8834a73e284';
 const TENANT_ID  = '984fd1fb-3d68-4c94-aff2-47f699fb5dae';
 const REDIRECT   = 'https://visserinspecties.github.io/foto-upload/foto-upload.html';
 const SCOPE      = 'https://graph.microsoft.com/Files.ReadWrite offline_access';
+/* Twee inloggen: je eigen organisatie, en De Laat (hun OneDrive, map 03 E-E.NL › 00 EPA) */
+const ACCTS = {
+  me:   {tenant: TENANT_ID, scope: SCOPE, rtKey: 'rt'},
+  laat: {tenant: 'delaatbouwbegeleiding329.onmicrosoft.com', scope: 'https://graph.microsoft.com/Files.ReadWrite.All offline_access', rtKey: 'rt_laat'}
+};
+const LAAT = {
+  prefix: 'De Laat › 00 EPA',
+  drive:  'b!UxLJrkETzE2WqARiLel022EejavwVghOsqbzRcSMjYuTZiwJ7OddS6IQkeuwQdRn',
+  item:   '01URFSMVYB4TLCHJPL55D3EOIDLGSH6WEV',
+  path:   '03 E-E.NL/00 EPA'
+};
+const ADMIN_CONSENT = `https://login.microsoftonline.com/${ACCTS.laat.tenant}/adminconsent?client_id=${CLIENT_ID}`;
 const STARTS = [
   {id:'beh',  label:'In Behandeling', path:'0_In Behandeling'},
+  {id:'laat', label:'De Laat',        path:LAAT.prefix, noUp:true},
   {id:'root', label:'Hoofdmap',       path:''}
 ];
 const KEEP_DAYS = 14;
 
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const LS={get(k,d){try{const v=localStorage.getItem(k);return v===null?d:v}catch(e){return d}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+const LS={get(k,d){try{const v=localStorage.getItem(k);return v===null?d:v}catch(e){return d}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
 
-let accessToken=null, me=null;
+const tokens={me:null,laat:null};let me=null;
 
 /* ───── PKCE-login ───── */
 function b64url(buf){return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'')}
 async function maakPKCE(){const verifier=b64url(crypto.getRandomValues(new Uint8Array(32)));const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier));return{verifier,challenge:b64url(digest)}}
-async function login(){
-  const {verifier,challenge}=await maakPKCE();
+async function login(acct='me'){
+  const A=ACCTS[acct];const {verifier,challenge}=await maakPKCE();
   try{localStorage.setItem('pkce_v',verifier)}catch(e){}
   try{sessionStorage.setItem('pkce_v',verifier)}catch(e){}
   document.cookie=`pkce_v=${verifier};path=/;max-age=300;SameSite=Lax`;
-  const params=new URLSearchParams({client_id:CLIENT_ID,response_type:'code',redirect_uri:REDIRECT,scope:SCOPE,code_challenge:challenge,code_challenge_method:'S256',prompt:'select_account'});
-  location.href=`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize?${params}`;
+  LS.set('login_for',acct);
+  const params=new URLSearchParams({client_id:CLIENT_ID,response_type:'code',redirect_uri:REDIRECT,scope:A.scope,code_challenge:challenge,code_challenge_method:'S256',prompt:'select_account'});
+  location.href=`https://login.microsoftonline.com/${A.tenant}/oauth2/v2.0/authorize?${params}`;
 }
 function getVerifier(){let v=null;try{v=localStorage.getItem('pkce_v')}catch(e){}
   if(!v){try{v=sessionStorage.getItem('pkce_v')}catch(e){}}
   if(!v){const m=document.cookie.match(/pkce_v=([^;]+)/);if(m)v=m[1]}return v}
+function clearPkce(){LS.del('pkce_v');try{sessionStorage.removeItem('pkce_v')}catch(e){}document.cookie='pkce_v=;path=/;max-age=0'}
 async function tokenViaCode(code){
+  const acct=LS.get('login_for','me')==='laat'?'laat':'me';const A=ACCTS[acct];
   const verifier=getVerifier();if(!verifier)throw new Error('Geen PKCE verifier — probeer opnieuw in te loggen.');
-  const resp=await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
-    body:new URLSearchParams({client_id:CLIENT_ID,grant_type:'authorization_code',code,redirect_uri:REDIRECT,code_verifier:verifier,scope:SCOPE})});
-  const data=await resp.json();if(!data.access_token)throw new Error(data.error_description||'Token mislukt');
-  accessToken=data.access_token;if(data.refresh_token)LS.set('rt',data.refresh_token);
-  try{localStorage.removeItem('pkce_v')}catch(e){}try{sessionStorage.removeItem('pkce_v')}catch(e){}
-  document.cookie='pkce_v=;path=/;max-age=0';history.replaceState({},'',REDIRECT);
+  const resp=await fetch(`https://login.microsoftonline.com/${A.tenant}/oauth2/v2.0/token`,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:new URLSearchParams({client_id:CLIENT_ID,grant_type:'authorization_code',code,redirect_uri:REDIRECT,code_verifier:verifier,scope:A.scope})});
+  const data=await resp.json();
+  clearPkce();LS.del('login_for');history.replaceState({},'',REDIRECT);
+  if(!data.access_token)throw new Error(data.error_description||'Token mislukt');
+  tokens[acct]=data.access_token;if(data.refresh_token)LS.set(A.rtKey,data.refresh_token);
+  return acct;
 }
 /* fetch met tijdslimiet: bij zwak bereik niet eindeloos wachten */
 function fetchT(url,opts={},ms=10000){if(opts.signal)return fetch(url,opts);const c=new AbortController();const t=setTimeout(()=>c.abort(),ms);return fetch(url,{...opts,signal:c.signal}).finally(()=>clearTimeout(t))}
 const isNet=e=>!!(e&&(e.net||e.name==='TypeError'||e.name==='AbortError'||e instanceof TypeError));
 let offlineLijst=false;
-async function refreshAccessToken(){
-  const rt=LS.get('rt');if(!rt)throw new Error('Niet ingelogd');
+async function refreshAccessToken(acct='me'){
+  const A=ACCTS[acct];const rt=LS.get(A.rtKey);
+  if(!rt){const n=new Error(acct==='laat'?'Nog niet ingelogd bij De Laat':'Niet ingelogd');n.login=acct;throw n}
   let resp,data;
-  try{resp=await fetchT(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
-    body:new URLSearchParams({client_id:CLIENT_ID,grant_type:'refresh_token',refresh_token:rt,scope:SCOPE})},10000);data=await resp.json()}
+  try{resp=await fetchT(`https://login.microsoftonline.com/${A.tenant}/oauth2/v2.0/token`,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:new URLSearchParams({client_id:CLIENT_ID,grant_type:'refresh_token',refresh_token:rt,scope:A.scope})},10000);data=await resp.json()}
   catch(e){const n=new Error('Geen verbinding');n.net=true;throw n}
-  if(!data.access_token)throw new Error('Inloggen verlopen — log opnieuw in');
-  accessToken=data.access_token;if(data.refresh_token)LS.set('rt',data.refresh_token);
+  if(!data.access_token){if(acct==='laat')LS.del(A.rtKey);const n=new Error(acct==='laat'?'Inloggen bij De Laat verlopen — log opnieuw in':'Inloggen verlopen — log opnieuw in');n.login=acct;throw n}
+  tokens[acct]=data.access_token;if(data.refresh_token)LS.set(A.rtKey,data.refresh_token);
 }
-async function getToken(){if(!accessToken)await refreshAccessToken();return accessToken}
-function uitloggen(){try{localStorage.removeItem('rt')}catch(e){}accessToken=null;showLogin()}
+async function getToken(acct='me'){if(!tokens[acct])await refreshAccessToken(acct);return tokens[acct]}
+function uitloggen(){LS.del('rt');LS.del('rt_laat');tokens.me=tokens.laat=null;showLogin()}
+function uitloggenLaat(){LS.del('rt_laat');tokens.laat=null}
 
 /* ───── Graph ───── */
 const ENC=p=>p.split('/').map(encodeURIComponent).join('/');
-const GRAPH='https://graph.microsoft.com/v1.0/me/drive/';
-async function graph(url,opts={},retry=true){
-  const token=await getToken();
+const G='https://graph.microsoft.com/v1.0/';
+const GRAPH=G+'me/drive/';
+async function graph(url,opts={},retry=true,acct='me'){
+  const token=await getToken(acct);
   const r=await fetchT(url,{...opts,headers:{...(opts.headers||{}),Authorization:'Bearer '+token}});
-  if(r.status===401&&retry){accessToken=null;await refreshAccessToken();return graph(url,opts,false)}
+  if(r.status===401&&retry){tokens[acct]=null;await refreshAccessToken(acct);return graph(url,opts,false,acct)}
   return r;
 }
+/* welk account en welke basis hoort bij een pad */
+function resolve(pad){
+  if(pad===LAAT.prefix||pad.startsWith(LAAT.prefix+'/'))return{acct:'laat',rel:pad.slice(LAAT.prefix.length+1)};
+  return{acct:'me',rel:pad};
+}
+const laatRoot=()=>LS.get('laat_root',LAAT.item);
+function itemUrl(acct,rel){
+  if(acct==='laat'){const b=`${G}drives/${LAAT.drive}/items/${laatRoot()}`;return rel?`${b}:/${ENC(rel)}:`:b}
+  return rel?`${GRAPH}root:/${ENC(rel)}:`:`${GRAPH}root`;
+}
+/* De Laat: map 00 EPA zoeken (eerst op id, anders op pad) */
+let laatChecked=false;
+async function checkLaatRoot(){
+  if(laatChecked)return;
+  let r=await graph(`${G}drives/${LAAT.drive}/items/${laatRoot()}?$select=id,name`,{},true,'laat');
+  if(!r.ok){
+    const r2=await graph(`${G}drives/${LAAT.drive}/root:/${ENC(LAAT.path)}?$select=id,name`,{},true,'laat');
+    if(!r2.ok){let m='';try{m=(await r2.json()).error.message}catch(e){}
+      throw new Error(r2.status===403||r2.status===404?'Geen toegang tot de map 00 EPA bij De Laat. Vraag Jacob om die map met je te delen.':(m||'De Laat niet bereikbaar ('+r2.status+')'))}
+    const d=await r2.json();LS.set('laat_root',d.id);
+  }
+  laatChecked=true;
+}
 async function getMappen(pad){
-  let url=(pad?`${GRAPH}root:/${ENC(pad)}:/children`:`${GRAPH}root/children`)+'?$select=name,folder&$top=200';
+  const {acct,rel}=resolve(pad);
   const out=[],key='dir:'+pad;
   try{
+    if(acct==='laat')await checkLaatRoot();
+    let url=itemUrl(acct,rel)+'/children?$select=name,folder,remoteItem&$top=200';
     while(url){
-      const r=await graph(url);const d=await r.json();
+      const r=await graph(url,{},true,acct);const d=await r.json();
       if(!d.value)throw new Error((d.error&&d.error.message)||'Map niet te lezen');
-      d.value.forEach(i=>{if(i.folder)out.push(i.name)});
+      d.value.forEach(i=>{if(i.folder||(i.remoteItem&&i.remoteItem.folder))out.push(i.name)});
       url=d['@odata.nextLink']||null;
     }
   }catch(e){
@@ -292,10 +337,12 @@ async function getMappen(pad){
   LS.set(key,JSON.stringify(out));offlineLijst=false;return out;
 }
 async function doUpload(blob,pad,naam,type){
-  const url=`${GRAPH}root:/${ENC(pad)}/${encodeURIComponent(naam)}:/content?@microsoft.graph.conflictBehavior=rename`;
+  const {acct,rel}=resolve(pad);
+  const full=rel?rel+'/'+naam:naam;
+  const url=(acct==='laat'?`${G}drives/${LAAT.drive}/items/${laatRoot()}:/${ENC(full)}:/content`:`${GRAPH}root:/${ENC(full)}:/content`)+'?@microsoft.graph.conflictBehavior=rename';
   const ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),120000);
   try{
-    const r=await graph(url,{method:'PUT',headers:{'Content-Type':type||'image/jpeg'},body:blob,signal:ctl.signal});
+    const r=await graph(url,{method:'PUT',headers:{'Content-Type':type||'image/jpeg'},body:blob,signal:ctl.signal},true,acct);
     if(!r.ok){let m=r.statusText;try{m=(await r.json()).error.message}catch(e){}throw new Error(m||('fout '+r.status))}
   }finally{clearTimeout(to)}
 }
@@ -324,7 +371,7 @@ function padOf(){const v=levels.map(l=>l.val).filter(Boolean);return [start.path
 const shortPad=p=>{const d=p.split('/');return d.slice(-2).join(' › ')};
 
 function renderStarts(){$('starts').innerHTML=STARTS.map(s=>`<button class="chip${s.id===start.id?' on':''}" data-s="${s.id}">${esc(s.label)}</button>`).join('')+
-  (start.path?`<button class="chip" data-up="1" aria-label="Een map omhoog">⬆ Omhoog</button>`:'')}
+  (start.path&&!start.noUp?`<button class="chip" data-up="1" aria-label="Een map omhoog">⬆ Omhoog</button>`:'')}
 function renderLast(){const l=LS.get('lastDest','');const w=$('lastwrap');
   if(l&&l!==huidigPad){w.innerHTML=`<button class="chip last" data-last="1" title="${esc(l)}">↩ Laatste: ${esc(shortPad(l))}</button>`}else w.innerHTML=''}
 function renderPicker(){
@@ -344,8 +391,16 @@ function renderPicker(){
   renderStarts();renderLast();
 }
 async function setStart(s){start=s;levels=[];huidigPad=null;renderPicker();renderGallery();
-  try{levels=[{opts:await getMappen(start.path),val:'',filter:''}]}catch(e){say('err','Mappen laden mislukt: '+e.message)}
+  if(s.id==='laat'&&!LS.get('rt_laat')){laatLoginCard();return}
+  try{levels=[{opts:await getMappen(start.path),val:'',filter:''}]}catch(e){
+    if(e.login==='laat'){laatLoginCard(e.message);return}
+    say('err','Mappen laden mislukt: '+esc(e.message))}
   renderPicker()}
+function laatLoginCard(msg){
+  $('picker').innerHTML=`<div class="msg info" style="margin-bottom:10px">${msg?esc(msg)+'<br>':''}De mappen van De Laat staan in hun organisatie. Log daar één keer in met het account waarmee je die mappen gedeeld hebt gekregen.</div>
+    <button class="btn" style="width:100%;margin-bottom:10px" id="b-laat-login">🔐 Inloggen bij De Laat</button>`;
+  $('b-laat-login').onclick=()=>{LS.set('afterLogin','laat');login('laat')};
+}
 async function chooseLevel(i,val){
   levels=levels.slice(0,i+1);levels[i].val=val;
   const p=padOf();
@@ -480,8 +535,9 @@ function closeSheet(){$('layer').innerHTML=''}
 function bevestig(titel,tekst,knop,fn){
   sheet(`<h3>${esc(titel)}</h3><p>${esc(tekst)}</p><div class="acts"><button class="btn sec" id="c-n">Annuleren</button><button class="btn danger" id="c-y">${esc(knop)}</button></div>`,()=>{
     $('c-n').onclick=closeSheet;$('c-y').onclick=()=>{closeSheet();fn()}})}
-$('b-menu').onclick=()=>sheet(`<h3>Menu</h3><p>${esc(me||'')}</p><div class="acts"><button class="btn sec" id="m-x">Sluiten</button><button class="btn danger" id="m-out">Uitloggen</button></div>`,()=>{
-  $('m-x').onclick=closeSheet;$('m-out').onclick=()=>{closeSheet();uitloggen()}});
+$('b-menu').onclick=()=>{const laat=!!LS.get('rt_laat');sheet(`<h3>Menu</h3><p>${esc(me||'')}<br>De Laat: ${laat?'ingelogd':'niet ingelogd'}</p><div class="acts"><button class="btn sec" id="m-x">Sluiten</button>${laat?'<button class="btn sec" id="m-laat">Uitloggen bij De Laat</button>':''}<button class="btn danger" id="m-out">Uitloggen</button></div>`,()=>{
+  $('m-x').onclick=closeSheet;$('m-out').onclick=()=>{closeSheet();uitloggen()};
+  if($('m-laat'))$('m-laat').onclick=()=>{closeSheet();uitloggenLaat();if(start.id==='laat')setStart(start)}})};
 let sayT=null;
 function say(type,html){const s=$('status');s.innerHTML=`<div class="msg ${type}">${html}</div>`;clearTimeout(sayT);if(type!=='err')sayT=setTimeout(()=>{s.innerHTML=''},6000)}
 function netUI(){const n=$('net');n.textContent=navigator.onLine?'online':'offline';n.classList.toggle('off',!navigator.onLine)}
@@ -499,15 +555,32 @@ async function showApp(){
   $('login').classList.add('hidden');$('app').classList.remove('hidden');$('bar').classList.remove('hidden');$('b-menu').classList.remove('hidden');
   try{const r=await graph('https://graph.microsoft.com/v1.0/me?$select=displayName,userPrincipalName');const d=await r.json();me=d.userPrincipalName||d.displayName||'';$('who').innerHTML=`<b>${esc(d.displayName||'Ingelogd')}</b>Visser Inspecties`}catch(e){$('who').innerHTML='<b>Visser Inspecties</b>'}
   try{await opschonen()}catch(e){}
-  netUI();await setStart(STARTS[0]);await refreshCounts();
+  netUI();const al=LS.get('afterLogin','');LS.del('afterLogin');await setStart(STARTS.find(s=>s.id===al)||STARTS[0]);await refreshCounts();
+  if(laatErr){laatFout(laatErr);laatErr='';return}
   if(offlineLijst){say('info','Geen verbinding. Je ziet de mappen van de vorige keer; foto\'s gaan in de wachtrij en upload je later.');return}
   const q=parseInt($('n-q').textContent,10);if(q>0)say('info',`Er ${q===1?'staat':'staan'} nog ${q} foto${q===1?'':"'s"} in de wachtrij. Upload ze op wifi met de knop “Upload wachtrij”.`);
+}
+let laatErr='';
+function laatFout(t){
+  const consent=/AADSTS(65001|90094|90099|900941|65004)|admin|beheerder|approval|goedkeuring/i.test(t);
+  const guest=/AADSTS50020|does not exist in tenant|bestaat niet/i.test(t);
+  say('err',`<b>Inloggen bij De Laat lukte niet.</b><br>${consent?`De beheerder van De Laat moet de app eerst één keer goedkeuren. Stuur deze link naar Jacob of hun IT-beheerder:<br><span style="word-break:break-all;user-select:all">${esc(ADMIN_CONSENT)}</span>`:guest?'Dit account is niet bekend bij De Laat. Kies het account waarmee de mappen met je gedeeld zijn.':''}<br><small>${esc(t.slice(0,300))}</small>`);
 }
 async function init(){
   netUI();
   const params=new URLSearchParams(location.search);const code=params.get('code'),error=params.get('error');
-  if(error){$('debug').textContent=params.get('error_description')||error;showLogin();return}
-  if(code){try{await tokenViaCode(code);await showApp();return}catch(e){$('login-status').innerHTML=`<div class="msg err">❌ ${esc(e.message)}</div>`;showLogin();return}}
+  if(error){
+    const desc=params.get('error_description')||error;
+    if(LS.get('login_for','')==='laat'){laatErr=desc;LS.del('login_for');clearPkce();history.replaceState({},'',REDIRECT)}
+    else{$('debug').textContent=desc;showLogin();return}
+  }
+  if(code){
+    let acct='me';
+    try{acct=await tokenViaCode(code)}catch(e){
+      if(LS.get('afterLogin','')==='laat'){laatErr=e.message}
+      else{$('login-status').innerHTML=`<div class="msg err">❌ ${esc(e.message)}</div>`;showLogin();return}}
+    if(acct==='me'){await showApp();return}
+  }
   if(LS.get('rt')){try{await refreshAccessToken();await showApp();return}catch(e){if(!isNet(e)){try{localStorage.removeItem('rt')}catch(_){}}else{
     /* geen bereik: app toch openen zodat foto's gemaakt kunnen worden */ await showApp();return}}}
   showLogin();
