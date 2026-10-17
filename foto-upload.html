@@ -1,582 +1,502 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Foto Upload">
-  <title>Foto Upload</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #f2f2f7; color: #1c1c1e; min-height: 100vh;
-      padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
-      display: flex; flex-direction: column;
-    }
-    .header { background:#fff; padding:16px 20px; border-bottom:1px solid #e5e5ea; position:sticky; top:0; z-index:10; }
-    .header h1 { font-size:17px; font-weight:600; }
-    .header p { font-size:13px; color:#8e8e93; margin-top:2px; }
-    .container { padding:16px; padding-bottom:24px; flex:1; overflow-y:auto; }
-    .card { background:#fff; border-radius:12px; padding:16px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,0.08); }
-    .card label { font-size:13px; font-weight:600; color:#8e8e93; text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:8px; }
-    select { width:100%; padding:10px 12px; border:1px solid #e5e5ea; border-radius:8px; font-size:16px; background:#f9f9f9; color:#1c1c1e; appearance:none; -webkit-appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238e8e93' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; }
-    select:disabled { color:#c7c7cc; background-color:#f2f2f7; }
-    .path-display { background:#f2f2f7; border-radius:8px; padding:10px 12px; font-size:12px; color:#636366; font-family:monospace; word-break:break-all; min-height:36px; }
-    .btn { width:100%; padding:14px; border:none; border-radius:12px; font-size:17px; font-weight:600; cursor:pointer; transition:opacity 0.2s; margin-bottom:10px; }
-    .btn:active { opacity:0.7; }
-    .btn-primary { background:#007aff; color:#fff; }
-    .btn-secondary { background:#e5e5ea; color:#1c1c1e; }
-    .btn-disabled { background:#c7c7cc; color:#fff; cursor:not-allowed; }
-    .status { margin-top:12px; padding:12px; border-radius:10px; font-size:14px; text-align:center; }
-    .status-success { background:#e8f9e8; color:#34c759; }
-    .status-error { background:#fde8e8; color:#ff3b30; }
-    .status-loading { background:#f2f2f7; color:#636366; }
-    .foto-teller { background:#fff; border-radius:12px; padding:16px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,0.08); text-align:center; }
-    .foto-teller .getal { font-size:48px; font-weight:700; color:#007aff; line-height:1; }
-    .foto-teller .sublabel { font-size:13px; color:#8e8e93; margin-top:4px; }
-    .spinner { display:inline-block; width:16px; height:16px; border:2px solid #c7c7cc; border-top-color:#007aff; border-radius:50%; animation:spin 0.8s linear infinite; vertical-align:middle; margin-right:6px; }
-    @keyframes spin { to { transform:rotate(360deg); } }
-    input[type="file"] { display:none; }
-    #login-screen { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:60vh; padding:32px; text-align:center; }
-    #login-screen h2 { font-size:22px; font-weight:700; margin-bottom:8px; }
-    #login-screen p { color:#636366; margin-bottom:32px; font-size:15px; }
-    #app-screen { display:none; flex-direction:column; flex:1; min-height:0; }
-    .hint { font-size:12px; color:#8e8e93; margin-top:6px; font-style:italic; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Foto Upload">
+<meta name="theme-color" content="#372968">
+<title>Foto Upload · Visser Inspecties</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Merriweather+Sans:wght@700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --brand:#372968; --brand2:#4a3a85; --lila:#9387b3; --lila-soft:#ece8f6;
+  --bg:#f5f3fa; --card:#fff; --ink:#1d1833; --muted:#6b6584; --line:#e1dcee;
+  --btn:#4a3a85; --btn-ink:#fff; --ok:#1f7a45; --warn:#b05a00; --err:#b3261e;
+  --r:14px; --shadow:0 1px 3px rgba(35,26,69,.10);
+  --serif:'Merriweather',Georgia,'Times New Roman',serif; --sans:'Merriweather Sans','Merriweather',Georgia,serif;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#14112a; --card:#1e1a3a; --ink:#efeaff; --muted:#a79fc4; --line:#352f58; --lila-soft:#2a2450;
+  --btn:#7664c4; --ok:#5fcf8f; --warn:#f0a850; --err:#ff8a80; --shadow:none}}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{font-family:var(--serif);background:var(--bg);color:var(--ink);font-size:15px;line-height:1.45;
+  display:flex;flex-direction:column;min-height:100vh;padding:0 env(safe-area-inset-right) 0 env(safe-area-inset-left)}
+button,select,input{font-family:inherit;font-size:inherit;color:inherit}
+.hidden{display:none!important}
 
-    /* Mobiel-netwerk schakelaar */
-    .toggle-row { display:flex; justify-content:space-between; align-items:center; }
-    .toggle-text { flex:1; padding-right:12px; }
-    .toggle-text .title { font-size:15px; font-weight:600; color:#1c1c1e; }
-    .toggle-text .desc { font-size:12px; color:#8e8e93; margin-top:2px; }
-    .switch { position:relative; width:51px; height:31px; flex-shrink:0; }
-    .switch input { opacity:0; width:0; height:0; }
-    .slider { position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background:#e5e5ea; border-radius:31px; transition:.2s; }
-    .slider:before { position:absolute; content:""; height:27px; width:27px; left:2px; top:2px; background:#fff; border-radius:50%; transition:.2s; box-shadow:0 1px 3px rgba(0,0,0,0.2); }
-    input:checked + .slider { background:#34c759; }
-    input:checked + .slider:before { transform:translateX(20px); }
+/* kop */
+.band{background:var(--brand);color:#fff;padding:calc(env(safe-area-inset-top) + 10px) 16px 10px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:20}
+.band img{height:38px;width:auto;display:block;flex:none}
+.band .who{margin-left:auto;text-align:right;font-size:11.5px;color:#cfc8e6;min-width:0}
+.band .who b{display:block;color:#fff;font-family:var(--sans);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.band button{background:rgba(255,255,255,.14);border:0;color:#fff;border-radius:10px;min-width:40px;height:40px;font-size:18px;cursor:pointer}
+.net{font-size:11px;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.16);color:#fff;font-family:var(--sans)}
+.net.off{background:#b05a00}
 
-    /* Wachtrij-kaart */
-    .queue-card { display:flex; justify-content:space-between; align-items:center; }
-    .queue-info .getal2 { font-size:24px; font-weight:700; color:#ff9500; }
-    .queue-info .sublabel2 { font-size:12px; color:#8e8e93; }
-    .btn-queue { background:#ff9500; color:#fff; padding:12px 16px; border:none; border-radius:10px; font-weight:600; font-size:14px; cursor:pointer; white-space:nowrap; }
-    .btn-queue:disabled { background:#c7c7cc; cursor:not-allowed; }
-    .btn-queue:active:not(:disabled) { opacity:0.7; }
+/* inhoud */
+main{flex:1;width:100%;max-width:640px;margin:0 auto;padding:14px 14px 150px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:12px;box-shadow:var(--shadow)}
+.card h2{font-family:var(--sans);font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.card h2 small{font-family:var(--serif);letter-spacing:0;text-transform:none;font-size:12px;font-weight:400}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.chip{border:1px solid var(--line);background:var(--bg);border-radius:99px;padding:7px 13px;font-size:13px;cursor:pointer;min-height:36px}
+.chip.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.chip.last{border-style:dashed;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lv{margin-bottom:10px}
+.lv label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+select,.srch{width:100%;min-height:44px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);font-size:16px}
+select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238a82a8' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:34px}
+.srch{margin-bottom:6px}
+.dest{border-radius:10px;padding:10px 12px;background:var(--lila-soft);font-size:13px;word-break:break-word;border-left:4px solid var(--lila)}
+.dest.set{border-left-color:var(--ok)}
+.dest b{display:block;font-family:var(--sans);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+.hint{font-size:12px;color:var(--muted);margin-top:6px}
+.row2{display:flex;gap:8px}
+.btn{border:0;border-radius:12px;min-height:48px;padding:0 16px;font-family:var(--sans);font-size:15px;cursor:pointer;background:var(--btn);color:var(--btn-ink);display:flex;align-items:center;justify-content:center;gap:8px}
+.btn:active{opacity:.75}.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.sec{background:var(--lila-soft);color:var(--ink)}
+.btn.danger{background:var(--err);color:#fff}
+.btn.sm{min-height:38px;font-size:13px;padding:0 12px;border-radius:10px}
+.stats{display:flex;gap:10px}
+.stat{flex:1;text-align:center;padding:6px 4px}
+.stat .n{font-family:var(--sans);font-size:34px;line-height:1;color:var(--brand2)}
+@media (prefers-color-scheme:dark){.stat .n{color:#b7a9ff}}
+.stat.q .n{color:var(--warn)}
+.stat .l{font-size:12px;color:var(--muted);margin-top:4px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px}
+.th{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;background:var(--lila-soft);border:0;padding:0;cursor:pointer}
+.th img{width:100%;height:100%;object-fit:cover;display:block}
+.th .st{position:absolute;right:4px;bottom:4px;font-size:11px;font-family:var(--sans);padding:2px 7px;border-radius:99px;background:rgba(0,0,0,.62);color:#fff}
+.th .st.up{background:var(--ok)}.th .st.w{background:var(--warn)}.th .st.f{background:var(--err)}
+.th .nm{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:26px}
+.toggle{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:6px 0}
+.toggle+.toggle{border-top:1px solid var(--line);margin-top:6px;padding-top:12px}
+.toggle .t b{display:block;font-size:14px}.toggle .t span{font-size:12px;color:var(--muted)}
+.sw{position:relative;width:51px;height:31px;flex:none}
+.sw input{opacity:0;width:0;height:0}
+.sw i{position:absolute;inset:0;background:var(--line);border-radius:31px;transition:.2s;cursor:pointer}
+.sw i:before{content:"";position:absolute;height:27px;width:27px;left:2px;top:2px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.sw input:checked+i{background:var(--ok)}.sw input:checked+i:before{transform:translateX(20px)}
+.msg{border-radius:10px;padding:10px 12px;font-size:13.5px;margin-bottom:12px}
+.msg.ok{background:color-mix(in srgb,var(--ok) 14%,var(--card));color:var(--ok)}
+.msg.err{background:color-mix(in srgb,var(--err) 14%,var(--card));color:var(--err)}
+.msg.info{background:var(--lila-soft)}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--brand2);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.prog{height:6px;border-radius:99px;background:var(--line);overflow:hidden;margin-top:8px}.prog i{display:block;height:100%;width:0;background:var(--brand2);transition:width .2s}
 
-    /* Vastgezette knoppenbalk onderin: geen scrollen nodig om te fotograferen */
-    .sticky-bar {
-      background:#fff; border-top:1px solid #e5e5ea;
-      padding:12px 16px calc(env(safe-area-inset-bottom) + 12px) 16px;
-      box-shadow:0 -2px 8px rgba(0,0,0,0.05);
-    }
-    .sticky-bar .btn { margin-bottom:8px; }
-    .sticky-bar .btn:last-child { margin-bottom:0; }
-  </style>
+/* onderbalk */
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:10px 14px calc(env(safe-area-inset-bottom) + 10px);z-index:15;box-shadow:0 -2px 10px rgba(35,26,69,.08)}
+.bar .in{max-width:640px;margin:0 auto}
+.bar .to{font-size:12px;color:var(--muted);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar .to b{color:var(--ink)}
+.bar .btn.cam{flex:1;min-height:54px;font-size:17px}
+.bar .btn.gal{width:64px;padding:0;font-size:22px}
+
+/* voet */
+footer{position:relative;overflow:hidden;margin-top:6px;padding:18px 4px 6px;font-size:12px;color:var(--muted)}
+footer b{display:block;font-family:var(--sans);color:var(--brand2);font-size:13px;margin-bottom:2px}
+@media (prefers-color-scheme:dark){footer b{color:#b7a9ff}}
+footer svg{position:absolute;right:-30px;bottom:-34px;width:150px;opacity:.55;z-index:0}
+footer div{position:relative;z-index:1}
+footer a{color:inherit;text-decoration:none}
+
+/* login */
+#login{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px 24px}
+#login h1{font-family:var(--sans);font-size:22px;margin-bottom:8px;color:var(--brand2)}
+@media (prefers-color-scheme:dark){#login h1{color:#b7a9ff}}
+#login p{color:var(--muted);margin-bottom:24px;max-width:320px}
+#login .btn{width:100%;max-width:300px}
+
+/* vellen */
+.scrim{position:fixed;inset:0;background:rgba(20,16,40,.55);z-index:40;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--card);width:100%;max-width:640px;border-radius:18px 18px 0 0;padding:18px 16px calc(env(safe-area-inset-bottom) + 16px);max-height:88vh;overflow:auto}
+@media (min-width:700px){.scrim{align-items:center}.sheet{border-radius:18px}}
+.sheet h3{font-family:var(--sans);font-size:17px;margin-bottom:6px}
+.sheet p{color:var(--muted);font-size:13.5px;margin-bottom:12px;word-break:break-word}
+.sheet img.big{width:100%;max-height:46vh;object-fit:contain;border-radius:10px;background:var(--lila-soft);margin-bottom:10px}
+.sheet .acts{display:flex;gap:8px;flex-wrap:wrap}.sheet .acts .btn{flex:1;min-width:120px}
+.qrow{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid var(--line);font-size:13px;word-break:break-word}
+.qrow:first-of-type{border-top:0}.qrow b{flex:none;font-family:var(--sans)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 112px);background:var(--brand);color:#fff;padding:10px 16px;border-radius:99px;font-size:13px;z-index:60;max-width:90%;text-align:center}
+input[type=file]{display:none}
+</style>
 </head>
 <body>
-<div class="header">
-  <h1>📸 Foto Upload</h1>
-  <p id="header-user">Visser Inspecties</p>
+
+<div class="band">
+  <img alt="Visser Inspecties" src="data:image/png;base64,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">
+  <span class="net" id="net">online</span>
+  <div class="who" id="who"></div>
+  <button id="b-menu" aria-label="Menu" class="hidden">⋯</button>
 </div>
 
-<div id="login-screen">
-  <h2>Inloggen vereist</h2>
-  <p>Log in met je Microsoft-account om foto's te uploaden naar OneDrive.</p>
-  <button class="btn btn-primary" style="max-width:280px" onclick="login()">🔐 Inloggen met Microsoft</button>
-  <div id="login-status"></div>
-  <div id="debug" style="font-size:11px;color:#8e8e93;padding:8px;word-break:break-all;"></div>
-</div>
+<!-- inloggen -->
+<section id="login" class="hidden">
+  <h1>Foto Upload</h1>
+  <p>Log in met je Microsoft-account om foto's naar OneDrive te zetten.</p>
+  <button class="btn" onclick="login()">🔐 Inloggen met Microsoft</button>
+  <div id="login-status" style="margin-top:14px"></div>
+  <div id="debug" class="hint" style="word-break:break-all"></div>
+</section>
 
-<div id="app-screen">
-  <div class="container">
+<!-- app -->
+<main id="app" class="hidden">
+  <div id="status"></div>
 
-    <!-- Basismap-navigatie -->
-    <div class="card">
-      <label>Startmap</label>
-      <div class="path-display" id="basis-pad-display">0_In Behandeling</div>
-      <div style="display:flex; gap:8px; margin-top:10px;">
-        <button class="btn btn-secondary" style="margin-bottom:0; flex:1;" onclick="gaOmhoog()" id="btn-omhoog">⬆️ Omhoog</button>
-        <button class="btn btn-secondary" style="margin-bottom:0; flex:1;" onclick="terugNaarStandaard()">🏠 In Behandeling</button>
-      </div>
-    </div>
-
-    <!-- Niveau 1: Hoofdmap -->
-    <div class="card">
-      <label>Hoofdmap</label>
-      <select id="sel-hoofd" onchange="laadNiveau(1)">
-        <option value="">— laden... —</option>
-      </select>
-    </div>
-
-    <!-- Niveau 2 -->
-    <div class="card" id="card-2" style="display:none">
-      <label id="lbl-2">Map</label>
-      <select id="sel-2" onchange="laadNiveau(2)">
-        <option value="">— kies hierboven eerst —</option>
-      </select>
-      <p class="hint">Laat leeg om hier foto's op te slaan</p>
-    </div>
-
-    <!-- Niveau 3 -->
-    <div class="card" id="card-3" style="display:none">
-      <label id="lbl-3">Map</label>
-      <select id="sel-3" onchange="laadNiveau(3)">
-        <option value="">— kies hierboven eerst —</option>
-      </select>
-      <p class="hint">Laat leeg om hier foto's op te slaan</p>
-    </div>
-
-    <!-- Niveau 4 -->
-    <div class="card" id="card-4" style="display:none">
-      <label id="lbl-4">Map</label>
-      <select id="sel-4" onchange="updatePad()">
-        <option value="">— kies hierboven eerst —</option>
-      </select>
-      <p class="hint">Laat leeg om hier foto's op te slaan</p>
-    </div>
-
-    <!-- Doelmap -->
-    <div class="card">
-      <label>Doelmap</label>
-      <div class="path-display" id="pad-display">Nog geen selectie</div>
-    </div>
-
-    <!-- Teller -->
-    <div class="foto-teller" id="teller-card" style="display:none">
-      <div class="getal" id="foto-teller">0</div>
-      <div class="sublabel">foto's geüpload naar deze map</div>
-    </div>
-
-    <!-- Mobiel-netwerk schakelaar -->
-    <div class="card toggle-row">
-      <div class="toggle-text">
-        <div class="title">Ook uploaden via mobiel netwerk</div>
-        <div class="desc">Uit = foto's gaan in de wachtrij, upload later op wifi. Aan = direct proberen te uploaden, ook op 4G/5G.</div>
-      </div>
-      <label class="switch">
-        <input type="checkbox" id="toggle-mobiel" onchange="opslaanToggleVoorkeur()">
-        <span class="slider"></span>
-      </label>
-    </div>
-
-    <!-- Wachtrij -->
-    <div class="card queue-card">
-      <div class="queue-info">
-        <div class="getal2" id="queue-getal">0</div>
-        <div class="sublabel2">foto's in wachtrij</div>
-      </div>
-      <button class="btn-queue" id="btn-wachtrij" onclick="uploadWachtrij()" disabled>📤 Upload wachtrij</button>
-    </div>
-
-    <button class="btn btn-secondary" onclick="uitloggen()">Uitloggen</button>
-
-    <input type="file" id="camera-input" accept="image/*" capture="environment" onchange="uploadFoto(this)">
-    <div id="status"></div>
+  <div class="card">
+    <h2>Bestemming <small id="lvl-hint"></small></h2>
+    <div class="chips" id="starts"></div>
+    <div class="chips" id="lastwrap"></div>
+    <div id="picker"></div>
+    <div class="dest" id="dest"><b>Doelmap</b><span id="dest-t">Nog geen map gekozen</span></div>
   </div>
 
-  <!-- Vastgezette balk: altijd bereikbaar zonder scrollen -->
-  <div class="sticky-bar">
-    <button class="btn btn-disabled" id="btn-foto" disabled onclick="maakFoto()">📷 Foto maken</button>
+  <div class="card">
+    <div class="stats">
+      <div class="stat"><div class="n" id="n-up">0</div><div class="l">in OneDrive (deze map)</div></div>
+      <div class="stat q"><div class="n" id="n-q">0</div><div class="l">in wachtrij</div></div>
+    </div>
+    <div class="row2" style="margin-top:10px">
+      <button class="btn sec sm" style="flex:1" id="b-queue">📋 Wachtrij bekijken</button>
+      <button class="btn sm" style="flex:1" id="b-upq" disabled>📤 Upload wachtrij</button>
+    </div>
+    <div class="prog hidden" id="prog"><i id="prog-i"></i></div>
   </div>
-</div>
+
+  <div class="card" id="gal-card">
+    <h2>Foto's in deze map <small id="gal-n"></small></h2>
+    <div class="grid" id="grid"></div>
+    <div class="hint" id="gal-h">Foto's die je maakt verschijnen hier. Na uploaden blijft het kleine voorbeeld 14 dagen staan.</div>
+  </div>
+
+  <div class="card">
+    <h2>Instellingen</h2>
+    <div class="toggle">
+      <div class="t"><b>Ook uploaden via mobiel netwerk</b><span>Uit: foto's wachten in de wachtrij tot jij ze uploadt (op wifi). Aan: direct proberen, ook op 4G/5G.</span></div>
+      <label class="sw"><input type="checkbox" id="t-mob"><i></i></label>
+    </div>
+    <div class="toggle">
+      <div class="t"><b>Foto's verkleinen</b><span>Uit: originele foto (scherpst). Aan: max. 2400 px, scheelt data en tijd.</span></div>
+      <label class="sw"><input type="checkbox" id="t-small"><i></i></label>
+    </div>
+  </div>
+
+  <footer>
+    <svg viewBox="0 0 160 160" aria-hidden="true"><circle cx="84" cy="70" r="52" fill="none" stroke="#d9d4ea" stroke-width="16"/><path d="M42 112 L8 150" stroke="#d9d4ea" stroke-width="20" stroke-linecap="butt"/></svg>
+    <div><b>John Visser</b>06 5160 47 35<br><a href="mailto:info@visserinspecties.nl">info@visserinspecties.nl</a><br><a href="https://www.visserinspecties.nl">www.visserinspecties.nl</a></div>
+  </footer>
+</main>
+
+<div class="bar hidden" id="bar"><div class="in">
+  <div class="to" id="bar-to">Kies eerst een map</div>
+  <div class="row2">
+    <button class="btn cam" id="b-cam" disabled>📷 Foto maken</button>
+    <button class="btn sec gal" id="b-gal" disabled aria-label="Kies uit galerij">🖼</button>
+  </div>
+</div></div>
+
+<input type="file" id="in-cam" accept="image/*" capture="environment">
+<input type="file" id="in-gal" accept="image/*" multiple>
+<div id="layer"></div>
 
 <script>
+/* ───── Instellingen (ongewijzigd t.o.v. de vorige foto-upload, zodat de inlog blijft werken) ───── */
 const CLIENT_ID  = 'fdf237c9-bf46-47fa-ab3d-a8834a73e284';
 const TENANT_ID  = '984fd1fb-3d68-4c94-aff2-47f699fb5dae';
 const REDIRECT   = 'https://visserinspecties.github.io/foto-upload/foto-upload.html';
-const ROOT_PATH  = '0_In Behandeling';   // standaard startmap, niet aanpassen
 const SCOPE      = 'https://graph.microsoft.com/Files.ReadWrite offline_access';
+const STARTS = [
+  {id:'beh',  label:'In Behandeling', path:'0_In Behandeling'},
+  {id:'root', label:'Hoofdmap',       path:''}
+];
+const KEEP_DAYS = 14;
 
-// Mapnamen per niveau (voor het label)
-const NIVEAU_LABELS = ['Hoofdmap', 'Submap', 'Straat', 'Huisnummer'];
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const LS={get(k,d){try{const v=localStorage.getItem(k);return v===null?d:v}catch(e){return d}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
 
-let accessToken = null;
-let fotoTeller  = 0;
-let huidigPad   = null;
-let basisPad    = ROOT_PATH;   // huidige startmap; reset bij elke nieuwe sessie naar ROOT_PATH
-// Geselecteerde paden per niveau [0=hoofd, 1, 2, 3]
-let gekozenPad  = ['', '', '', ''];
+let accessToken=null, me=null;
 
-// ── PKCE ──────────────────────────────────────────────────────
-function b64url(buf) {
-  return btoa(String.fromCharCode(...new Uint8Array(buf)))
-    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+/* ───── PKCE-login ───── */
+function b64url(buf){return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'')}
+async function maakPKCE(){const verifier=b64url(crypto.getRandomValues(new Uint8Array(32)));const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier));return{verifier,challenge:b64url(digest)}}
+async function login(){
+  const {verifier,challenge}=await maakPKCE();
+  try{localStorage.setItem('pkce_v',verifier)}catch(e){}
+  try{sessionStorage.setItem('pkce_v',verifier)}catch(e){}
+  document.cookie=`pkce_v=${verifier};path=/;max-age=300;SameSite=Lax`;
+  const params=new URLSearchParams({client_id:CLIENT_ID,response_type:'code',redirect_uri:REDIRECT,scope:SCOPE,code_challenge:challenge,code_challenge_method:'S256',prompt:'select_account'});
+  location.href=`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize?${params}`;
 }
-async function maakPKCE() {
-  const verifier  = b64url(crypto.getRandomValues(new Uint8Array(32)));
-  const digest    = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
-  return { verifier, challenge: b64url(digest) };
+function getVerifier(){let v=null;try{v=localStorage.getItem('pkce_v')}catch(e){}
+  if(!v){try{v=sessionStorage.getItem('pkce_v')}catch(e){}}
+  if(!v){const m=document.cookie.match(/pkce_v=([^;]+)/);if(m)v=m[1]}return v}
+async function tokenViaCode(code){
+  const verifier=getVerifier();if(!verifier)throw new Error('Geen PKCE verifier — probeer opnieuw in te loggen.');
+  const resp=await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:new URLSearchParams({client_id:CLIENT_ID,grant_type:'authorization_code',code,redirect_uri:REDIRECT,code_verifier:verifier,scope:SCOPE})});
+  const data=await resp.json();if(!data.access_token)throw new Error(data.error_description||'Token mislukt');
+  accessToken=data.access_token;if(data.refresh_token)LS.set('rt',data.refresh_token);
+  try{localStorage.removeItem('pkce_v')}catch(e){}try{sessionStorage.removeItem('pkce_v')}catch(e){}
+  document.cookie='pkce_v=;path=/;max-age=0';history.replaceState({},'',REDIRECT);
 }
-
-// ── Login ─────────────────────────────────────────────────────
-async function login() {
-  const { verifier, challenge } = await maakPKCE();
-  try { localStorage.setItem('pkce_v', verifier); } catch(e){}
-  try { sessionStorage.setItem('pkce_v', verifier); } catch(e){}
-  document.cookie = `pkce_v=${verifier};path=/;max-age=300;SameSite=Lax`;
-  const params = new URLSearchParams({
-    client_id: CLIENT_ID, response_type: 'code', redirect_uri: REDIRECT,
-    scope: SCOPE, code_challenge: challenge, code_challenge_method: 'S256',
-    prompt: 'select_account',
-    domain_hint: 'organizations'
-  });
-  window.location.href = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize?${params}`;
+async function refreshAccessToken(){
+  const rt=LS.get('rt');if(!rt)throw new Error('Niet ingelogd');
+  const resp=await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:new URLSearchParams({client_id:CLIENT_ID,grant_type:'refresh_token',refresh_token:rt,scope:SCOPE})});
+  const data=await resp.json();if(!data.access_token)throw new Error('Inloggen verlopen — log opnieuw in');
+  accessToken=data.access_token;if(data.refresh_token)LS.set('rt',data.refresh_token);
 }
+async function getToken(){if(!accessToken)await refreshAccessToken();return accessToken}
+function uitloggen(){try{localStorage.removeItem('rt')}catch(e){}accessToken=null;showLogin()}
 
-function getVerifier() {
-  let v = null;
-  try { v = localStorage.getItem('pkce_v'); } catch(e){}
-  if (!v) { try { v = sessionStorage.getItem('pkce_v'); } catch(e){} }
-  if (!v) { const m = document.cookie.match(/pkce_v=([^;]+)/); if (m) v = m[1]; }
-  return v;
+/* ───── Graph ───── */
+const ENC=p=>p.split('/').map(encodeURIComponent).join('/');
+const GRAPH='https://graph.microsoft.com/v1.0/me/drive/';
+async function graph(url,opts={},retry=true){
+  const token=await getToken();
+  const r=await fetch(url,{...opts,headers:{...(opts.headers||{}),Authorization:'Bearer '+token}});
+  if(r.status===401&&retry){accessToken=null;await refreshAccessToken();return graph(url,opts,false)}
+  return r;
 }
-
-async function tokenViaCode(code) {
-  const verifier = getVerifier();
-  if (!verifier) throw new Error('Geen PKCE verifier — probeer opnieuw in te loggen.');
-  const resp = await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`, {
-    method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
-    body: new URLSearchParams({ client_id:CLIENT_ID, grant_type:'authorization_code',
-      code, redirect_uri:REDIRECT, code_verifier:verifier, scope:SCOPE })
-  });
-  const data = await resp.json();
-  if (!data.access_token) throw new Error(data.error_description || 'Token mislukt');
-  accessToken = data.access_token;
-  if (data.refresh_token) localStorage.setItem('rt', data.refresh_token);
-  try { localStorage.removeItem('pkce_v'); } catch(e){}
-  try { sessionStorage.removeItem('pkce_v'); } catch(e){}
-  document.cookie = 'pkce_v=;path=/;max-age=0';
-  window.history.replaceState({}, '', REDIRECT);
-}
-
-async function refreshAccessToken() {
-  const rt = localStorage.getItem('rt');
-  if (!rt) throw new Error('Niet ingelogd');
-  const resp = await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`, {
-    method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
-    body: new URLSearchParams({ client_id:CLIENT_ID, grant_type:'refresh_token',
-      refresh_token:rt, scope:SCOPE })
-  });
-  const data = await resp.json();
-  if (!data.access_token) throw new Error('Refresh mislukt');
-  accessToken = data.access_token;
-  if (data.refresh_token) localStorage.setItem('rt', data.refresh_token);
-}
-
-async function getToken() {
-  if (accessToken) return accessToken;
-  await refreshAccessToken();
-  return accessToken;
-}
-
-function uitloggen() { localStorage.removeItem('rt'); accessToken = null; toonLogin(); }
-function toonApp()   { document.getElementById('login-screen').style.display='none';  document.getElementById('app-screen').style.display='flex'; }
-function toonLogin() { document.getElementById('login-screen').style.display='flex';  document.getElementById('app-screen').style.display='none'; }
-
-// ── Init ──────────────────────────────────────────────────────
-async function init() {
-  const params = new URLSearchParams(window.location.search);
-  const code = params.get('code'), error = params.get('error');
-  if (error) { document.getElementById('debug').textContent = params.get('error_description')||error; toonLogin(); return; }
-  if (code) {
-    try { await tokenViaCode(code); toonApp(); naLogin(); return; }
-    catch(e) { document.getElementById('login-status').innerHTML=`<div class="status status-error">❌ ${e.message}</div>`; toonLogin(); return; }
+async function getMappen(pad){
+  let url=(pad?`${GRAPH}root:/${ENC(pad)}:/children`:`${GRAPH}root/children`)+'?$select=name,folder&$top=200';
+  const out=[];
+  while(url){
+    const r=await graph(url);const d=await r.json();
+    if(!d.value)throw new Error((d.error&&d.error.message)||'Map niet te lezen');
+    d.value.forEach(i=>{if(i.folder)out.push(i.name)});
+    url=d['@odata.nextLink']||null;
   }
-  if (localStorage.getItem('rt')) {
-    try { await refreshAccessToken(); toonApp(); naLogin(); return; }
-    catch(e) { localStorage.removeItem('rt'); }
+  return out.sort((a,b)=>a.localeCompare(b,'nl',{numeric:true,sensitivity:'base'}));
+}
+async function doUpload(blob,pad,naam,type){
+  const url=`${GRAPH}root:/${ENC(pad)}/${encodeURIComponent(naam)}:/content?@microsoft.graph.conflictBehavior=rename`;
+  const ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),120000);
+  try{
+    const r=await graph(url,{method:'PUT',headers:{'Content-Type':type||'image/jpeg'},body:blob,signal:ctl.signal});
+    if(!r.ok){let m=r.statusText;try{m=(await r.json()).error.message}catch(e){}throw new Error(m||('fout '+r.status))}
+  }finally{clearTimeout(to)}
+}
+
+/* ───── Opslag op de telefoon (zelfde database als de vorige versie: een oude wachtrij blijft gewoon staan) ───── */
+let _db=null;
+function openDB(){if(_db)return Promise.resolve(_db);return new Promise((res,rej)=>{const q=indexedDB.open('fotoQueueDB',1);
+  q.onupgradeneeded=e=>{const d=e.target.result;if(!d.objectStoreNames.contains('queue'))d.createObjectStore('queue',{keyPath:'id',autoIncrement:true})};
+  q.onsuccess=e=>{_db=e.target.result;res(_db)};q.onerror=e=>rej(e.target.error)})}
+async function tx(mode,fn){const d=await openDB();return new Promise((res,rej)=>{const t=d.transaction('queue',mode);const s=t.objectStore('queue');let out;
+  const r=fn(s);if(r&&'onsuccess' in r)r.onsuccess=()=>{out=r.result};t.oncomplete=()=>res(out);t.onerror=e=>rej(e.target.error);t.onabort=e=>rej(e.target.error)})}
+const dbAll=()=>tx('readonly',s=>s.getAll()).then(a=>a||[]);
+const dbAdd=rec=>tx('readwrite',s=>s.add(rec));
+const dbPut=rec=>tx('readwrite',s=>s.put(rec));
+const dbDel=id=>tx('readwrite',s=>s.delete(id));
+const stOf=r=>r.status||'w';           /* w = wacht, up = in OneDrive */
+async function opschonen(){const lim=Date.now()-KEEP_DAYS*864e5;for(const r of await dbAll())if(stOf(r)==='up'&&(r.upTs||r.ts||0)<lim)await dbDel(r.id)}
+
+/* ───── Mapkiezer: keuzelijsten per niveau (zoals de vorige foto-upload) ───── */
+let start=STARTS[0];
+let levels=[];           /* [{opts:[], val:'', filter:''}] */
+let huidigPad=null;
+const lvlLabel=(i)=>start.path===''?(i===0?'Map':'Submap'):(i===0?'Project':i===1?'Map':'Submap');
+
+function padOf(){const v=levels.map(l=>l.val).filter(Boolean);return [start.path,...v].filter(Boolean).join('/')}
+const shortPad=p=>{const d=p.split('/');return d.slice(-2).join(' › ')};
+
+function renderStarts(){$('starts').innerHTML=STARTS.map(s=>`<button class="chip${s.id===start.id?' on':''}" data-s="${s.id}">${esc(s.label)}</button>`).join('')+
+  (start.path?`<button class="chip" data-up="1" aria-label="Een map omhoog">⬆ Omhoog</button>`:'')}
+function renderLast(){const l=LS.get('lastDest','');const w=$('lastwrap');
+  if(l&&l!==huidigPad){w.innerHTML=`<button class="chip last" data-last="1" title="${esc(l)}">↩ Laatste: ${esc(shortPad(l))}</button>`}else w.innerHTML=''}
+function renderPicker(){
+  $('picker').innerHTML=levels.map((l,i)=>{
+    const big=l.opts.length>12;
+    const f=l.filter.trim().toLowerCase();
+    const opts=f?l.opts.filter(o=>o.toLowerCase().includes(f)||o===l.val):l.opts;
+    const first=i===0?(start.path===''?'— kies map —':'— kies project —'):'— (deze map) —';
+    return `<div class="lv"><label>${lvlLabel(i)}${i>0?'':''}</label>`+
+      (big?`<input class="srch" data-f="${i}" type="search" placeholder="Zoeken…" value="${esc(l.filter)}" autocapitalize="off" autocomplete="off">`:'')+
+      `<select data-l="${i}"><option value="">${first}</option>${opts.map(o=>`<option value="${esc(o)}"${o===l.val?' selected':''}>${esc(o)}</option>`).join('')}</select></div>`}).join('');
+  const p=huidigPad;
+  $('dest').className='dest'+(p?' set':'');$('dest-t').textContent=p||'Nog geen map gekozen';
+  $('lvl-hint').textContent=start.path?start.label:'';
+  $('b-cam').disabled=$('b-gal').disabled=!p;
+  $('bar-to').innerHTML=p?`Naar: <b>${esc(shortPad(p))}</b>`:'Kies eerst een map';
+  renderStarts();renderLast();
+}
+async function setStart(s){start=s;levels=[];huidigPad=null;renderPicker();renderGallery();
+  try{levels=[{opts:await getMappen(start.path),val:'',filter:''}]}catch(e){say('err','Mappen laden mislukt: '+e.message)}
+  renderPicker()}
+async function chooseLevel(i,val){
+  levels=levels.slice(0,i+1);levels[i].val=val;
+  const p=padOf();
+  if(val){
+    try{const kids=await getMappen(p);
+      if(kids.length){const auto=kids.find(k=>/^010\b/.test(k))||'';levels.push({opts:kids,val:auto,filter:''});
+        if(auto){try{const k2=await getMappen(padOf());if(k2.length)levels.push({opts:k2,val:'',filter:''})}catch(e){}}}}
+    catch(e){}
   }
-  toonLogin();
+  huidigPad=val||i>0?padOf():null;
+  if(i===0&&!val)huidigPad=null;
+  setDest();
 }
-
-function naLogin() {
-  basisPad = ROOT_PATH;
-  document.getElementById('basis-pad-display').textContent = basisPad;
-  document.getElementById('btn-omhoog').disabled = false;
-  laadHoofdmappen();
-  // Schakelaar-voorkeur herstellen (standaard: uit = offline-modus)
-  const opgeslagen = localStorage.getItem('mobielUpload');
-  document.getElementById('toggle-mobiel').checked = (opgeslagen === '1');
-  refreshQueueUI();
+function setDest(){
+  const p=levels.length&&levels[0].val?padOf():null;huidigPad=p;
+  if(p)LS.set('lastDest',p);
+  renderPicker();renderGallery();refreshCounts();
 }
-
-function opslaanToggleVoorkeur() {
-  const aan = document.getElementById('toggle-mobiel').checked;
-  localStorage.setItem('mobielUpload', aan ? '1' : '0');
+async function restoreLast(){
+  const l=LS.get('lastDest','');if(!l)return;
+  const s=[...STARTS].sort((a,b)=>b.path.length-a.path.length).find(x=>x.path&&(l===x.path||l.startsWith(x.path+'/')))||STARTS[1];
+  start=s;const rest=(s.path?l.slice(s.path.length+1):l).split('/').filter(Boolean);
+  levels=[];huidigPad=null;renderPicker();
+  try{
+    let base=s.path;levels.push({opts:await getMappen(base),val:'',filter:''});
+    for(let i=0;i<rest.length;i++){levels[i].val=rest[i];base=[base,rest[i]].filter(Boolean).join('/');
+      const kids=await getMappen(base);if(i<rest.length-1||kids.length)levels.push({opts:kids,val:'',filter:''})}
+  }catch(e){say('err','Map niet meer gevonden: '+e.message)}
+  setDest();
 }
+$('starts').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.up){const d=start.path.split('/');d.pop();const p=d.join('/');const found=STARTS.find(s=>s.path===p);start=found||{id:'x',label:p||'Hoofdmap',path:p};setStart(start);return}
+  const s=STARTS.find(x=>x.id===b.dataset.s);if(s)setStart(s)});
+$('lastwrap').addEventListener('click',e=>{if(e.target.closest('button'))restoreLast()});
+$('picker').addEventListener('change',e=>{const s=e.target.closest('select');if(s)chooseLevel(+s.dataset.l,s.value)});
+$('picker').addEventListener('input',e=>{const f=e.target.closest('input[data-f]');if(!f)return;const i=+f.dataset.f;levels[i].filter=f.value;
+  const pos=f.selectionStart;renderPicker();const n=document.querySelector(`input[data-f="${i}"]`);if(n){n.focus();try{n.setSelectionRange(pos,pos)}catch(_){}}});
 
-// ── Graph: mappen ophalen ─────────────────────────────────────
-async function getMappen(pad) {
-  const token = await getToken();
-  const url = pad
-    ? `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(pad)}:/children?$select=name,folder&$top=200`
-    : `https://graph.microsoft.com/v1.0/me/drive/root/children?$select=name,folder&$top=200`;
-  const resp = await fetch(url, { headers:{ Authorization:'Bearer '+token } });
-  const data = await resp.json();
-  if (!data.value) throw new Error(JSON.stringify(data.error));
-  return data.value.filter(i=>i.folder).map(i=>i.name).sort();
-}
-
-// ── Basismap omhoog/terug navigeren ──────────────────────────
-function resetSelecties() {
-  gekozenPad = ['', '', '', ''];
-  for (let i = 2; i <= 4; i++) {
-    document.getElementById('card-'+i).style.display = 'none';
-    document.getElementById('sel-'+i).innerHTML = '<option value="">— kies hierboven eerst —</option>';
-  }
-  document.getElementById('teller-card').style.display = 'none';
-  document.getElementById('pad-display').textContent = 'Nog geen selectie';
-  const btn = document.getElementById('btn-foto');
-  btn.disabled = true; btn.className = 'btn btn-disabled';
-  huidigPad = null;
-  setStatus('','');
-}
-
-async function gaOmhoog() {
-  if (basisPad === '') return; // al op de OneDrive-hoofdmap
-  const delen = basisPad.split('/');
-  delen.pop();
-  basisPad = delen.join('/'); // kan '' worden (hoofdmap)
-  document.getElementById('basis-pad-display').textContent = basisPad || '(hoofdmap OneDrive)';
-  document.getElementById('btn-omhoog').disabled = (basisPad === '');
-  resetSelecties();
-  await laadHoofdmappen();
-}
-
-function terugNaarStandaard() {
-  basisPad = ROOT_PATH;
-  document.getElementById('basis-pad-display').textContent = basisPad;
-  document.getElementById('btn-omhoog').disabled = false;
-  resetSelecties();
-  laadHoofdmappen();
-}
-
-// ── Hoofdmappen laden ─────────────────────────────────────────
-async function laadHoofdmappen() {
-  try {
-    const lijst = await getMappen(basisPad);
-    const sel = document.getElementById('sel-hoofd');
-    sel.innerHTML = '<option value="">— kies map —</option>';
-    lijst.forEach(n => { const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o); });
-  } catch(e) { setStatus('❌ Laden mislukt: '+e.message,'error'); }
-}
-
-// ── Niveau laden ──────────────────────────────────────────────
-async function laadNiveau(niveau) {
-  // Waarde van het huidige niveau opslaan
-  const selIds = ['sel-hoofd','sel-2','sel-3','sel-4'];
-  gekozenPad[niveau-1] = document.getElementById(selIds[niveau-1]).value;
-
-  // Alles daarna resetten
-  for (let i = niveau; i < 4; i++) {
-    gekozenPad[i] = '';
-    const card = document.getElementById('card-'+(i+1));
-    const sel  = document.getElementById('sel-'+(i+1));
-    if (card) { card.style.display='none'; }
-    if (sel)  { sel.innerHTML='<option value="">— kies hierboven eerst —</option>'; }
-  }
-
-  // Huidig pad opbouwen
-  const gekozenDelen = gekozenPad.filter(p=>p!=='');
-  const huidigePadStr = bouwPad(gekozenDelen);
-
-  // Pad alvast instellen (foto mogelijk vanaf dit niveau)
-  setPad(huidigePadStr);
-
-  // Volgende niveau laden als er een waarde is
-  if (gekozenPad[niveau-1]) {
-    try {
-      const lijst = await getMappen(huidigePadStr);
-      if (lijst.length > 0 && niveau < 4) {
-        const volgCard = document.getElementById('card-'+(niveau+1));
-        const volgSel  = document.getElementById('sel-'+(niveau+1));
-        const volgLbl  = document.getElementById('lbl-'+(niveau+1));
-        if (volgCard && volgSel) {
-          volgSel.innerHTML = '<option value="">— (deze map) —</option>';
-          lijst.forEach(n => { const o=document.createElement('option'); o.value=n; o.textContent=n; volgSel.appendChild(o); });
-          if (volgLbl) volgLbl.textContent = NIVEAU_LABELS[niveau] || 'Submap';
-          volgCard.style.display = 'block';
-        }
+/* ───── Foto verwerken ───── */
+const pad2=n=>String(n).padStart(2,'0');
+function stamp(d=new Date()){return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}_${pad2(d.getHours())}-${pad2(d.getMinutes())}-${pad2(d.getSeconds())}`}
+let seq=0;
+function nieuweNaam(type){seq=(seq+1)%1000;const ext=/png/.test(type)?'png':/heic|heif/.test(type)?'heic':'jpg';return `foto_${stamp()}_${String(seq).padStart(2,'0')}.${ext}`}
+async function thumbOf(blob){try{const bm=await createImageBitmap(blob,{imageOrientation:'from-image'});const k=Math.min(1,240/Math.max(bm.width,bm.height));
+  const c=document.createElement('canvas');c.width=Math.max(1,Math.round(bm.width*k));c.height=Math.max(1,Math.round(bm.height*k));c.getContext('2d').drawImage(bm,0,0,c.width,c.height);
+  return await new Promise(r=>c.toBlob(r,'image/jpeg',.7))}catch(e){return null}}
+async function verklein(blob){try{const bm=await createImageBitmap(blob,{imageOrientation:'from-image'});const k=Math.min(1,2400/Math.max(bm.width,bm.height));
+  if(k===1&&blob.type==='image/jpeg'&&blob.size<2.5e6)return blob;
+  const c=document.createElement('canvas');c.width=Math.round(bm.width*k);c.height=Math.round(bm.height*k);c.getContext('2d').drawImage(bm,0,0,c.width,c.height);
+  const b=await new Promise(r=>c.toBlob(r,'image/jpeg',.85));return b||blob}catch(e){return blob}}
+async function nieuweFotos(files){
+  const pad=huidigPad;if(!pad||!files.length)return;
+  const mob=$('t-mob').checked;let ok=0,direct=0,fail=0;
+  for(const f of files){
+    try{
+      let blob=f;if($('t-small').checked)blob=await verklein(f);
+      const type=blob.type||'image/jpeg';const naam=nieuweNaam(type);const thumb=await thumbOf(blob);
+      const rec={blob,pad,naam,type,ts:Date.now(),status:'w',thumb};
+      rec.id=await dbAdd(rec);ok++;
+      if(mob&&navigator.onLine){
+        try{await doUpload(blob,pad,naam,type);rec.status='up';rec.upTs=Date.now();rec.blob=null;await dbPut(rec);direct++}catch(e){rec.err=String(e.message||e);await dbPut(rec)}
       }
-    } catch(e) { /* geen submappen, dat is prima */ }
+    }catch(e){fail++;say('err','Opslaan mislukt: '+e.message)}
   }
+  await renderGallery();await refreshCounts();
+  if(fail===0){const w=ok-direct;say(w?'info':'ok',direct?`✓ ${direct} foto${direct===1?'':"'s"} in OneDrive${w?`, ${w} in de wachtrij`:''}`:`📥 ${ok} foto${ok===1?'':"'s"} opgeslagen in de wachtrij`)}
 }
+$('b-cam').onclick=()=>$('in-cam').click();
+$('b-gal').onclick=()=>$('in-gal').click();
+$('in-cam').onchange=async e=>{const f=[...e.target.files];e.target.value='';await nieuweFotos(f)};
+$('in-gal').onchange=async e=>{const f=[...e.target.files];e.target.value='';await nieuweFotos(f)};
 
-async function updatePad() {
-  gekozenPad[3] = document.getElementById('sel-4').value;
-  const gekozenDelen = gekozenPad.filter(p=>p!=='');
-  setPad(bouwPad(gekozenDelen));
+/* ───── Galerij + tellers ───── */
+const urls=[];
+async function renderGallery(){
+  urls.splice(0).forEach(u=>URL.revokeObjectURL(u));
+  const g=$('grid');
+  if(!huidigPad){g.innerHTML='';$('gal-n').textContent='';$('gal-h').classList.remove('hidden');return}
+  const all=(await dbAll()).filter(r=>r.pad===huidigPad).sort((a,b)=>b.ts-a.ts);
+  $('gal-n').textContent=all.length?all.length+' foto'+(all.length===1?'':"'s"):'';
+  $('gal-h').classList.toggle('hidden',all.length>0);
+  g.innerHTML=all.slice(0,60).map(r=>{const s=stOf(r);let u='';const src=r.thumb||(r.blob&&r.blob.size<6e6?r.blob:null);
+    if(src){u=URL.createObjectURL(src);urls.push(u)}
+    return `<button class="th" data-id="${r.id}">${u?`<img src="${u}" alt="">`:'<span class="nm">📷</span>'}<span class="st ${s==='up'?'up':r.err?'f':'w'}">${s==='up'?'✓ OneDrive':r.err?'mislukt':'wacht'}</span></button>`}).join('');
 }
-
-function bouwPad(delen) {
-  const onderdelen = [];
-  if (basisPad) onderdelen.push(basisPad);
-  onderdelen.push(...delen);
-  return onderdelen.join('/');
+async function refreshCounts(){
+  const all=await dbAll();const here=all.filter(r=>r.pad===huidigPad);
+  $('n-up').textContent=huidigPad?here.filter(r=>stOf(r)==='up').length:0;
+  const q=all.filter(r=>stOf(r)==='w').length;$('n-q').textContent=q;$('b-upq').disabled=!q||busy;
+  $('b-queue').disabled=!q;
 }
+$('grid').addEventListener('click',async e=>{const b=e.target.closest('.th');if(!b)return;
+  const r=(await dbAll()).find(x=>x.id==+b.dataset.id);if(!r)return;
+  const s=stOf(r);const src=r.blob||r.thumb;const u=src?URL.createObjectURL(src):'';
+  sheet(`<h3>${esc(r.naam)}</h3>${u?`<img class="big" src="${u}" alt="">`:''}<p>${esc(r.pad)}<br>${new Date(r.ts).toLocaleString('nl-NL')}<br>${s==='up'?'✓ Staat in OneDrive.':(r.err?'⚠ Upload mislukt: '+esc(r.err):'Wacht op upload.')}</p>
+    <div class="acts">${s==='w'?'<button class="btn" id="s-up">📤 Nu uploaden</button><button class="btn danger" id="s-del">🗑 Verwijderen</button>':''}<button class="btn sec" id="s-x">Sluiten</button></div>`,()=>{
+    $('s-x').onclick=closeSheet;
+    if($('s-up'))$('s-up').onclick=async()=>{closeSheet();await uploadIds([r.id])};
+    if($('s-del'))$('s-del').onclick=()=>bevestig('Foto verwijderen?','Deze foto staat alleen op je telefoon en nog niet in OneDrive. Weg is weg.','Verwijderen',async()=>{await dbDel(r.id);await renderGallery();await refreshCounts()})});
+});
 
-function setPad(pad) {
-  huidigPad = pad;
-  fotoTeller = 0;
-  document.getElementById('foto-teller').textContent = '0';
-  document.getElementById('pad-display').textContent = pad;
-  document.getElementById('teller-card').style.display = 'block';
-  const btn = document.getElementById('btn-foto');
-  btn.disabled = false; btn.className = 'btn btn-primary';
-  setStatus('','');
-}
-
-// ── Camera ────────────────────────────────────────────────────
-function maakFoto() { document.getElementById('camera-input').click(); }
-
-// ── IndexedDB: offline wachtrij ──────────────────────────────
-const DB_NAAM    = 'fotoQueueDB';
-const STORE_NAAM = 'queue';
-
-function openWachtrijDB() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAAM, 1);
-    req.onupgradeneeded = (e) => {
-      const db = e.target.result;
-      if (!db.objectStoreNames.contains(STORE_NAAM)) {
-        db.createObjectStore(STORE_NAAM, { keyPath: 'id', autoIncrement: true });
-      }
-    };
-    req.onsuccess = (e) => resolve(e.target.result);
-    req.onerror   = (e) => reject(e.target.error);
-  });
-}
-
-async function voegToeAanWachtrij(blob, pad, naam, type) {
-  const db = await openWachtrijDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAAM, 'readwrite');
-    tx.objectStore(STORE_NAAM).add({ blob, pad, naam, type, ts: Date.now() });
-    tx.oncomplete = () => resolve();
-    tx.onerror    = (e) => reject(e.target.error);
-  });
-}
-
-async function leesWachtrij() {
-  const db = await openWachtrijDB();
-  return new Promise((resolve, reject) => {
-    const tx  = db.transaction(STORE_NAAM, 'readonly');
-    const req = tx.objectStore(STORE_NAAM).getAll();
-    req.onsuccess = () => resolve(req.result);
-    req.onerror   = (e) => reject(e.target.error);
-  });
-}
-
-async function verwijderUitWachtrij(id) {
-  const db = await openWachtrijDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAAM, 'readwrite');
-    tx.objectStore(STORE_NAAM).delete(id);
-    tx.oncomplete = () => resolve();
-    tx.onerror    = (e) => reject(e.target.error);
-  });
-}
-
-async function refreshQueueUI() {
-  let items = [];
-  try { items = await leesWachtrij(); } catch(e) { items = []; }
-  document.getElementById('queue-getal').textContent = items.length;
-  document.getElementById('btn-wachtrij').disabled = items.length === 0;
-}
-
-// ── Upload (gedeelde Graph-call) ─────────────────────────────
-async function doUpload(blob, pad, naam, type) {
-  const token = await getToken();
-  const url = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(pad)}/${naam}:/content`;
-  const resp = await fetch(url, {
-    method:'PUT',
-    headers:{ Authorization:'Bearer '+token, 'Content-Type': type || 'image/jpeg' },
-    body: blob
-  });
-  if (!resp.ok) { const e = await resp.json(); throw new Error(e.error?.message||resp.statusText); }
-}
-
-// ── Foto verwerken: direct uploaden of in wachtrij ───────────
-async function uploadFoto(input) {
-  if (!input.files || !input.files[0]) return;
-  const file = input.files[0]; input.value = '';
-  const ts   = new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
-  const naam = `foto_${ts}.jpg`;
-  const pad  = huidigPad;
-  const type = file.type || 'image/jpeg';
-
-  const mobielAan = document.getElementById('toggle-mobiel').checked;
-
-  if (!mobielAan) {
-    // Offline-modus (standaard): meteen in de wachtrij, niet proberen te uploaden
-    try {
-      await voegToeAanWachtrij(file, pad, naam, type);
-      await refreshQueueUI();
-      setStatus(`📥 Opgeslagen in wachtrij: ${naam}`, 'success');
-    } catch(e) {
-      setStatus('❌ Opslaan mislukt: '+e.message, 'error');
-    }
-    return;
+/* ───── Wachtrij uploaden ───── */
+let busy=false;
+async function uploadIds(ids){
+  if(busy)return;busy=true;$('b-upq').disabled=true;
+  const all=(await dbAll()).filter(r=>stOf(r)==='w'&&(!ids||ids.includes(r.id))).sort((a,b)=>a.ts-b.ts);
+  const pr=$('prog'),bar=$('prog-i');pr.classList.remove('hidden');bar.style.width='0';
+  let done=0,fail=0,last='';
+  for(const r of all){
+    $('b-upq').textContent=`📤 ${done+fail+1}/${all.length}…`;
+    try{if(!r.blob)throw new Error('foto niet meer op toestel');await doUpload(r.blob,r.pad,r.naam,r.type);r.status='up';r.upTs=Date.now();r.err=null;r.blob=null;await dbPut(r);done++}
+    catch(e){fail++;last=String(e.message||e);r.err=last;try{await dbPut(r)}catch(_){}
+      if(!navigator.onLine||/verlopen|Niet ingelogd|Failed to fetch|Load failed|network/i.test(last)){say('err',`Gestopt na ${done} van ${all.length}: ${esc(last)}`);break}}
+    bar.style.width=Math.round((done+fail)/all.length*100)+'%';
   }
-
-  // Schakelaar aan: direct proberen te uploaden
-  setStatus('<span class="spinner"></span> Uploaden...', 'loading');
-  try {
-    await doUpload(file, pad, naam, type);
-    fotoTeller++; document.getElementById('foto-teller').textContent = fotoTeller;
-    setStatus(`✅ ${naam} opgeslagen in ${pad}`, 'success');
-  } catch(e) {
-    // Upload mislukt ondanks toestemming → alsnog in wachtrij zetten, niets gaat verloren
-    try {
-      await voegToeAanWachtrij(file, pad, naam, type);
-      await refreshQueueUI();
-      setStatus(`⚠️ Upload mislukt (${e.message}) — foto in wachtrij gezet`, 'error');
-    } catch(e2) {
-      setStatus('❌ Upload én opslaan mislukt: '+e2.message, 'error');
-    }
-  }
+  busy=false;pr.classList.add('hidden');$('b-upq').textContent='📤 Upload wachtrij';
+  await renderGallery();await refreshCounts();
+  if(!fail&&done)say('ok',`✅ ${done} foto${done===1?'':"'s"} geüpload naar OneDrive`);
+  else if(fail&&!$('status').textContent.includes('Gestopt'))say('err',`${done} gelukt, ${fail} mislukt: ${esc(last)}`);
 }
+$('b-upq').onclick=()=>uploadIds(null);
+$('b-queue').onclick=async()=>{
+  const all=(await dbAll()).filter(r=>stOf(r)==='w');const by={};all.forEach(r=>{(by[r.pad]=by[r.pad]||[]).push(r)});
+  const rows=Object.keys(by).sort().map(p=>`<div class="qrow"><span>${esc(p)}</span><b>${by[p].length}</b></div>`).join('')||'<p>De wachtrij is leeg.</p>';
+  sheet(`<h3>Wachtrij</h3><p>${all.length} foto${all.length===1?'':"'s"} in ${Object.keys(by).length} map${Object.keys(by).length===1?'':'pen'}. Elke foto gaat naar de map waarin hij is gemaakt.</p>${rows}<div class="acts" style="margin-top:14px"><button class="btn" id="s-all">📤 Alles uploaden</button><button class="btn sec" id="s-x">Sluiten</button></div>`,()=>{
+    $('s-x').onclick=closeSheet;$('s-all').onclick=()=>{closeSheet();uploadIds(null)}})};
 
-// ── Wachtrij leegmaken (op wifi thuis) ───────────────────────
-async function uploadWachtrij() {
-  const items = await leesWachtrij();
-  if (items.length === 0) return;
-  const btn = document.getElementById('btn-wachtrij');
-  btn.disabled = true;
+/* ───── Menu, vellen, meldingen ───── */
+function sheet(html,after){closeSheet();const d=document.createElement('div');d.className='scrim';d.innerHTML=`<div class="sheet">${html}</div>`;
+  d.addEventListener('click',e=>{if(e.target===d)closeSheet()});$('layer').appendChild(d);after&&after()}
+function closeSheet(){$('layer').innerHTML=''}
+function bevestig(titel,tekst,knop,fn){
+  sheet(`<h3>${esc(titel)}</h3><p>${esc(tekst)}</p><div class="acts"><button class="btn sec" id="c-n">Annuleren</button><button class="btn danger" id="c-y">${esc(knop)}</button></div>`,()=>{
+    $('c-n').onclick=closeSheet;$('c-y').onclick=()=>{closeSheet();fn()}})}
+$('b-menu').onclick=()=>sheet(`<h3>Menu</h3><p>${esc(me||'')}</p><div class="acts"><button class="btn sec" id="m-x">Sluiten</button><button class="btn danger" id="m-out">Uitloggen</button></div>`,()=>{
+  $('m-x').onclick=closeSheet;$('m-out').onclick=()=>{closeSheet();uitloggen()}});
+let sayT=null;
+function say(type,html){const s=$('status');s.innerHTML=`<div class="msg ${type}">${html}</div>`;clearTimeout(sayT);if(type!=='err')sayT=setTimeout(()=>{s.innerHTML=''},6000)}
+function netUI(){const n=$('net');n.textContent=navigator.onLine?'online':'offline';n.classList.toggle('off',!navigator.onLine)}
+addEventListener('online',netUI);addEventListener('offline',netUI);
 
-  let gelukt = 0;
-  for (const item of items) {
-    btn.textContent = `📤 ${gelukt+1}/${items.length}...`;
-    try {
-      await doUpload(item.blob, item.pad, item.naam, item.type);
-      await verwijderUitWachtrij(item.id);
-      gelukt++;
-      // Tellertje bijwerken als deze foto naar de nu geselecteerde map ging
-      if (item.pad === huidigPad) {
-        fotoTeller++;
-        document.getElementById('foto-teller').textContent = fotoTeller;
-      }
-    } catch(e) {
-      setStatus(`❌ Wachtrij gestopt na ${gelukt} van ${items.length}: ${e.message}`, 'error');
-      break;
-    }
-  }
+/* ───── Voorkeuren ───── */
+$('t-mob').checked=LS.get('mobielUpload','0')==='1';
+$('t-small').checked=LS.get('verkleinen','0')==='1';
+$('t-mob').onchange=()=>LS.set('mobielUpload',$('t-mob').checked?'1':'0');
+$('t-small').onchange=()=>LS.set('verkleinen',$('t-small').checked?'1':'0');
 
-  await refreshQueueUI();
-  btn.textContent = '📤 Upload wachtrij';
-  if (gelukt === items.length) {
-    setStatus(`✅ ${gelukt} foto's uit wachtrij geüpload`, 'success');
-  }
+/* ───── Start ───── */
+function showLogin(){$('login').classList.remove('hidden');$('app').classList.add('hidden');$('bar').classList.add('hidden');$('b-menu').classList.add('hidden');$('who').textContent=''}
+async function showApp(){
+  $('login').classList.add('hidden');$('app').classList.remove('hidden');$('bar').classList.remove('hidden');$('b-menu').classList.remove('hidden');
+  try{const r=await graph('https://graph.microsoft.com/v1.0/me?$select=displayName,userPrincipalName');const d=await r.json();me=d.userPrincipalName||d.displayName||'';$('who').innerHTML=`<b>${esc(d.displayName||'Ingelogd')}</b>Visser Inspecties`}catch(e){$('who').innerHTML='<b>Visser Inspecties</b>'}
+  try{await opschonen()}catch(e){}
+  netUI();await setStart(STARTS[0]);await refreshCounts();
+  const q=parseInt($('n-q').textContent,10);if(q>0)say('info',`Er ${q===1?'staat':'staan'} nog ${q} foto${q===1?'':"'s"} in de wachtrij. Upload ze op wifi met de knop “Upload wachtrij”.`);
 }
-
-function setStatus(msg,type) {
-  const el=document.getElementById('status');
-  el.innerHTML=msg?`<div class="status status-${type}">${msg}</div>`:'';
+async function init(){
+  netUI();
+  const params=new URLSearchParams(location.search);const code=params.get('code'),error=params.get('error');
+  if(error){$('debug').textContent=params.get('error_description')||error;showLogin();return}
+  if(code){try{await tokenViaCode(code);await showApp();return}catch(e){$('login-status').innerHTML=`<div class="msg err">❌ ${esc(e.message)}</div>`;showLogin();return}}
+  if(LS.get('rt')){try{await refreshAccessToken();await showApp();return}catch(e){if(navigator.onLine){try{localStorage.removeItem('rt')}catch(_){}}else{
+    /* offline: app toch openen zodat foto's gemaakt kunnen worden */ await showApp();return}}}
+  showLogin();
 }
-
 init();
 </script>
 </body>
