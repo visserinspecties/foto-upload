@@ -249,11 +249,17 @@ async function tokenViaCode(code){
   try{localStorage.removeItem('pkce_v')}catch(e){}try{sessionStorage.removeItem('pkce_v')}catch(e){}
   document.cookie='pkce_v=;path=/;max-age=0';history.replaceState({},'',REDIRECT);
 }
+/* fetch met tijdslimiet: bij zwak bereik niet eindeloos wachten */
+function fetchT(url,opts={},ms=10000){if(opts.signal)return fetch(url,opts);const c=new AbortController();const t=setTimeout(()=>c.abort(),ms);return fetch(url,{...opts,signal:c.signal}).finally(()=>clearTimeout(t))}
+const isNet=e=>!!(e&&(e.net||e.name==='TypeError'||e.name==='AbortError'||e instanceof TypeError));
+let offlineLijst=false;
 async function refreshAccessToken(){
   const rt=LS.get('rt');if(!rt)throw new Error('Niet ingelogd');
-  const resp=await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
-    body:new URLSearchParams({client_id:CLIENT_ID,grant_type:'refresh_token',refresh_token:rt,scope:SCOPE})});
-  const data=await resp.json();if(!data.access_token)throw new Error('Inloggen verlopen — log opnieuw in');
+  let resp,data;
+  try{resp=await fetchT(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:new URLSearchParams({client_id:CLIENT_ID,grant_type:'refresh_token',refresh_token:rt,scope:SCOPE})},10000);data=await resp.json()}
+  catch(e){const n=new Error('Geen verbinding');n.net=true;throw n}
+  if(!data.access_token)throw new Error('Inloggen verlopen — log opnieuw in');
   accessToken=data.access_token;if(data.refresh_token)LS.set('rt',data.refresh_token);
 }
 async function getToken(){if(!accessToken)await refreshAccessToken();return accessToken}
@@ -264,20 +270,26 @@ const ENC=p=>p.split('/').map(encodeURIComponent).join('/');
 const GRAPH='https://graph.microsoft.com/v1.0/me/drive/';
 async function graph(url,opts={},retry=true){
   const token=await getToken();
-  const r=await fetch(url,{...opts,headers:{...(opts.headers||{}),Authorization:'Bearer '+token}});
+  const r=await fetchT(url,{...opts,headers:{...(opts.headers||{}),Authorization:'Bearer '+token}});
   if(r.status===401&&retry){accessToken=null;await refreshAccessToken();return graph(url,opts,false)}
   return r;
 }
 async function getMappen(pad){
   let url=(pad?`${GRAPH}root:/${ENC(pad)}:/children`:`${GRAPH}root/children`)+'?$select=name,folder&$top=200';
-  const out=[];
-  while(url){
-    const r=await graph(url);const d=await r.json();
-    if(!d.value)throw new Error((d.error&&d.error.message)||'Map niet te lezen');
-    d.value.forEach(i=>{if(i.folder)out.push(i.name)});
-    url=d['@odata.nextLink']||null;
-  }
-  return out.sort((a,b)=>a.localeCompare(b,'nl',{numeric:true,sensitivity:'base'}));
+  const out=[],key='dir:'+pad;
+  try{
+    while(url){
+      const r=await graph(url);const d=await r.json();
+      if(!d.value)throw new Error((d.error&&d.error.message)||'Map niet te lezen');
+      d.value.forEach(i=>{if(i.folder)out.push(i.name)});
+      url=d['@odata.nextLink']||null;
+    }
+  }catch(e){
+    /* geen bereik: de laatst bekende mappenlijst gebruiken */
+    const c=LS.get(key,'');if(isNet(e)&&c){offlineLijst=true;return JSON.parse(c)}
+    if(isNet(e))throw new Error('Geen verbinding, en deze map is nog niet eerder geopend');throw e}
+  out.sort((a,b)=>a.localeCompare(b,'nl',{numeric:true,sensitivity:'base'}));
+  LS.set(key,JSON.stringify(out));offlineLijst=false;return out;
 }
 async function doUpload(blob,pad,naam,type){
   const url=`${GRAPH}root:/${ENC(pad)}/${encodeURIComponent(naam)}:/content?@microsoft.graph.conflictBehavior=rename`;
@@ -488,6 +500,7 @@ async function showApp(){
   try{const r=await graph('https://graph.microsoft.com/v1.0/me?$select=displayName,userPrincipalName');const d=await r.json();me=d.userPrincipalName||d.displayName||'';$('who').innerHTML=`<b>${esc(d.displayName||'Ingelogd')}</b>Visser Inspecties`}catch(e){$('who').innerHTML='<b>Visser Inspecties</b>'}
   try{await opschonen()}catch(e){}
   netUI();await setStart(STARTS[0]);await refreshCounts();
+  if(offlineLijst){say('info','Geen verbinding. Je ziet de mappen van de vorige keer; foto\'s gaan in de wachtrij en upload je later.');return}
   const q=parseInt($('n-q').textContent,10);if(q>0)say('info',`Er ${q===1?'staat':'staan'} nog ${q} foto${q===1?'':"'s"} in de wachtrij. Upload ze op wifi met de knop “Upload wachtrij”.`);
 }
 async function init(){
@@ -495,11 +508,12 @@ async function init(){
   const params=new URLSearchParams(location.search);const code=params.get('code'),error=params.get('error');
   if(error){$('debug').textContent=params.get('error_description')||error;showLogin();return}
   if(code){try{await tokenViaCode(code);await showApp();return}catch(e){$('login-status').innerHTML=`<div class="msg err">❌ ${esc(e.message)}</div>`;showLogin();return}}
-  if(LS.get('rt')){try{await refreshAccessToken();await showApp();return}catch(e){if(navigator.onLine){try{localStorage.removeItem('rt')}catch(_){}}else{
-    /* offline: app toch openen zodat foto's gemaakt kunnen worden */ await showApp();return}}}
+  if(LS.get('rt')){try{await refreshAccessToken();await showApp();return}catch(e){if(!isNet(e)){try{localStorage.removeItem('rt')}catch(_){}}else{
+    /* geen bereik: app toch openen zodat foto's gemaakt kunnen worden */ await showApp();return}}}
   showLogin();
 }
 init();
+if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))}
 </script>
 </body>
 </html>
