@@ -232,6 +232,7 @@
   }
   /* Gekopieerde regel: doorgestreept en grijs; nog eens op de knop = terug */
   .resultaten-tabel tr.gekopieerd td:not(.copy-cel){ text-decoration:line-through; opacity:.45; }
+  select.uit-keuze, .resultaten-tabel select.uit-keuze{ width:auto !important; min-width:0; display:inline-block; padding:2px 4px; margin:2px 0 2px 6px; font-size:0.75rem !important; color:#5f5f5f; background:#fff; border:1px solid #d9d5e1; border-radius:4px; vertical-align:middle; }
   .btn-copy.gedaan{ background:#e7e3d8; color:#9a9383; border-color:#d8d2c4; }
 
   @media (max-width: 480px){
@@ -2481,9 +2482,10 @@ function berekenSchil(dak, schild){
   dkData.forEach(d=> add('plat', null, `${d.naam} — plat dak`, d.platDakOpp, '', `${n2(d.breedte)} × ${n2(d.diepte)}`));
 
   // --- Totalen ---
+  R.forEach(r=>{ r.sleutel = schilSleutel(r); r.uit = UITGEZET.get(r.sleutel) || ''; });
   const perOrient = {VG:0, AG:0, LG:0, RG:0};
-  R.filter(r=>r.groep==='gevel').forEach(r=>{ perOrient[r.orient] += (r.opp || 0); });
-  const som = g => R.filter(r=>r.groep===g).reduce((s,r)=>s+(r.opp||0), 0);
+  R.filter(r=>r.groep==='gevel' && !r.uit).forEach(r=>{ perOrient[r.orient] += (r.opp || 0); });
+  const som = g => R.filter(r=>r.groep===g && !r.uit).reduce((s,r)=>s+(r.opp||0), 0);
   res.perOrient = perOrient;
   res.totalen = {gevel: som('gevel'), vloer: som('vloer'), schuin: som('schuin'), plat: som('plat')};
   return res;
@@ -2528,11 +2530,46 @@ function berekenAlles(){
 // Zelfde kleuren in tekeningen (PDF), resultaten op het scherm en de Excel.
 // Welke regels in de tabel al gekopieerd zijn (blijft staan zolang de pagina open is; verandert een waarde, dan telt de regel weer als nieuw)
 const GEKOPIEERD = new Set();
-const KLEUR = {vloer:'#1d1d1d', gevel:'#1a7f37', dak:'#c0392b', deur:'#5c3a1e', paneel:'#5f5f5f'};
-const KLEUR_RGB = {vloer:[29,29,29], gevel:[26,127,55], dak:[192,57,43], deur:[92,58,30], paneel:[95,95,95]};
+const KLEUR = {vloer:'#1d1d1d', gevel:'#1a7f37', dak:'#c0392b', deur:'#5c3a1e', paneel:'#5f5f5f', uit:'#9a9a9a'};
+const KLEUR_RGB = {vloer:[29,29,29], gevel:[26,127,55], dak:[192,57,43], deur:[92,58,30], paneel:[95,95,95], uit:[154,154,154]};
+
+// ── Vlakken uitzetten ("niet meenemen") ─────────────────────────
+// Sleutel = groep|oriëntatie|label van een schilregel; waarde = de reden.
+// Een uitgezet vlak blijft zichtbaar (grijs), maar telt niet mee in de totalen.
+const UITGEZET = new Map();
+const UIT_REDENEN = ['grenst aan buren', 'woning erboven', 'woning eronder', 'onverwarmde ruimte', 'anders'];
+function schilSleutel(r){ return `${r.groep}|${r.orient||''}|${r.label}`; }
+function uitKeuzeHtml(sleutel){
+  const huidig = UITGEZET.get(sleutel) || '';
+  const opt = (v, t) => `<option value="${v}"${v===huidig?' selected':''}>${t}</option>`;
+  return `<select class="uit-keuze" data-vlak="${String(sleutel).replace(/"/g,'&quot;')}" title="Vlak meenemen of uitzetten">`
+    + opt('', 'meenemen') + UIT_REDENEN.map(r=>opt(r, 'uit: '+r)).join('') + `</select>`;
+}
+document.addEventListener('change', e=>{
+  const sel = e.target;
+  if(!(sel instanceof HTMLSelectElement) || !sel.classList.contains('uit-keuze')) return;
+  const k = sel.getAttribute('data-vlak');
+  if(sel.value) UITGEZET.set(k, sel.value); else UITGEZET.delete(k);
+  herbereken();
+  if(typeof renderTekening === 'function' && document.getElementById('tekening-resultaten-tabel')) renderTekening();
+});
+// Hoort het aanzicht met deze titel bij VG/AG/LG/RG?
+function schilCodeUitTitel(t){
+  const s = String(t||'');
+  return /^Voor/i.test(s) ? 'VG' : /^Achter/i.test(s) ? 'AG' : /^Linker/i.test(s) ? 'LG' : /^Rechter/i.test(s) ? 'RG' : null;
+}
+// Tekening: uitgezette hoofdgevel grijs en gestippeld
+function markeerHoofdUit(svg, titel){
+  const code = schilCodeUitTitel(titel);
+  if(!code || !UITGEZET.has(`gevel|${code}|${GEVEL_NAAM[code]} hoofdgebouw`)) return;
+  svg.querySelectorAll('[data-hoofd]').forEach(el=>{ el.setAttribute('stroke', KLEUR.uit); el.setAttribute('stroke-dasharray', '5,3'); });
+}
 function kleurGroep(groep){ return groep==='gevel' ? 'gevel' : (groep==='schuin' || groep==='plat' || groep==='dak') ? 'dak' : 'vloer'; }
 
 function fm(x){ return (x==null || isNaN(x)) ? '—' : x.toFixed(2); }
+function schilLabelHtml(r){
+  return (r.uit ? `<s>${r.label}</s> — niet meegenomen (${r.uit})` : r.label) + ' ' + uitKeuzeHtml(r.sleutel);
+}
 function regelHtml(label, waarde, opties){
   opties = opties || {};
   const kleur = opties.kleur ? KLEUR[opties.kleur] : null;
@@ -2611,14 +2648,14 @@ function renderAlles(R){
     h += '<div style="font-weight:600;margin:4px 0;">Gevels</div>';
     ['VG','AG','LG','RG'].forEach(code=>{
       const rij = S.regels.filter(r=>r.groep==='gevel' && r.orient===code);
-      rij.forEach(r=> h += regelHtml(r.label, r.opp==null ? '—' : fm(r.opp)+' m²', {detail:r.detail, formule:r.formule, kleur:'gevel'}));
+      rij.forEach(r=> h += regelHtml(schilLabelHtml(r), r.opp==null ? '—' : fm(r.opp)+' m²', {detail:r.detail, formule:r.formule, kleur:r.uit?'uit':'gevel'}));
       h += regelHtml(`Σ ${GEVEL_NAAM[code]} (${gevelCodeMetOrient(code)})`, fm(S.perOrient[code])+' m²', {sub:true, kleur:'gevel'});
     });
     [['vloer','Vloeren (grond / kruipruimte)','Totaal vloeren'],['schuin','Schuine daken','Totaal schuine daken'],['plat','Platte daken','Totaal platte daken']].forEach(([g, kop, tot])=>{
       const rij = S.regels.filter(r=>r.groep===g);
       if(!rij.length) return;
       h += `<div style="font-weight:600;margin:14px 0 4px;">${kop}</div>`;
-      rij.forEach(r=> h += regelHtml(r.label, fm(r.opp)+' m²', {detail:r.detail, formule:r.formule, kleur:kleurGroep(g)}));
+      rij.forEach(r=> h += regelHtml(schilLabelHtml(r), fm(r.opp)+' m²', {detail:r.detail, formule:r.formule, kleur:r.uit?'uit':kleurGroep(g)}));
       h += regelHtml(tot, fm(S.totalen[g])+' m²', {sub:true, kleur:kleurGroep(g)});
       if(g === 'vloer' && S.perimeter) h += regelHtml('Perimeter P begane grondvloer', fm(S.perimeter.waarde)+' m', {formule:S.perimeter.formule, kleur:'vloer', sub:true});
     });
@@ -4486,15 +4523,17 @@ function tekenUitbouwSilhouetten(svg, x0, yBase, geplaatst, maatKant){
   geplaatst.forEach(({item, pos, bPx})=>{
     const hPx = item.hoogte*SCALE;
     const rx = x0+pos, ry = yBase-hPx;
-    svg.appendChild(svgEl('rect', {x:rx,y:ry,width:bPx,height:hPx,fill:'white',stroke:KLEUR.gevel,'stroke-width':1.1}));
+    const uitStijl = item.uit ? {stroke:KLEUR.uit, 'stroke-dasharray':'5,3'} : {};
+    svg.appendChild(svgEl('rect', Object.assign({x:rx,y:ry,width:bPx,height:hPx,fill:'white',stroke:KLEUR.gevel,'stroke-width':1.1}, uitStijl)));
     let labelY = ry-4;
     if(item.daktype==='zadel' && item.driehoekHoogte>0){
       const triHPx = item.driehoekHoogte*SCALE;
-      svg.appendChild(svgEl('polygon', {points:`${rx},${ry} ${rx+bPx/2},${ry-triHPx} ${rx+bPx},${ry}`, fill:'white', stroke:KLEUR.gevel,'stroke-width':1.1}));
+      svg.appendChild(svgEl('polygon', Object.assign({points:`${rx},${ry} ${rx+bPx/2},${ry-triHPx} ${rx+bPx},${ry}`, fill:'white', stroke:KLEUR.gevel,'stroke-width':1.1}, uitStijl)));
       labelY = ry-triHPx-4;
     }
     const lbl = svgEl('text', {x:rx+bPx/2,y:labelY,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'});
-    lbl.textContent = item.naam;
+    lbl.textContent = item.uit ? `${item.naam} (uit)` : item.naam;
+    if(item.uit) lbl.setAttribute('fill', KLEUR.uit);
     svg.appendChild(lbl);
 
     // oppervlaktecijfer, gecentreerd in het vlak (net als bij de hoofdgevel)
@@ -5019,7 +5058,7 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
     const x0 = TK_MARGIN + extraLinks, yBase = viewH-TK_MARGIN;
     const yEaveLinks = yBase-hLinksPx, yEaveRechts = yBase-hRechtsPx, yNok = yBase-hNokPx;
 
-    svg.appendChild(svgEl('polygon', {points:`${x0},${yBase} ${x0},${yEaveLinks} ${x0+dLinksPx},${yNok} ${x0+dLinksPx+dRechtsPx},${yEaveRechts} ${x0+dLinksPx+dRechtsPx},${yBase}`, fill:'white', stroke:KLEUR.gevel,'stroke-width':1.5}));
+    svg.appendChild(svgEl('polygon', {points:`${x0},${yBase} ${x0},${yEaveLinks} ${x0+dLinksPx},${yNok} ${x0+dLinksPx+dRechtsPx},${yEaveRechts} ${x0+dLinksPx+dRechtsPx},${yBase}`, fill:'white', stroke:KLEUR.gevel,'stroke-width':1.5,'data-hoofd':'1'}));
     svg.appendChild(svgEl('polyline', {points:`${x0},${yEaveLinks} ${x0+dLinksPx},${yNok} ${x0+dLinksPx+dRechtsPx},${yEaveRechts}`, fill:'none', stroke:KLEUR.dak,'stroke-width':1.8}));
 
     svg.appendChild(svgEl('text', {x:x0+dLinksPx,y:yNok-6,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
@@ -5072,6 +5111,7 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
     rechtsLabel.textContent = `${rechtsData.naam} ${rechtsData.h.toFixed(2)} m`;
     svg.appendChild(rechtsLabel);
 
+    markeerHoofdUit(svg, titel);
     canvasWrap.appendChild(svg);
     return wrap;
   }
@@ -5094,7 +5134,7 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
   const svg = nieuweSvg(viewW, viewH);
   const x0 = TK_MARGIN + extraLinks, yBase = viewH-TK_MARGIN, yEave = yBase-hRect, yTop = yEave-hTri-hStippel;
 
-  svg.appendChild(svgEl('rect', {x:x0,y:yEave,width:w,height:hRect,fill:'white',stroke:KLEUR.gevel,'stroke-width':1.5}));
+  svg.appendChild(svgEl('rect', {x:x0,y:yEave,width:w,height:hRect,fill:'white',stroke:KLEUR.gevel,'stroke-width':1.5,'data-hoofd':'1'}));
 
   if(heeftDriehoek && heeftWolfseind){
     // afgeknotte kopgevel (trapezium) + wolfseindvlak als gestippelde 'receding' driehoek erboven,
@@ -5102,7 +5142,7 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
     const hBovenGoot = (driehoekHoogte - wolfseind.restHoogte) * SCALE; // = wolfseind.hoogte in px
     const insetPx = (w/2) - (wolfseind.topWidth/2)*SCALE;
     const yAfkap = yEave - hBovenGoot;
-    svg.appendChild(svgEl('polygon', {points:`${x0},${yEave} ${x0+w},${yEave} ${x0+w-insetPx},${yAfkap} ${x0+insetPx},${yAfkap}`, fill:'white', stroke:KLEUR.gevel,'stroke-width':1.5}));
+    svg.appendChild(svgEl('polygon', {points:`${x0},${yEave} ${x0+w},${yEave} ${x0+w-insetPx},${yAfkap} ${x0+insetPx},${yAfkap}`, fill:'white', stroke:KLEUR.gevel,'stroke-width':1.5,'data-hoofd':'1'}));
     svg.appendChild(svgEl('polygon', {points:`${x0+insetPx},${yAfkap} ${x0+w/2},${yTop} ${x0+w-insetPx},${yAfkap}`, fill:'none', stroke:KLEUR.dak,'stroke-width':1,'stroke-dasharray':'5,3'}));
     svg.appendChild(svgEl('text', {x:x0+w/2,y:yAfkap+11,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
     svg.lastChild.textContent = `wolfseind vanaf ${(driehoekHoogte-wolfseind.restHoogte).toFixed(2)}m boven goot`;
@@ -5110,7 +5150,7 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
       tekenDakkapelOpDriehoek(svg, x0, yEave, w, hellingshoek, dakkapelDataAlle);
     }
   } else if(heeftDriehoek && driehoekHoogte>0){
-    svg.appendChild(svgEl('polygon', {points:`${x0},${yEave} ${x0+w/2},${yTop} ${x0+w},${yEave}`, fill:'white', stroke:KLEUR.gevel,'stroke-width':1.5}));
+    svg.appendChild(svgEl('polygon', {points:`${x0},${yEave} ${x0+w/2},${yTop} ${x0+w},${yEave}`, fill:'white', stroke:KLEUR.gevel,'stroke-width':1.5,'data-hoofd':'1'}));
     // dakvlakken (de schuine lijnen) in rood
     svg.appendChild(svgEl('polyline', {points:`${x0},${yEave} ${x0+w/2},${yTop} ${x0+w},${yEave}`, fill:'none', stroke:KLEUR.dak,'stroke-width':1.8}));
     if(dakkapelDataAlle && dakkapelDataAlle.length){
@@ -5182,6 +5222,7 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
     svg.lastChild.setAttribute('fill', KLEUR.dak);
   }
 
+  markeerHoofdUit(svg, titel);
   canvasWrap.appendChild(svg);
   return wrap;
 }
@@ -5204,7 +5245,8 @@ function renderTekeningResultatenTabel(){
   regels.forEach(r=>{
     if(r.kop){ html += `<tr class="kop"><td colspan="5" style="${kleur(r)}">${r.kop}</td></tr>`; return; }
     if(r.soort === 'item'){
-      html += `<tr style="${kleur(r)}"><td>${r.label}${formule(r.formule)}</td><td class="waarde">${r.opp==null ? '—' : r.opp.toFixed(2)}</td><td></td><td>m²</td><td class="copy-cel">${knop(r.opp, r)}</td></tr>`;
+      const keuze = r.sleutel ? uitKeuzeHtml(r.sleutel) : '';
+      html += `<tr style="${kleur(r)}${r.uit?'font-style:italic;':''}"><td>${r.label}${formule(r.formule)}</td><td class="waarde">${r.opp==null ? '—' : (r.uit ? `<s>${r.opp.toFixed(2)}</s>` : r.opp.toFixed(2))}</td><td></td><td>m²</td><td class="copy-cel">${r.uit ? '' : knop(r.opp, r)}${keuze}</td></tr>`;
     } else if(r.soort === 'sub' || r.soort === 'eind'){
       html += `<tr style="font-weight:700;${kleur(r)}background:${r.soort==='eind' ? '#e7e3d8' : '#f5f2ea'};"><td>${r.label}</td><td></td><td class="waarde">${r.opp==null ? '—' : r.opp.toFixed(2)}</td><td>m²</td><td class="copy-cel">${knop(r.opp, r)}</td></tr>`;
     } else if(r.getal != null){
@@ -5346,10 +5388,12 @@ function renderTekening(targetContainerId){
   const HOEK_AANZICHT_LINKS  = { VG:'LG', AG:'RG', LG:'AG', RG:'VG' };
   const HOEK_AANZICHT_RECHTS = { VG:'RG', AG:'LG', LG:'VG', RG:'AG' };
   function weergaveGroepenVoorGevel(gevelCode){
-    const eigen = uitbouwLijstAlle.filter(d=>d.gevel===gevelCode);
+    const eigen = uitbouwLijstAlle.filter(d=>d.gevel===gevelCode)
+      .map(d=>Object.assign({}, d, {uit: UITGEZET.has(`gevel|${gevelCode}|${d.naam} — voorzijde`)}));
     const eigenGroepen = verdeelHoekGroepen(eigen, HOEK_AANZICHT_LINKS[gevelCode], HOEK_AANZICHT_RECHTS[gevelCode]);
 
-    const naarWeergaveItem = d => ({naam:d.naam, breedte:d.diepte, hoogte:d.hoogte, daktype:'plat', driehoekHoogte:0, oppervlakte:d.zijkant});
+    const naarWeergaveItem = d => ({naam:d.naam, breedte:d.diepte, hoogte:d.hoogte, daktype:'plat', driehoekHoogte:0, oppervlakte:d.zijkant,
+                                    uit: UITGEZET.has(`gevel|${gevelCode}|${d.naam} — wang`)});
     const overloopLinks = uitbouwLijstAlle.filter(d=>d.gevel===HOEK_AANZICHT_LINKS[gevelCode]).map(naarWeergaveItem);
     const overloopRechts = uitbouwLijstAlle.filter(d=>d.gevel===HOEK_AANZICHT_RECHTS[gevelCode]).map(naarWeergaveItem);
 
@@ -5517,6 +5561,9 @@ function samenvattingRegelsVerzamelen(){
   const item = (label, opp, detail, formule, kleur) => regels.push({soort:'item', label, opp, detail, formule, kleur});
   const sub  = (label, opp, kleur) => regels.push({soort:'sub', label, opp, kleur});
   const eind = (label, opp, kleur) => regels.push({soort:'eind', label, opp, kleur});
+  // schilregel: met sleutel (voor de uit-keuze); uitgezet = grijs en telt niet mee
+  const schilItem = (r, kl) => regels.push({soort:'item', label: r.uit ? `${r.label} — niet meegenomen (${r.uit})` : r.label,
+    opp:r.opp, detail:r.detail, formule:r.formule, kleur: r.uit ? 'uit' : kl, sleutel:r.sleutel, uit:r.uit});
   // info: getal (kaal) + eenheid apart, of alleen tekst
   const info = (label, getal, eenheid, tekst) => regels.push({soort:'info', label,
     getal: (getal==null || isNaN(getal)) ? null : getal, eenheid: eenheid || '', tekst: tekst==null ? '' : String(tekst)});
@@ -5617,7 +5664,7 @@ function samenvattingRegelsVerzamelen(){
   }
   kop('Schil — gevels per oriëntatie', 'gevel');
   ['VG','AG','LG','RG'].forEach(code=>{
-    S.regels.filter(r=>r.groep==='gevel' && r.orient===code).forEach(r=> item(r.label, r.opp, r.detail, r.formule, 'gevel'));
+    S.regels.filter(r=>r.groep==='gevel' && r.orient===code).forEach(r=> schilItem(r, 'gevel'));
     sub(`Σ ${GEVEL_NAAM[code]} (${gevelCodeMetOrient(code)})`, S.perOrient[code], 'gevel');
     rdLosRegels(regels, d=>d.gevelKey===code && d.type!=='dakraam', GEVEL_NAAM[code].toLowerCase());
   });
@@ -5629,7 +5676,7 @@ function samenvattingRegelsVerzamelen(){
     if(!rij.length) return;
     const kl = kleurGroep(g);
     kop(k, kl);
-    rij.forEach(r=> item(r.label, r.opp, r.detail, r.formule, kl));
+    rij.forEach(r=> schilItem(r, kl));
     sub(t, S.totalen[g], kl);
     if(g === 'schuin') ['VG','AG','LG','RG'].forEach(code=>
       rdLosRegels(regels, d=>d.gevelKey===code && d.type==='dakraam', `dakramen dakvlak ${GEVEL_NAAM[code].toLowerCase()}`));
@@ -6426,6 +6473,7 @@ function verzamelInvoerData(){
     push('RaamDeur', i+1, 'zonwering', document.getElementById('rd-zonwering-'+rd.id)?.checked ? '1' : '0');
   });
 
+  [...UITGEZET.entries()].forEach(([vlak, reden], i)=>{ push('Uitgezet', i+1, 'vlak', vlak); push('Uitgezet', i+1, 'reden', reden); });
   return rows;
 }
 
@@ -6473,6 +6521,8 @@ const verschilt = (a, b) => {
 
 function vulInvoerDataIn(rows){
   const groepen = groepeerInvoerRijen(rows);
+  UITGEZET.clear();
+  groepen.filter(g=>g.sectie==='Uitgezet').forEach(g=>{ if(g.velden.vlak) UITGEZET.set(String(g.velden.vlak), String(g.velden.reden || 'anders')); });
   const V = (groepen.find(g=>g.sectie==='Gevel') || {velden:{}}).velden;
 
   // Tijdens het inlezen niet steeds herrekenen; aan het eind één keer.
@@ -6731,6 +6781,11 @@ function bouwWerkboek(){
     if(r.kop){
       aoa.push([r.kop, '', '', '', '', '']); meta.push({soort:'kop', kleur:r.kleur});
       groepStart = excelRij + 1; sectieSubs = [];
+      return;
+    }
+    if(r.soort === 'item' && r.uit){
+      aoa.push([r.label, '', '', 'm²', `niet meegenomen: ${rond(r.opp)} m²` + (r.formule ? ' (= ' + r.formule + ')' : ''), r.detail || '']);
+      meta.push({soort:'item', kleur:r.kleur});
       return;
     }
     if(r.soort === 'item'){
