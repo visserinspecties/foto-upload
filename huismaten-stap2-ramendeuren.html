@@ -3740,6 +3740,13 @@ function verversRamenDeurenOpties(){
       selV.innerHTML = verdOpties.map(o=>`<option value="${o.value}">${o.label}</option>`).join('');
       if(verdOpties.some(o=>o.value===huidige)) selV.value = huidige;
     }
+    const selP = document.getElementById('rd-plaats-'+rd.id);
+    if(selP){
+      const huidige = selP.value;
+      selP.innerHTML = rdPlaatsOptiesHtml();
+      selP.value = [...selP.options].some(o=>o.value===huidige) ? huidige : 'hoofd';
+    }
+    rdPlaatsUI(rd.id);
   });
 }
 
@@ -3830,6 +3837,10 @@ function voegRaamDeurToe(kopieerVan){
         <label>Oriëntatie</label>
         <select id="rd-orientatie-${id}">${optiesHtml(orientOpties)}</select>
       </div>
+      <div class="field">
+        <label>Plaats</label>
+        <select id="rd-plaats-${id}">${rdPlaatsOptiesHtml()}</select>
+      </div>
       <div class="field" style="flex:0 0 90px;">
         <label>Aantal</label>
         <input type="text" inputmode="numeric" class="numeric-input" id="rd-aantal-${id}" value="1" step="1">
@@ -3881,6 +3892,9 @@ function voegRaamDeurToe(kopieerVan){
     const el = document.getElementById(pref+id);
     if(el){ el.addEventListener('input', onRamenDeurenWijziging); el.addEventListener('change', onRamenDeurenWijziging); }
   });
+  { const pl = document.getElementById('rd-plaats-'+id);
+    pl.addEventListener('focus', ()=>{ const v = pl.value; pl.innerHTML = rdPlaatsOptiesHtml(); pl.value = [...pl.options].some(o=>o.value===v) ? v : 'hoofd'; });
+    pl.addEventListener('change', ()=>{ rdPlaatsUI(id); onRamenDeurenWijziging(); }); }
   const glasSel = document.getElementById('rd-glastype-'+id);
   const glasHandler = ()=>{ rd.glasHandmatig = (glasSel.value !== rdStandaardGlas()); onRamenDeurenWijziging(); };
   glasSel.addEventListener('input', glasHandler);
@@ -3888,7 +3902,7 @@ function voegRaamDeurToe(kopieerVan){
 
   // Nieuw element = kopie van het vorige (incl. type, gevel, verdieping, maten, glas, zonwering).
   if(kopieerVan && kopieerVan.id){
-    ['type','verdieping','orientatie','aantal','breedte','hoogte','glastype','isolatie','raambreedte','raamhoogte'].forEach(v=>{
+    ['type','verdieping','orientatie','plaats','aantal','breedte','hoogte','glastype','isolatie','raambreedte','raamhoogte'].forEach(v=>{
       const van = document.getElementById('rd-'+v+'-'+kopieerVan.id);
       const naar = document.getElementById('rd-'+v+'-'+id);
       if(van && naar) naar.value = van.value;
@@ -3900,6 +3914,7 @@ function voegRaamDeurToe(kopieerVan){
   }
 
   toggleRaamDeurVelden(id);
+  rdPlaatsUI(id);
   renumberRamenDeuren();
   renderRamenDeurenResultaten();
 }
@@ -3946,10 +3961,12 @@ function berekenRaamDeurData(rd){
     raamOppStuk = breedte*hoogte;
   }
 
-  const gevelKey = ramenDeurenGevelKeyVanOrientatie(orientatieRaw);
+  const plaats = document.getElementById('rd-plaats-'+rd.id)?.value || 'hoofd';
+  const plaatsInfo = rdPlaatsInfo(plaats);
+  const gevelKey = plaatsInfo ? plaatsInfo.gevelKey : ramenDeurenGevelKeyVanOrientatie(orientatieRaw);
 
   return {
-    id:rd.id, naam:rd.naam, type, breedte, hoogte, aantal, glastype, isolatie, verdieping,
+    id:rd.id, naam:rd.naam, type, breedte, hoogte, aantal, glastype, isolatie, verdieping, plaats, plaatsInfo,
     raamBreedte, raamHoogte,
     orientatieRaw, gevelKey,
     raamOpp: raamOppStuk*aantal, deurOpp: deurOppStuk*aantal, paneelOpp: paneelOppStuk*aantal,
@@ -4001,7 +4018,7 @@ function rdGlasLabel(g){ return RD_GLASTYPE_LABELS[g] || g || 'geen glastype'; }
 // Regels-per-item voor overzicht/PDF/Excel: een deur met raam geeft twee regels (deur en raam)
 function rdItemRegels(d){
   const uit = [];
-  const orient = `${ramenDeurenOrientatieLabel(d.gevelKey)} (${d.gevelKey})`;
+  const orient = `${ramenDeurenOrientatieLabel(d.gevelKey)} (${d.gevelKey})` + (d.plaatsInfo ? ` — ${d.plaatsInfo.label}` : '');
   const aantalTxt = d.aantal>1 ? `${d.aantal} × ` : '';
   const n2l = x => (Math.round(x*100)/100).toFixed(2);
   if(d.raamOpp>0){
@@ -4426,6 +4443,10 @@ function tekenDakkapelSilhouetten(svg, x0, yEave, lijst, gevelBreedtePx){
     const lbl = svgEl('text', {x:rx+bPx/2,y:ryBoven-4,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'});
     lbl.textContent = d.naam;
     svg.appendChild(lbl);
+    if(typeof rdHeeftElementen==='function' && rdHeeftElementen('dk', d.naam, 'voor')){
+      lbl.textContent = `${d.naam} (${d.breedte.toFixed(2)}×${d.hoogte.toFixed(2)} m)`;   // midden is bezet door de ramen
+      return;
+    }
     const maatLbl = svgEl('text', {x:rx+bPx/2,y:(ryBoven+ryOnder)/2+3,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'});
     maatLbl.textContent = `${d.breedte.toFixed(2)}×${d.hoogte.toFixed(2)} m`;
     svg.appendChild(maatLbl);
@@ -4450,9 +4471,13 @@ function tekenUitbouwSilhouetten(svg, x0, yBase, geplaatst, maatKant){
     lbl.textContent = item.naam;
     svg.appendChild(lbl);
 
-    // oppervlaktecijfer, gecentreerd in het vlak (net als bij de hoofdgevel)
+    // oppervlaktecijfer, gecentreerd in het vlak (net als bij de hoofdgevel).
+    // Zitten er ramen/deuren in dit vlak, dan komt het cijfer bij de naam erboven.
     const oppWaarde = item.oppervlakte!=null ? item.oppervlakte : item.front;
-    if(oppWaarde!=null){
+    const rdKant = maatKant==='buitenLinks' ? 'rechts' : maatKant==='buitenRechts' ? 'links' : 'voor';
+    const metElementen = typeof rdHeeftElementen==='function' && rdHeeftElementen('ub', item.naam, rdKant);
+    if(oppWaarde!=null && metElementen) lbl.textContent = `${item.naam} — ${oppWaarde.toFixed(2)} m²`;
+    if(oppWaarde!=null && !metElementen){
       const fsU = tekstGrootte();
       const binnenStart = (maatKant==='buitenLinks' || maatKant==='buitenRechts') ? rx : rx + fsU*1.4;
       const oppLbl = svgEl('text', {x:(binnenStart + rx + bPx)/2,y:ry+hPx/2+fsU*0.35,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'});
@@ -4886,10 +4911,12 @@ function tekenDwarsdoorsnede(m){
 // ============================================================
 // RAMEN & DEUREN IN DE GEVELAANZICHTEN (testversie)
 // Per gevel en per verdieping worden de elementen gelijk verdeeld over de breedte, met
-// minimaal 20 cm vanaf de linker- en rechterkant van het aanzicht. Elk element krijgt een
-// code (R1, D2, DR1, P1, DK1 — zelfde nummering als in de tabel) en zijn oppervlakte.
-// Past dat niet in het element zelf, dan loopt er een lijntje naar een label naast de gevel.
-// Alleen rect/line/text: die worden ook door svgNaarCanvas (PDF) getekend.
+// minimaal 20 cm vanaf de linker- en rechterkant. Elk element krijgt een code (R1, D2, DR1,
+// P1, DK1 — zelfde nummering als in de tabel) en zijn oppervlakte. Past dat niet in het
+// element zelf, dan loopt er een lijntje naar een label naast de gevel.
+// Elementen kunnen ook in een uitbouw (voorkant / linker- / rechterkant) of een dakkapel
+// (voorkant / linker- / rechterwang) zitten: veld "Plaats" bij het element.
+// Alleen rect/line/polyline/text: die worden ook door svgNaarCanvas (PDF) getekend.
 // ============================================================
 const RD_RAND_M = 0.20;
 const RD_KLEUR = {
@@ -4897,6 +4924,11 @@ const RD_KLEUR = {
   deurVul:'#eadfd3', deurLijn:'#5c3a1e',
   paneelVul:'#ececec', paneelLijn:'#6f6f6f'
 };
+// Links/rechts van een gevel, gezien als je er van buiten naar kijkt (zelfde als HOEK_AANZICHT_*)
+const RD_HOEK_LINKS  = { VG:'LG', AG:'RG', LG:'AG', RG:'VG' };
+const RD_HOEK_RECHTS = { VG:'RG', AG:'LG', LG:'VG', RG:'AG' };
+const RD_KANT_LABEL = { ub:{voor:'voorkant', links:'linkerkant', rechts:'rechterkant'}, dk:{voor:'voorkant', links:'linkerwang', rechts:'rechterwang'} };
+
 function gevelCodeUitTitel(t){
   const s = String(t||'');
   return /^Voor/i.test(s) ? 'VG' : /^Achter/i.test(s) ? 'AG' : /^Linker/i.test(s) ? 'LG' : /^Rechter/i.test(s) ? 'RG' : null;
@@ -4911,15 +4943,78 @@ function rdKleuren(d){
   if(d.type==='paneel') return {vul:RD_KLEUR.paneelVul, lijn:RD_KLEUR.paneelLijn};
   return {vul:RD_KLEUR.raamVul, lijn:RD_KLEUR.raamLijn};
 }
+
+// ---------- "Plaats": hoofdgebouw, uitbouw of dakkapel ----------
+function rdPlaatsOpties(){
+  const o = [{value:'hoofd', label:'Hoofdgebouw'}];
+  (typeof uitbouwen !== 'undefined' ? uitbouwen : []).forEach(u=>{
+    ['voor','links','rechts'].forEach(k=> o.push({value:`ub:${u.id}:${k}`, label:`${u.naam} — ${RD_KANT_LABEL.ub[k]}`}));
+  });
+  (typeof dakkapellen !== 'undefined' ? dakkapellen : []).forEach(dk=>{
+    ['voor','links','rechts'].forEach(k=> o.push({value:`dk:${dk.id}:${k}`, label:`${dk.naam} — ${RD_KANT_LABEL.dk[k]}`}));
+  });
+  return o;
+}
+function rdPlaatsOptiesHtml(){ return rdPlaatsOpties().map(o=>`<option value="${o.value}">${o.label}</option>`).join(''); }
+// Uit de plaats-waarde: welk onderdeel, welke kant, en op welke gevel(richting) die kant zit.
+function rdPlaatsInfo(waarde){
+  const m = /^(ub|dk):(\d+):(voor|links|rechts)$/.exec(waarde||'');
+  if(!m) return null;
+  const soort = m[1], id = +m[2], kant = m[3];
+  let G = null, naam = '';
+  if(soort === 'ub'){
+    const u = (typeof uitbouwen !== 'undefined' ? uitbouwen : []).find(x=>x.id===id); if(!u) return null;
+    G = document.getElementById('ub-gevel-'+id)?.value || 'VG'; naam = u.naam;
+  } else {
+    const dk = (typeof dakkapellen !== 'undefined' ? dakkapellen : []).find(x=>x.id===id); if(!dk) return null;
+    const dv = document.getElementById('dk-dakvlak-'+id)?.value || 'A';
+    G = dakvlakGevelCodes()[dv]; naam = dk.naam;
+  }
+  const gevelKey = kant==='voor' ? G : kant==='links' ? RD_HOEK_LINKS[G] : RD_HOEK_RECHTS[G];
+  return {soort, id, kant, G, gevelKey, naam, label:`${naam} ${RD_KANT_LABEL[soort][kant]}`};
+}
+// Excel: index-gebaseerd ("uitbouw 2|links"), want interne id's veranderen bij opnieuw inlezen
+function rdPlaatsNaarExcel(waarde){
+  const m = /^(ub|dk):(\d+):(voor|links|rechts)$/.exec(waarde||'');
+  if(!m) return 'hoofd';
+  const lijst = m[1]==='ub' ? uitbouwen : dakkapellen;
+  const i = lijst.findIndex(x=>x.id===+m[2]);
+  return i<0 ? 'hoofd' : `${m[1]==='ub'?'uitbouw':'dakkapel'} ${i+1}|${m[3]}`;
+}
+function rdPlaatsVanExcel(w){
+  const m = /^(uitbouw|dakkapel)\s*(\d+)\s*\|\s*(voor|links|rechts)$/i.exec(String(w||'').trim());
+  if(!m) return 'hoofd';
+  const lijst = m[1].toLowerCase()==='uitbouw' ? uitbouwen : dakkapellen;
+  const x = lijst[+m[2]-1];
+  return x ? `${m[1].toLowerCase()==='uitbouw'?'ub':'dk'}:${x.id}:${m[3].toLowerCase()}` : 'hoofd';
+}
+// Oriëntatie volgt uit de plaats: keuzelijst dan uitgrijzen
+function rdPlaatsUI(id){
+  const pl = document.getElementById('rd-plaats-'+id)?.value || 'hoofd';
+  const selO = document.getElementById('rd-orientatie-'+id);
+  const info = rdPlaatsInfo(pl);
+  if(selO){
+    selO.disabled = !!info;
+    if(info && [...selO.options].some(o=>o.value===info.gevelKey)) selO.value = info.gevelKey;
+  }
+  const selV = document.getElementById('rd-verdieping-'+id);
+  if(selV) selV.disabled = !!(info && info.soort==='dk');
+}
+// Heeft dit onderdeel (uitbouw/dakkapel, op naam) elementen op deze kant? Dan schuiven de maatlabels opzij.
+function rdHeeftElementen(soort, naam, kant){
+  if(typeof alleRamenDeurenData !== 'function') return false;
+  return alleRamenDeurenData().some(d=>d.geldig && d.plaatsInfo && d.plaatsInfo.soort===soort && d.plaatsInfo.naam===naam && (!kant || d.plaatsInfo.kant===kant));
+}
+
+// ---------- geometrie ----------
 // Profiel van de gevel: hoogte links/rechts (goot), nok en de horizontale plek van de nok (m).
-// Daarmee kennen we per hoogte de beschikbare breedte (ook in een driehoek of schuin profiel).
 function rdBreedteOpHoogte(p, y){
   let xl = 0, xr = p.breedte;
   if(p.nok > p.hL && y > p.hL) xl = p.nokX * Math.min(1, (y - p.hL) / (p.nok - p.hL));
   if(p.nok > p.hR && y > p.hR) xr = p.breedte - (p.breedte - p.nokX) * Math.min(1, (y - p.hR) / (p.nok - p.hR));
   return {xl, xr};
 }
-// Verticale zone (m boven maaiveld) per verdieping op deze gevel, of null als die er niet is.
+// Verticale zone (m boven de voet van het vlak) per verdieping, of null als die er niet is.
 function rdZone(p, verd){
   const lv = [0].concat(verdiepingsvloerHoogtes());
   const top = Math.min(p.hL, p.hR);
@@ -4928,7 +5023,6 @@ function rdZone(p, verd){
   else if(verd === RD_VERDIEPING_ZOLDER) k = -1;
   else { const i = extraVerdiepingen.findIndex(v=>'ev-'+v.id === verd); k = i>=0 ? i+1 : 0; }
   if(k === -1){
-    // zolder/kap: in de driehoek of het dakvolak boven de goot; anders de bovenste bouwlaag
     const hoog = p.zolderTot - top;
     if(hoog > 0.4){
       const van = top + 0.1, tot = top + hoog*0.65;
@@ -4942,51 +5036,154 @@ function rdZone(p, verd){
   const tot = Math.min(k+1 < lv.length ? lv[k+1] : top, top);
   return {van, tot, xl:0, xr:p.breedte};
 }
-// Plaatsing in meters (x vanaf de linkerkant van het aanzicht, y boven maaiveld).
-function rdPlanGevel(gevelCode, p){
+// Elementen gelijk verdeeld in een zone; geeft stukken met x/y in meters binnen dezelfde assen als de zone.
+function rdVerdeel(lijst, z, opts){
+  opts = opts || {};
+  const uit = [];
+  const n = lijst.length; if(!n) return uit;
+  const somB = lijst.reduce((s,o)=>s+o.d.breedte, 0);
+  const ruimte = z.xr - z.xl, randMin = opts.rand != null ? opts.rand : RD_RAND_M;
+  let rand = (ruimte - somB)/(n+1), tussen = rand;
+  if(rand < randMin){
+    rand = Math.min(randMin, Math.max((ruimte - somB)/2, 0));
+    tussen = n>1 ? (ruimte - 2*rand - somB)/(n-1) : 0;
+  }
+  const bandH = z.tot - z.van;
+  let x = z.xl + rand;
+  lijst.forEach(o=>{
+    const d = o.d;
+    let hEcht = d.hoogte;
+    if(d.type==='dakraam' && opts.projectie) hEcht = d.hoogte * opts.projectie;   // dakvlak schuin gezien
+    const h = Math.max(Math.min(hEcht, bandH - 0.05), 0.05);
+    let y;
+    if(z.zolder || d.type==='dakraam') y = z.van + Math.max((bandH - h)/2, 0);
+    else if(d.type==='deur' || d.type==='deurmetraam') y = z.van;
+    else {
+      const kop = z.van + Math.min(2.3, bandH - 0.25);   // bovenkant op dezelfde lijn als een deur
+      y = Math.max(z.van + 0.05, kop - h);
+      if(y + h > z.tot) y = Math.max(z.van, z.tot - h);
+    }
+    uit.push({d, x, y, b:d.breedte, h, eerste:o.eerste, laatste:false, z});
+    x += d.breedte + tussen;
+  });
+  // het meest rechtse exemplaar van elk element krijgt het lijntje
+  const gezien = new Set();
+  for(let i = uit.length-1; i >= 0; i--){ if(!gezien.has(uit[i].d)){ gezien.add(uit[i].d); uit[i].laatste = true; } }
+  return uit;
+}
+function rdExemplaren(lijst){
+  const uit = [];
+  lijst.forEach(d=>{ for(let i=0;i<d.aantal;i++) uit.push({d, eerste:i===0}); });
+  return uit;
+}
+// Verschuif stukken (in vlak-coördinaten) naar gevel-coördinaten; zone mee, zodat het lijntje goed loopt.
+function rdVerschuif(stukken, dx, dy, xRechts){
+  stukken.forEach(st=>{
+    st.x += dx; st.y += dy;
+    st.z = {van:st.z.van+dy, tot:st.z.tot+dy, xl:st.z.xl+dx, xr:st.z.xr+dx, zolder:st.z.zolder};
+    st.xRechts = xRechts;
+  });
+  return stukken;
+}
+
+// Plaatsing in meters (x vanaf de linkerkant van het hoofdaanzicht, y boven maaiveld).
+// vlakken = uitbouw- en dakkapelvlakken die in dit aanzicht te zien zijn (zie rdVlakken).
+function rdPlanGevel(gevelCode, p, vlakken){
   if(!gevelCode || typeof alleRamenDeurenData !== 'function') return null;
-  const data = alleRamenDeurenData().filter(d=>d.geldig && d.gevelKey===gevelCode);
-  if(!data.length) return null;
-  const perVerd = {};
-  data.forEach(d=>{ (perVerd[d.verdieping] = perVerd[d.verdieping] || []).push(d); });
+  const alle = alleRamenDeurenData().filter(d=>d.geldig);
+  const hoofd = alle.filter(d=>!d.plaatsInfo && d.gevelKey===gevelCode);
+  const extra = alle.filter(d=>d.plaatsInfo);
   const stukken = [], los = [];
+  // hoofdgebouw, per verdieping
+  const perVerd = {};
+  hoofd.forEach(d=>{ (perVerd[d.verdieping] = perVerd[d.verdieping] || []).push(d); });
   Object.keys(perVerd).forEach(v=>{
     const z = rdZone(p, v);
     if(!z){ perVerd[v].forEach(d=>los.push(d)); return; }
-    const lijst = [];
-    perVerd[v].forEach(d=>{ for(let i=0;i<d.aantal;i++) lijst.push({d, eerste:i===0}); });
-    const n = lijst.length, somB = lijst.reduce((s,o)=>s+o.d.breedte, 0);
-    const ruimte = z.xr - z.xl;
-    // gelijk verdelen: rand = tussenruimte, maar minimaal 20 cm vanaf de zijkant
-    let rand = (ruimte - somB)/(n+1), tussen = rand;
-    if(rand < RD_RAND_M){
-      rand = Math.min(RD_RAND_M, Math.max((ruimte - somB)/2, 0));
-      tussen = n>1 ? (ruimte - 2*rand - somB)/(n-1) : 0;
-    }
-    const bandH = z.tot - z.van;
-    let x = z.xl + rand;
-    lijst.forEach(o=>{
-      const d = o.d;
-      const h = Math.max(Math.min(d.hoogte, bandH - 0.05), 0.05);
-      let y;
-      if(z.zolder || d.type==='dakraam') y = z.van + Math.max((bandH - h)/2, 0);
-      else if(d.type==='deur' || d.type==='deurmetraam') y = z.van;
-      else {
-        const kop = z.van + Math.min(2.3, bandH - 0.25);   // bovenkant op dezelfde lijn als een deur
-        y = Math.max(z.van + 0.05, kop - h);
-        if(y + h > z.tot) y = Math.max(z.van, z.tot - h);
-      }
-      stukken.push({d, x, y, b:d.breedte, h, eerste:o.eerste, laatste:false, z, past: tussen >= 0});
-      x += d.breedte + tussen;
-    });
-    // het meest rechtse exemplaar van elk element krijgt het lijntje (kruist dan zijn eigen kopieën niet)
-    const gezien = new Set();
-    for(let i = stukken.length-1; i >= 0 && stukken[i].z === z; i--){
-      if(!gezien.has(stukken[i].d)){ gezien.add(stukken[i].d); stukken[i].laatste = true; }
+    const projectie = (z.zolder && !p.driehoek && p.helling) ? Math.sin(deg2rad(p.helling)) : null;
+    rdVerschuif(rdVerdeel(rdExemplaren(perVerd[v]), z, {projectie}), 0, 0, p.breedte).forEach(st=>stukken.push(st));
+  });
+  // uitbouwen en dakkapellen
+  (vlakken || []).forEach(vl=>{
+    const hier = extra.filter(d=>d.plaatsInfo.soort===vl.soort && d.plaatsInfo.id===vl.id && d.plaatsInfo.kant===vl.kant);
+    if(!hier.length) return;
+    if(vl.soort === 'ub'){
+      const pv = {breedte:vl.breedte, hL:vl.hoogte, hR:vl.hoogte, nok:vl.hoogte+(vl.tri||0), nokX:vl.breedte/2, zolderTot:vl.hoogte+(vl.tri||0), driehoek:(vl.tri||0)>0};
+      const per = {};
+      hier.forEach(d=>{ (per[d.verdieping] = per[d.verdieping] || []).push(d); });
+      Object.keys(per).forEach(v=>{
+        let z = rdZone(pv, v);
+        if(!z) z = rdZone(pv, 'bg');
+        if(!z){ per[v].forEach(d=>los.push(d)); return; }
+        rdVerschuif(rdVerdeel(rdExemplaren(per[v]), z), vl.xVan, 0, vl.xVan+vl.breedte).forEach(st=>stukken.push(st));
+      });
+    } else if(vl.wang){
+      // dakkapelwang (driehoek in het kopgevel-aanzicht): elementen tegen de voorkant, net onder het dakje
+      let x = vl.richting>0 ? vl.frontX + 0.1 : vl.frontX - 0.1;
+      rdExemplaren(hier).forEach(o=>{
+        const d = o.d, h = Math.min(d.hoogte, Math.max(vl.yTop - vl.yVoet - 0.15, 0.1));
+        const xs = vl.richting>0 ? x : x - d.breedte;
+        stukken.push({d, x:xs, y:vl.yTop - 0.1 - h, b:d.breedte, h, eerste:o.eerste, laatste:true,
+                      z:{van:vl.yVoet, tot:vl.yTop, xl:Math.min(vl.frontX, vl.backX), xr:Math.max(vl.frontX, vl.backX)}, xRechts:Math.max(vl.frontX, vl.backX)});
+        x += vl.richting * (d.breedte + 0.1);
+      });
+    } else {
+      // dakkapel voorkant: gelijk verdeeld, verticaal in het midden
+      const z = {van:0, tot:vl.hoogte, xl:0, xr:vl.breedte, zolder:true};
+      rdVerschuif(rdVerdeel(rdExemplaren(hier), z, {rand:0.1}), vl.xVan, vl.yVan, vl.xVan+vl.breedte).forEach(st=>stukken.push(st));
     }
   });
+  if(!stukken.length && !los.length) return null;
   return {stukken, los};
 }
+// Welke uitbouw- en dakkapelvlakken zijn in dit aanzicht te zien, en waar (meters, t.o.v. linkeronderhoek gevel)?
+function rdVlakken(X, c){
+  const S = SCALE, uit = [];
+  if(!X) return uit;
+  // eigen uitbouwen: voorkant
+  if(c.eigenGroepen){
+    positioneerMetHoek(c.eigenGroepen, c.wPx, 'breedte', c.gapPx).forEach(({item, pos})=>{
+      uit.push({soort:'ub', id:item.id, kant:'voor', xVan:pos/S, breedte:item.breedte, hoogte:item.hoogte, tri: item.daktype==='zadel' ? (item.driehoekHoogte||0) : 0});
+    });
+  }
+  const ubOpNaam = naam => (typeof uitbouwen !== 'undefined' ? uitbouwen : []).find(u=>u.naam===naam);
+  // uitbouwen van de buurgevels: hun zijkant steekt links/rechts buiten dit aanzicht uit
+  let cur = 0;
+  (c.overloopLinks || []).forEach(it=>{
+    const bPx = it.breedte*S, rx = cur - bPx; cur = rx - c.gapPx;
+    const u = ubOpNaam(it.naam); if(u) uit.push({soort:'ub', id:u.id, kant:'rechts', xVan:rx/S, breedte:it.breedte, hoogte:it.hoogte, tri:0});
+  });
+  cur = c.wPx;
+  (c.overloopRechts || []).forEach(it=>{
+    const bPx = it.breedte*S, rx = cur; cur = rx + bPx + c.gapPx;
+    const u = ubOpNaam(it.naam); if(u) uit.push({soort:'ub', id:u.id, kant:'links', xVan:rx/S, breedte:it.breedte, hoogte:it.hoogte, tri:0});
+  });
+  // dakkapellen recht van voren (zelfde plaatsing als tekenDakkapelSilhouetten)
+  const lijst = c.dakkapelLijst || [];
+  lijst.forEach((d,i)=>{
+    const midden = (c.wPx * (i+1)/(lijst.length+1))/S;
+    uit.push({soort:'dk', id:d.id, kant:'voor', xVan:midden - d.breedte/2, yVan:(c.gevelTopM||0) + Math.max(d.afstand||0, 0), breedte:d.breedte, hoogte:d.hoogte});
+  });
+  // dakkapelwangen in de driehoek van een kopgevel (zelfde geometrie als tekenDakkapelOpDriehoek)
+  if(c.driehoek && c.dakkapelDataAlle && c.dakkapelDataAlle.length){
+    const B = c.wPx/S, tanH = Math.tan(deg2rad(c.hellingshoek)) || 1, codes = dakvlakGevelCodes();
+    c.dakkapelDataAlle.forEach(d=>{
+      const G = codes[d.dakvlak];
+      const kant = X===RD_HOEK_LINKS[G] ? 'links' : X===RD_HOEK_RECHTS[G] ? 'rechts' : null;
+      if(!kant) return;
+      const links = d.dakvlak === 'A', richting = links ? 1 : -1;
+      let frontX = (links ? 0 : B) + richting*(Math.max(d.afstand||0,0)/tanH);
+      frontX = links ? Math.min(Math.max(frontX, 0), B/2) : Math.min(Math.max(frontX, B/2), B);
+      const ruimte = links ? (B/2 - frontX) : (frontX - B/2);
+      const dM = Math.max(Math.min(d.diepte, ruimte - 2/S), 4/S);
+      const yVoet = c.gevelTopM + Math.max(d.afstand||0, 0);
+      uit.push({soort:'dk', id:d.id, kant, wang:true, frontX, backX:frontX + richting*dM, richting, yVoet, yTop:yVoet + d.hoogte});
+    });
+  }
+  return uit;
+}
+
+// ---------- labels ----------
 // Wat past er in het element zelf? 'een' (code + m² op één regel), 'twee' (twee regels), of 'zij'.
 function rdLabelKeuze(st){
   const fs = tekstGrootte(), tw = t => t.length*fs*0.55 + fs*0.4;
@@ -5016,14 +5213,17 @@ function rdExtraBreedte(plan){
   const fs = tekstGrootte();
   return Math.max(...zij.map(z=> rdZijTekst(z).length*fs*0.55)) + fs*2.5;
 }
-function rdTekenPlan(svg, plan, x0, yBase, xLabels, yMin, yMax, xRand){
+function rdTekst(svg, x, y, t, kleur, anchor){
+  svg.appendChild(svgEl('text', {x, y, 'text-anchor':anchor||'middle', 'font-size':tekstGrootte(), fill:kleur}));
+  svg.lastChild.textContent = t;
+}
+// Rechthoeken + codes. alleenHoofd: true = alleen hoofdgebouw (vóór de uitbouwen getekend),
+// false = alleen uitbouw/dakkapel (ná de silhouetten, anders vallen ze erachter).
+function rdTekenElementen(svg, plan, x0, yBase, alleenHoofd){
   if(!plan) return;
   const fs = tekstGrootte(), S = SCALE;
-  const tekst = (x, y, t, kleur, anchor) => {
-    svg.appendChild(svgEl('text', {x, y, 'text-anchor':anchor||'middle', 'font-size':fs, fill:kleur}));
-    svg.lastChild.textContent = t;
-  };
   plan.stukken.forEach(st=>{
+    if(!!st.d.plaatsInfo === alleenHoofd) return;
     const d = st.d, k = rdKleuren(d);
     const px = x0 + st.x*S, py = yBase - (st.y + st.h)*S, pw = st.b*S, ph = st.h*S;
     st.px = px; st.py = py; st.pw = pw; st.ph = ph;
@@ -5034,39 +5234,43 @@ function rdTekenPlan(svg, plan, x0, yBase, xLabels, yMin, yMax, xRand){
       svg.appendChild(svgEl('rect', {x:px+(pw-rb)/2, y:py+Math.min(ph*0.08, 0.15*S), width:rb, height:rh, fill:RD_KLEUR.raamVul, stroke:RD_KLEUR.raamLijn, 'stroke-width':lw*0.8}));
     }
     const code = rdCode(d), opp = d.oppStuk.toFixed(2)+' m²', keuze = rdLabelKeuze(st);
-    if(keuze === 'een') tekst(px+pw/2, py+ph/2+fs*0.35, code+' '+opp, k.lijn);
-    else if(keuze === 'twee'){ tekst(px+pw/2, py+ph/2-fs*0.25, code, k.lijn); tekst(px+pw/2, py+ph/2+fs*0.95, opp, k.lijn); }
+    if(keuze === 'een') rdTekst(svg, px+pw/2, py+ph/2+fs*0.35, code+' '+opp, k.lijn);
+    else if(keuze === 'twee'){ rdTekst(svg, px+pw/2, py+ph/2-fs*0.25, code, k.lijn); rdTekst(svg, px+pw/2, py+ph/2+fs*0.95, opp, k.lijn); }
     else {
       const past = pw >= code.length*fs*0.55 + fs*0.4 && ph >= fs*1.2;
-      if(past) tekst(px+pw/2, py+ph/2+fs*0.35, code, k.lijn);
-      else if(!st.laatste) tekst(px+pw/2, py - fs*0.3, code, k.lijn);   // het exemplaar met het lijntje heeft de code al in het label
+      if(past) rdTekst(svg, px+pw/2, py+ph/2+fs*0.35, code, k.lijn);
+      else if(!st.laatste) rdTekst(svg, px+pw/2, py - fs*0.3, code, k.lijn);   // het exemplaar met het lijntje heeft de code al in het label
     }
   });
-  // labels naast de gevel, van boven naar beneden, met een lijntje naar het element
+}
+// Labels naast de gevel, met een lijntje: omhoog tot net onder de bovenkant van de zone,
+// horizontaal naar de rand, dan schuin naar het label (zo kruist het geen andere elementen).
+function rdTekenLabels(svg, plan, x0, yBase, xLabels, yMin, yMax, xRand){
+  if(!plan) return;
+  const fs = tekstGrootte(), S = SCALE;
   const zij = rdZijLabels(plan).map(z=>{
     const st = z.st;
     return {z, doelY: st ? yBase - st.z.tot*S : yMax};
   }).sort((a,b)=>a.doelY - b.doelY || (a.z.st && b.z.st ? b.z.st.px - a.z.st.px : 0));
-  // lijntje: omhoog vanaf de bovenkant van het element tot net onder de verdiepingsvloer,
-  // dan horizontaal naar de rand van de gevel en schuin naar het label (kruist zo geen andere elementen)
   const perZone = new Map();
   let cursor = yMin + fs;
-  xRand = xRand == null ? xLabels - fs : xRand;
   zij.forEach(o=>{
     const d = o.z.st ? o.z.st.d : o.z.los, k = rdKleuren(d);
-    if(o.z.st){
+    if(o.z.st && o.z.st.px != null){
       const st = o.z.st;
-      const nr = perZone.get(st.z) || 0; perZone.set(st.z, nr+1);
+      const sleutel = st.z.tot.toFixed(3)+'|'+(st.xRechts||0).toFixed(2);
+      const nr = perZone.get(sleutel) || 0; perZone.set(sleutel, nr+1);
       const ry = Math.min(o.doelY + 2 + nr*Math.max(fs*0.3, 1.5), st.py - 1);
       const ly = Math.min(Math.max(ry + fs*0.35, cursor), yMax);
       cursor = ly + fs*1.35;
       const cx = st.px + st.pw/2;
-      svg.appendChild(svgEl('polyline', {points:`${cx},${st.py} ${cx},${ry} ${xRand},${ry} ${xLabels-3},${ly-fs*0.35}`, fill:'none', stroke:k.lijn, 'stroke-width':PRINT_MODE ? 0.18 : 0.6}));
-      tekst(xLabels, ly, rdZijTekst(o.z), k.lijn, 'start');
+      const xr = Math.max(xRand, x0 + (st.xRechts != null ? st.xRechts : 0)*S + 3);
+      svg.appendChild(svgEl('polyline', {points:`${cx},${st.py} ${cx},${ry} ${xr},${ry} ${xLabels-3},${ly-fs*0.35}`, fill:'none', stroke:k.lijn, 'stroke-width':PRINT_MODE ? 0.18 : 0.6}));
+      rdTekst(svg, xLabels, ly, rdZijTekst(o.z), k.lijn, 'start');
     } else {
       const ly = Math.min(Math.max(o.doelY, cursor), yMax);
       cursor = ly + fs*1.35;
-      tekst(xLabels, ly, rdZijTekst(o.z), k.lijn, 'start');
+      rdTekst(svg, xLabels, ly, rdZijTekst(o.z), k.lijn, 'start');
     }
   });
 }
@@ -5158,7 +5362,8 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
     const w = dLinksPx + dRechtsPx;
     const hLinksPx = linksData.h*SCALE, hRechtsPx = rechtsData.h*SCALE, hNokPx = asymProfiel.h_nok*SCALE;
 
-    const rdPlan = rdPlanGevel(rdGevel, {breedte:w/SCALE, hL:linksData.h, hR:rechtsData.h, nok:asymProfiel.h_nok, nokX:linksData.d, zolderTot:asymProfiel.h_nok});
+    const rdPlan = rdPlanGevel(rdGevel, {breedte:w/SCALE, hL:linksData.h, hR:rechtsData.h, nok:asymProfiel.h_nok, nokX:linksData.d, zolderTot:asymProfiel.h_nok},
+      rdVlakken(rdGevel, {wPx:w, gapPx:gap, eigenGroepen:weergaveGroepen.eigen, overloopLinks:weergaveGroepen.overloopLinks, overloopRechts:weergaveGroepen.overloopRechts, dakkapelLijst:[], gevelTopM:Math.min(linksData.h, rechtsData.h)}));
     const rdExtra = rdExtraBreedte(rdPlan); rdBezetZet(rdPlan);
     const viewW = w + extraLinks + extraRechts + 2*TK_MARGIN + rdExtra;
     const viewH = hNokPx + 2*TK_MARGIN + (PRINT_MODE?10:20);
@@ -5186,7 +5391,7 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
       svg.lastChild.textContent = `${niveau.toFixed(2)} m`;
     });
 
-    rdTekenPlan(svg, rdPlan, x0, yBase, x0+w+extraRechts+7+fs*1.6, fs, viewH-4, x0+w+3);
+    rdTekenElementen(svg, rdPlan, x0, yBase, true);
     const eigenGroepen = weergaveGroepen.eigen || {links:[],geen:[],rechts:[]};
     const eigenHeeft = eigenGroepen.links.length || eigenGroepen.geen.length || eigenGroepen.rechts.length;
     if(eigenHeeft){
@@ -5220,6 +5425,8 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
     rechtsLabel.textContent = `${rechtsData.naam} ${rechtsData.h.toFixed(2)} m`;
     svg.appendChild(rechtsLabel);
 
+    rdTekenElementen(svg, rdPlan, x0, yBase, false);
+    rdTekenLabels(svg, rdPlan, x0, yBase, x0+w+extraRechts+7+fs*1.6, fs, viewH-4, x0+w+3);
     canvasWrap.appendChild(svg);
     return wrap;
   }
@@ -5237,7 +5444,9 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
   const totaalHoogte = gevelhoogte + driehoekHoogte + stippelHoogteM;
   const w = breedte*SCALE, hRect = gevelhoogte*SCALE, hTri = driehoekHoogte*SCALE, hStippel = stippelHoogteM*SCALE;
 
-  const rdPlan = rdPlanGevel(rdGevel, {breedte, hL:gevelhoogte, hR:gevelhoogte, nok: heeftDriehoek ? gevelhoogte+driehoekHoogte : gevelhoogte, nokX: breedte/2, zolderTot: gevelhoogte + (heeftDriehoek ? driehoekHoogte : stippelHoogteM)});
+  const rdPlan = rdPlanGevel(rdGevel, {breedte, hL:gevelhoogte, hR:gevelhoogte, nok: heeftDriehoek ? gevelhoogte+driehoekHoogte : gevelhoogte, nokX: breedte/2, zolderTot: gevelhoogte + (heeftDriehoek ? driehoekHoogte : stippelHoogteM), driehoek:heeftDriehoek && driehoekHoogte>0, helling:hellingshoek},
+    rdVlakken(rdGevel, {wPx:w, gapPx:gap, eigenGroepen:weergaveGroepen.eigen, overloopLinks:weergaveGroepen.overloopLinks, overloopRechts:weergaveGroepen.overloopRechts,
+      dakkapelLijst:dakkapelLijst||[], gevelTopM:gevelhoogte, driehoek:heeftDriehoek && driehoekHoogte>0, hellingshoek, dakkapelDataAlle}));
   const rdExtra = rdExtraBreedte(rdPlan); rdBezetZet(rdPlan);
   const viewW = w + extraLinks + extraRechts + 2*TK_MARGIN + rdExtra;
   const viewH = hRect + hTri + hStippel + 2*TK_MARGIN + (dakvlakInfo ? (PRINT_MODE?14:30) : 0) + (PRINT_MODE?10:20);
@@ -5284,7 +5493,7 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
   });
 
   // ramen & deuren in het aanzicht (met labels/lijntjes naast de gevel waar het niet past)
-  rdTekenPlan(svg, rdPlan, x0, yBase, x0+w+extraRechts+fs*1.5, fs, viewH-4, x0+w+3);
+  rdTekenElementen(svg, rdPlan, x0, yBase, true);
 
   // eigen uitbouwen: sluiten aan op deze gevel zelf, dus overlappend getekend binnen de eigen breedte
   const eigenGroepen = weergaveGroepen.eigen || {links:[],geen:[],rechts:[]};
@@ -5335,6 +5544,8 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
     svg.lastChild.setAttribute('fill', KLEUR.dak);
   }
 
+  rdTekenElementen(svg, rdPlan, x0, yBase, false);
+  rdTekenLabels(svg, rdPlan, x0, yBase, x0+w+extraRechts+fs*1.5, fs, viewH-4, x0+w+3);
   canvasWrap.appendChild(svg);
   return wrap;
 }
@@ -6566,6 +6777,7 @@ function verzamelInvoerData(){
     push('RaamDeur', i+1, 'type', veldWaarde('rd-type-'+rd.id));
     push('RaamDeur', i+1, 'verdieping', rdVerdiepingNaarExcel(veldWaarde('rd-verdieping-'+rd.id)));
     push('RaamDeur', i+1, 'orientatie', veldWaarde('rd-orientatie-'+rd.id));
+    push('RaamDeur', i+1, 'plaats', rdPlaatsNaarExcel(veldWaarde('rd-plaats-'+rd.id)));
     push('RaamDeur', i+1, 'aantal', veldWaarde('rd-aantal-'+rd.id));
     push('RaamDeur', i+1, 'breedte', veldWaarde('rd-breedte-'+rd.id));
     push('RaamDeur', i+1, 'hoogte', veldWaarde('rd-hoogte-'+rd.id));
@@ -6707,6 +6919,7 @@ function vulInvoerDataIn(rows){
       const rd = ramenDeuren[ramenDeuren.length-1];
       veldZetten('rd-type-'+rd.id, g.velden.type);
       veldZetten('rd-orientatie-'+rd.id, g.velden.orientatie);
+      { const pl = document.getElementById('rd-plaats-'+rd.id); if(pl){ pl.innerHTML = rdPlaatsOptiesHtml(); pl.value = rdPlaatsVanExcel(g.velden.plaats); } }
       veldZetten('rd-verdieping-'+rd.id, rdVerdiepingVanExcel(g.velden.verdieping));
       veldZetten('rd-aantal-'+rd.id, g.velden.aantal);
       veldZetten('rd-breedte-'+rd.id, g.velden.breedte);
