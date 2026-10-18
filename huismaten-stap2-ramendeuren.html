@@ -4140,6 +4140,32 @@ function renderRamenDeurenResultaten(){
 }
 
 // Regels voor de samenvatting (scherm / PDF / Excel-output), zelfde formaat als de rest
+// Ramen & deuren direct onder een gevel (of onder de schuine daken): per stuk + Σ per type.
+// Deze regels hebben los:true — ze tellen niet mee in de gevel-/daktotalen (ook niet in Excel-formules).
+function rdTypeNaam(r){
+  return r.soort==='raam' ? `ramen ${r.glastype ? rdGlasLabel(r.glastype).toLowerCase() : 'zonder glastype'}${r.zonwering ? ', met zonwering' : ''}`
+       : r.soort==='paneel' ? 'panelen'
+       : `deuren ${(RD_ISOLATIE_LABELS[r.isolatie]||r.isolatie).toLowerCase()}`;
+}
+function rdLosRegels(regels, filter, naam){
+  if(typeof alleRamenDeurenData !== 'function') return;
+  const data = alleRamenDeurenData().filter(d=>d.geldig && filter(d));
+  if(!data.length) return;
+  const groepen = {};
+  rdVerdiepingVolgorde().forEach(v=>{
+    data.filter(d=>d.verdieping===v).forEach(d=> rdItemRegels(d).forEach(r=>{
+      regels.push({soort:'item', los:true, label:`↳ ${ramenDeurenVerdiepingLabel(v)}: ${r.label}`, opp:r.opp, detail:r.detail, formule:r.formule,
+                   kleur: r.soort==='deur' ? 'deur' : r.soort==='paneel' ? 'paneel' : 'gevel'});
+      const sleutel = r.soort==='raam' ? 'raam|'+(r.glastype||'')+'|'+(r.zonwering?'zon':'') : r.soort==='paneel' ? 'paneel' : 'deur|'+(r.isolatie||'on');
+      if(!groepen[sleutel]) groepen[sleutel] = Object.assign({}, r, {opp:0});
+      groepen[sleutel].opp += r.opp;
+    }));
+  });
+  Object.values(groepen).forEach(gr=>{
+    regels.push({soort:'sub', los:true, label:`Σ ${naam}: ${rdTypeNaam(gr)}`, opp:gr.opp,
+                 kleur: gr.soort==='deur' ? 'deur' : gr.soort==='paneel' ? 'paneel' : 'gevel'});
+  });
+}
 function ramenDeurenSamenvattingRegels(regels){
   const data = alleRamenDeurenData().filter(d=>d.geldig);
   if(!data.length) return;
@@ -4151,7 +4177,7 @@ function ramenDeurenSamenvattingRegels(regels){
   const std = rdStandaardGlas();
 
   // 1. Per verdieping, per stuk
-  kop('Ramen & deuren — per verdieping (informatief, niet van bruto gevel-m² afgetrokken)');
+  kop('Ramen & deuren — controlelijst per verdieping (informatief, niet van bruto gevel-m² afgetrokken)');
   if(std) regels.push({soort:'info', label:'Standaard glastype', getal:null, eenheid:'', tekst:rdGlasLabel(std), kleur:KL});
   let totaal = 0;
   rdVerdiepingVolgorde().forEach(v=>{
@@ -4167,29 +4193,7 @@ function ramenDeurenSamenvattingRegels(regels){
   });
   eind('Totaal ramen & deuren', totaal);
 
-  // 2. Per oriëntatie, uitgesplitst naar glastype / deurtype (invoer voor VABI)
-  kop('Ramen & deuren — Σ per oriëntatie en type');
-  ['VG','AG','LG','RG'].forEach(key=>{
-    const sel = data.filter(d=>d.gevelKey===key);
-    if(!sel.length) return;
-    const groepen = {};
-    sel.forEach(d=> rdItemRegels(d).forEach(r=>{
-      const sleutel = r.soort==='raam' ? 'raam|'+(r.glastype||'')+'|'+(r.zonwering?'zon':'')
-                    : r.soort==='paneel' ? 'paneel'
-                    : 'deur|'+(r.isolatie||'on');
-      if(!groepen[sleutel]) groepen[sleutel] = {soort:r.soort, glastype:r.glastype, isolatie:r.isolatie, zonwering:r.zonwering, opp:0};
-      groepen[sleutel].opp += r.opp;
-    }));
-    let som = 0;
-    Object.values(groepen).forEach(gr=>{
-      const naam = gr.soort==='raam' ? `Ramen ${rdGlasLabel(gr.glastype).toLowerCase()}${gr.zonwering ? ', met zonwering' : ''}`
-                 : gr.soort==='paneel' ? 'Panelen'
-                 : `Deuren ${(RD_ISOLATIE_LABELS[gr.isolatie]||gr.isolatie).toLowerCase()}`;
-      item(`${GEVEL_LABELS[key]} (${key}): ${naam}`, gr.opp, '', '', gr.soort==='deur' ? 'deur' : gr.soort==='paneel' ? 'paneel' : KL);
-      som += gr.opp;
-    });
-    sub(`Σ ${GEVEL_LABELS[key]} (${key}) ramen & deuren`, som);
-  });
+  // Per oriëntatie en type: staat nu direct onder elke gevel en onder de schuine daken (rdLosRegels).
 }
 
 
@@ -6046,6 +6050,7 @@ function samenvattingRegelsVerzamelen(){
   ['VG','AG','LG','RG'].forEach(code=>{
     S.regels.filter(r=>r.groep==='gevel' && r.orient===code).forEach(r=> item(r.label, r.opp, r.detail, r.formule, 'gevel'));
     sub(`Σ ${GEVEL_NAAM[code]} (${gevelCodeMetOrient(code)})`, S.perOrient[code], 'gevel');
+    rdLosRegels(regels, d=>d.gevelKey===code && d.type!=='dakraam', GEVEL_NAAM[code].toLowerCase());
   });
   eind('Totaal gevels', S.totalen.gevel, 'gevel');
   [['vloer','Schil — vloeren (grond / kruipruimte)','Totaal vloeren'],
@@ -6057,6 +6062,8 @@ function samenvattingRegelsVerzamelen(){
     kop(k, kl);
     rij.forEach(r=> item(r.label, r.opp, r.detail, r.formule, kl));
     sub(t, S.totalen[g], kl);
+    if(g === 'schuin') ['VG','AG','LG','RG'].forEach(code=>
+      rdLosRegels(regels, d=>d.gevelKey===code && d.type==='dakraam', `dakramen dakvlak ${GEVEL_NAAM[code].toLowerCase()}`));
     if(g === 'vloer' && S.perimeter){
       regels.push({soort:'info', label:'Perimeter P begane grondvloer', getal:S.perimeter.waarde, eenheid:'m', tekst:'',
                    formule:S.perimeter.formule, kleur:'vloer'});
@@ -7162,6 +7169,13 @@ function bouwWerkboek(){
     if(r.soort === 'item'){
       aoa.push([r.label, rond(r.opp), '', 'm²', r.formule ? '= ' + r.formule : '', r.detail || '']);
       meta.push({soort:'item', kleur:r.kleur});
+      if(r.los) groepStart = excelRij + 1;   // ramen/deuren onder een gevel tellen niet mee in de gevelsom
+      return;
+    }
+    if(r.soort === 'sub' && r.los){
+      aoa.push([r.label, '', rond(r.opp), 'm²', 'som ramen/deuren van dit type (telt niet mee in het totaal)', '']);
+      meta.push({soort:'sub', kleur:r.kleur});
+      groepStart = excelRij + 1;
       return;
     }
     if(r.soort === 'sub' || r.soort === 'eind'){
