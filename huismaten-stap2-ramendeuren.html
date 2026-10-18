@@ -239,6 +239,7 @@
     .row{ flex-direction:column; gap:8px; }
     .field{ min-width:0; }
     input[type=number], input.numeric-input, select{ font-size:1rem; }
+    input.cm-let-op{ border-color:#ec670a !important; background:#fff4ea !important; }
   }
 
   @media print {
@@ -298,6 +299,7 @@
   <div>
     <h1>Huismaten Tool — ramen &amp; deuren in de gevels (test)</h1>
     <p class="sub">Kernmechanisme: vloeroppervlak en gevel/dakvlak tekenen</p>
+    <p class="sub" style="font-weight:700;">Alle maten invoeren in centimeters (bv. 550) — uitkomsten in m²</p>
   </div>
   <img id="header-logo" class="header-logo" alt="Visser Inspecties">
 </div>
@@ -372,16 +374,16 @@
   </div>
   <div class="row">
     <div class="field">
-      <label>Beukmaat (m)</label>
-      <input type="text" inputmode="decimal" class="numeric-input" id="gs-beukmaat" step="0.01" placeholder="bv. 6.00">
+      <label>Beukmaat (cm)</label>
+      <input type="text" inputmode="numeric" class="numeric-input" id="gs-beukmaat" step="1" data-eenheid="cm" placeholder="bv. 600">
     </div>
     <div class="field">
-      <label>Diepte (m)</label>
-      <input type="text" inputmode="decimal" class="numeric-input" id="gs-diepte" step="0.01" placeholder="bv. 9.00">
+      <label>Diepte (cm)</label>
+      <input type="text" inputmode="numeric" class="numeric-input" id="gs-diepte" step="1" data-eenheid="cm" placeholder="bv. 900">
     </div>
     <div class="field">
-      <label>Gevelhoogte (m) — auto (overschrijfbaar)</label>
-      <input type="text" inputmode="decimal" class="numeric-input" id="gs-hoogte" step="0.01" placeholder="tot dakrand">
+      <label>Gevelhoogte (cm) — auto (overschrijfbaar)</label>
+      <input type="text" inputmode="numeric" class="numeric-input" id="gs-hoogte" step="1" data-eenheid="cm" placeholder="tot dakrand">
     </div>
   </div>
 
@@ -411,20 +413,20 @@
   <div style="font-weight:600;margin-bottom:8px;">Begane grond</div>
   <div class="row">
     <div class="field">
-      <label>Breedte / beukmaat (m)</label>
-      <input type="text" inputmode="decimal" class="numeric-input" id="vloer-lengte" step="0.01" placeholder="bv. 8.40">
+      <label>Breedte / beukmaat (cm)</label>
+      <input type="text" inputmode="numeric" class="numeric-input" id="vloer-lengte" step="1" data-eenheid="cm" placeholder="bv. 840">
     </div>
     <div class="field">
-      <label>Diepte / voor-achter (m)</label>
-      <input type="text" inputmode="decimal" class="numeric-input" id="vloer-breedte" step="0.01" placeholder="bv. 5.20">
+      <label>Diepte / voor-achter (cm)</label>
+      <input type="text" inputmode="numeric" class="numeric-input" id="vloer-breedte" step="1" data-eenheid="cm" placeholder="bv. 520">
     </div>
   </div>
   
   <!-- Verdiepingshoogte — ALTIJD zichtbaar -->
   <div class="row">
     <div class="field">
-      <label>Vrije hoogte vloer–plafond (m)</label>
-      <input type="text" inputmode="decimal" class="numeric-input" id="vloer-verdiepingshoogte" step="0.01" placeholder="bv. 2.60">
+      <label>Vrije hoogte vloer–plafond (cm)</label>
+      <input type="text" inputmode="numeric" class="numeric-input" id="vloer-verdiepingshoogte" step="1" data-eenheid="cm" placeholder="bv. 260">
     </div>
     <div class="field">
       <label>Dikte tussenvloeren (cm) — leeg = 20</label>
@@ -435,8 +437,8 @@
   <!-- Gevelhoogte symmetrisch (normaal geval) -->
   <div id="vloer-gevelhoogte-normaal-wrap" class="row">
     <div class="field">
-      <label>Gevelhoogte (m) — auto: vrije hoogte + vloer erboven (overschrijfbaar, leeg = auto)</label>
-      <input type="text" inputmode="decimal" class="numeric-input" id="vloer-gevelhoogte" step="0.01" placeholder="bv. 2.80">
+      <label>Gevelhoogte (cm) — auto: vrije hoogte + vloer erboven (overschrijfbaar, leeg = auto)</label>
+      <input type="text" inputmode="numeric" class="numeric-input" id="vloer-gevelhoogte" step="1" data-eenheid="cm" placeholder="bv. 280">
     </div>
   </div>
   
@@ -447,8 +449,8 @@
     </div>
     <div class="row">
       <div class="field">
-        <label>Gevelhoogte (m) — auto (overschrijfbaar, leeg = auto)</label>
-        <input type="text" inputmode="decimal" class="numeric-input" id="vloer-gevelhoogte-voor" step="0.01" placeholder="bv. 3.20">
+        <label>Gevelhoogte (cm) — auto (overschrijfbaar, leeg = auto)</label>
+        <input type="text" inputmode="numeric" class="numeric-input" id="vloer-gevelhoogte-voor" step="1" data-eenheid="cm" placeholder="bv. 320">
       </div>
     </div>
     
@@ -457,8 +459,8 @@
     </div>
     <div class="row">
       <div class="field">
-        <label>Gevelhoogte (m) — auto (overschrijfbaar, leeg = auto)</label>
-        <input type="text" inputmode="decimal" class="numeric-input" id="vloer-gevelhoogte-achter" step="0.01" placeholder="bv. 4.20">
+        <label>Gevelhoogte (cm) — auto (overschrijfbaar, leeg = auto)</label>
+        <input type="text" inputmode="numeric" class="numeric-input" id="vloer-gevelhoogte-achter" step="1" data-eenheid="cm" placeholder="bv. 420">
       </div>
     </div>
   </div>
@@ -517,8 +519,8 @@
     </div>
     <div id="gs-wolfseind-a-velden" class="row" style="display:none;">
       <div class="field">
-        <label>Hoogte boven gootlijn (m)</label>
-        <input type="text" inputmode="decimal" class="numeric-input" id="gs-wolfseind-a-hoogte" step="0.01" placeholder="bv. 1.20">
+        <label>Hoogte boven gootlijn (cm)</label>
+        <input type="text" inputmode="numeric" class="numeric-input" id="gs-wolfseind-a-hoogte" step="1" data-eenheid="cm" placeholder="bv. 120">
       </div>
       <div class="field">
         <label>Hoek wolfseind (°)</label>
@@ -534,8 +536,8 @@
     </div>
     <div id="gs-wolfseind-b-velden" class="row" style="display:none;">
       <div class="field">
-        <label>Hoogte boven gootlijn (m)</label>
-        <input type="text" inputmode="decimal" class="numeric-input" id="gs-wolfseind-b-hoogte" step="0.01" placeholder="bv. 1.20">
+        <label>Hoogte boven gootlijn (cm)</label>
+        <input type="text" inputmode="numeric" class="numeric-input" id="gs-wolfseind-b-hoogte" step="1" data-eenheid="cm" placeholder="bv. 120">
       </div>
       <div class="field">
         <label>Hoek wolfseind (°)</label>
@@ -552,12 +554,12 @@
     <!-- Gevelhoogtes: auto-berekend, niet handmatig ingevoerd -->
     <div class="row">
       <div class="field">
-        <label id="lbl-asym-hoogte-a">Gevelhoogte voorgevel (berekend, m)</label>
-        <input type="text" readonly style="background:#f0f0f0;" id="gs-asym-hoogte-voor-display" placeholder="—">
+        <label id="lbl-asym-hoogte-a">Gevelhoogte voorgevel (berekend, cm)</label>
+        <input type="text" readonly style="background:#f0f0f0;" id="gs-asym-hoogte-voor-display" data-eenheid="cm" placeholder="—">
       </div>
       <div class="field">
-        <label id="lbl-asym-hoogte-b">Gevelhoogte achtergevel (berekend, m)</label>
-        <input type="text" readonly style="background:#f0f0f0;" id="gs-asym-hoogte-achter-display" placeholder="—">
+        <label id="lbl-asym-hoogte-b">Gevelhoogte achtergevel (berekend, cm)</label>
+        <input type="text" readonly style="background:#f0f0f0;" id="gs-asym-hoogte-achter-display" data-eenheid="cm" placeholder="—">
       </div>
     </div>
     
@@ -580,8 +582,8 @@
     </div>
     <div class="row">
       <div class="field">
-        <label>Nokhoogte (berekend, m)</label>
-        <input type="text" readonly style="background:#f0f0f0;" id="gs-schilddak-nok-display" placeholder="—">
+        <label>Nokhoogte (berekend, cm)</label>
+        <input type="text" readonly style="background:#f0f0f0;" id="gs-schilddak-nok-display" data-eenheid="cm" placeholder="—">
       </div>
     </div>
     <div class="row">
@@ -1735,8 +1737,8 @@ function asymOverspanningNaam(){ return nokLoopDwars() ? 'breedte' : 'diepte'; }
 function updateAsymLabels(){
   const n = asymZijNamen();
   const zet = (id, tekst) => { const el = document.getElementById(id); if(el) el.textContent = tekst; };
-  zet('lbl-asym-hoogte-a', `Gevelhoogte ${n.aKlein} (berekend, m)`);
-  zet('lbl-asym-hoogte-b', `Gevelhoogte ${n.bKlein} (berekend, m)`);
+  zet('lbl-asym-hoogte-a', `Gevelhoogte ${n.aKlein} (berekend, cm)`);
+  zet('lbl-asym-hoogte-b', `Gevelhoogte ${n.bKlein} (berekend, cm)`);
   zet('lbl-asym-helling-a', `Dakhelling ${n.aKlein} (°)`);
   zet('lbl-asym-helling-b', `Dakhelling ${n.bKlein} (°)`);
   zet('gs-asym-overspanning-hint', `De nokpositie volgt uit gevelhoogtes en hellingen over de ${asymOverspanningNaam()}; valt de nok buiten het gebouw, dan krijg je een melding.`);
@@ -1749,6 +1751,44 @@ function updateAsymLabels(){
     });
   }
 }
+
+// ── Maten in centimeters ─────────────────────────────────────────
+// Alle lengtevelden (data-eenheid="cm") worden in hele centimeters ingevoerd (550 = 5,50 m).
+// De rest van de tool rekent gewoon in meters: .value van zo'n veld geeft meters terug en
+// .value = meters zet er centimeters in. Zo blijven berekeningen, Excel-export en -import
+// (in meters, dus oude bestanden werken ook) ongewijzigd.
+(function(){
+  const nat = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+  const isCm = el => el.dataset && el.dataset.eenheid === 'cm';
+  Object.defineProperty(HTMLInputElement.prototype, 'value', {
+    configurable: true, enumerable: nat.enumerable,
+    get(){
+      const s = nat.get.call(this);
+      if(!isCm(this)) return s;
+      const t = String(s).trim();
+      if(t === '') return '';
+      const n = parseFloat(t.replace(',', '.'));
+      return isNaN(n) ? t : String(Math.round(n * 100) / 10000);
+    },
+    set(v){
+      if(!isCm(this)){ nat.set.call(this, v); return; }
+      if(v === null || v === undefined || String(v).trim() === ''){ nat.set.call(this, ''); return; }
+      const n = parseFloat(String(v).replace(',', '.'));
+      nat.set.call(this, isNaN(n) ? String(v) : String(Math.round(n * 1000) / 10));
+    }
+  });
+  // Waarschuwing als er per ongeluk in meters is getypt (bv. 5,50 of 5.5)
+  window.cmRuweTekst = el => nat.get.call(el);
+  document.addEventListener('input', e=>{
+    const el = e.target;
+    if(!(el instanceof HTMLInputElement) || !isCm(el)) return;
+    const t = nat.get.call(el).trim();
+    const n = parseFloat(t.replace(',', '.'));
+    const verdacht = /[.,]/.test(t) && !isNaN(n) && n < 20;
+    el.classList.toggle('cm-let-op', verdacht);
+    el.title = verdacht ? 'Let op: maten in centimeters (bv. 550 i.p.v. 5,50)' : '';
+  }, true);
+})();
 
 // Sta Nederlandse komma-notatie toe (1,2 -> 1.2) op alle numerieke velden
 document.addEventListener('input', function(e){
@@ -2689,28 +2729,28 @@ function voegVerdiepingToe(){
     </div>
     <div class="row">
       <div class="field">
-        <label>Breedte (m) — auto (overschrijfbaar)</label>
-        <input type="text" inputmode="decimal" class="numeric-input" id="ev-breedte-${id}" step="0.01">
+        <label>Breedte (cm) — auto (overschrijfbaar)</label>
+        <input type="text" inputmode="numeric" class="numeric-input" id="ev-breedte-${id}" step="1" data-eenheid="cm">
       </div>
       <div class="field">
-        <label>Diepte (m) — auto (overschrijfbaar)</label>
-        <input type="text" inputmode="decimal" class="numeric-input" id="ev-diepte-${id}" step="0.01">
+        <label>Diepte (cm) — auto (overschrijfbaar)</label>
+        <input type="text" inputmode="numeric" class="numeric-input" id="ev-diepte-${id}" step="1" data-eenheid="cm">
       </div>
     </div>
     
     <!-- Verdiepingshoogte — ALTIJD zichtbaar -->
     <div class="row">
       <div class="field">
-        <label>Vrije hoogte vloer–plafond (m)</label>
-        <input type="text" inputmode="decimal" class="numeric-input" id="ev-verdiepingshoogte-${id}" step="0.01">
+        <label>Vrije hoogte vloer–plafond (cm)</label>
+        <input type="text" inputmode="numeric" class="numeric-input" id="ev-verdiepingshoogte-${id}" step="1" data-eenheid="cm">
       </div>
     </div>
     
     <!-- Gevelhoogte symmetrisch (normaal geval) -->
     <div id="ev-gevelhoogte-normaal-wrap-${id}" class="row" style="display:${isAsymmetrisch ? 'none' : 'flex'};">
       <div class="field">
-        <label>Gevelhoogte (m) — auto: vrije hoogte + vloer erboven (overschrijfbaar, leeg = auto)</label>
-        <input type="text" inputmode="decimal" class="numeric-input" id="ev-gevelhoogte-${id}" step="0.01">
+        <label>Gevelhoogte (cm) — auto: vrije hoogte + vloer erboven (overschrijfbaar, leeg = auto)</label>
+        <input type="text" inputmode="numeric" class="numeric-input" id="ev-gevelhoogte-${id}" step="1" data-eenheid="cm">
       </div>
     </div>
     
@@ -2721,8 +2761,8 @@ function voegVerdiepingToe(){
       </div>
       <div class="row">
         <div class="field">
-          <label>Gevelhoogte (m) — auto (overschrijfbaar, leeg = auto)</label>
-          <input type="text" inputmode="decimal" class="numeric-input" id="ev-gevelhoogte-voor-${id}" step="0.01">
+          <label>Gevelhoogte (cm) — auto (overschrijfbaar, leeg = auto)</label>
+          <input type="text" inputmode="numeric" class="numeric-input" id="ev-gevelhoogte-voor-${id}" step="1" data-eenheid="cm">
         </div>
       </div>
       
@@ -2731,8 +2771,8 @@ function voegVerdiepingToe(){
       </div>
       <div class="row">
         <div class="field">
-          <label>Gevelhoogte (m) — auto (overschrijfbaar, leeg = auto)</label>
-          <input type="text" inputmode="decimal" class="numeric-input" id="ev-gevelhoogte-achter-${id}" step="0.01">
+          <label>Gevelhoogte (cm) — auto (overschrijfbaar, leeg = auto)</label>
+          <input type="text" inputmode="numeric" class="numeric-input" id="ev-gevelhoogte-achter-${id}" step="1" data-eenheid="cm">
         </div>
       </div>
     </div>
@@ -3066,12 +3106,12 @@ function voegUitbouwToe(){
         </select>
       </div>
       <div class="field">
-        <label>Breedte (m)</label>
-        <input type="text" inputmode="decimal" class="numeric-input" id="ub-breedte-${id}" step="0.01" placeholder="bv. 3.00">
+        <label>Breedte (cm)</label>
+        <input type="text" inputmode="numeric" class="numeric-input" id="ub-breedte-${id}" step="1" data-eenheid="cm" placeholder="bv. 300">
       </div>
       <div class="field">
-        <label>Diepte (m)</label>
-        <input type="text" inputmode="decimal" class="numeric-input" id="ub-diepte-${id}" step="0.01" placeholder="bv. 2.50">
+        <label>Diepte (cm)</label>
+        <input type="text" inputmode="numeric" class="numeric-input" id="ub-diepte-${id}" step="1" data-eenheid="cm" placeholder="bv. 250">
       </div>
     </div>
     <div class="row">
@@ -3087,8 +3127,8 @@ function voegUitbouwToe(){
         </select>
       </div>
       <div class="field">
-        <label>Hoogte (m) — auto uit gevelhoogtes (overschrijfbaar, leeg = auto)</label>
-        <input type="text" inputmode="decimal" class="numeric-input" id="ub-hoogte-${id}" step="0.01">
+        <label>Hoogte (cm) — auto uit gevelhoogtes (overschrijfbaar, leeg = auto)</label>
+        <input type="text" inputmode="numeric" class="numeric-input" id="ub-hoogte-${id}" step="1" data-eenheid="cm">
       </div>
       <div class="field" style="flex:0 0 140px;">
         <label>Dak uitbouw</label>
@@ -3233,12 +3273,12 @@ function renderZijDetail(){
       <div class="zij-maten" id="zij-maten-${kant}" style="display:none;">
         <div class="row">
           <div class="field">
-            <label>Blootgestelde breedte (m)</label>
-            <input type="text" inputmode="decimal" class="numeric-input zij-breedte" step="0.01" data-kant="${kant}" placeholder="bv. 1.20">
+            <label>Blootgestelde breedte (cm)</label>
+            <input type="text" inputmode="numeric" class="numeric-input zij-breedte" step="1" data-eenheid="cm" data-kant="${kant}" placeholder="bv. 120">
           </div>
           <div class="field">
-            <label>Blootgestelde hoogte (m)</label>
-            <input type="text" inputmode="decimal" class="numeric-input zij-hoogte" step="0.01" data-kant="${kant}" placeholder="bv. 2.50">
+            <label>Blootgestelde hoogte (cm)</label>
+            <input type="text" inputmode="numeric" class="numeric-input zij-hoogte" step="1" data-eenheid="cm" data-kant="${kant}" placeholder="bv. 250">
           </div>
         </div>
         <p class="hint">Rechthoekig deel voor nu — schuine/driehoekige restdelen pakken we later net als bij de dakkapel.</p>
@@ -3589,22 +3629,22 @@ function voegDakkapelToe(){
         </select>
       </div>
       <div class="field">
-        <label>Breedte (m)</label>
-        <input type="text" inputmode="decimal" class="numeric-input" id="dk-breedte-${id}" step="0.01" placeholder="bv. 1.80">
+        <label>Breedte (cm)</label>
+        <input type="text" inputmode="numeric" class="numeric-input" id="dk-breedte-${id}" step="1" data-eenheid="cm" placeholder="bv. 180">
       </div>
       <div class="field">
-        <label>Hoogte (m) — verticale voorzijde</label>
-        <input type="text" inputmode="decimal" class="numeric-input" id="dk-hoogte-${id}" step="0.01" placeholder="bv. 1.50">
+        <label>Hoogte (cm) — verticale voorzijde</label>
+        <input type="text" inputmode="numeric" class="numeric-input" id="dk-hoogte-${id}" step="1" data-eenheid="cm" placeholder="bv. 150">
       </div>
       <div class="field">
-        <label>Diepte (m) — auto uit hoogte + dakhelling (overschrijfbaar, leeg = auto)</label>
-        <input type="text" inputmode="decimal" class="numeric-input" id="dk-diepte-${id}" step="0.01" placeholder="bv. 1.20">
+        <label>Diepte (cm) — auto uit hoogte + dakhelling (overschrijfbaar, leeg = auto)</label>
+        <input type="text" inputmode="numeric" class="numeric-input" id="dk-diepte-${id}" step="1" data-eenheid="cm" placeholder="bv. 120">
       </div>
     </div>
     <div class="row">
       <div class="field">
-        <label>Voet dakkapel boven de goot (m, verticaal) — bepaalt positie en extra vloer, leeg = 0</label>
-        <input type="text" inputmode="decimal" class="numeric-input" id="dk-afstand-${id}" step="0.01" placeholder="bv. 0.01">
+        <label>Voet dakkapel boven de goot (cm, verticaal) — bepaalt positie en extra vloer, leeg = 0</label>
+        <input type="text" inputmode="numeric" class="numeric-input" id="dk-afstand-${id}" step="1" data-eenheid="cm" placeholder="bv. 1">
       </div>
     </div>
     <div id="dk-resultaten-${id}"></div>
@@ -3848,12 +3888,12 @@ function voegRaamDeurToe(kopieerVan){
     </div>
     <div class="row">
       <div class="field">
-        <label>Breedte (m)</label>
-        <input type="text" inputmode="decimal" class="numeric-input" id="rd-breedte-${id}" step="0.01" placeholder="bv. 1.20">
+        <label>Breedte (cm)</label>
+        <input type="text" inputmode="numeric" class="numeric-input" id="rd-breedte-${id}" step="1" data-eenheid="cm" placeholder="bv. 120">
       </div>
       <div class="field">
-        <label>Hoogte (m)</label>
-        <input type="text" inputmode="decimal" class="numeric-input" id="rd-hoogte-${id}" step="0.01" placeholder="bv. 1.50">
+        <label>Hoogte (cm)</label>
+        <input type="text" inputmode="numeric" class="numeric-input" id="rd-hoogte-${id}" step="1" data-eenheid="cm" placeholder="bv. 150">
       </div>
       <div class="field" id="rd-glaswrap-${id}">
         <label id="rd-glaslabel-${id}">Glastype</label>
@@ -3871,12 +3911,12 @@ function voegRaamDeurToe(kopieerVan){
     <div class="row" id="rd-raamvelden-wrap-${id}" style="display:none;">
       <p class="hint" style="flex:0 0 100%;margin:0 0 4px;">Raam-in-deur: afmeting van het glazen deel. Deuroppervlakte = deurmaat − raamoppervlakte; het raam telt apart mee met zijn eigen glastype.</p>
       <div class="field">
-        <label>Raam-in-deur — breedte (m)</label>
-        <input type="text" inputmode="decimal" class="numeric-input" id="rd-raambreedte-${id}" step="0.01" placeholder="bv. 0.40">
+        <label>Raam-in-deur — breedte (cm)</label>
+        <input type="text" inputmode="numeric" class="numeric-input" id="rd-raambreedte-${id}" step="1" data-eenheid="cm" placeholder="bv. 40">
       </div>
       <div class="field">
-        <label>Raam-in-deur — hoogte (m)</label>
-        <input type="text" inputmode="decimal" class="numeric-input" id="rd-raamhoogte-${id}" step="0.01" placeholder="bv. 1.00">
+        <label>Raam-in-deur — hoogte (cm)</label>
+        <input type="text" inputmode="numeric" class="numeric-input" id="rd-raamhoogte-${id}" step="1" data-eenheid="cm" placeholder="bv. 100">
       </div>
     </div>
     <div id="rd-resultaat-${id}" class="hint"></div>
