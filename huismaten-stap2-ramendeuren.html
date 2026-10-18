@@ -4938,6 +4938,11 @@ function rdCode(d){
   const pre = ({deur:'D', deurmetraam:'DR', paneel:'P', dakraam:'DK'})[d.type] || 'R';
   return pre + (m ? m[1] : '');
 }
+// Oppervlaktetekst: bij een deur met raam deur en glas apart (zoals in de tabel)
+function rdOppTekst(d){
+  if(d.type==='deurmetraam' && d.raamOppStuk>0) return `deur ${d.deurOppStuk.toFixed(2)} + glas ${d.raamOppStuk.toFixed(2)} m²`;
+  return d.oppStuk.toFixed(2)+' m²';
+}
 function rdKleuren(d){
   if(d.type==='deur' || d.type==='deurmetraam') return {vul:RD_KLEUR.deurVul, lijn:RD_KLEUR.deurLijn};
   if(d.type==='paneel') return {vul:RD_KLEUR.paneelVul, lijn:RD_KLEUR.paneelLijn};
@@ -5188,7 +5193,7 @@ function rdVlakken(X, c){
 function rdLabelKeuze(st){
   const fs = tekstGrootte(), tw = t => t.length*fs*0.55 + fs*0.4;
   const pw = st.b*SCALE, ph = st.h*SCALE;
-  const code = rdCode(st.d), opp = st.d.oppStuk.toFixed(2)+' m²';
+  const code = rdCode(st.d), opp = rdOppTekst(st.d);
   if(pw >= tw(code+' '+opp) && ph >= fs*1.3) return 'een';
   if(pw >= tw(opp) && ph >= fs*2.6) return 'twee';
   return 'zij';
@@ -5202,7 +5207,7 @@ function rdZijLabels(plan){
 }
 function rdZijTekst(item){
   const d = item.st ? item.st.d : item.los;
-  let t = `${rdCode(d)}: ${d.oppStuk.toFixed(2)} m²`;
+  let t = `${rdCode(d)}: ${rdOppTekst(d)}`;
   if(d.aantal > 1) t += ` (×${d.aantal})`;
   if(item.los) t += ' — niet getekend';
   return t;
@@ -5229,16 +5234,19 @@ function rdTekenElementen(svg, plan, x0, yBase, alleenHoofd){
     st.px = px; st.py = py; st.pw = pw; st.ph = ph;
     const lw = PRINT_MODE ? 0.25 : 1;
     svg.appendChild(svgEl('rect', {x:px, y:py, width:pw, height:ph, fill:k.vul, stroke:k.lijn, 'stroke-width':lw}));
+    let codeY = py+ph/2+fs*0.35;
     if(d.type==='deurmetraam' && d.raamBreedte>0 && d.raamHoogte>0){
       const rb = Math.min(d.raamBreedte, d.breedte*0.9)*S, rh = Math.min(d.raamHoogte, st.h*0.85)*S;
-      svg.appendChild(svgEl('rect', {x:px+(pw-rb)/2, y:py+Math.min(ph*0.08, 0.15*S), width:rb, height:rh, fill:RD_KLEUR.raamVul, stroke:RD_KLEUR.raamLijn, 'stroke-width':lw*0.8}));
+      const ry = py+Math.min(ph*0.08, 0.15*S);
+      svg.appendChild(svgEl('rect', {x:px+(pw-rb)/2, y:ry, width:rb, height:rh, fill:RD_KLEUR.raamVul, stroke:RD_KLEUR.raamLijn, 'stroke-width':lw*0.8}));
+      if(py+ph - (ry+rh) > fs*1.2) codeY = (ry+rh+py+ph)/2 + fs*0.35;   // code in het dichte deel onder het glas
     }
-    const code = rdCode(d), opp = d.oppStuk.toFixed(2)+' m²', keuze = rdLabelKeuze(st);
+    const code = rdCode(d), opp = rdOppTekst(d), keuze = rdLabelKeuze(st);
     if(keuze === 'een') rdTekst(svg, px+pw/2, py+ph/2+fs*0.35, code+' '+opp, k.lijn);
     else if(keuze === 'twee'){ rdTekst(svg, px+pw/2, py+ph/2-fs*0.25, code, k.lijn); rdTekst(svg, px+pw/2, py+ph/2+fs*0.95, opp, k.lijn); }
     else {
       const past = pw >= code.length*fs*0.55 + fs*0.4 && ph >= fs*1.2;
-      if(past) rdTekst(svg, px+pw/2, py+ph/2+fs*0.35, code, k.lijn);
+      if(past) rdTekst(svg, px+pw/2, codeY, code, k.lijn);
       else if(!st.laatste) rdTekst(svg, px+pw/2, py - fs*0.3, code, k.lijn);   // het exemplaar met het lijntje heeft de code al in het label
     }
   });
