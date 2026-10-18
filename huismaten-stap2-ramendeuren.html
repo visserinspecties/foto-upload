@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Huismaten Tool — Stap 1</title>
+<title>Huismaten — ramen &amp; deuren (test)</title>
 <style>
   :root{
     --ink:#1d2520;
@@ -230,6 +230,9 @@
     color:white;
     border-color:var(--accent);
   }
+  /* Gekopieerde regel: doorgestreept en grijs; nog eens op de knop = terug */
+  .resultaten-tabel tr.gekopieerd td:not(.copy-cel){ text-decoration:line-through; opacity:.45; }
+  .btn-copy.gedaan{ background:#e7e3d8; color:#9a9383; border-color:#d8d2c4; }
 
   @media (max-width: 480px){
     body{ padding:10px; font-size:0.95rem; }
@@ -293,11 +296,13 @@
 
 <div class="header-row">
   <div>
-    <h1>Huismaten Tool — stap 1</h1>
+    <h1>Huismaten Tool — ramen &amp; deuren in de gevels (test)</h1>
     <p class="sub">Kernmechanisme: vloeroppervlak en gevel/dakvlak tekenen</p>
   </div>
   <img id="header-logo" class="header-logo" alt="Visser Inspecties">
 </div>
+<!-- OneDrive-status: altijd zichtbaar bovenin. Groen = verbonden en projectmap gecontroleerd, rood = niet. -->
+<div id="od-status" style="font-size:13px; font-weight:600; margin:-10px 0 8px; padding:8px 10px; border-radius:6px; background:#efece3; color:#6b6555; display:flex; flex-wrap:wrap; gap:8px; align-items:center;">☁️ OneDrive: controleren…</div>
 <div id="project-banner" style="display:none; font-size:12px; color:#6b6555; margin:-10px 0 14px; padding:6px 10px; background:#efece3; border-radius:6px;"></div>
 
 <div class="tabs">
@@ -321,6 +326,10 @@
   <!-- Op iPad/iPhone kan een webpagina niet zelf downloaden; daar verschijnen
        de klaargezette bestanden hier als knop, die het deelmenu opent. -->
   <div id="ios-bestanden" style="display:none; margin:0 0 12px;"></div>
+  <!-- Grote melding na elke export: staat het in OneDrive, ja of nee? -->
+  <div id="export-banner" style="display:none; margin:0 0 12px; padding:14px 16px; border-radius:8px; font-size:1rem; line-height:1.4; font-weight:600;"></div>
+  <!-- Vangnet: de laatste exports blijven in deze browser bewaard, ook als de upload mislukt. -->
+  <div id="laatst-gemaakt" style="display:none; margin:0 0 12px;"></div>
   <div id="excel-dropzone" style="margin:0 0 8px; border:2px dashed var(--line); border-radius:8px; padding:12px; text-align:center; font-size:0.82rem; color:#6b6555; cursor:pointer;">
     <span id="excel-dropzone-tekst">📥 Sleep hier een aangepaste Excel-export (tabblad "Invoer") naartoe om de velden opnieuw in te lezen — of klik om een bestand te kiezen</span>
     <input type="file" id="excel-input" accept=".xlsx" style="display:none;">
@@ -650,7 +659,7 @@
   <p class="hint">Elk nieuw raam krijgt dit glastype. Pas je het glastype van één raam aan, dan blijft die keuze staan als je het standaard glastype later wijzigt. Per stuk, per verdieping en per oriëntatie — informatief, telt niet mee in de bruto gevel-m² (netto gebeurt in VABI). Dakramen (Velux) en ramen in een dakkapel-aanzicht: kies bij Oriëntatie het dakvlak.</p>
   <div id="ramendeuren-container"></div>
   <div class="btn-row" style="margin:8px 0 14px;">
-    <button class="btn-secondary" id="btn-toevoegen-ramendeur">+ Raam/deur toevoegen</button>
+    <button class="btn-secondary" id="btn-toevoegen-ramendeur">+ Toevoegen (kopie van vorige)</button>
   </div>
   <div id="ramendeuren-waarschuwing"></div>
   <div id="ramendeuren-resultaten"></div>
@@ -1045,12 +1054,94 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var n,r,i,a,
 // Deze twee regels worden automatisch ingevuld door de Nieuwe-Projectmap-app
 // op het moment dat zij deze tool in de "020 AANTEKENINGEN"-map van een project zet.
 // Staan ze leeg (zoals in dit basisbestand), dan is er geen project gekoppeld.
-const PROJECT_NAAM = "__PROJECT_NAAM__";
-const PROJECT_PAD  = "__PROJECT_PAD__"; // pad naar de "020 AANTEKENINGEN"-map van dit project
+const PROJECT_NAAM = "";
+const PROJECT_PAD  = ""; // pad naar de "020 AANTEKENINGEN"-map van dit project
+// Projectgegevens (adres, opdrachtgever, ...) uit de Nieuwe-Projectmap-app. Leeg in het basisbestand.
+const PROJECT_GEGEVENS = "";
 
-// ── OneDrive-upload: hergebruikt de inlogsessie van de Nieuwe-Projectmap-app ──
-// (zelfde origin op GitHub Pages, dus zelfde localStorage — geen aparte login nodig
-// zolang je al eens via de Projectmap-app bent ingelogd op dit apparaat/browser.)
+// Geeft de projectgegevens als object terug, of null als deze kopie er geen heeft.
+// Terugval voor de webversie: projectgegevens.json uit de map 020 AANTEKENINGEN van het gekozen project
+// (door de Projectmap-app geschreven). Wordt onthouden per projectpad, dus ook offline beschikbaar.
+let gekozenGegevens = null;
+let gekozenKaart = null; // dataURL van kaartje.png
+const PG_SLEUTEL = pad => 'huismaten_pg:' + pad;
+const KAART_SLEUTEL = pad => 'huismaten_kaart:' + pad;
+
+function projectGegevens() {
+  if (PROJECT_GEGEVENS && typeof PROJECT_GEGEVENS === 'object') return PROJECT_GEGEVENS;
+  return gekozenGegevens;
+}
+
+function pgUitCache() {
+  gekozenGegevens = null; gekozenKaart = null;
+  const pad = actiefProjectPad();
+  if (!pad) return;
+  try { const r = localStorage.getItem(PG_SLEUTEL(pad)); if (r) gekozenGegevens = JSON.parse(r); } catch(_) {}
+  try { gekozenKaart = localStorage.getItem(KAART_SLEUTEL(pad)) || null; } catch(_) {}
+}
+
+// Haalt projectgegevens.json op (stil: faalt het, dan blijft de cache of 'geen gegevens' staan).
+async function laadProjectGegevens() {
+  pgUitCache();
+  const pad = actiefProjectPad();
+  if (!pad || vastProject()) return;
+  try {
+    const token = await graphRefreshToken();
+    const resp = await fetch(`https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(pad)}/projectgegevens.json:/content`, { headers: { Authorization: 'Bearer ' + token } });
+    if (resp.status === 404) { try { localStorage.removeItem(PG_SLEUTEL(pad)); } catch(_) {} gekozenGegevens = null; return; }
+    if (!resp.ok) return;
+    const data = JSON.parse(await resp.text());
+    if (!data || typeof data !== 'object') return;
+    if (actiefProjectPad() !== pad) return; // intussen ander project gekozen
+    gekozenGegevens = data;
+    try { localStorage.setItem(PG_SLEUTEL(pad), JSON.stringify(data)); } catch(_) {}
+    // Kaartje (BAG-pand met oriëntatie): optioneel, apart bestand naast projectgegevens.json
+    try {
+      const k = await fetch(`https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(pad)}/kaartje.png:/content`, { headers: { Authorization: 'Bearer ' + token } });
+      if (k.ok) {
+        const blob = await k.blob();
+        const url = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(blob); });
+        if (actiefProjectPad() === pad) { gekozenKaart = url; try { localStorage.setItem(KAART_SLEUTEL(pad), url); } catch(_) {} }
+      } else if (k.status === 404) { gekozenKaart = null; try { localStorage.removeItem(KAART_SLEUTEL(pad)); } catch(_) {} }
+    } catch(_) {}
+  } catch(_) { /* offline of niet ingelogd: cache blijft staan */ }
+}
+
+// ── Gevel-oriëntatie uit de Nieuwe-Projectmap-app ─────────────
+// Geeft per gevel {richting:'ZW', hoek:205} terug, of null als er geen oriëntatie bekend is.
+// LG/RG = linker-/rechtergevel gezien vanaf de straat (zelfde conventie als de plattegrond hier).
+const WINDRICHTINGEN_8 = ['N','NO','O','ZO','Z','ZW','W','NW'];
+const GEVEL_HOEK_T_O_V_VG = {VG:0, AG:180, LG:90, RG:270};
+function gevelOrientatie(code) {
+  const pg = projectGegevens();
+  const o = pg && pg.orientatie;
+  if (!o || !o[code]) return null;
+  const vgIdx = WINDRICHTINGEN_8.indexOf(o.VG);
+  // Exacte hoek als die automatisch bepaald is, anders het midden van de windrichting (ZW = 225°)
+  const vgHoek = (typeof pg.orientatieHoek === 'number') ? pg.orientatieHoek : (vgIdx >= 0 ? vgIdx * 45 : null);
+  const hoek = vgHoek == null ? null : (((Math.round(vgHoek + GEVEL_HOEK_T_O_V_VG[code])) % 360) + 360) % 360;
+  return { richting: o[code], hoek };
+}
+// "ZW, 205°" (of '' zonder oriëntatie)
+function orientTekst(code) {
+  const g = gevelOrientatie(code);
+  return g ? `${g.richting}${g.hoek != null ? ', ' + g.hoek + '°' : ''}` : '';
+}
+// "VG, ZW, 205°" of gewoon "VG"
+function gevelCodeMetOrient(code) {
+  const t = orientTekst(code);
+  return t ? `${code}, ${t}` : code;
+}
+// Titel van een gevelaanzicht, bv. "Voorgevel (aanzicht) — VG, ZW, 205°"
+function aanzichtTitel(code) {
+  const namen = {VG:'Voorgevel', AG:'Achtergevel', LG:'Linkergevel', RG:'Rechtergevel'};
+  const t = orientTekst(code);
+  return `${namen[code]} (aanzicht)` + (t ? ` — ${code}, ${t}` : '');
+}
+
+// ── OneDrive-upload: deelt de inlogsessie met de Nieuwe-Projectmap-app ──
+// (zelfde origin op GitHub Pages, dus zelfde localStorage. Inloggen kan nu ook hier zelf,
+// via de knop in de statusbalk bovenin; zie startLogin().)
 const GRAPH_CLIENT_ID = 'fdf237c9-bf46-47fa-ab3d-a8834a73e284';
 const GRAPH_TENANT_ID = '984fd1fb-3d68-4c94-aff2-47f699fb5dae';
 const GRAPH_SCOPE = 'https://graph.microsoft.com/Files.ReadWrite offline_access';
@@ -1070,6 +1161,8 @@ function laadGekozenProject() {
     const ruw = localStorage.getItem(PROJECT_BEWAARSLEUTEL);
     if (!ruw) return null;
     const p = JSON.parse(ruw);
+    // Een eerder fout opgeslagen keuze (projectnaam "020 AANTEKENINGEN") niet meer gebruiken.
+    if (p && p.naam === '020 AANTEKENINGEN') return null;
     return (p && p.naam && p.pad) ? p : null;
   } catch(_) { return null; }
 }
@@ -1093,17 +1186,204 @@ function projectGekoppeld() {
   return !!actiefProjectPad();
 }
 
+// Foutcodes (e.code): 'geen-login' | 'verlopen' | 'netwerk' — de statusbalk bovenin kijkt hiernaar.
 async function graphRefreshToken() {
   const rt = localStorage.getItem('rt');
-  if (!rt) throw new Error('Nog niet ingelogd — open eerst de Projectmap-app en log daar in met je Microsoft-account.');
-  const resp = await fetch(`https://login.microsoftonline.com/${GRAPH_TENANT_ID}/oauth2/v2.0/token`, {
-    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ client_id: GRAPH_CLIENT_ID, grant_type: 'refresh_token', refresh_token: rt, scope: GRAPH_SCOPE })
-  });
-  const data = await resp.json();
-  if (!data.access_token) throw new Error(data.error_description || 'Inloggen mislukt — log opnieuw in via de Projectmap-app.');
+  if (!rt) { const e = new Error('Niet ingelogd bij OneDrive — tik bovenaan op "Inloggen".'); e.code = 'geen-login'; throw e; }
+  let resp;
+  try {
+    resp = await fetch(`https://login.microsoftonline.com/${GRAPH_TENANT_ID}/oauth2/v2.0/token`, {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ client_id: GRAPH_CLIENT_ID, grant_type: 'refresh_token', refresh_token: rt, scope: GRAPH_SCOPE })
+    });
+  } catch (err) {
+    const e = new Error('Geen verbinding met Microsoft.'); e.code = 'netwerk'; throw e;
+  }
+  const data = await resp.json().catch(() => ({}));
+  if (!data.access_token) {
+    // Alleen bij een echte afwijzing de oude sleutel weggooien, nooit bij een netwerkfout.
+    if (data.error === 'invalid_grant' || data.error === 'interaction_required') { try { localStorage.removeItem('rt'); } catch(_) {} }
+    const e = new Error('Inlog verlopen — tik bovenaan op "Inloggen".'); e.code = 'verlopen'; throw e;
+  }
   if (data.refresh_token) localStorage.setItem('rt', data.refresh_token);
   return data.access_token;
+}
+
+// ── Eigen inlog (PKCE) ────────────────────────────────────────────────
+// Werkt alleen op het vaste adres (visserinspecties.github.io): alleen daar delen deze tool en
+// de Projectmap-app dezelfde opslag. Een kopie die je uit OneDrive opent draait ergens anders
+// en kan dus nooit inloggen — de balk bovenin zegt dat dan.
+// Het adres van deze pagina moet in Entra staan als redirect-URI (platform "Single-page application").
+const LOGIN_SCOPE = 'https://graph.microsoft.com/Files.ReadWrite https://graph.microsoft.com/Tasks.ReadWrite offline_access';
+const LOGIN_VASTE_ORIGIN = 'https://visserinspecties.github.io';
+const LOGIN_PKCE = 'huismaten_pkce_v', LOGIN_KLAAR = 'huismaten_login_klaar', LOGIN_MODUS = 'huismaten_login_modus';
+
+function loginRedirectUri() { return location.origin + location.pathname; }
+function loginMogelijk() { return location.origin === LOGIN_VASTE_ORIGIN; }
+
+function loginB64url(buf) {
+  return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+async function loginBouwUrl() {
+  const verifier = loginB64url(crypto.getRandomValues(new Uint8Array(32)));
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+  localStorage.setItem(LOGIN_PKCE, verifier);
+  const params = new URLSearchParams({
+    client_id: GRAPH_CLIENT_ID, response_type: 'code', redirect_uri: loginRedirectUri(),
+    scope: LOGIN_SCOPE, code_challenge: loginB64url(digest), code_challenge_method: 'S256',
+    state: 'huismaten', domain_hint: 'organizations'
+  });
+  return `https://login.microsoftonline.com/${GRAPH_TENANT_ID}/oauth2/v2.0/authorize?${params}`;
+}
+
+// Inloggen in een pop-up, zodat de pagina en alles wat je hebt ingevuld blijven staan.
+async function startLogin() {
+  if (!loginMogelijk()) {
+    alert('Inloggen kan alleen via het vaste adres:\n' + LOGIN_VASTE_ORIGIN + '/foto-upload/huismaten-stap1.html\n\nDeze kopie draait ergens anders (bijvoorbeeld in de OneDrive-app) en kan niet inloggen. Open de tool via het vaste adres in Safari of Edge.');
+    return;
+  }
+  const popup = window.open('', 'huismaten_login', 'width=520,height=720');
+  try {
+    const url = await loginBouwUrl();
+    try { localStorage.removeItem(LOGIN_KLAAR); } catch(_) {}
+    if (popup && !popup.closed) {
+      localStorage.setItem(LOGIN_MODUS, 'popup:' + Date.now());
+      popup.location.href = url;
+      wachtOpLogin(popup);
+    } else {
+      if (!confirm('De pop-up is geblokkeerd. Inloggen in dit venster? Wat je in de tool hebt ingevuld maar nog niet geëxporteerd, kan dan verloren gaan.')) return;
+      localStorage.setItem(LOGIN_MODUS, 'pagina');
+      location.href = url;
+    }
+  } catch (e) {
+    try { if (popup) popup.close(); } catch(_) {}
+    alert('Inloggen starten mislukt: ' + (e && e.message ? e.message : e));
+  }
+}
+
+function wachtOpLogin(popup) {
+  const start = Date.now();
+  const timer = setInterval(async () => {
+    let klaar = null; try { klaar = localStorage.getItem(LOGIN_KLAAR); } catch(_) {}
+    const afgebroken = popup.closed || (Date.now() - start > 5 * 60 * 1000);
+    if (klaar || afgebroken) {
+      clearInterval(timer);
+      try { localStorage.removeItem(LOGIN_KLAAR); } catch(_) {}
+      try { popup.close(); } catch(_) {}
+      await controleerOneDrive();
+      try { await toonLaatstGemaakt(); } catch(_) {}
+    }
+  }, 800);
+}
+
+// Draait bij elke start: komt deze pagina terug van Microsoft (met ?code=…), dan wordt de
+// inlog hier afgerond. Geeft true terug als dat het geval was.
+async function verwerkLoginCallback() {
+  const p = new URLSearchParams(location.search);
+  if (p.get('state') !== 'huismaten' || !(p.get('code') || p.get('error'))) return false;
+  const popupModus = (localStorage.getItem(LOGIN_MODUS) || '').startsWith('popup');
+  const scherm = document.createElement('div');
+  scherm.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#fff;color:#1c1c1e;display:flex;flex-direction:column;'
+    + 'align-items:center;justify-content:center;text-align:center;font:600 18px -apple-system,Segoe UI,sans-serif;padding:24px;gap:16px;';
+  scherm.textContent = 'Inloggen afronden…';
+  document.body.appendChild(scherm);
+  const knop = (tekst, actie) => {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = tekst;
+    b.style.cssText = 'padding:12px 20px;font-size:16px;border-radius:8px;border:1px solid #999;background:#f2f2f7;';
+    b.addEventListener('click', actie); scherm.appendChild(b);
+  };
+  try {
+    if (p.get('error')) throw new Error(p.get('error_description') || p.get('error'));
+    const verifier = localStorage.getItem(LOGIN_PKCE);
+    if (!verifier) throw new Error('inlogpoging niet gevonden — probeer opnieuw');
+    const resp = await fetch(`https://login.microsoftonline.com/${GRAPH_TENANT_ID}/oauth2/v2.0/token`, {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ client_id: GRAPH_CLIENT_ID, grant_type: 'authorization_code', code: p.get('code'),
+        redirect_uri: loginRedirectUri(), code_verifier: verifier, scope: LOGIN_SCOPE })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!data.refresh_token) throw new Error(data.error_description || 'token ophalen mislukt');
+    localStorage.setItem('rt', data.refresh_token);
+    localStorage.setItem('rt_login_ts', String(Date.now()));
+    localStorage.removeItem(LOGIN_PKCE);
+    localStorage.setItem(LOGIN_KLAAR, String(Date.now()));
+    history.replaceState({}, '', location.pathname);
+    if (popupModus) {
+      scherm.textContent = '✅ Ingelogd. Dit venster sluit vanzelf — lukt dat niet, ga dan terug naar de tab met de tool.';
+      setTimeout(() => { try { window.close(); } catch(_) {} }, 400);
+    } else {
+      scherm.remove();
+    }
+  } catch (e) {
+    history.replaceState({}, '', location.pathname);
+    scherm.textContent = '❌ Inloggen mislukt: ' + (e && e.message ? e.message : e);
+    knop(popupModus ? 'Venster sluiten' : 'Terug naar de tool', () => { if (popupModus) { try { window.close(); } catch(_) {} } scherm.remove(); });
+  }
+  return true;
+}
+
+// ── OneDrive-statusbalk bovenin ──────────────────────────────────────
+// Controleert inlog + of de gekozen projectmap echt bestaat. Op elk moment aan te roepen
+// (bij openen, terugkeren naar de tab, internet terug, projectwissel, mislukte upload).
+const OD_KLEUREN = {
+  ok:   ['#e3f1e3', '#1d5a2b'],
+  fout: ['#fbe3dc', '#8f2410'],
+  let:  ['#fff1d6', '#7a4b00'],
+  neutraal: ['#efece3', '#6b6555']
+};
+function zetOdBalk(soort, tekst, knoppen) {
+  const el = document.getElementById('od-status');
+  if (!el) return;
+  const [achtergrond, tekstkleur] = OD_KLEUREN[soort || 'neutraal'];
+  el.style.background = achtergrond;
+  el.style.color = tekstkleur;
+  el.textContent = tekst;
+  (knoppen || []).forEach(([label, actie]) => {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = label;
+    b.style.cssText = 'padding:4px 12px;font-size:12px;font-weight:600;border:1px solid currentColor;background:white;color:inherit;border-radius:5px;cursor:pointer;';
+    b.addEventListener('click', actie); el.appendChild(b);
+  });
+}
+
+let odControleLoopt = false;
+async function controleerOneDrive() {
+  if (odControleLoopt) return;
+  odControleLoopt = true;
+  try {
+    zetOdBalk('neutraal', '☁️ OneDrive: controleren…');
+    const inloggen = ['🔐 Inloggen', startLogin];
+    const opnieuw = ['Controleer', controleerOneDrive];
+    if (!navigator.onLine) {
+      zetOdBalk('let', '📵 Geen internet — exports blijven bewaard in de browser en kun je later uploaden.', [opnieuw]);
+      return;
+    }
+    if (!loginMogelijk()) {
+      zetOdBalk('fout', '⛔ Deze kopie draait niet op het vaste adres en kan niet uploaden. Open de tool via visserinspecties.github.io in Safari of Edge.');
+      return;
+    }
+    let token;
+    try { token = await graphRefreshToken(); }
+    catch (e) {
+      if (e.code === 'netwerk') zetOdBalk('let', '⚠️ Microsoft is nu niet bereikbaar (slecht bereik?). Exports blijven bewaard in de browser.', [opnieuw]);
+      else zetOdBalk('fout', e.code === 'verlopen' ? '❌ OneDrive: inlog verlopen — exports worden NIET geüpload.' : '❌ OneDrive: niet ingelogd — exports worden NIET geüpload.', [inloggen]);
+      return;
+    }
+    const pad = actiefProjectPad();
+    const uren = (() => { const t = Number(localStorage.getItem('rt_login_ts')); return t ? Math.floor((Date.now() - t) / 3600000) : null; })();
+    const leeftijd = (uren !== null && uren >= 18) ? ` · ingelogd ${uren} u geleden, log straks opnieuw in` : '';
+    if (!pad) {
+      zetOdBalk('let', '☁️ OneDrive verbonden — maar nog geen project gekozen' + leeftijd, [['Kies project', kiesProjectDialoog], opnieuw]);
+      return;
+    }
+    let resp;
+    try { resp = await fetch(`https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(pad)}`, { headers: { Authorization: 'Bearer ' + token } }); }
+    catch (_) { zetOdBalk('let', '⚠️ OneDrive verbonden, maar de projectmap kon niet gecontroleerd worden (geen bereik).', [opnieuw]); return; }
+    if (resp.ok) zetOdBalk('ok', `✅ OneDrive verbonden · exports gaan naar: ${pad}${leeftijd}`, [opnieuw]);
+    else if (resp.status === 404) zetOdBalk('fout', `❌ Projectmap niet gevonden in OneDrive: ${pad}`, [['Kies project', kiesProjectDialoog], opnieuw]);
+    else zetOdBalk('fout', `❌ OneDrive gaf een fout (${resp.status}) bij het controleren van de projectmap.`, [inloggen, opnieuw]);
+  } finally {
+    odControleLoopt = false;
+  }
 }
 
 // Versienummer van deze sessie: 1 = origineel, 2+ = na inlezen van een aangepaste Excel-export.
@@ -1115,10 +1395,16 @@ function huidigeBasisbestandsnaam() {
   return huismatenVersie > 1 ? `${basis}_v${huismatenVersie}` : basis;
 }
 
-async function uploadBestandNaarProjectmap(blob, bestandsnaam) {
-  const pad = actiefProjectPad();
+async function uploadBestandNaarProjectmap(blob, bestandsnaam, padOverride) {
+  const pad = padOverride || actiefProjectPad();
   if (!pad) throw new Error('Er is nog geen project gekozen.');
   const token = await graphRefreshToken();
+  // Eerst controleren of de projectmap echt bestaat. Een upload naar een onbestaand pad
+  // maakt namelijk stilletjes nieuwe (foute) mappen aan.
+  let bestaat;
+  try { bestaat = await fetch(`https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(pad)}`, { headers: { Authorization: 'Bearer ' + token } }); }
+  catch (_) { throw new Error('Geen verbinding met OneDrive.'); }
+  if (bestaat.status === 404) throw new Error(`Projectmap bestaat niet in OneDrive: ${pad} — niet geüpload. Kies het project opnieuw.`);
   const url = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(pad)}/${encodeURIComponent(bestandsnaam)}:/content`;
   const resp = await fetch(url, { method: 'PUT', headers: { Authorization: 'Bearer ' + token }, body: blob });
   if (!resp.ok) {
@@ -1133,6 +1419,202 @@ async function uploadPdfNaarProjectmap(blob) {
   return uploadBestandNaarProjectmap(blob, huidigeBasisbestandsnaam() + '.pdf');
 }
 
+// ── Vangnet: elke export wordt eerst in de browser bewaard ────────────────
+// Zo is een bestand nooit weg als de upload naar OneDrive mislukt (hotspot, token, ...).
+// Bewaard in IndexedDB (blijft na verversen staan); terugval: werkgeheugen van de pagina.
+const BACKUP_DB = 'huismaten-backup', BACKUP_STORE = 'exports', BACKUP_MAX = 10;
+let backupGeheugen = [];
+
+function backupDb() {
+  return new Promise((res, rej) => {
+    if (!window.indexedDB) { rej(new Error('geen indexedDB')); return; }
+    const rq = indexedDB.open(BACKUP_DB, 1);
+    rq.onupgradeneeded = () => rq.result.createObjectStore(BACKUP_STORE, { keyPath: 'id' });
+    rq.onsuccess = () => res(rq.result);
+    rq.onerror = () => rej(rq.error);
+  });
+}
+async function backupAlle() {
+  let lijst = [];
+  try {
+    const db = await backupDb();
+    lijst = await new Promise((res, rej) => {
+      const rq = db.transaction(BACKUP_STORE).objectStore(BACKUP_STORE).getAll();
+      rq.onsuccess = () => res(rq.result || []);
+      rq.onerror = () => rej(rq.error);
+    });
+  } catch (_) { /* terugval hieronder */ }
+  // geheugen aanvullen (bv. als IndexedDB niet werkt)
+  backupGeheugen.forEach(r => { if (!lijst.some(x => x.id === r.id)) lijst.push(r); });
+  return lijst.sort((a, b) => b.tijd - a.tijd);
+}
+async function backupSchrijf(rec) {
+  backupGeheugen = backupGeheugen.filter(r => r.id !== rec.id);
+  backupGeheugen.push(rec);
+  try {
+    const db = await backupDb();
+    await new Promise((res, rej) => {
+      const tx = db.transaction(BACKUP_STORE, 'readwrite');
+      tx.objectStore(BACKUP_STORE).put(rec);
+      tx.oncomplete = res; tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error);
+    });
+  } catch (_) { /* blijft in geheugen */ }
+}
+async function backupOpruimen() {
+  const lijst = await backupAlle();
+  const weg = lijst.slice(BACKUP_MAX);
+  if (!weg.length) return;
+  backupGeheugen = backupGeheugen.filter(r => !weg.some(w => w.id === r.id));
+  try {
+    const db = await backupDb();
+    await new Promise((res) => {
+      const tx = db.transaction(BACKUP_STORE, 'readwrite');
+      weg.forEach(w => tx.objectStore(BACKUP_STORE).delete(w.id));
+      tx.oncomplete = res; tx.onerror = res; tx.onabort = res;
+    });
+  } catch (_) {}
+}
+
+// Bewaart een kopie en geeft het record terug. Status: 'bezig' | 'ok' | 'mislukt' | 'offline' | 'geenproject'
+async function bewaarExportKopie(blob, naam, mime) {
+  const rec = {
+    id: Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+    naam, mime: mime || 'application/octet-stream', blob, tijd: Date.now(),
+    status: 'bezig', fout: '',
+    projectNaam: actiefProjectNaam() || '', projectPad: actiefProjectPad() || ''
+  };
+  await backupSchrijf(rec);
+  await backupOpruimen();
+  return rec;
+}
+async function zetExportStatus(rec, status, fout) {
+  if (!rec) return;
+  rec.status = status; rec.fout = fout || '';
+  await backupSchrijf(rec);
+}
+
+// Bepaalt de status na een upload-poging en probeert de upload.
+async function probeerUploadMetVangnet(rec) {
+  if (!rec) return;
+  if (!projectGekoppeld()) { await zetExportStatus(rec, 'geenproject'); return; }
+  if (!navigator.onLine)  { await zetExportStatus(rec, 'offline'); return; }
+  try {
+    await uploadBestandNaarProjectmap(rec.blob, rec.naam);
+    await zetExportStatus(rec, 'ok');
+  } catch (e) {
+    await zetExportStatus(rec, 'mislukt', (e && e.message) ? e.message : String(e));
+    controleerOneDrive(); // balk bovenin meteen rood/oranje met de juiste knop
+  }
+}
+
+const EXPORT_STATUS_TEKST = {
+  ok: '✅ in OneDrive',
+  mislukt: '❌ upload MISLUKT',
+  offline: '📵 geen internet — niet geüpload',
+  geenproject: 'ℹ️ geen project gekozen — niet geüpload',
+  bezig: '⏳ bezig…'
+};
+
+// Grote melding onder de export-knoppen. Rood zolang iets niet in OneDrive staat.
+function toonExportBanner(recs) {
+  const el = document.getElementById('export-banner');
+  if (!el) return;
+  const lijst = (recs || []).filter(Boolean);
+  if (!lijst.length) { el.style.display = 'none'; return; }
+  const fout = lijst.filter(r => r.status !== 'ok');
+  const naamTxt = r => `"${r.naam}"`;
+  if (!fout.length) {
+    el.style.cssText += ';display:block;background:#e3f1e3;color:#1d5a2b;border:2px solid #1d5a2b;';
+    el.innerHTML = '✅ ' + lijst.map(naamTxt).join(' en ') + ' staan in OneDrive.';
+  } else {
+    el.style.cssText += ';display:block;background:#fbe3dc;color:#8f2410;border:2px solid #8f2410;';
+    el.innerHTML = '⚠️ NIET IN ONEDRIVE: ' + fout.map(r =>
+      `${naamTxt(r)} — ${(EXPORT_STATUS_TEKST[r.status] || r.status).replace(/^\S+\s/, '')}${r.fout ? ' (' + r.fout + ')' : ''}`
+    ).join('; ')
+    + '<br><span style="font-weight:400;font-size:0.9rem;">Het bestand is wél bewaard in deze browser. Tik hieronder bij "Laatst gemaakt" op "Opnieuw uploaden" of "Delen / bewaren".</span>';
+  }
+  try { el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (_) {}
+}
+
+async function exportOpnieuwUploaden(id, knop) {
+  const lijst = await backupAlle();
+  const rec = lijst.find(r => r.id === id);
+  if (!rec) return;
+  if (knop) { knop.disabled = true; knop.textContent = '⏳ uploaden…'; }
+  if (!rec.projectPad) { await zetExportStatus(rec, 'geenproject'); }
+  else if (!navigator.onLine) { await zetExportStatus(rec, 'offline'); }
+  else {
+    try {
+      await uploadBestandNaarProjectmap(rec.blob, rec.naam, rec.projectPad);
+      await zetExportStatus(rec, 'ok');
+    } catch (e) {
+      await zetExportStatus(rec, 'mislukt', (e && e.message) ? e.message : String(e));
+    }
+  }
+  await toonLaatstGemaakt();
+  toonExportBanner([rec]);
+}
+
+async function exportDelenOfBewaren(id) {
+  const lijst = await backupAlle();
+  const rec = lijst.find(r => r.id === id);
+  if (!rec) return;
+  const bestand = new File([rec.blob], rec.naam, { type: rec.mime });
+  if (navigator.canShare && navigator.canShare({ files: [bestand] })) {
+    try { await navigator.share({ files: [bestand], title: rec.naam }); return; }
+    catch (err) { if (err && err.name === 'AbortError') return; }
+  }
+  const url = URL.createObjectURL(rec.blob);
+  if (isIOS()) { window.open(url, '_blank'); setTimeout(() => URL.revokeObjectURL(url), 60000); return; }
+  const a = document.createElement('a');
+  a.href = url; a.download = rec.naam;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+async function toonLaatstGemaakt() {
+  const vak = document.getElementById('laatst-gemaakt');
+  if (!vak) return;
+  const lijst = await backupAlle();
+  if (!lijst.length) { vak.style.display = 'none'; vak.innerHTML = ''; return; }
+  vak.style.display = 'block';
+  vak.innerHTML = '';
+  const kop = document.createElement('div');
+  kop.style.cssText = 'font-weight:600; margin-bottom:6px;';
+  kop.textContent = 'Laatst gemaakt (bewaard in deze browser)';
+  vak.appendChild(kop);
+  lijst.forEach(rec => {
+    const rij = document.createElement('div');
+    rij.style.cssText = 'border:1px solid var(--line); border-radius:8px; padding:8px 10px; margin-bottom:6px; background:#fbfaf6;';
+    const t = new Date(rec.tijd);
+    const tijd = t.toLocaleDateString('nl-NL', { day: 'numeric', month: 'numeric' }) + ' ' + t.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+    const kleur = rec.status === 'ok' ? '#1d5a2b' : (rec.status === 'bezig' ? '#6b6555' : '#8f2410');
+    const info = document.createElement('div');
+    info.style.cssText = 'font-size:0.85rem; margin-bottom:6px; word-break:break-word;';
+    info.innerHTML = '';
+    const naam = document.createElement('div'); naam.textContent = '📄 ' + rec.naam; naam.style.fontWeight = '600';
+    const status = document.createElement('div');
+    status.style.color = kleur;
+    status.textContent = `${tijd} — ${EXPORT_STATUS_TEKST[rec.status] || rec.status}${rec.fout ? ' (' + rec.fout + ')' : ''}`;
+    info.appendChild(naam); info.appendChild(status);
+    rij.appendChild(info);
+    const knoppen = document.createElement('div');
+    knoppen.className = 'btn-row';
+    if (rec.status !== 'ok' && rec.projectPad) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'btn-secondary'; b.textContent = '☁️ Opnieuw uploaden';
+      b.addEventListener('click', () => exportOpnieuwUploaden(rec.id, b));
+      knoppen.appendChild(b);
+    }
+    const d = document.createElement('button');
+    d.type = 'button'; d.className = 'btn-secondary'; d.textContent = '📤 Delen / bewaren';
+    d.addEventListener('click', () => exportDelenOfBewaren(rec.id));
+    knoppen.appendChild(d);
+    rij.appendChild(knoppen);
+    vak.appendChild(rij);
+  });
+}
+
 function initProjectBanner() {
   const banner = document.getElementById('project-banner');
   const uploadBtn = document.getElementById('btn-tekening-upload');
@@ -1141,7 +1623,8 @@ function initProjectBanner() {
 
   const tekst = document.createElement('span');
   const naam = actiefProjectNaam();
-  tekst.textContent = naam ? `📁 Project: ${naam}` : '📁 Nog geen project gekozen';
+  const pgBanner = projectGegevens();
+  tekst.textContent = naam ? `📁 Project: ${naam}` + (pgBanner && (pgBanner.adres || pgBanner.naamOpdrachtgever) ? ' · ✓ projectgegevens geladen' : ' · geen projectgegevens') : '📁 Nog geen project gekozen';
   banner.appendChild(tekst);
 
   // Bij een vaste koppeling (kopie uit de projectmap) valt er niets te kiezen.
@@ -1162,7 +1645,9 @@ function initProjectBanner() {
       los.addEventListener('click', () => {
         gekozenProject = null;
         bewaarGekozenProject(null);
+        gekozenGegevens = null; gekozenKaart = null;
         initProjectBanner();
+        controleerOneDrive();
       });
       banner.appendChild(los);
     }
@@ -1174,7 +1659,7 @@ function initProjectBanner() {
 // Laat de projectmappen onder "0_In Behandeling" zien en onthoudt je keuze.
 async function kiesProjectDialoog() {
   if (!(await onedriveBeschikbaar())) {
-    alert('Geen verbinding met OneDrive.\n\nJe hebt nu geen internet, óf je bent op dit apparaat/deze browser nog niet ingelogd via de Projectmap-app.\n\nKies je project even wanneer je wél verbinding hebt — daarna onthoudt de tool het en werkt het ook offline.');
+    alert('Geen verbinding met OneDrive.\n\nJe hebt nu geen internet, óf je bent niet (meer) ingelogd. Tik bovenaan op "Inloggen" (of "Controleer") en probeer het opnieuw.\n\nKies je project even wanneer je wél verbinding hebt — daarna onthoudt de tool het en werkt het ook offline.');
     return;
   }
   const keuze = await kiesOnedrive({
@@ -1184,14 +1669,24 @@ async function kiesProjectDialoog() {
   });
   if (!keuze || keuze.type !== 'map') return;
 
-  // Je kiest de projectmap zelf; de bestanden gaan naar de submap 020 AANTEKENINGEN.
-  const projectnaam = keuze.naam || keuze.pad.split(' / ').pop();
-  gekozenProject = {
-    naam: projectnaam,
-    pad : `${PROJECTEN_ROOT}/${projectnaam}/020 AANTEKENINGEN`
-  };
+  // Het écht gekozen pad gebruiken (niet alleen de laatste mapnaam). Je mag de projectmap kiezen
+  // óf direct de submap 020 AANTEKENINGEN: in beide gevallen gaan de bestanden naar die submap.
+  const SUBMAP = '020 AANTEKENINGEN';
+  const delen = String(keuze.pad || '').replace(/^OneDrive( \/ )?/, '').split(' / ').filter(Boolean);
+  if (!delen.length) { alert('Kies een projectmap, niet de hoofdmap van OneDrive.'); return; }
+  let projectnaam, doelDelen;
+  if (delen[delen.length - 1] === SUBMAP && delen.length >= 2) {
+    projectnaam = delen[delen.length - 2];
+    doelDelen = delen;
+  } else {
+    projectnaam = delen[delen.length - 1];
+    doelDelen = [...delen, SUBMAP];
+  }
+  gekozenProject = { naam: projectnaam, pad: doelDelen.join('/') };
   bewaarGekozenProject(gekozenProject);
+  await laadProjectGegevens();
   initProjectBanner();
+  controleerOneDrive();
 }
 
 const DAK_DEFAULT_HOEK = 45;
@@ -1991,8 +2486,10 @@ function berekenAlles(){
 // ---------- Resultaat op het scherm ----------
 // ---------- Kleuren: vloeren/woonoppervlak zwart, gevels groen, daken rood ----------
 // Zelfde kleuren in tekeningen (PDF), resultaten op het scherm en de Excel.
-const KLEUR = {vloer:'#1d1d1d', gevel:'#1a7f37', dak:'#c0392b'};
-const KLEUR_RGB = {vloer:[29,29,29], gevel:[26,127,55], dak:[192,57,43]};
+// Welke regels in de tabel al gekopieerd zijn (blijft staan zolang de pagina open is; verandert een waarde, dan telt de regel weer als nieuw)
+const GEKOPIEERD = new Set();
+const KLEUR = {vloer:'#1d1d1d', gevel:'#1a7f37', dak:'#c0392b', deur:'#5c3a1e'};
+const KLEUR_RGB = {vloer:[29,29,29], gevel:[26,127,55], dak:[192,57,43], deur:[92,58,30]};
 function kleurGroep(groep){ return groep==='gevel' ? 'gevel' : (groep==='schuin' || groep==='plat' || groep==='dak') ? 'dak' : 'vloer'; }
 
 function fm(x){ return (x==null || isNaN(x)) ? '—' : x.toFixed(2); }
@@ -2075,7 +2572,7 @@ function renderAlles(R){
     ['VG','AG','LG','RG'].forEach(code=>{
       const rij = S.regels.filter(r=>r.groep==='gevel' && r.orient===code);
       rij.forEach(r=> h += regelHtml(r.label, r.opp==null ? '—' : fm(r.opp)+' m²', {detail:r.detail, formule:r.formule, kleur:'gevel'}));
-      h += regelHtml(`Σ ${GEVEL_NAAM[code]} (${code})`, fm(S.perOrient[code])+' m²', {sub:true, kleur:'gevel'});
+      h += regelHtml(`Σ ${GEVEL_NAAM[code]} (${gevelCodeMetOrient(code)})`, fm(S.perOrient[code])+' m²', {sub:true, kleur:'gevel'});
     });
     [['vloer','Vloeren (grond / kruipruimte)','Totaal vloeren'],['schuin','Schuine daken','Totaal schuine daken'],['plat','Platte daken','Totaal platte daken']].forEach(([g, kop, tot])=>{
       const rij = S.regels.filter(r=>r.groep===g);
@@ -3181,7 +3678,7 @@ const ramenDeurenContainer = document.getElementById('ramendeuren-container');
 const btnToevoegenRaamDeur = document.getElementById('btn-toevoegen-ramendeur');
 const rdStandaardGlasSel = document.getElementById('rd-standaard-glas');
 
-const RD_TYPE_LABELS = {raam:'Raam', deur:'Deur', deurmetraam:'Deur met raam erin', dakraam:'Dakraam (Velux e.d.)'};
+const RD_TYPE_LABELS = {raam:'Raam', deur:'Deur', paneel:'Paneel', deurmetraam:'Deur met raam erin', dakraam:'Dakraam (Velux e.d.)'};
 const RD_GLASTYPE_LABELS = {'':'— kies —', e:'Enkel glas', D:'Dubbel glas', Hr:'HR-glas', 'Hr+':'HR+-glas', '++':'HR++-glas', Vz:'Voorzetraam', '+++':'Triple glas'};
 const RD_ISOLATIE_LABELS = {on:'Ongeïsoleerd', iso:'Geïsoleerd'};
 const RD_VERDIEPING_ZOLDER = 'zolder';
@@ -3247,9 +3744,12 @@ function verversRamenDeurenOpties(){
 }
 
 function renumberRamenDeuren(){
+  // Doorlopende nummering per type (Raam 1, 2, 3 ... / Deur 1, 2 ...), ongeacht gevel of verdieping.
+  const teller = {};
   ramenDeuren.forEach((rd,i)=>{
     const type = document.getElementById('rd-type-'+rd.id)?.value;
-    rd.naam = `${RD_TYPE_LABELS[type] || 'Element'} ${i+1}`;
+    teller[type] = (teller[type] || 0) + 1;
+    rd.naam = `${RD_TYPE_LABELS[type] || 'Element'} ${teller[type]}`;
     const titelEl = document.getElementById('rd-titel-'+rd.id);
     if(titelEl) titelEl.textContent = rd.naam;
   });
@@ -3265,9 +3765,12 @@ function toggleRaamDeurVelden(id){
   const raamVeldenWrap = document.getElementById('rd-raamvelden-wrap-'+id);
   const glasWrap = document.getElementById('rd-glaswrap-'+id);
   const isoWrap = document.getElementById('rd-isowrap-'+id);
+  const zonWrap = document.getElementById('rd-zonwrap-'+id);
   const glasLabel = document.getElementById('rd-glaslabel-'+id);
   if(raamVeldenWrap) raamVeldenWrap.style.display = (type==='deurmetraam') ? 'flex' : 'none';
-  if(glasWrap) glasWrap.style.display = (type==='deur') ? 'none' : 'flex';
+  if(glasWrap) glasWrap.style.display = (type==='deur' || type==='paneel') ? 'none' : 'flex';
+  if(zonWrap) zonWrap.style.display = (type==='deur' || type==='paneel') ? 'none' : 'flex';
+  if((type==='deur' || type==='paneel')){ const zc = document.getElementById('rd-zonwering-'+id); if(zc) zc.checked = false; }
   if(isoWrap) isoWrap.style.display = (type==='deur' || type==='deurmetraam') ? 'flex' : 'none';
   if(glasLabel) glasLabel.textContent = (type==='deurmetraam') ? 'Glastype raam-in-deur' : 'Glastype';
 }
@@ -3287,7 +3790,7 @@ if(rdStandaardGlasSel){
   rdStandaardGlasSel.addEventListener('input', rdStandaardGlasGewijzigd);
 }
 
-function voegRaamDeurToe(){
+function voegRaamDeurToe(kopieerVan){
   const id = volgendRaamDeurId++;
   const rd = {id, naam:'Element', glasHandmatig:false};
   ramenDeuren.push(rd);
@@ -3314,6 +3817,7 @@ function voegRaamDeurToe(){
         <select id="rd-type-${id}">
           <option value="raam">Raam</option>
           <option value="deur">Deur</option>
+          <option value="paneel">Paneel</option>
           <option value="deurmetraam">Deur met raam erin</option>
           <option value="dakraam">Dakraam (Velux e.d.)</option>
         </select>
@@ -3348,6 +3852,10 @@ function voegRaamDeurToe(){
         <label>Deur</label>
         <select id="rd-isolatie-${id}">${isoOptiesHtml}</select>
       </div>
+      <div class="field" id="rd-zonwrap-${id}" style="flex:0 0 130px; flex-direction:row; align-items:flex-end; gap:8px; padding-bottom:10px;">
+        <input type="checkbox" id="rd-zonwering-${id}" style="width:auto; margin:0;">
+        <label for="rd-zonwering-${id}" style="margin:0;">Zonwering</label>
+      </div>
     </div>
     <div class="row" id="rd-raamvelden-wrap-${id}" style="display:none;">
       <p class="hint" style="flex:0 0 100%;margin:0 0 4px;">Raam-in-deur: afmeting van het glazen deel. Deuroppervlakte = deurmaat − raamoppervlakte; het raam telt apart mee met zijn eigen glastype.</p>
@@ -3369,7 +3877,7 @@ function voegRaamDeurToe(){
 
   blok.querySelector('button[data-rdid]').addEventListener('click', ()=>verwijderRaamDeur(id));
   document.getElementById('rd-type-'+id).addEventListener('change', ()=>{ toggleRaamDeurVelden(id); onRamenDeurenWijziging(); });
-  ['rd-orientatie-','rd-verdieping-','rd-aantal-','rd-breedte-','rd-hoogte-','rd-isolatie-','rd-raambreedte-','rd-raamhoogte-'].forEach(pref=>{
+  ['rd-orientatie-','rd-verdieping-','rd-aantal-','rd-breedte-','rd-hoogte-','rd-isolatie-','rd-raambreedte-','rd-raamhoogte-','rd-zonwering-'].forEach(pref=>{
     const el = document.getElementById(pref+id);
     if(el){ el.addEventListener('input', onRamenDeurenWijziging); el.addEventListener('change', onRamenDeurenWijziging); }
   });
@@ -3377,6 +3885,19 @@ function voegRaamDeurToe(){
   const glasHandler = ()=>{ rd.glasHandmatig = (glasSel.value !== rdStandaardGlas()); onRamenDeurenWijziging(); };
   glasSel.addEventListener('input', glasHandler);
   glasSel.addEventListener('change', glasHandler);
+
+  // Nieuw element = kopie van het vorige (incl. type, gevel, verdieping, maten, glas, zonwering).
+  if(kopieerVan && kopieerVan.id){
+    ['type','verdieping','orientatie','aantal','breedte','hoogte','glastype','isolatie','raambreedte','raamhoogte'].forEach(v=>{
+      const van = document.getElementById('rd-'+v+'-'+kopieerVan.id);
+      const naar = document.getElementById('rd-'+v+'-'+id);
+      if(van && naar) naar.value = van.value;
+    });
+    const zonVan = document.getElementById('rd-zonwering-'+kopieerVan.id);
+    const zonNaar = document.getElementById('rd-zonwering-'+id);
+    if(zonVan && zonNaar) zonNaar.checked = zonVan.checked;
+    rd.glasHandmatig = !!kopieerVan.glasHandmatig;
+  }
 
   toggleRaamDeurVelden(id);
   renumberRamenDeuren();
@@ -3392,7 +3913,7 @@ function verwijderRaamDeur(id){
   renderRamenDeurenResultaten();
 }
 
-if(btnToevoegenRaamDeur) btnToevoegenRaamDeur.addEventListener('click', voegRaamDeurToe);
+if(btnToevoegenRaamDeur) btnToevoegenRaamDeur.addEventListener('click', ()=>voegRaamDeurToe(ramenDeuren[ramenDeuren.length-1]));
 
 function berekenRaamDeurData(rd){
   const type = document.getElementById('rd-type-'+rd.id)?.value || 'raam';
@@ -3404,12 +3925,13 @@ function berekenRaamDeurData(rd){
   const verdieping = document.getElementById('rd-verdieping-'+rd.id)?.value || 'bg';
   const glastype = document.getElementById('rd-glastype-'+rd.id)?.value || '';
   const isolatie = document.getElementById('rd-isolatie-'+rd.id)?.value || 'on';
+  const zonweringAan = !!document.getElementById('rd-zonwering-'+rd.id)?.checked;
 
   if(isNaN(breedte) || isNaN(hoogte) || breedte<=0 || hoogte<=0){
     return {id:rd.id, naam:rd.naam, type, geldig:false};
   }
 
-  let raamOppStuk = 0, deurOppStuk = 0, raamBreedte=null, raamHoogte=null;
+  let raamOppStuk = 0, deurOppStuk = 0, paneelOppStuk = 0, raamBreedte=null, raamHoogte=null;
   if(type === 'deurmetraam'){
     raamBreedte = parseFloat(String(document.getElementById('rd-raambreedte-'+rd.id)?.value).replace(',','.'));
     raamHoogte = parseFloat(String(document.getElementById('rd-raamhoogte-'+rd.id)?.value).replace(',','.'));
@@ -3418,6 +3940,8 @@ function berekenRaamDeurData(rd){
     deurOppStuk = Math.max(breedte*hoogte - raamOppStuk, 0);
   } else if(type === 'deur'){
     deurOppStuk = breedte*hoogte;
+  } else if(type === 'paneel'){
+    paneelOppStuk = breedte*hoogte;
   } else { // raam of dakraam
     raamOppStuk = breedte*hoogte;
   }
@@ -3428,9 +3952,10 @@ function berekenRaamDeurData(rd){
     id:rd.id, naam:rd.naam, type, breedte, hoogte, aantal, glastype, isolatie, verdieping,
     raamBreedte, raamHoogte,
     orientatieRaw, gevelKey,
-    raamOpp: raamOppStuk*aantal, deurOpp: deurOppStuk*aantal,
-    raamOppStuk, deurOppStuk,
-    oppStuk: (raamOppStuk+deurOppStuk), geldig:true
+    raamOpp: raamOppStuk*aantal, deurOpp: deurOppStuk*aantal, paneelOpp: paneelOppStuk*aantal,
+    raamOppStuk, deurOppStuk, paneelOppStuk,
+    zonwering: zonweringAan && raamOppStuk>0,
+    oppStuk: (raamOppStuk+deurOppStuk+paneelOppStuk), geldig:true
   };
 }
 
@@ -3483,7 +4008,8 @@ function rdItemRegels(d){
     const isDR = d.type==='deurmetraam';
     const formule = isDR ? `${aantalTxt}${n2l(d.raamBreedte)} × ${n2l(d.raamHoogte)}` : `${aantalTxt}${n2l(d.breedte)} × ${n2l(d.hoogte)}`;
     uit.push({soort:'raam', opp:d.raamOpp, glastype:d.glastype, gevelKey:d.gevelKey,
-      label:`${d.naam}${isDR?' — raam in deur':''} — ${orient}`, detail: rdGlasLabel(d.glastype), formule});
+      zonwering:d.zonwering,
+      label:`${d.naam}${isDR?' — raam in deur':''} — ${orient}`, detail: rdGlasLabel(d.glastype) + (d.zonwering ? ', met zonwering' : ''), formule});
   }
   if(d.deurOpp>0){
     const isDR = d.type==='deurmetraam';
@@ -3492,6 +4018,11 @@ function rdItemRegels(d){
       : `${aantalTxt}${n2l(d.breedte)} × ${n2l(d.hoogte)}`;
     uit.push({soort:'deur', opp:d.deurOpp, isolatie:d.isolatie, gevelKey:d.gevelKey,
       label:`${d.naam}${isDR?' — deurdeel':''} — ${orient}`, detail: RD_ISOLATIE_LABELS[d.isolatie] || d.isolatie, formule});
+  }
+  if(d.paneelOpp>0){
+    const n2 = x => (Math.round(x*100)/100).toFixed(2);
+    uit.push({soort:'paneel', opp:d.paneelOpp, gevelKey:d.gevelKey,
+      label:`${d.naam} — ${orient}`, detail:'Paneel', formule:`${aantalTxt}${n2(d.breedte)} × ${n2(d.hoogte)}`});
   }
   return uit;
 }
@@ -3506,6 +4037,8 @@ function renderRamenDeurenResultaten(){
     const delen = [];
     if(d.raamOpp>0) delen.push(`raam ${d.raamOpp.toFixed(2)} m²`);
     if(d.deurOpp>0) delen.push(`deur ${d.deurOpp.toFixed(2)} m²`);
+    if(d.paneelOpp>0) delen.push(`paneel ${d.paneelOpp.toFixed(2)} m²`);
+    if(d.zonwering) delen.push('met zonwering');
     el.textContent = `${delen.join(' + ')} — ${ramenDeurenOrientatieLabel(d.gevelKey)}, ${ramenDeurenVerdiepingLabel(d.verdieping)}${d.aantal>1 ? ' (×'+d.aantal+')' : ''}`;
   });
 
@@ -3522,15 +4055,15 @@ function renderRamenDeurenResultaten(){
       rdVerdiepingVolgorde().forEach(v=>{
         const sel = geldig.filter(d=>d.verdieping===v);
         if(!sel.length) return;
-        const raam = sel.reduce((s,d)=>s+d.raamOpp,0), deur = sel.reduce((s,d)=>s+d.deurOpp,0);
-        html += rij(ramenDeurenVerdiepingLabel(v), `raam ${raam.toFixed(2)} m² · deur ${deur.toFixed(2)} m²`);
+        const raam = sel.reduce((s,d)=>s+d.raamOpp,0), deur = sel.reduce((s,d)=>s+d.deurOpp,0), paneel = sel.reduce((s,d)=>s+d.paneelOpp,0);
+        html += rij(ramenDeurenVerdiepingLabel(v), `raam ${raam.toFixed(2)} m² · deur ${deur.toFixed(2)} m²` + (paneel>0 ? ` · paneel ${paneel.toFixed(2)} m²` : ''));
       });
       html += '</div><p class="hint" style="margin-top:12px;">Σ per oriëntatie:</p><div class="lines-list" style="max-height:none;">';
       ['VG','AG','LG','RG'].forEach(key=>{
         const sel = geldig.filter(d=>d.gevelKey===key);
         if(!sel.length) return;
-        const raam = sel.reduce((s,d)=>s+d.raamOpp,0), deur = sel.reduce((s,d)=>s+d.deurOpp,0);
-        html += rij(`${GEVEL_LABELS[key]} (${key})`, `raam ${raam.toFixed(2)} m² · deur ${deur.toFixed(2)} m²`);
+        const raam = sel.reduce((s,d)=>s+d.raamOpp,0), deur = sel.reduce((s,d)=>s+d.deurOpp,0), paneel = sel.reduce((s,d)=>s+d.paneelOpp,0);
+        html += rij(`${GEVEL_LABELS[key]} (${key})`, `raam ${raam.toFixed(2)} m² · deur ${deur.toFixed(2)} m²` + (paneel>0 ? ` · paneel ${paneel.toFixed(2)} m²` : ''));
       });
       html += '</div>';
       container.innerHTML = html;
@@ -3552,7 +4085,7 @@ function ramenDeurenSamenvattingRegels(regels){
   if(!data.length) return;
   const KL = 'gevel';
   const kop  = t => regels.push({kop:t, kleur:KL});
-  const item = (label, opp, detail, formule) => regels.push({soort:'item', label, opp, detail, formule, kleur:KL});
+  const item = (label, opp, detail, formule, kl) => regels.push({soort:'item', label, opp, detail, formule, kleur:kl||KL});
   const sub  = (label, opp) => regels.push({soort:'sub', label, opp, kleur:KL});
   const eind = (label, opp) => regels.push({soort:'eind', label, opp, kleur:KL});
   const std = rdStandaardGlas();
@@ -3566,7 +4099,7 @@ function ramenDeurenSamenvattingRegels(regels){
     if(!sel.length) return;
     let som = 0;
     sel.forEach(d=> rdItemRegels(d).forEach(r=>{
-      item(`${ramenDeurenVerdiepingLabel(v)}: ${r.label}`, r.opp, r.detail, r.formule);
+      item(`${ramenDeurenVerdiepingLabel(v)}: ${r.label}`, r.opp, r.detail, r.formule, r.soort==='deur' ? 'deur' : KL);
       som += r.opp;
     }));
     sub(`Σ ramen & deuren ${ramenDeurenVerdiepingLabel(v).toLowerCase()}`, som);
@@ -3581,14 +4114,18 @@ function ramenDeurenSamenvattingRegels(regels){
     if(!sel.length) return;
     const groepen = {};
     sel.forEach(d=> rdItemRegels(d).forEach(r=>{
-      const sleutel = r.soort==='raam' ? 'raam|'+(r.glastype||'') : 'deur|'+(r.isolatie||'on');
-      if(!groepen[sleutel]) groepen[sleutel] = {soort:r.soort, glastype:r.glastype, isolatie:r.isolatie, opp:0};
+      const sleutel = r.soort==='raam' ? 'raam|'+(r.glastype||'')+'|'+(r.zonwering?'zon':'')
+                    : r.soort==='paneel' ? 'paneel'
+                    : 'deur|'+(r.isolatie||'on');
+      if(!groepen[sleutel]) groepen[sleutel] = {soort:r.soort, glastype:r.glastype, isolatie:r.isolatie, zonwering:r.zonwering, opp:0};
       groepen[sleutel].opp += r.opp;
     }));
     let som = 0;
     Object.values(groepen).forEach(gr=>{
-      const naam = gr.soort==='raam' ? `Ramen ${rdGlasLabel(gr.glastype).toLowerCase()}` : `Deuren ${(RD_ISOLATIE_LABELS[gr.isolatie]||gr.isolatie).toLowerCase()}`;
-      item(`${GEVEL_LABELS[key]} (${key}): ${naam}`, gr.opp, '', '');
+      const naam = gr.soort==='raam' ? `Ramen ${rdGlasLabel(gr.glastype).toLowerCase()}${gr.zonwering ? ', met zonwering' : ''}`
+                 : gr.soort==='paneel' ? 'Panelen'
+                 : `Deuren ${(RD_ISOLATIE_LABELS[gr.isolatie]||gr.isolatie).toLowerCase()}`;
+      item(`${GEVEL_LABELS[key]} (${key}): ${naam}`, gr.opp, '', '', gr.soort==='deur' ? 'deur' : KL);
       som += gr.opp;
     });
     sub(`Σ ${GEVEL_LABELS[key]} (${key}) ramen & deuren`, som);
@@ -4346,6 +4883,194 @@ function tekenDwarsdoorsnede(m){
   return wrap;
 }
 
+// ============================================================
+// RAMEN & DEUREN IN DE GEVELAANZICHTEN (testversie)
+// Per gevel en per verdieping worden de elementen gelijk verdeeld over de breedte, met
+// minimaal 20 cm vanaf de linker- en rechterkant van het aanzicht. Elk element krijgt een
+// code (R1, D2, DR1, P1, DK1 — zelfde nummering als in de tabel) en zijn oppervlakte.
+// Past dat niet in het element zelf, dan loopt er een lijntje naar een label naast de gevel.
+// Alleen rect/line/text: die worden ook door svgNaarCanvas (PDF) getekend.
+// ============================================================
+const RD_RAND_M = 0.20;
+const RD_KLEUR = {
+  raamVul:'#dcecf7', raamLijn:'#2f6690',
+  deurVul:'#eadfd3', deurLijn:'#5c3a1e',
+  paneelVul:'#ececec', paneelLijn:'#6f6f6f'
+};
+function gevelCodeUitTitel(t){
+  const s = String(t||'');
+  return /^Voor/i.test(s) ? 'VG' : /^Achter/i.test(s) ? 'AG' : /^Linker/i.test(s) ? 'LG' : /^Rechter/i.test(s) ? 'RG' : null;
+}
+function rdCode(d){
+  const m = /(\d+)\s*$/.exec(d.naam||'');
+  const pre = ({deur:'D', deurmetraam:'DR', paneel:'P', dakraam:'DK'})[d.type] || 'R';
+  return pre + (m ? m[1] : '');
+}
+function rdKleuren(d){
+  if(d.type==='deur' || d.type==='deurmetraam') return {vul:RD_KLEUR.deurVul, lijn:RD_KLEUR.deurLijn};
+  if(d.type==='paneel') return {vul:RD_KLEUR.paneelVul, lijn:RD_KLEUR.paneelLijn};
+  return {vul:RD_KLEUR.raamVul, lijn:RD_KLEUR.raamLijn};
+}
+// Profiel van de gevel: hoogte links/rechts (goot), nok en de horizontale plek van de nok (m).
+// Daarmee kennen we per hoogte de beschikbare breedte (ook in een driehoek of schuin profiel).
+function rdBreedteOpHoogte(p, y){
+  let xl = 0, xr = p.breedte;
+  if(p.nok > p.hL && y > p.hL) xl = p.nokX * Math.min(1, (y - p.hL) / (p.nok - p.hL));
+  if(p.nok > p.hR && y > p.hR) xr = p.breedte - (p.breedte - p.nokX) * Math.min(1, (y - p.hR) / (p.nok - p.hR));
+  return {xl, xr};
+}
+// Verticale zone (m boven maaiveld) per verdieping op deze gevel, of null als die er niet is.
+function rdZone(p, verd){
+  const lv = [0].concat(verdiepingsvloerHoogtes());
+  const top = Math.min(p.hL, p.hR);
+  let k;
+  if(verd === 'bg') k = 0;
+  else if(verd === RD_VERDIEPING_ZOLDER) k = -1;
+  else { const i = extraVerdiepingen.findIndex(v=>'ev-'+v.id === verd); k = i>=0 ? i+1 : 0; }
+  if(k === -1){
+    // zolder/kap: in de driehoek of het dakvolak boven de goot; anders de bovenste bouwlaag
+    const hoog = p.zolderTot - top;
+    if(hoog > 0.4){
+      const van = top + 0.1, tot = top + hoog*0.65;
+      const b = rdBreedteOpHoogte(p, (van+tot)/2 + 0.2);
+      return {van, tot, xl:b.xl, xr:b.xr, zolder:true};
+    }
+    k = lv.length - 1;
+  }
+  const van = lv[k];
+  if(van == null || van >= top - 0.3) return null;
+  const tot = Math.min(k+1 < lv.length ? lv[k+1] : top, top);
+  return {van, tot, xl:0, xr:p.breedte};
+}
+// Plaatsing in meters (x vanaf de linkerkant van het aanzicht, y boven maaiveld).
+function rdPlanGevel(gevelCode, p){
+  if(!gevelCode || typeof alleRamenDeurenData !== 'function') return null;
+  const data = alleRamenDeurenData().filter(d=>d.geldig && d.gevelKey===gevelCode);
+  if(!data.length) return null;
+  const perVerd = {};
+  data.forEach(d=>{ (perVerd[d.verdieping] = perVerd[d.verdieping] || []).push(d); });
+  const stukken = [], los = [];
+  Object.keys(perVerd).forEach(v=>{
+    const z = rdZone(p, v);
+    if(!z){ perVerd[v].forEach(d=>los.push(d)); return; }
+    const lijst = [];
+    perVerd[v].forEach(d=>{ for(let i=0;i<d.aantal;i++) lijst.push({d, eerste:i===0}); });
+    const n = lijst.length, somB = lijst.reduce((s,o)=>s+o.d.breedte, 0);
+    const ruimte = z.xr - z.xl;
+    // gelijk verdelen: rand = tussenruimte, maar minimaal 20 cm vanaf de zijkant
+    let rand = (ruimte - somB)/(n+1), tussen = rand;
+    if(rand < RD_RAND_M){
+      rand = Math.min(RD_RAND_M, Math.max((ruimte - somB)/2, 0));
+      tussen = n>1 ? (ruimte - 2*rand - somB)/(n-1) : 0;
+    }
+    const bandH = z.tot - z.van;
+    let x = z.xl + rand;
+    lijst.forEach(o=>{
+      const d = o.d;
+      const h = Math.max(Math.min(d.hoogte, bandH - 0.05), 0.05);
+      let y;
+      if(z.zolder || d.type==='dakraam') y = z.van + Math.max((bandH - h)/2, 0);
+      else if(d.type==='deur' || d.type==='deurmetraam') y = z.van;
+      else {
+        const kop = z.van + Math.min(2.3, bandH - 0.25);   // bovenkant op dezelfde lijn als een deur
+        y = Math.max(z.van + 0.05, kop - h);
+        if(y + h > z.tot) y = Math.max(z.van, z.tot - h);
+      }
+      stukken.push({d, x, y, b:d.breedte, h, eerste:o.eerste, laatste:false, z, past: tussen >= 0});
+      x += d.breedte + tussen;
+    });
+    // het meest rechtse exemplaar van elk element krijgt het lijntje (kruist dan zijn eigen kopieën niet)
+    const gezien = new Set();
+    for(let i = stukken.length-1; i >= 0 && stukken[i].z === z; i--){
+      if(!gezien.has(stukken[i].d)){ gezien.add(stukken[i].d); stukken[i].laatste = true; }
+    }
+  });
+  return {stukken, los};
+}
+// Wat past er in het element zelf? 'een' (code + m² op één regel), 'twee' (twee regels), of 'zij'.
+function rdLabelKeuze(st){
+  const fs = tekstGrootte(), tw = t => t.length*fs*0.55 + fs*0.4;
+  const pw = st.b*SCALE, ph = st.h*SCALE;
+  const code = rdCode(st.d), opp = st.d.oppStuk.toFixed(2)+' m²';
+  if(pw >= tw(code+' '+opp) && ph >= fs*1.3) return 'een';
+  if(pw >= tw(opp) && ph >= fs*2.6) return 'twee';
+  return 'zij';
+}
+function rdZijLabels(plan){
+  if(!plan) return [];
+  const uit = [];
+  plan.stukken.forEach(st=>{ if(st.laatste && rdLabelKeuze(st)==='zij') uit.push({st}); });
+  plan.los.forEach(d=> uit.push({los:d}));
+  return uit;
+}
+function rdZijTekst(item){
+  const d = item.st ? item.st.d : item.los;
+  let t = `${rdCode(d)}: ${d.oppStuk.toFixed(2)} m²`;
+  if(d.aantal > 1) t += ` (×${d.aantal})`;
+  if(item.los) t += ' — niet getekend';
+  return t;
+}
+function rdExtraBreedte(plan){
+  const zij = rdZijLabels(plan);
+  if(!zij.length) return 0;
+  const fs = tekstGrootte();
+  return Math.max(...zij.map(z=> rdZijTekst(z).length*fs*0.55)) + fs*2.5;
+}
+function rdTekenPlan(svg, plan, x0, yBase, xLabels, yMin, yMax, xRand){
+  if(!plan) return;
+  const fs = tekstGrootte(), S = SCALE;
+  const tekst = (x, y, t, kleur, anchor) => {
+    svg.appendChild(svgEl('text', {x, y, 'text-anchor':anchor||'middle', 'font-size':fs, fill:kleur}));
+    svg.lastChild.textContent = t;
+  };
+  plan.stukken.forEach(st=>{
+    const d = st.d, k = rdKleuren(d);
+    const px = x0 + st.x*S, py = yBase - (st.y + st.h)*S, pw = st.b*S, ph = st.h*S;
+    st.px = px; st.py = py; st.pw = pw; st.ph = ph;
+    const lw = PRINT_MODE ? 0.25 : 1;
+    svg.appendChild(svgEl('rect', {x:px, y:py, width:pw, height:ph, fill:k.vul, stroke:k.lijn, 'stroke-width':lw}));
+    if(d.type==='deurmetraam' && d.raamBreedte>0 && d.raamHoogte>0){
+      const rb = Math.min(d.raamBreedte, d.breedte*0.9)*S, rh = Math.min(d.raamHoogte, st.h*0.85)*S;
+      svg.appendChild(svgEl('rect', {x:px+(pw-rb)/2, y:py+Math.min(ph*0.08, 0.15*S), width:rb, height:rh, fill:RD_KLEUR.raamVul, stroke:RD_KLEUR.raamLijn, 'stroke-width':lw*0.8}));
+    }
+    const code = rdCode(d), opp = d.oppStuk.toFixed(2)+' m²', keuze = rdLabelKeuze(st);
+    if(keuze === 'een') tekst(px+pw/2, py+ph/2+fs*0.35, code+' '+opp, k.lijn);
+    else if(keuze === 'twee'){ tekst(px+pw/2, py+ph/2-fs*0.25, code, k.lijn); tekst(px+pw/2, py+ph/2+fs*0.95, opp, k.lijn); }
+    else {
+      const past = pw >= code.length*fs*0.55 + fs*0.4 && ph >= fs*1.2;
+      if(past) tekst(px+pw/2, py+ph/2+fs*0.35, code, k.lijn);
+      else if(!st.laatste) tekst(px+pw/2, py - fs*0.3, code, k.lijn);   // het exemplaar met het lijntje heeft de code al in het label
+    }
+  });
+  // labels naast de gevel, van boven naar beneden, met een lijntje naar het element
+  const zij = rdZijLabels(plan).map(z=>{
+    const st = z.st;
+    return {z, doelY: st ? yBase - st.z.tot*S : yMax};
+  }).sort((a,b)=>a.doelY - b.doelY || (a.z.st && b.z.st ? b.z.st.px - a.z.st.px : 0));
+  // lijntje: omhoog vanaf de bovenkant van het element tot net onder de verdiepingsvloer,
+  // dan horizontaal naar de rand van de gevel en schuin naar het label (kruist zo geen andere elementen)
+  const perZone = new Map();
+  let cursor = yMin + fs;
+  xRand = xRand == null ? xLabels - fs : xRand;
+  zij.forEach(o=>{
+    const d = o.z.st ? o.z.st.d : o.z.los, k = rdKleuren(d);
+    if(o.z.st){
+      const st = o.z.st;
+      const nr = perZone.get(st.z) || 0; perZone.set(st.z, nr+1);
+      const ry = Math.min(o.doelY + 2 + nr*Math.max(fs*0.3, 1.5), st.py - 1);
+      const ly = Math.min(Math.max(ry + fs*0.35, cursor), yMax);
+      cursor = ly + fs*1.35;
+      const cx = st.px + st.pw/2;
+      svg.appendChild(svgEl('polyline', {points:`${cx},${st.py} ${cx},${ry} ${xRand},${ry} ${xLabels-3},${ly-fs*0.35}`, fill:'none', stroke:k.lijn, 'stroke-width':PRINT_MODE ? 0.18 : 0.6}));
+      tekst(xLabels, ly, rdZijTekst(o.z), k.lijn, 'start');
+    } else {
+      const ly = Math.min(Math.max(o.doelY, cursor), yMax);
+      cursor = ly + fs*1.35;
+      tekst(xLabels, ly, rdZijTekst(o.z), k.lijn, 'start');
+    }
+  });
+}
+
 function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellingshoek, dakvlakInfo, blokkage, weergaveGroepen, dakkapelLijst, dakkapelDataAlle, wolfseind, asymProfiel, asymSpiegelen){
   if(isNaN(breedte) || breedte<=0) return null;
   if(!asymProfiel && (gevelhoogte==null || isNaN(gevelhoogte))) return null;
@@ -4353,6 +5078,9 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
   weergaveGroepen = weergaveGroepen || {eigen:{links:[],geen:[],rechts:[]}, overloopLinks:[], overloopRechts:[]};
   const {wrap, canvasWrap} = tekeningBlok(titel);
   const heeftWolfseind = !!(wolfseind && wolfseind.afgeknot);
+  const rdGevel = gevelCodeUitTitel(titel);
+  let rdBezetPx = [];   // ramen/deuren in px (x vanaf gevel-links, y boven de voet), zodat het oppervlaktelabel ze ontwijkt
+  const rdBezetZet = plan => { rdBezetPx = plan ? plan.stukken.map(st=>({x0:st.x*SCALE, x1:(st.x+st.b)*SCALE, y0:st.y*SCALE, y1:(st.y+st.h)*SCALE})) : []; };
 
   const gap = 0.15*SCALE;
 
@@ -4380,7 +5108,8 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
     return best;
   }
   function botst(dx, hPx, lw){
-    return bezet.some(b=> b.h > hPx - fs && b.van < dx + lw/2 && b.tot > dx - lw/2);
+    return bezet.some(b=> b.h > hPx - fs && b.van < dx + lw/2 && b.tot > dx - lw/2)
+        || rdBezetPx.some(r=> r.x0 < dx + lw/2 && r.x1 > dx - lw/2 && r.y0 < hPx + fs*0.9 && r.y1 > hPx - fs*0.5);
   }
   // plek voor het oppervlaktelabel van de gevel zelf: {dx, h}
   const vloerNiveausPx = verdiepingsvloerHoogtes().map(n=>n*SCALE);
@@ -4388,7 +5117,7 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
   function hoofdLabelPlek(hMid, tekst, hMax){
     // tekstvarianten: volledig, dan kort (zonder toelichting)
     const varianten = [tekst, tekst.replace(/\s*\(.*\)\s*$/, '')];
-    const hoogtes = [hMid, hMid + fs*1.6, hMid - fs*1.6, hMid + fs*3, hMid - fs*3]
+    const hoogtes = [hMid, hMid + fs*1.6, hMid - fs*1.6, hMid + fs*3, hMid - fs*3, hMid + fs*4.5, hMid - fs*4.5, fs*1.5, hMax - fs*1.2]
       .filter(h=> h > fs*1.2 && h < hMax - fs*0.4 && !naastVloerlijn(h));
     if(!hoogtes.length) hoogtes.push(hMid);
     for(const t of varianten){
@@ -4429,7 +5158,9 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
     const w = dLinksPx + dRechtsPx;
     const hLinksPx = linksData.h*SCALE, hRechtsPx = rechtsData.h*SCALE, hNokPx = asymProfiel.h_nok*SCALE;
 
-    const viewW = w + extraLinks + extraRechts + 2*TK_MARGIN;
+    const rdPlan = rdPlanGevel(rdGevel, {breedte:w/SCALE, hL:linksData.h, hR:rechtsData.h, nok:asymProfiel.h_nok, nokX:linksData.d, zolderTot:asymProfiel.h_nok});
+    const rdExtra = rdExtraBreedte(rdPlan); rdBezetZet(rdPlan);
+    const viewW = w + extraLinks + extraRechts + 2*TK_MARGIN + rdExtra;
     const viewH = hNokPx + 2*TK_MARGIN + (PRINT_MODE?10:20);
     const svg = nieuweSvg(viewW, viewH);
     const x0 = TK_MARGIN + extraLinks, yBase = viewH-TK_MARGIN;
@@ -4455,6 +5186,7 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
       svg.lastChild.textContent = `${niveau.toFixed(2)} m`;
     });
 
+    rdTekenPlan(svg, rdPlan, x0, yBase, x0+w+extraRechts+7+fs*1.6, fs, viewH-4, x0+w+3);
     const eigenGroepen = weergaveGroepen.eigen || {links:[],geen:[],rechts:[]};
     const eigenHeeft = eigenGroepen.links.length || eigenGroepen.geen.length || eigenGroepen.rechts.length;
     if(eigenHeeft){
@@ -4505,7 +5237,9 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
   const totaalHoogte = gevelhoogte + driehoekHoogte + stippelHoogteM;
   const w = breedte*SCALE, hRect = gevelhoogte*SCALE, hTri = driehoekHoogte*SCALE, hStippel = stippelHoogteM*SCALE;
 
-  const viewW = w + extraLinks + extraRechts + 2*TK_MARGIN;
+  const rdPlan = rdPlanGevel(rdGevel, {breedte, hL:gevelhoogte, hR:gevelhoogte, nok: heeftDriehoek ? gevelhoogte+driehoekHoogte : gevelhoogte, nokX: breedte/2, zolderTot: gevelhoogte + (heeftDriehoek ? driehoekHoogte : stippelHoogteM)});
+  const rdExtra = rdExtraBreedte(rdPlan); rdBezetZet(rdPlan);
+  const viewW = w + extraLinks + extraRechts + 2*TK_MARGIN + rdExtra;
   const viewH = hRect + hTri + hStippel + 2*TK_MARGIN + (dakvlakInfo ? (PRINT_MODE?14:30) : 0) + (PRINT_MODE?10:20);
   const svg = nieuweSvg(viewW, viewH);
   const x0 = TK_MARGIN + extraLinks, yBase = viewH-TK_MARGIN, yEave = yBase-hRect, yTop = yEave-hTri-hStippel;
@@ -4548,6 +5282,9 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
     svg.appendChild(svgEl('text', {x:x0+vloerLabelDx(niveau*SCALE), y:yVloer-2.5, 'text-anchor':'start', 'font-size':tekstGrootte(), fill:'black'}));
     svg.lastChild.textContent = `${niveau.toFixed(2)} m`;
   });
+
+  // ramen & deuren in het aanzicht (met labels/lijntjes naast de gevel waar het niet past)
+  rdTekenPlan(svg, rdPlan, x0, yBase, x0+w+extraRechts+fs*1.5, fs, viewH-4, x0+w+3);
 
   // eigen uitbouwen: sluiten aan op deze gevel zelf, dus overlappend getekend binnen de eigen breedte
   const eigenGroepen = weergaveGroepen.eigen || {links:[],geen:[],rechts:[]};
@@ -4608,19 +5345,23 @@ function renderTekeningResultatenTabel(){
   const regels = samenvattingRegelsVerzamelen();
   if(!regels.length){ container.innerHTML=''; return; }
 
-  const knop = (getal) => getal==null ? '' :
-    `<button type="button" class="btn-copy" data-copy="${getal.toFixed(2)}">Kopieer</button>`;
+  const knop = (getal, r) => {
+    if(getal==null) return '';
+    const sleutel = (r && r.label ? String(r.label).replace(/<[^>]*>/g,'') : '') + '|' + getal.toFixed(2);
+    const gedaan = GEKOPIEERD.has(sleutel);
+    return `<button type="button" class="btn-copy${gedaan?' gedaan':''}" data-copy="${getal.toFixed(2)}" data-sleutel="${sleutel.replace(/"/g,'&quot;')}">${gedaan?'✓ gekopieerd':'Kopieer'}</button>`;
+  };
   const kleur = r => r.kleur ? `color:${KLEUR[r.kleur]};` : '';
   const formule = f => f ? `<div style="font-family:var(--mono);font-size:0.72rem;color:#8a8474;">= ${f}</div>` : '';
   let html = '<table class="resultaten-tabel"><thead><tr><th>Omschrijving</th><th style="text-align:right;">Waarde</th><th style="text-align:right;">Totaal</th><th>Eenheid</th><th></th></tr></thead><tbody>';
   regels.forEach(r=>{
     if(r.kop){ html += `<tr class="kop"><td colspan="5" style="${kleur(r)}">${r.kop}</td></tr>`; return; }
     if(r.soort === 'item'){
-      html += `<tr style="${kleur(r)}"><td>${r.label}${formule(r.formule)}</td><td class="waarde">${r.opp==null ? '—' : r.opp.toFixed(2)}</td><td></td><td>m²</td><td class="copy-cel">${knop(r.opp)}</td></tr>`;
+      html += `<tr style="${kleur(r)}"><td>${r.label}${formule(r.formule)}</td><td class="waarde">${r.opp==null ? '—' : r.opp.toFixed(2)}</td><td></td><td>m²</td><td class="copy-cel">${knop(r.opp, r)}</td></tr>`;
     } else if(r.soort === 'sub' || r.soort === 'eind'){
-      html += `<tr style="font-weight:700;${kleur(r)}background:${r.soort==='eind' ? '#e7e3d8' : '#f5f2ea'};"><td>${r.label}</td><td></td><td class="waarde">${r.opp==null ? '—' : r.opp.toFixed(2)}</td><td>m²</td><td class="copy-cel">${knop(r.opp)}</td></tr>`;
+      html += `<tr style="font-weight:700;${kleur(r)}background:${r.soort==='eind' ? '#e7e3d8' : '#f5f2ea'};"><td>${r.label}</td><td></td><td class="waarde">${r.opp==null ? '—' : r.opp.toFixed(2)}</td><td>m²</td><td class="copy-cel">${knop(r.opp, r)}</td></tr>`;
     } else if(r.getal != null){
-      html += `<tr style="${kleur(r)}"><td>${r.label}${r.tekst ? ` <span style="color:#8a8474;">(${r.tekst})</span>` : ''}${formule(r.formule)}</td><td class="waarde">${r.getal.toFixed(2)}</td><td></td><td>${r.eenheid}</td><td class="copy-cel">${knop(r.getal)}</td></tr>`;
+      html += `<tr style="${kleur(r)}"><td>${r.label}${r.tekst ? ` <span style="color:#8a8474;">(${r.tekst})</span>` : ''}${formule(r.formule)}</td><td class="waarde">${r.getal.toFixed(2)}</td><td></td><td>${r.eenheid}</td><td class="copy-cel">${knop(r.getal, r)}</td></tr>`;
     } else if(r.tekst){
       html += `<tr><td>${r.label}</td><td colspan="4" class="waarde">${r.tekst}</td></tr>`;
     } else {
@@ -4631,7 +5372,17 @@ function renderTekeningResultatenTabel(){
   container.innerHTML = html;
 
   container.querySelectorAll('.btn-copy').forEach(btn=>{
+    const rij = btn.closest('tr');
+    if(btn.classList.contains('gedaan') && rij) rij.classList.add('gekopieerd');
     btn.addEventListener('click', async ()=>{
+      const sleutel = btn.getAttribute('data-sleutel');
+      // tweede klik: terug naar de oude toestand
+      if(btn.classList.contains('gedaan')){
+        GEKOPIEERD.delete(sleutel);
+        btn.classList.remove('gedaan'); btn.textContent = 'Kopieer';
+        if(rij) rij.classList.remove('gekopieerd');
+        return;
+      }
       const tekst = btn.getAttribute('data-copy');
       try{
         await navigator.clipboard.writeText(tekst);
@@ -4643,10 +5394,10 @@ function renderTekeningResultatenTabel(){
         document.execCommand('copy');
         ta.remove();
       }
-      const oud = btn.textContent;
+      GEKOPIEERD.add(sleutel);
       btn.textContent = '✓ gekopieerd';
-      btn.classList.add('copied');
-      setTimeout(()=>{ btn.textContent = oud; btn.classList.remove('copied'); }, 1200);
+      btn.classList.add('gedaan');
+      if(rij) rij.classList.add('gekopieerd');
     });
   });
 }
@@ -4778,30 +5529,30 @@ function renderTekening(targetContainerId){
 
   const blokVoor = heeftAsymmetrisch
     ? (profielOpVoorAchter
-        ? tekenGevelaanzicht('Voorgevel (aanzicht)', m.voorAchterBreedte, null, false, null, null, blokkageVG, weergaveGroepenVoorGevel('VG'), [], dakkapelDataAlle, null, asymProfiel, false)
-        : tekenGevelaanzicht('Voorgevel (aanzicht)', m.voorAchterBreedte, cumGevelVoorM, false, null, dakvlakInfoVoor, blokkageVG, weergaveGroepenVoorGevel('VG'), dakkapellenPerGevel.VG, dakkapelDataAlle, null))
-    : tekenGevelaanzicht('Voorgevel (aanzicht)', m.voorAchterBreedte, m.hoogte, driehoekOpVoor, m.hellingshoek, dakvlakInfoVoor, blokkageVG, weergaveGroepenVoorGevel('VG'), dakkapellenPerGevel.VG, dakkapelDataAlle, driehoekOpVoor ? m.wolfseindA : null);
+        ? tekenGevelaanzicht(aanzichtTitel('VG'), m.voorAchterBreedte, null, false, null, null, blokkageVG, weergaveGroepenVoorGevel('VG'), [], dakkapelDataAlle, null, asymProfiel, false)
+        : tekenGevelaanzicht(aanzichtTitel('VG'), m.voorAchterBreedte, cumGevelVoorM, false, null, dakvlakInfoVoor, blokkageVG, weergaveGroepenVoorGevel('VG'), dakkapellenPerGevel.VG, dakkapelDataAlle, null))
+    : tekenGevelaanzicht(aanzichtTitel('VG'), m.voorAchterBreedte, m.hoogte, driehoekOpVoor, m.hellingshoek, dakvlakInfoVoor, blokkageVG, weergaveGroepenVoorGevel('VG'), dakkapellenPerGevel.VG, dakkapelDataAlle, driehoekOpVoor ? m.wolfseindA : null);
   if(blokVoor) container.appendChild(blokVoor);
 
   const blokAchter = heeftAsymmetrisch
     ? (profielOpVoorAchter
-        ? tekenGevelaanzicht('Achtergevel (aanzicht)', m.voorAchterBreedte, null, false, null, null, blokkageAG, weergaveGroepenVoorGevel('AG'), [], dakkapelDataAlle, null, asymProfiel, true)
-        : tekenGevelaanzicht('Achtergevel (aanzicht)', m.voorAchterBreedte, cumGevelAchterM, false, null, dakvlakInfoVoor, blokkageAG, weergaveGroepenVoorGevel('AG'), dakkapellenPerGevel.AG, dakkapelDataAlle, null))
-    : tekenGevelaanzicht('Achtergevel (aanzicht)', m.voorAchterBreedte, m.hoogte, driehoekOpVoor, m.hellingshoek, dakvlakInfoVoor, blokkageAG, weergaveGroepenVoorGevel('AG'), dakkapellenPerGevel.AG, dakkapelDataAlle, driehoekOpVoor ? m.wolfseindB : null);
+        ? tekenGevelaanzicht(aanzichtTitel('AG'), m.voorAchterBreedte, null, false, null, null, blokkageAG, weergaveGroepenVoorGevel('AG'), [], dakkapelDataAlle, null, asymProfiel, true)
+        : tekenGevelaanzicht(aanzichtTitel('AG'), m.voorAchterBreedte, cumGevelAchterM, false, null, dakvlakInfoVoor, blokkageAG, weergaveGroepenVoorGevel('AG'), dakkapellenPerGevel.AG, dakkapelDataAlle, null))
+    : tekenGevelaanzicht(aanzichtTitel('AG'), m.voorAchterBreedte, m.hoogte, driehoekOpVoor, m.hellingshoek, dakvlakInfoVoor, blokkageAG, weergaveGroepenVoorGevel('AG'), dakkapellenPerGevel.AG, dakkapelDataAlle, driehoekOpVoor ? m.wolfseindB : null);
   if(blokAchter) container.appendChild(blokAchter);
 
   const blokLinks = heeftAsymmetrisch
     ? (profielOpZij
-        ? tekenGevelaanzicht('Linkergevel (aanzicht)', m.diepte, null, false, null, null, blokkageLG, weergaveGroepenVoorGevel('LG'), [], dakkapelDataAlle, null, asymProfiel, true)
-        : tekenGevelaanzicht('Linkergevel (aanzicht)', m.diepte, cumGevelVoorM, false, null, dakvlakInfoZij, blokkageLG, weergaveGroepenVoorGevel('LG'), dakkapellenPerGevel.LG, dakkapelDataAlle, null))
-    : tekenGevelaanzicht('Linkergevel (aanzicht)', m.diepte, m.hoogte, driehoekOpZij, m.hellingshoek, dakvlakInfoZij, blokkageLG, weergaveGroepenVoorGevel('LG'), dakkapellenPerGevel.LG, dakkapelDataAlle, driehoekOpZij ? m.wolfseindA : null);
+        ? tekenGevelaanzicht(aanzichtTitel('LG'), m.diepte, null, false, null, null, blokkageLG, weergaveGroepenVoorGevel('LG'), [], dakkapelDataAlle, null, asymProfiel, true)
+        : tekenGevelaanzicht(aanzichtTitel('LG'), m.diepte, cumGevelVoorM, false, null, dakvlakInfoZij, blokkageLG, weergaveGroepenVoorGevel('LG'), dakkapellenPerGevel.LG, dakkapelDataAlle, null))
+    : tekenGevelaanzicht(aanzichtTitel('LG'), m.diepte, m.hoogte, driehoekOpZij, m.hellingshoek, dakvlakInfoZij, blokkageLG, weergaveGroepenVoorGevel('LG'), dakkapellenPerGevel.LG, dakkapelDataAlle, driehoekOpZij ? m.wolfseindA : null);
   if(blokLinks) container.appendChild(blokLinks);
 
   const blokRechts = heeftAsymmetrisch
     ? (profielOpZij
-        ? tekenGevelaanzicht('Rechtergevel (aanzicht)', m.diepte, null, false, null, null, blokkageRG, weergaveGroepenVoorGevel('RG'), [], dakkapelDataAlle, null, asymProfiel, false)
-        : tekenGevelaanzicht('Rechtergevel (aanzicht)', m.diepte, cumGevelAchterM, false, null, dakvlakInfoZij, blokkageRG, weergaveGroepenVoorGevel('RG'), dakkapellenPerGevel.RG, dakkapelDataAlle, null))
-    : tekenGevelaanzicht('Rechtergevel (aanzicht)', m.diepte, m.hoogte, driehoekOpZij, m.hellingshoek, dakvlakInfoZij, blokkageRG, weergaveGroepenVoorGevel('RG'), dakkapellenPerGevel.RG, dakkapelDataAlle, driehoekOpZij ? m.wolfseindB : null);
+        ? tekenGevelaanzicht(aanzichtTitel('RG'), m.diepte, null, false, null, null, blokkageRG, weergaveGroepenVoorGevel('RG'), [], dakkapelDataAlle, null, asymProfiel, false)
+        : tekenGevelaanzicht(aanzichtTitel('RG'), m.diepte, cumGevelAchterM, false, null, dakvlakInfoZij, blokkageRG, weergaveGroepenVoorGevel('RG'), dakkapellenPerGevel.RG, dakkapelDataAlle, null))
+    : tekenGevelaanzicht(aanzichtTitel('RG'), m.diepte, m.hoogte, driehoekOpZij, m.hellingshoek, dakvlakInfoZij, blokkageRG, weergaveGroepenVoorGevel('RG'), dakkapellenPerGevel.RG, dakkapelDataAlle, driehoekOpZij ? m.wolfseindB : null);
   if(blokRechts) container.appendChild(blokRechts);
 
   // Dwarsdoorsnede (alle daktypes); de langsdoorsnede alleen bij een wolfseind, omdat die
@@ -4925,6 +5676,22 @@ function samenvattingRegelsVerzamelen(){
   const getalVeld = id => veldGetal(id);
   const daktype = huidigDaktype();
 
+  // ---------- Project (NAW + opdrachtgever, uit de Nieuwe-Projectmap-app) ----------
+  // Bewust géén prijs, e-mail of telefoon: deze PDF/Excel kan naar derden.
+  const pg = projectGegevens();
+  const schoon = t => String(t || '').replace(/[<>]/g, '').trim();
+  if(pg && (pg.adres || pg.naamOpdrachtgever || pg.orientatie)){
+    kop('Project');
+    if(pg.adres) info('Adres woning', null, '', schoon(pg.adres));
+    if(pg.naamOpdrachtgever) info('Opdrachtgever', null, '', schoon(pg.naamOpdrachtgever));
+    ['VG','AG','LG','RG'].forEach(code=>{
+      if(gevelOrientatie(code)) info(`Oriëntatie ${GEVEL_NAAM[code].toLowerCase()}`, null, '', gevelCodeMetOrient(code));
+    });
+  } else if(actiefProjectNaam()){
+    kop('Project');
+    info('Project', null, '', schoon(actiefProjectNaam()));
+  }
+
   // ---------- Woonoppervlakte per bouwlaag ----------
   kop('Woonoppervlakte per bouwlaag', 'vloer');
   R.woon.vloeren.forEach(v=>{
@@ -5004,7 +5771,7 @@ function samenvattingRegelsVerzamelen(){
   kop('Schil — gevels per oriëntatie', 'gevel');
   ['VG','AG','LG','RG'].forEach(code=>{
     S.regels.filter(r=>r.groep==='gevel' && r.orient===code).forEach(r=> item(r.label, r.opp, r.detail, r.formule, 'gevel'));
-    sub(`Σ ${GEVEL_NAAM[code]} (${code})`, S.perOrient[code], 'gevel');
+    sub(`Σ ${GEVEL_NAAM[code]} (${gevelCodeMetOrient(code)})`, S.perOrient[code], 'gevel');
   });
   eind('Totaal gevels', S.totalen.gevel, 'gevel');
   [['vloer','Schil — vloeren (grond / kruipruimte)','Totaal vloeren'],
@@ -5402,11 +6169,37 @@ async function exporteerPDF(opties = {}){
     }
     const items = [];
     const mislukt = [];
+    // Projectblok (kaartje met oriëntatie + kerngegevens), vooraan: cat 0
+    try {
+      const pgK = projectGegevens();
+      if (gekozenKaart && !vastProject()) {
+        const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = gekozenKaart; });
+        const wMm = 85, hMm = wMm * img.height / img.width;
+        const regels = [];
+        const schoonK = t => String(t || '').replace(/[<>]/g, '').trim();
+        if (pgK && pgK.adres) regels.push(schoonK(pgK.adres));
+        const kern = [];
+        if (pgK && pgK.bouwjaar) kern.push('bouwjaar ' + schoonK(pgK.bouwjaar));
+        if (pgK && pgK.oppervlakte) kern.push(schoonK(pgK.oppervlakte) + ' m² (BAG)');
+        if (pgK && pgK.gebruiksdoel) kern.push(schoonK(pgK.gebruiksdoel));
+        if (kern.length) regels.push(kern.join(' · '));
+        const tekstH = regels.length ? 4 + regels.length * 3.6 : 0;
+        const c = document.createElement('canvas');
+        c.width = Math.round(wMm * PX); c.height = Math.round((hMm + tekstH) * PX);
+        const cx = c.getContext('2d');
+        cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height);
+        cx.drawImage(img, 0, 0, c.width, Math.round(hMm * PX));
+        cx.strokeStyle = '#c7c7cc'; cx.lineWidth = 1; cx.strokeRect(0.5, 0.5, c.width - 1, Math.round(hMm * PX) - 1);
+        cx.fillStyle = '#1c1c1e'; cx.textBaseline = 'top';
+        regels.forEach((t, i) => { cx.font = (i === 0 ? '600 ' : '400 ') + Math.round(2.9 * PX) + 'px sans-serif'; cx.fillText(t, 0, Math.round((hMm + 1.5 + i * 3.6) * PX)); });
+        items.push({titel: 'Ligging en oriëntatie', cat: 0, canvas: c, wMm: wMm, hMm: hMm + tekstH});
+      }
+    } catch (kaartFout) { console.error('Kaartje niet in PDF gezet:', kaartFout); }
     for(const blok of blokken){
       const svg = blok.querySelector('svg');
       if(!svg) continue;
       const titel = blok.querySelector('div').textContent;
-      const cat = /plattegrond/i.test(titel) ? 0 : /doorsnede/i.test(titel) ? 2 : 1;
+      const cat = /plattegrond/i.test(titel) ? 1 : /doorsnede/i.test(titel) ? 3 : 2;
       try{
         const r = await svgNaarCanvas(svg, PX);
         const c = bijsnijden(r.canvas);
@@ -5424,6 +6217,7 @@ async function exporteerPDF(opties = {}){
     // Een categorie blijft bij elkaar: past hij niet meer op de rest van de pagina,
     // dan begint hij op een nieuwe pagina. Volgorde binnen een categorie = tekenvolgorde.
     const CATS = [
+      {naam:'Project', kleur:[90,90,90]},
       {naam:'Plattegronden — horizontale vlakken', kleur:KLEUR_RGB.vloer},
       {naam:'Gevelaanzichten — verticale vlakken', kleur:KLEUR_RGB.gevel},
       {naam:'Doorsnede', kleur:KLEUR_RGB.dak}
@@ -5532,6 +6326,8 @@ async function exporteerPDF(opties = {}){
     };
 
     wisIosBestanden();
+    let pdfRec = null;
+    if (!opties.doelMap) pdfRec = await bewaarExportKopie(blob, pdfNaam, 'application/pdf');
 
     // 1. Zelf een map aangewezen? Dan gaat alles daarheen en zijn we klaar.
     if (opties.doelMap) {
@@ -5547,12 +6343,18 @@ async function exporteerPDF(opties = {}){
         try {
           await uploadPdfNaarProjectmap(blob);
           pdfStaatGoed = true;
+          await zetExportStatus(pdfRec, 'ok');
           meldingen.push(`📁 PDF opgeslagen in 020 AANTEKENINGEN van "${actiefProjectNaam()}"`);
         } catch(uploadErr){
+          await zetExportStatus(pdfRec, 'mislukt', uploadErr && uploadErr.message ? uploadErr.message : String(uploadErr));
           meldingen.push(`⚠️ projectmap mislukt: ${uploadErr.message}`);
+          controleerOneDrive(); // balk bovenin meteen bijwerken met de juiste knop
         }
       } else if (projectGekoppeld()) {
+        await zetExportStatus(pdfRec, 'offline');
         meldingen.push('📵 geen internet — nog niet in de projectmap');
+      } else {
+        await zetExportStatus(pdfRec, 'geenproject');
       }
       toonStatus();
 
@@ -5598,7 +6400,8 @@ async function exporteerPDF(opties = {}){
         toonStatus('⏳ uploaden naar OneDrive…');
         try {
           await odUpload(blob, pdfNaam, keuze.id);
-          if (excel) await odUpload(excel.blob, excel.bestandsnaam, keuze.id);
+          await zetExportStatus(pdfRec, 'ok');
+          if (excel) { await odUpload(excel.blob, excel.bestandsnaam, keuze.id); await zetExportStatus(excel.rec, 'ok'); }
           meldingen.push(`☁️ ook opgeslagen in ${keuze.pad}`);
         } catch(odErr) {
           meldingen.push(`⚠️ OneDrive-upload mislukt: ${odErr.message}`);
@@ -5606,6 +6409,7 @@ async function exporteerPDF(opties = {}){
         toonStatus();
       }
     }
+    if (!opties.doelMap) { await toonLaatstGemaakt(); toonExportBanner([pdfRec, excel && excel.rec]); }
   } catch(err){
     console.error(err);
     const melding = (err && err.message) ? err.message : String(err);
@@ -5641,7 +6445,16 @@ mapKnop.addEventListener('click', async () => {
 
 // Eerder gekozen project weer oppakken (werkt ook zonder internet).
 gekozenProject = laadGekozenProject();
+pgUitCache();
 initProjectBanner();
+toonLaatstGemaakt();
+
+// OneDrive-status: eerst een eventuele inlog afronden, daarna de balk bovenin vullen.
+// Daarna opnieuw controleren bij internet terug / terug naar deze tab.
+verwerkLoginCallback().catch(() => {}).then(() => controleerOneDrive()).then(() => laadProjectGegevens()).then(() => initProjectBanner());
+window.addEventListener('online', () => { controleerOneDrive(); laadProjectGegevens().then(() => initProjectBanner()); });
+window.addEventListener('offline', () => controleerOneDrive());
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') controleerOneDrive(); });
 
 // ============================================================
 // EXCEL EXPORT / IMPORT — werkblad 1 "Output" (berekend),
@@ -5760,6 +6573,7 @@ function verzamelInvoerData(){
     push('RaamDeur', i+1, 'isolatie', veldWaarde('rd-isolatie-'+rd.id));
     push('RaamDeur', i+1, 'raambreedte', veldWaarde('rd-raambreedte-'+rd.id));
     push('RaamDeur', i+1, 'raamhoogte', veldWaarde('rd-raamhoogte-'+rd.id));
+    push('RaamDeur', i+1, 'zonwering', document.getElementById('rd-zonwering-'+rd.id)?.checked ? '1' : '0');
   });
 
   return rows;
@@ -5903,6 +6717,8 @@ function vulInvoerDataIn(rows){
       veldZetten('rd-isolatie-'+rd.id, g.velden.isolatie || 'on');
       veldZetten('rd-raambreedte-'+rd.id, g.velden.raambreedte);
       veldZetten('rd-raamhoogte-'+rd.id, g.velden.raamhoogte);
+      const zwCb = document.getElementById('rd-zonwering-'+rd.id);
+      if(zwCb) zwCb.checked = isEen(g.velden.zonwering);
       toggleRaamDeurVelden(rd.id);
     });
     verversRamenDeurenOpties();
@@ -6156,30 +6972,28 @@ async function exporteerExcel(opties = {}){
     return { blob, bestandsnaam, inProjectmap:false };
   }
 
-  // Net als bij de PDF: eerst naar de projectmap, daarna pas een lokale kopie.
-  let inProjectmap = false;
-  if (projectGekoppeld() && navigator.onLine) {
-    try {
-      await uploadBestandNaarProjectmap(blob, bestandsnaam);
-      inProjectmap = true;
-    } catch(_) { /* niet fataal — hieronder komt sowieso een lokale kopie */ }
-  }
+  // Eerst een kopie in de browser (vangnet), dan naar de projectmap, daarna een lokale kopie.
+  const rec = await bewaarExportKopie(blob, bestandsnaam, MIME);
+  await probeerUploadMetVangnet(rec);
+  const inProjectmap = rec.status === 'ok';
 
   if (!isIOS()) {
     downloadNaarBrowser(blob, bestandsnaam, MIME);
   } else {
     zetIosBestandKlaar(blob, bestandsnaam, MIME, inProjectmap);
   }
-  return { blob, bestandsnaam, inProjectmap };
+  return { blob, bestandsnaam, inProjectmap, rec };
 }
 
 document.getElementById('btn-tekening-excel').addEventListener('click', ()=>{
   wisIosBestanden();
   document.getElementById('upload-status').textContent = '';
-  exporteerExcel().then(r=>{
+  exporteerExcel().then(async r=>{
     document.getElementById('upload-status').textContent = r.inProjectmap
       ? `📁 Excel opgeslagen in 020 AANTEKENINGEN van "${actiefProjectNaam()}"`
       : `📊 Excel gemaakt: "${r.bestandsnaam}"`;
+    await toonLaatstGemaakt();
+    toonExportBanner([r.rec]);
   }).catch(err=>{
     console.error(err);
     alert('Excel maken mislukt: ' + (err && err.message ? err.message : err));
@@ -6207,7 +7021,7 @@ excelInput.addEventListener('change', e=>{
 // daarna op het .xlsx-bestand tikken.
 document.getElementById('btn-excel-onedrive').addEventListener('click', async ()=>{
   if(!(await onedriveBeschikbaar())){
-    alert('Geen verbinding met OneDrive.\n\nDat kan twee dingen betekenen: je hebt nu geen internet, of je bent op dit apparaat/deze browser nog niet ingelogd via de Projectmap-app.\n\nJe kunt altijd een Excel-bestand hierboven naar het sleepvak slepen — dat werkt ook offline.');
+    alert('Geen verbinding met OneDrive.\n\nDat kan twee dingen betekenen: je hebt nu geen internet, of je bent niet (meer) ingelogd — tik dan bovenaan op "Inloggen".\n\nJe kunt altijd een Excel-bestand hierboven naar het sleepvak slepen — dat werkt ook offline.');
     return;
   }
   const keuze = await kiesOnedrive({
