@@ -230,6 +230,9 @@
     color:white;
     border-color:var(--accent);
   }
+  /* Gekopieerde regel: doorgestreept en grijs; nog eens op de knop = terug */
+  .resultaten-tabel tr.gekopieerd td:not(.copy-cel){ text-decoration:line-through; opacity:.45; }
+  .btn-copy.gedaan{ background:#e7e3d8; color:#9a9383; border-color:#d8d2c4; }
 
   @media (max-width: 480px){
     body{ padding:10px; font-size:0.95rem; }
@@ -2483,8 +2486,10 @@ function berekenAlles(){
 // ---------- Resultaat op het scherm ----------
 // ---------- Kleuren: vloeren/woonoppervlak zwart, gevels groen, daken rood ----------
 // Zelfde kleuren in tekeningen (PDF), resultaten op het scherm en de Excel.
-const KLEUR = {vloer:'#1d1d1d', gevel:'#1a7f37', dak:'#c0392b'};
-const KLEUR_RGB = {vloer:[29,29,29], gevel:[26,127,55], dak:[192,57,43]};
+// Welke regels in de tabel al gekopieerd zijn (blijft staan zolang de pagina open is; verandert een waarde, dan telt de regel weer als nieuw)
+const GEKOPIEERD = new Set();
+const KLEUR = {vloer:'#1d1d1d', gevel:'#1a7f37', dak:'#c0392b', deur:'#5c3a1e'};
+const KLEUR_RGB = {vloer:[29,29,29], gevel:[26,127,55], dak:[192,57,43], deur:[92,58,30]};
 function kleurGroep(groep){ return groep==='gevel' ? 'gevel' : (groep==='schuin' || groep==='plat' || groep==='dak') ? 'dak' : 'vloer'; }
 
 function fm(x){ return (x==null || isNaN(x)) ? '—' : x.toFixed(2); }
@@ -4080,7 +4085,7 @@ function ramenDeurenSamenvattingRegels(regels){
   if(!data.length) return;
   const KL = 'gevel';
   const kop  = t => regels.push({kop:t, kleur:KL});
-  const item = (label, opp, detail, formule) => regels.push({soort:'item', label, opp, detail, formule, kleur:KL});
+  const item = (label, opp, detail, formule, kl) => regels.push({soort:'item', label, opp, detail, formule, kleur:kl||KL});
   const sub  = (label, opp) => regels.push({soort:'sub', label, opp, kleur:KL});
   const eind = (label, opp) => regels.push({soort:'eind', label, opp, kleur:KL});
   const std = rdStandaardGlas();
@@ -4094,7 +4099,7 @@ function ramenDeurenSamenvattingRegels(regels){
     if(!sel.length) return;
     let som = 0;
     sel.forEach(d=> rdItemRegels(d).forEach(r=>{
-      item(`${ramenDeurenVerdiepingLabel(v)}: ${r.label}`, r.opp, r.detail, r.formule);
+      item(`${ramenDeurenVerdiepingLabel(v)}: ${r.label}`, r.opp, r.detail, r.formule, r.soort==='deur' ? 'deur' : KL);
       som += r.opp;
     }));
     sub(`Σ ramen & deuren ${ramenDeurenVerdiepingLabel(v).toLowerCase()}`, som);
@@ -4120,7 +4125,7 @@ function ramenDeurenSamenvattingRegels(regels){
       const naam = gr.soort==='raam' ? `Ramen ${rdGlasLabel(gr.glastype).toLowerCase()}${gr.zonwering ? ', met zonwering' : ''}`
                  : gr.soort==='paneel' ? 'Panelen'
                  : `Deuren ${(RD_ISOLATIE_LABELS[gr.isolatie]||gr.isolatie).toLowerCase()}`;
-      item(`${GEVEL_LABELS[key]} (${key}): ${naam}`, gr.opp, '', '');
+      item(`${GEVEL_LABELS[key]} (${key}): ${naam}`, gr.opp, '', '', gr.soort==='deur' ? 'deur' : KL);
       som += gr.opp;
     });
     sub(`Σ ${GEVEL_LABELS[key]} (${key}) ramen & deuren`, som);
@@ -5140,19 +5145,23 @@ function renderTekeningResultatenTabel(){
   const regels = samenvattingRegelsVerzamelen();
   if(!regels.length){ container.innerHTML=''; return; }
 
-  const knop = (getal) => getal==null ? '' :
-    `<button type="button" class="btn-copy" data-copy="${getal.toFixed(2)}">Kopieer</button>`;
+  const knop = (getal, r) => {
+    if(getal==null) return '';
+    const sleutel = (r && r.label ? String(r.label).replace(/<[^>]*>/g,'') : '') + '|' + getal.toFixed(2);
+    const gedaan = GEKOPIEERD.has(sleutel);
+    return `<button type="button" class="btn-copy${gedaan?' gedaan':''}" data-copy="${getal.toFixed(2)}" data-sleutel="${sleutel.replace(/"/g,'&quot;')}">${gedaan?'✓ gekopieerd':'Kopieer'}</button>`;
+  };
   const kleur = r => r.kleur ? `color:${KLEUR[r.kleur]};` : '';
   const formule = f => f ? `<div style="font-family:var(--mono);font-size:0.72rem;color:#8a8474;">= ${f}</div>` : '';
   let html = '<table class="resultaten-tabel"><thead><tr><th>Omschrijving</th><th style="text-align:right;">Waarde</th><th style="text-align:right;">Totaal</th><th>Eenheid</th><th></th></tr></thead><tbody>';
   regels.forEach(r=>{
     if(r.kop){ html += `<tr class="kop"><td colspan="5" style="${kleur(r)}">${r.kop}</td></tr>`; return; }
     if(r.soort === 'item'){
-      html += `<tr style="${kleur(r)}"><td>${r.label}${formule(r.formule)}</td><td class="waarde">${r.opp==null ? '—' : r.opp.toFixed(2)}</td><td></td><td>m²</td><td class="copy-cel">${knop(r.opp)}</td></tr>`;
+      html += `<tr style="${kleur(r)}"><td>${r.label}${formule(r.formule)}</td><td class="waarde">${r.opp==null ? '—' : r.opp.toFixed(2)}</td><td></td><td>m²</td><td class="copy-cel">${knop(r.opp, r)}</td></tr>`;
     } else if(r.soort === 'sub' || r.soort === 'eind'){
-      html += `<tr style="font-weight:700;${kleur(r)}background:${r.soort==='eind' ? '#e7e3d8' : '#f5f2ea'};"><td>${r.label}</td><td></td><td class="waarde">${r.opp==null ? '—' : r.opp.toFixed(2)}</td><td>m²</td><td class="copy-cel">${knop(r.opp)}</td></tr>`;
+      html += `<tr style="font-weight:700;${kleur(r)}background:${r.soort==='eind' ? '#e7e3d8' : '#f5f2ea'};"><td>${r.label}</td><td></td><td class="waarde">${r.opp==null ? '—' : r.opp.toFixed(2)}</td><td>m²</td><td class="copy-cel">${knop(r.opp, r)}</td></tr>`;
     } else if(r.getal != null){
-      html += `<tr style="${kleur(r)}"><td>${r.label}${r.tekst ? ` <span style="color:#8a8474;">(${r.tekst})</span>` : ''}${formule(r.formule)}</td><td class="waarde">${r.getal.toFixed(2)}</td><td></td><td>${r.eenheid}</td><td class="copy-cel">${knop(r.getal)}</td></tr>`;
+      html += `<tr style="${kleur(r)}"><td>${r.label}${r.tekst ? ` <span style="color:#8a8474;">(${r.tekst})</span>` : ''}${formule(r.formule)}</td><td class="waarde">${r.getal.toFixed(2)}</td><td></td><td>${r.eenheid}</td><td class="copy-cel">${knop(r.getal, r)}</td></tr>`;
     } else if(r.tekst){
       html += `<tr><td>${r.label}</td><td colspan="4" class="waarde">${r.tekst}</td></tr>`;
     } else {
@@ -5163,7 +5172,17 @@ function renderTekeningResultatenTabel(){
   container.innerHTML = html;
 
   container.querySelectorAll('.btn-copy').forEach(btn=>{
+    const rij = btn.closest('tr');
+    if(btn.classList.contains('gedaan') && rij) rij.classList.add('gekopieerd');
     btn.addEventListener('click', async ()=>{
+      const sleutel = btn.getAttribute('data-sleutel');
+      // tweede klik: terug naar de oude toestand
+      if(btn.classList.contains('gedaan')){
+        GEKOPIEERD.delete(sleutel);
+        btn.classList.remove('gedaan'); btn.textContent = 'Kopieer';
+        if(rij) rij.classList.remove('gekopieerd');
+        return;
+      }
       const tekst = btn.getAttribute('data-copy');
       try{
         await navigator.clipboard.writeText(tekst);
@@ -5175,10 +5194,10 @@ function renderTekeningResultatenTabel(){
         document.execCommand('copy');
         ta.remove();
       }
-      const oud = btn.textContent;
+      GEKOPIEERD.add(sleutel);
       btn.textContent = '✓ gekopieerd';
-      btn.classList.add('copied');
-      setTimeout(()=>{ btn.textContent = oud; btn.classList.remove('copied'); }, 1200);
+      btn.classList.add('gedaan');
+      if(rij) rij.classList.add('gekopieerd');
     });
   });
 }
