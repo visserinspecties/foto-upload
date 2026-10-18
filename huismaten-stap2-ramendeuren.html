@@ -3938,7 +3938,8 @@ function berekenRaamDeurData(rd){
   const aantal = (!isNaN(aantalRaw) && aantalRaw>0) ? aantalRaw : 1;
   const orientatieRaw = document.getElementById('rd-orientatie-'+rd.id)?.value || 'VG';
   const verdieping = document.getElementById('rd-verdieping-'+rd.id)?.value || 'bg';
-  const glastype = document.getElementById('rd-glastype-'+rd.id)?.value || '';
+  // Geen glastype bij dit raam gekozen? Dan geldt het standaard glastype bovenin.
+  const glastype = document.getElementById('rd-glastype-'+rd.id)?.value || rdStandaardGlas() || '';
   const isolatie = document.getElementById('rd-isolatie-'+rd.id)?.value || 'on';
   const zonweringAan = !!document.getElementById('rd-zonwering-'+rd.id)?.checked;
 
