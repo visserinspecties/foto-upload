@@ -342,6 +342,11 @@
   </div>
   <p class="hint">Vaste schaal 1:100 — zwart-wit lijntekening</p>
   <div id="tekening-resultaten-tabel"></div>
+  <div class="btn-row" style="margin:12px 0 4px;align-items:center;">
+    <button class="btn-primary" id="btn-controle-pdf">✓ Afronden: controle-PDF naar projectmap</button>
+    <span class="hint" style="margin:0;">Legt vast wat je hebt gekopieerd (✓) en wat niet is meegenomen — met datum en tijd. Excel gaat mee.</span>
+  </div>
+  <div id="controle-status" style="font-size:12px; margin:0 0 14px;"></div>
   <div id="tekening-container"></div>
 </div>
 
@@ -2529,7 +2534,24 @@ function berekenAlles(){
 // ---------- Kleuren: vloeren/woonoppervlak zwart, gevels groen, daken rood ----------
 // Zelfde kleuren in tekeningen (PDF), resultaten op het scherm en de Excel.
 // Welke regels in de tabel al gekopieerd zijn (blijft staan zolang de pagina open is; verandert een waarde, dan telt de regel weer als nieuw)
-const GEKOPIEERD = new Set();
+const GEKOPIEERD = new Map();   // sleutel (label|waarde) -> tijdstip (ISO) van kopiëren
+// Sleutel van een regel met een kopieerbare waarde (zelfde in tabel, PDF en Excel)
+function kopieerWaarde(r){
+  if(!r || r.kop || r.uit) return null;
+  if(r.soort === 'item' || r.soort === 'sub' || r.soort === 'eind') return r.opp==null ? null : r.opp;
+  return r.getal==null ? null : r.getal;
+}
+function kopieerSleutel(r, getal){
+  const g = getal!=null ? getal : kopieerWaarde(r);
+  if(g==null) return null;
+  return (r && r.label ? String(r.label).replace(/<[^>]*>/g,'') : '') + '|' + g.toFixed(2);
+}
+function tijdNL(iso){
+  const d = iso ? new Date(iso) : new Date();
+  const z = n => String(n).padStart(2,'0');
+  return `${z(d.getDate())}-${z(d.getMonth()+1)}-${d.getFullYear()} ${z(d.getHours())}:${z(d.getMinutes())}`;
+}
+let PDF_CONTROLE = null;   // bij een controle-PDF: {tijd} — dan andere titel + legenda
 const KLEUR = {vloer:'#1d1d1d', gevel:'#1a7f37', dak:'#c0392b', deur:'#5c3a1e', paneel:'#5f5f5f', uit:'#9a9a9a'};
 const KLEUR_RGB = {vloer:[29,29,29], gevel:[26,127,55], dak:[192,57,43], deur:[92,58,30], paneel:[95,95,95], uit:[154,154,154]};
 
@@ -5666,7 +5688,7 @@ function renderTekeningResultatenTabel(){
 
   const knop = (getal, r) => {
     if(getal==null) return '';
-    const sleutel = (r && r.label ? String(r.label).replace(/<[^>]*>/g,'') : '') + '|' + getal.toFixed(2);
+    const sleutel = kopieerSleutel(r, getal);
     const gedaan = GEKOPIEERD.has(sleutel);
     return `<button type="button" class="btn-copy${gedaan?' gedaan':''}" data-copy="${getal.toFixed(2)}" data-sleutel="${sleutel.replace(/"/g,'&quot;')}">${gedaan?'✓ gekopieerd':'Kopieer'}</button>`;
   };
@@ -5714,7 +5736,7 @@ function renderTekeningResultatenTabel(){
         document.execCommand('copy');
         ta.remove();
       }
-      GEKOPIEERD.add(sleutel);
+      GEKOPIEERD.set(sleutel, new Date().toISOString());
       btn.textContent = '✓ gekopieerd';
       btn.classList.add('gedaan');
       if(rij) rij.classList.add('gekopieerd');
@@ -6135,7 +6157,7 @@ function infoWaardeTekst(r){
 // Het standaard PDF-lettertype kent o.a. Σ, ², √ en → niet: vervangen door gewone tekens.
 function pdfTekst(t){
   return String(t==null ? '' : t).replace(/Σ /g,'Totaal ').replace(/Σ/g,'Tot.').replace(/²/g,'2').replace(/√/g,'wortel')
-    .replace(/→/g,'->').replace(/≥/g,'>=').replace(/≤/g,'<=').replace(/−/g,'-');
+    .replace(/→/g,'->').replace(/≥/g,'>=').replace(/≤/g,'<=').replace(/−/g,'-').replace(/↳ ?/g,'   - ');
 }
 // schaal < 1 = compacter (kleiner lettertype), meten = alleen uitrekenen hoeveel ruimte het kost
 function samenvattingTekenen(pdfEcht, x, y, breedteMm, regels, maxY, schaal, meten){
@@ -6162,10 +6184,28 @@ function samenvattingTekenen(pdfEcht, x, y, breedteMm, regels, maxY, schaal, met
     }
   };
 
+  // klein groen vinkje (Helvetica in jsPDF kent geen ✓-teken)
+  const vinkje = (vx, vy) => {
+    pdf.setDrawColor(26,127,55); pdf.setLineWidth(0.35*schaal);
+    pdf.line(vx, vy-1.2*schaal, vx+0.8*schaal, vy-0.4*schaal);
+    pdf.line(vx+0.8*schaal, vy-0.4*schaal, vx+2.2*schaal, vy-2.4*schaal);
+  };
+  const metWaarde = regels.filter(r=>kopieerWaarde(r)!=null);
+  const aantalGekopieerd = metWaarde.filter(r=>GEKOPIEERD.has(kopieerSleutel(r))).length;
+  const aantalUit = regels.filter(r=>r.uit).length;
+
   pdf.setTextColor(20,20,20);
   pdf.setFont(undefined,'bold'); pdf.setFontSize(FONT_TITEL);
-  pdf.text('Samenvatting', kolX, cy);
+  pdf.text(PDF_CONTROLE ? 'Controle-overzicht' : 'Samenvatting', kolX, cy);
   cy += lineH + 2;
+  if(PDF_CONTROLE || aantalGekopieerd || aantalUit){
+    pdf.setFont(undefined,'normal'); pdf.setFontSize(7*schaal); pdf.setTextColor(70,70,70);
+    if(PDF_CONTROLE){ pdf.text(pdfTekst(`Afgerond op ${PDF_CONTROLE.tijd}`), kolX, cy); cy += lineH*0.85; }
+    vinkje(kolX, cy);
+    pdf.setTextColor(70,70,70);
+    pdf.text(pdfTekst(`= gekopieerd (${aantalGekopieerd} van ${metWaarde.length} waarden)` + (aantalUit ? ` · ${aantalUit} vlak(ken) niet meegenomen` : '')), kolX+3*schaal, cy);
+    cy += lineH + 1;
+  }
   pdf.setFontSize(7*schaal); pdf.setFont(undefined,'normal');
   pdf.text('m2', kolX+breedteMm-22, cy-2.2, {align:'right'});
   pdf.text('totaal m2', kolX+breedteMm-1, cy-2.2, {align:'right'});
@@ -6209,6 +6249,7 @@ function samenvattingTekenen(pdfEcht, x, y, breedteMm, regels, maxY, schaal, met
       pdf.setFont(undefined,'bold');
       pdf.text(waardeRegels, kolX+breedteMm-1, cy, {align:'right'});
     }
+    if(GEKOPIEERD.has(kopieerSleutel(r))) vinkje(kolX+breedteMm-20*schaal, cy);
     pdf.setDrawColor(214,210,197); pdf.setLineWidth(0.15);
     pdf.line(kolX-1.5, cy+lineH*n-3.1*schaal, kolX+breedteMm+1.5, cy+lineH*n-3.1*schaal);
     cy += lineH*n;
@@ -6438,7 +6479,8 @@ function kiesOnedrive({ titel, knopTekst, bestandExt, startPad } = {}){
 //   Is die gezet, dan schrijven we daar rechtstreeks naartoe in plaats van
 //   te downloaden, en slaan we de OneDrive-vraag over.
 async function exporteerPDF(opties = {}){
-  const btn = document.getElementById('btn-tekening-pdf');
+  const btn = document.getElementById(opties.controle ? 'btn-controle-pdf' : 'btn-tekening-pdf');
+  PDF_CONTROLE = opties.controle ? {tijd: tijdNL()} : null;
   const oudeTekst = btn.textContent;
   btn.textContent = 'PDF maken…';
   btn.disabled = true;
@@ -6646,11 +6688,14 @@ async function exporteerPDF(opties = {}){
     }
 
     const blob = pdf.output('blob');
-    const pdfNaam = huidigeBasisbestandsnaam() + '.pdf';
+    const stempel = (()=>{ const d = new Date(), z = n => String(n).padStart(2,'0'); return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())} ${z(d.getHours())}${z(d.getMinutes())}`; })();
+    const pdfNaam = huidigeBasisbestandsnaam() + (opties.controle ? ` controle ${stempel}` : '') + '.pdf';
     const statusEl = document.getElementById('upload-status');
     const meldingen = [];
     const toonStatus = (extra) => {
       statusEl.textContent = meldingen.concat(extra ? [extra] : []).join(' — ');
+      const cs = document.getElementById('controle-status');
+      if(cs && opties.controle) cs.textContent = statusEl.textContent;
     };
 
     wisIosBestanden();
@@ -6669,7 +6714,7 @@ async function exporteerPDF(opties = {}){
       if (projectGekoppeld() && navigator.onLine) {
         toonStatus('⏳ opslaan in de projectmap…');
         try {
-          await uploadPdfNaarProjectmap(blob);
+          await uploadBestandNaarProjectmap(blob, pdfNaam);
           pdfStaatGoed = true;
           await zetExportStatus(pdfRec, 'ok');
           meldingen.push(`📁 PDF opgeslagen in 020 AANTEKENINGEN van "${actiefProjectNaam()}"`);
@@ -6748,11 +6793,13 @@ async function exporteerPDF(opties = {}){
     PRINT_MODE = false;
     btn.textContent = oudeTekst;
     btn.disabled = false;
+    PDF_CONTROLE = null;
   }
 }
 // Let op: geen directe verwijzing naar exporteerPDF, anders komt het klik-event
 // als "opties" binnen.
 document.getElementById('btn-tekening-pdf').addEventListener('click', () => exporteerPDF());
+document.getElementById('btn-controle-pdf').addEventListener('click', () => exporteerPDF({controle:true}));
 document.getElementById('btn-tekening-upload').addEventListener('click', () => exporteerPDF());
 
 // "Opslaan in map… (offline)" — alleen tonen waar de browser het aankan
@@ -6906,6 +6953,7 @@ function verzamelInvoerData(){
   });
 
   [...UITGEZET.entries()].forEach(([vlak, reden], i)=>{ push('Uitgezet', i+1, 'vlak', vlak); push('Uitgezet', i+1, 'reden', reden); });
+  [...GEKOPIEERD.entries()].forEach(([sleutel, tijd], i)=>{ push('Gekopieerd', i+1, 'regel', sleutel); push('Gekopieerd', i+1, 'tijd', tijd); });
   return rows;
 }
 
@@ -6954,6 +7002,8 @@ const verschilt = (a, b) => {
 function vulInvoerDataIn(rows){
   const groepen = groepeerInvoerRijen(rows);
   UITGEZET.clear();
+  GEKOPIEERD.clear();
+  groepen.filter(g=>g.sectie==='Gekopieerd').forEach(g=>{ if(g.velden.regel) GEKOPIEERD.set(String(g.velden.regel), String(g.velden.tijd || '')); });
   groepen.filter(g=>g.sectie==='Uitgezet').forEach(g=>{ if(g.velden.vlak) UITGEZET.set(String(g.velden.vlak), String(g.velden.reden || 'anders')); });
   const V = (groepen.find(g=>g.sectie==='Gevel') || {velden:{}}).velden;
 
