@@ -4013,6 +4013,8 @@ function ramenDeurenWaarschuwingen(data){
 function rdVerdiepingVolgorde(){
   return ramenDeurenVerdiepingOpties().map(o=>o.value);
 }
+// Korte glascode achter een raam: e = enkel, D = dubbel, Hr, + = HR+, ++ = HR++
+function rdGlasKort(g){ return ({e:'e', D:'D', Hr:'Hr', 'Hr+':'+', '++':'++', Vz:'Vz', '+++':'+++'})[g] || ''; }
 function rdGlasLabel(g){ return RD_GLASTYPE_LABELS[g] || g || 'geen glastype'; }
 
 // Regels-per-item voor overzicht/PDF/Excel: een deur met raam geeft twee regels (deur en raam)
@@ -4026,7 +4028,7 @@ function rdItemRegels(d){
     const formule = isDR ? `${aantalTxt}${n2l(d.raamBreedte)} × ${n2l(d.raamHoogte)}` : `${aantalTxt}${n2l(d.breedte)} × ${n2l(d.hoogte)}`;
     uit.push({soort:'raam', opp:d.raamOpp, glastype:d.glastype, gevelKey:d.gevelKey,
       zonwering:d.zonwering,
-      label:`${d.naam}${isDR?' — raam in deur':''} — ${orient}`, detail: rdGlasLabel(d.glastype) + (d.zonwering ? ', met zonwering' : ''), formule});
+      label:`${d.naam}${isDR?' — raam in deur':''}${rdGlasKort(d.glastype) ? ' ('+rdGlasKort(d.glastype)+')' : ''} — ${orient}`, detail: rdGlasLabel(d.glastype) + (d.zonwering ? ', met zonwering' : ''), formule});
   }
   if(d.deurOpp>0){
     const isDR = d.type==='deurmetraam';
@@ -4933,10 +4935,11 @@ function gevelCodeUitTitel(t){
   const s = String(t||'');
   return /^Voor/i.test(s) ? 'VG' : /^Achter/i.test(s) ? 'AG' : /^Linker/i.test(s) ? 'LG' : /^Rechter/i.test(s) ? 'RG' : null;
 }
-function rdCode(d){
+function rdCode(d, zonderGlas){
   const m = /(\d+)\s*$/.exec(d.naam||'');
   const pre = ({deur:'D', deurmetraam:'DR', paneel:'P', dakraam:'DK'})[d.type] || 'R';
-  return pre + (m ? m[1] : '');
+  const glas = (!zonderGlas && d.raamOppStuk > 0 && typeof rdGlasKort === 'function') ? rdGlasKort(d.glastype) : '';
+  return pre + (m ? m[1] : '') + (glas ? ' '+glas : '');   // bv. "R1 ++"
 }
 // Oppervlaktetekst: bij een deur met raam deur en glas apart (zoals in de tabel)
 function rdOppTekst(d){
@@ -5246,7 +5249,9 @@ function rdTekenElementen(svg, plan, x0, yBase, alleenHoofd){
     else if(keuze === 'twee'){ rdTekst(svg, px+pw/2, py+ph/2-fs*0.25, code, k.lijn); rdTekst(svg, px+pw/2, py+ph/2+fs*0.95, opp, k.lijn); }
     else {
       const past = pw >= code.length*fs*0.55 + fs*0.4 && ph >= fs*1.2;
+      const kort = rdCode(d, true);   // zonder glascode; die staat dan in het label naast de gevel
       if(past) rdTekst(svg, px+pw/2, codeY, code, k.lijn);
+      else if(pw >= kort.length*fs*0.55 + fs*0.4 && ph >= fs*1.2) rdTekst(svg, px+pw/2, codeY, kort, k.lijn);
       else if(!st.laatste) rdTekst(svg, px+pw/2, py - fs*0.3, code, k.lijn);   // het exemplaar met het lijntje heeft de code al in het label
     }
   });

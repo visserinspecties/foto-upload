@@ -3996,6 +3996,8 @@ function ramenDeurenWaarschuwingen(data){
 function rdVerdiepingVolgorde(){
   return ramenDeurenVerdiepingOpties().map(o=>o.value);
 }
+// Korte glascode achter een raam: e = enkel, D = dubbel, Hr, + = HR+, ++ = HR++
+function rdGlasKort(g){ return ({e:'e', D:'D', Hr:'Hr', 'Hr+':'+', '++':'++', Vz:'Vz', '+++':'+++'})[g] || ''; }
 function rdGlasLabel(g){ return RD_GLASTYPE_LABELS[g] || g || 'geen glastype'; }
 
 // Regels-per-item voor overzicht/PDF/Excel: een deur met raam geeft twee regels (deur en raam)
@@ -4009,7 +4011,7 @@ function rdItemRegels(d){
     const formule = isDR ? `${aantalTxt}${n2l(d.raamBreedte)} × ${n2l(d.raamHoogte)}` : `${aantalTxt}${n2l(d.breedte)} × ${n2l(d.hoogte)}`;
     uit.push({soort:'raam', opp:d.raamOpp, glastype:d.glastype, gevelKey:d.gevelKey,
       zonwering:d.zonwering,
-      label:`${d.naam}${isDR?' — raam in deur':''} — ${orient}`, detail: rdGlasLabel(d.glastype) + (d.zonwering ? ', met zonwering' : ''), formule});
+      label:`${d.naam}${isDR?' — raam in deur':''}${rdGlasKort(d.glastype) ? ' ('+rdGlasKort(d.glastype)+')' : ''} — ${orient}`, detail: rdGlasLabel(d.glastype) + (d.zonwering ? ', met zonwering' : ''), formule});
   }
   if(d.deurOpp>0){
     const isDR = d.type==='deurmetraam';
