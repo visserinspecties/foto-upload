@@ -4970,7 +4970,14 @@ const RD_KLEUR = {
 // Links/rechts van een gevel, gezien als je er van buiten naar kijkt (zelfde als HOEK_AANZICHT_*)
 const RD_HOEK_LINKS  = { VG:'LG', AG:'RG', LG:'AG', RG:'VG' };
 const RD_HOEK_RECHTS = { VG:'RG', AG:'LG', LG:'VG', RG:'AG' };
-const RD_KANT_LABEL = { ub:{voor:'voorkant', links:'linkerkant', rechts:'rechterkant'}, dk:{voor:'voorkant', links:'linkerwang', rechts:'rechterwang'} };
+const RD_KANT_LABEL = { ub:{voor:'aanzicht', links:'zijwand', rechts:'zijwand'}, dk:{voor:'voorkant', links:'wang', rechts:'wang'} };
+// Uitgebreide tekst voor de keuzelijst: bij welke gevel hoort dit vlak in de tekening
+function rdKantKeuzeTekst(soort, kant, G){
+  const gk = kant==='voor' ? G : kant==='links' ? RD_HOEK_LINKS[G] : RD_HOEK_RECHTS[G];
+  const gn = GEVEL_LABELS[gk] || '';
+  if(kant==='voor') return `${RD_KANT_LABEL[soort].voor}, evenwijdig aan ${gn}`;
+  return `${RD_KANT_LABEL[soort][kant]}, te zien in ${gn}`;
+}
 
 function gevelCodeUitTitel(t){
   const s = String(t||'');
@@ -4997,10 +5004,12 @@ function rdKleuren(d){
 function rdPlaatsOpties(){
   const o = [{value:'hoofd', label:'Hoofdgebouw'}];
   (typeof uitbouwen !== 'undefined' ? uitbouwen : []).forEach(u=>{
-    ['voor','links','rechts'].forEach(k=> o.push({value:`ub:${u.id}:${k}`, label:`${u.naam} — ${RD_KANT_LABEL.ub[k]}`}));
+    const G = document.getElementById('ub-gevel-'+u.id)?.value || 'VG';
+    ['voor','links','rechts'].forEach(k=> o.push({value:`ub:${u.id}:${k}`, label:`${u.naam} — ${rdKantKeuzeTekst('ub', k, G)}`}));
   });
   (typeof dakkapellen !== 'undefined' ? dakkapellen : []).forEach(dk=>{
-    ['voor','links','rechts'].forEach(k=> o.push({value:`dk:${dk.id}:${k}`, label:`${dk.naam} — ${RD_KANT_LABEL.dk[k]}`}));
+    const G = dakvlakGevelCodes()[document.getElementById('dk-dakvlak-'+dk.id)?.value || 'A'];
+    ['voor','links','rechts'].forEach(k=> o.push({value:`dk:${dk.id}:${k}`, label:`${dk.naam} — ${rdKantKeuzeTekst('dk', k, G)}`}));
   });
   return o;
 }
