@@ -2488,8 +2488,8 @@ function berekenAlles(){
 // Zelfde kleuren in tekeningen (PDF), resultaten op het scherm en de Excel.
 // Welke regels in de tabel al gekopieerd zijn (blijft staan zolang de pagina open is; verandert een waarde, dan telt de regel weer als nieuw)
 const GEKOPIEERD = new Set();
-const KLEUR = {vloer:'#1d1d1d', gevel:'#1a7f37', dak:'#c0392b', deur:'#5c3a1e'};
-const KLEUR_RGB = {vloer:[29,29,29], gevel:[26,127,55], dak:[192,57,43], deur:[92,58,30]};
+const KLEUR = {vloer:'#1d1d1d', gevel:'#1a7f37', dak:'#c0392b', deur:'#5c3a1e', paneel:'#5f5f5f'};
+const KLEUR_RGB = {vloer:[29,29,29], gevel:[26,127,55], dak:[192,57,43], deur:[92,58,30], paneel:[95,95,95]};
 function kleurGroep(groep){ return groep==='gevel' ? 'gevel' : (groep==='schuin' || groep==='plat' || groep==='dak') ? 'dak' : 'vloer'; }
 
 function fm(x){ return (x==null || isNaN(x)) ? '—' : x.toFixed(2); }
@@ -4099,7 +4099,7 @@ function ramenDeurenSamenvattingRegels(regels){
     if(!sel.length) return;
     let som = 0;
     sel.forEach(d=> rdItemRegels(d).forEach(r=>{
-      item(`${ramenDeurenVerdiepingLabel(v)}: ${r.label}`, r.opp, r.detail, r.formule, r.soort==='deur' ? 'deur' : KL);
+      item(`${ramenDeurenVerdiepingLabel(v)}: ${r.label}`, r.opp, r.detail, r.formule, r.soort==='deur' ? 'deur' : r.soort==='paneel' ? 'paneel' : KL);
       som += r.opp;
     }));
     sub(`Σ ramen & deuren ${ramenDeurenVerdiepingLabel(v).toLowerCase()}`, som);
@@ -4125,7 +4125,7 @@ function ramenDeurenSamenvattingRegels(regels){
       const naam = gr.soort==='raam' ? `Ramen ${rdGlasLabel(gr.glastype).toLowerCase()}${gr.zonwering ? ', met zonwering' : ''}`
                  : gr.soort==='paneel' ? 'Panelen'
                  : `Deuren ${(RD_ISOLATIE_LABELS[gr.isolatie]||gr.isolatie).toLowerCase()}`;
-      item(`${GEVEL_LABELS[key]} (${key}): ${naam}`, gr.opp, '', '', gr.soort==='deur' ? 'deur' : KL);
+      item(`${GEVEL_LABELS[key]} (${key}): ${naam}`, gr.opp, '', '', gr.soort==='deur' ? 'deur' : gr.soort==='paneel' ? 'paneel' : KL);
       som += gr.opp;
     });
     sub(`Σ ${GEVEL_LABELS[key]} (${key}) ramen & deuren`, som);
