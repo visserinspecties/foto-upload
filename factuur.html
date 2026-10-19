@@ -274,8 +274,12 @@ async function lijstMap(p){
   return out;
 }
 async function downloadItem(id){
-  const d=await graphJSON(`me/drive/items/${id}?$select=id,name,@microsoft.graph.downloadUrl`);
-  const r=await fetch(d['@microsoft.graph.downloadUrl']);if(!r.ok)throw new Error('Downloaden mislukt ('+r.status+')');
+  // downloadUrl komt alleen mee zonder $select; lukt dat niet, dan via /content (met inlog)
+  const d=await graphJSON(`me/drive/items/${id}`);
+  const url=d['@microsoft.graph.downloadUrl'];
+  let r=url?await fetch(url).catch(()=>null):null;
+  if(!r||!r.ok)r=await graph(`me/drive/items/${id}/content`);
+  if(!r.ok)throw new Error(`Downloaden van ${d.name||'bestand'} mislukt (${r.status})`);
   return new Uint8Array(await r.arrayBuffer());
 }
 async function upload(p,naam,bytes,type){
