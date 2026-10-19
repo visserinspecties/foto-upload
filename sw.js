@@ -2,7 +2,7 @@
    Pagina's: eerst internet proberen (max. 4 s), anders de laatst bewaarde versie.
    Lettertypes en iconen: uit de bewaarde kopie, op de achtergrond bijwerken.
    Inloggen en OneDrive (Microsoft) gaan nooit via deze opslag. */
-const CACHE = 'vi-tools-v4';
+const CACHE = 'vi-tools-v5';
 const START = ['./', 'index.html', 'foto-upload.html', 'icons/icon-180.png', 'icons/icon-192.png'];
 
 self.addEventListener('install', e => {
@@ -33,7 +33,8 @@ self.addEventListener('fetch', e => {
   if (url.origin === self.location.origin) {
     e.respondWith((async () => {
       const cache = await caches.open(CACHE);
-      const net = fetch(req).then(res => {
+      // no-cache: altijd even bij GitHub navragen of er een nieuwe versie is (anders tot 10 min oud)
+      const net = fetch(req, { cache: 'no-cache' }).then(res => {
         if (res.ok) cache.put(url.origin + url.pathname, res.clone());
         return res;
       });
