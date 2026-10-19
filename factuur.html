@@ -171,7 +171,7 @@ table.r .sub{color:var(--muted);font-size:12px}
       <label class="l">Bijlagen</label>
       <div id="m-bijlagen"><div class="hint"><span class="spin"></span>Labels zoeken…</div></div>
       <button class="btn sec sm" id="b-extra" style="margin-top:4px">+ Bijlage uit een andere map</button>
-      <div class="toggle"><div><b>Labelklasse in de mail noemen</b><span>Bijv. “Bellevuestraat 11 — label D”</span></div><label class="sw"><input type="checkbox" id="m-klasse"><i></i></label></div>
+      <div class="toggle"><div><b>Labelklasse in de mail noemen</b><span>In de officiële labelkleur, bijv. Bellevuestraat 11 <b style="background:#ffee02;color:#1d1d1b;padding:0 6px;border-radius:3px">D</b></span></div><label class="sw"><input type="checkbox" id="m-klasse"><i></i></label></div>
       <label class="l">Eigen zin (optioneel, komt vóór de groet)</label>
       <textarea id="m-eigen" rows="2" placeholder="bijv. Ik bel als ik in de buurt van de Spuiboulevard ben!"></textarea>
     </div>
@@ -222,9 +222,12 @@ const STARTS = [
   {id:'af',   label:'Afgewerkt',      path:'Afgewerkt'},
   {id:'root', label:'Hoofdmap',       path:''}
 ];
-const BEDRIJF = {naam:'Visserinspecties.nl', iban:'NL30 KNAB 0409 0615 57', kvk:'83376704', btw:'NL00381176B63',
+const BEDRIJF = {naam:'Visserinspecties.nl', iban:'NL30 KNAB 0409 0615 57', kvk:'83376704', btw:'NL003811767B63',   /* btw-id volgens de Belastingdienst */
                  mail:'info@visserinspecties.nl', voorwaarden:'www.visserinspecties.nl/algemene-voorwaarden'};
+/* officiële kleuren van het energielabel (A-klassen groen … G rood) */
 const LABELKLEUR = {'A++++':'#019541','A+++':'#019541','A++':'#019541','A+':'#019541',A:'#019541',B:'#54ae32',C:'#c6d500',D:'#ffee02',E:'#faba00',F:'#ec670a',G:'#e2001a'};
+const labelTekstKleur = k => /^[CDE]$/.test(k) ? '#1d1d1b' : '#ffffff';
+const labelBadge = k => `<span style="background:${LABELKLEUR[k]||'#777777'};color:${labelTekstKleur(k)};font-family:Arial,Helvetica,sans-serif;font-weight:bold;font-size:10.5pt;padding:1px 9px;border-radius:3px;white-space:nowrap">${esc(k)}</span>`;
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 
 const $=id=>document.getElementById(id);
@@ -359,7 +362,7 @@ function parseEpSys(items){
   const tav=r.klant.find(k=>/^T\.?a\.?v\./i.test(k));
   if(tav&&r.klant.length>1&&kaal(r.klant[0])===kaal(tav)){r.klant.shift();r.klant[0]=r.klant[0].replace(/^T\.?a\.?v\.?\s*/i,'')}
   // bedrijfsgegevens rechterkolom
-  const kv=(re)=>{const l=items.find(i=>i.x>380&&re.test(i.s));if(!l)return '';return op(l.y).filter(i=>i.x>l.x).map(i=>i.s).join(' ')};
+  const kv=(re)=>{const l=items.find(i=>i.x>380&&i.y>titel.y&&re.test(i.s));if(!l)return '';return op(l.y).filter(i=>i.x>l.x).map(i=>i.s).join(' ')};
   r.bedrijf={kvk:kv(/^KVK$/i),btw:kv(/^BTW$/i),iban:kv(/^BANK$/i)};
   // aanhef
   const kop=vind(/^OMSCHRIJVING$/i);
@@ -404,6 +407,9 @@ function controleer(f){
   const btwSom=f.btwRegels.reduce((s,b)=>s+b.bedrag,0);
   if(!isNaN(f.incl)&&!isNaN(f.excl)&&Math.abs(f.excl+btwSom-f.incl)>0.02)w.push('Excl. + btw ≠ totaal incl.');
   if(!f.link)w.push('Geen betaallink gevonden in de QR-code — plak hem zelf.');
+  const kaal=s=>String(s||'').replace(/\s/g,'').toUpperCase();
+  if(f.bedrijf&&f.bedrijf.btw&&kaal(f.bedrijf.btw)!==kaal(BEDRIJF.btw))w.push(`Btw-nummer in EP-Sys (${f.bedrijf.btw}) wijkt af van ${BEDRIJF.btw}. De nieuwe factuur gebruikt ${BEDRIJF.btw}; pas het ook aan in EP-Sys.`);
+  if(f.bedrijf&&f.bedrijf.iban&&kaal(f.bedrijf.iban)!==kaal(BEDRIJF.iban))w.push(`IBAN in EP-Sys (${f.bedrijf.iban}) wijkt af van ${BEDRIJF.iban}.`);
   return w;
 }
 
@@ -539,7 +545,7 @@ function labelPast(naam,a){return a.pc&&a.nr&&new RegExp(`_${a.pc}_${a.nr}(?:[_ 
 function renderBijlagen(laden){
   let h=`<label class="vink" style="cursor:default"><input type="checkbox" checked disabled><span><b>${esc(bestandsnaam())}</b> <span class="badge" style="background:var(--brand)">factuur</span><span class="m">de nieuwe factuur in huisstijl</span></span></label>`;
   bijlagen.forEach((b,i)=>{
-    const k=b.klasse?`<span class="badge" style="background:${LABELKLEUR[b.klasse]||'#777'};color:${/^[CD]$/.test(b.klasse)?'#222':'#fff'}">${esc(b.klasse)}</span>`:'';
+    const k=b.klasse?`<span class="badge" style="background:${LABELKLEUR[b.klasse]||'#777'};color:${labelTekstKleur(b.klasse)}">${esc(b.klasse)}</span>`:'';
     h+=`<label class="vink"><input type="checkbox" data-b="${i}"${b.aan?' checked':''}><span>${esc(b.name)} ${b.soort==='label'?'<span class="badge" style="background:#1f7a45">label</span>':''}${k}<span class="m">${esc(b.adres?b.adres.mooi:(b.pad||'')||'')}${b.adres&&b.pad!==bronMap?' · uit '+esc(b.pad.split('/').slice(-2).join(' › ')):''}</span></span></label>`});
   const zonder=F?F.adressen.filter(a=>!a.label&&a.pc):[];
   if(laden)h+=`<div class="hint"><span class="spin"></span>Labels zoeken…</div>`;
@@ -639,7 +645,7 @@ async function maakFactuurPdf(){
   doc.setTitle(`Factuur ${F.nr}`);doc.setAuthor('John Visser – Visserinspecties.nl');doc.setCreator('Visser Inspecties – factuurtool');
   const PAARS=hex('#432d6a'),PAARS_D=hex('#372968'),GRIJS=hex('#5f5872'),INKT=hex('#1e1830'),TINT=hex('#f4f2f6'),LIJN=hex('#d9d5e1'),WIT=PDFLib.rgb(1,1,1);
   const W=595.28,H=841.89,L=56.69,R=W-56.69;
-  const bed={...BEDRIJF,...Object.fromEntries(Object.entries(F.bedrijf||{}).filter(([k,v])=>v))};
+  const bed={...BEDRIJF};
   let page;
   const nieuwePagina=()=>{page=doc.addPage([W,H]);page.drawPage(bp,{x:0,y:0,width:W,height:H});
     // voetregel briefpapier: voorbeeldwaarden vervangen door de echte gegevens
@@ -726,7 +732,7 @@ const ST='font-family:Merriweather,Georgia,serif;font-size:11pt;color:#000000;li
 const p_=h=>`<p style="${ST}">${h}</p>`;
 function adresRegels(metKlasse){
   const lijst=F.adressen.length?F.adressen:[{mooi:F.regels.map(r=>r.oms).join(', ')}];
-  return lijst.map(a=>`<b>${esc(a.mooi)}</b>${metKlasse&&a.label&&a.label.klasse&&gekozenLabels().includes(a.label)?` &nbsp;— label ${esc(a.label.klasse)}`:''}`).join('<br>');
+  return lijst.map(a=>`<b>${esc(a.mooi)}</b>${metKlasse&&a.label&&a.label.klasse&&gekozenLabels().includes(a.label)?` &nbsp;&nbsp;energielabel ${labelBadge(a.label.klasse)}`:''}`).join('<br>');
 }
 function klantMail(){
   const nl=gekozenLabels().length,overig=bijlagen.filter(b=>b.aan&&b.soort!=='label').length;
@@ -750,7 +756,7 @@ function makelaarMail(labels){
   const n=labels.length;
   let h=p_(esc($('k-aanhef').value.trim()||'Goedendag,'));
   h+=p_(`In opdracht van ${esc(klant||'de eigenaar')} stuur ik u een kopie van ${n>1?'de energielabels':'het energielabel'} voor het verkoop- en overdrachtsdossier:`);
-  const lijst=labels.map(b=>`<b>${esc(b.adres?b.adres.mooi:b.name)}</b>${$('k-klasse').checked&&b.klasse?` &nbsp;— label ${esc(b.klasse)}`:''}`).join('<br>');
+  const lijst=labels.map(b=>`<b>${esc(b.adres?b.adres.mooi:b.name)}</b>${$('k-klasse').checked&&b.klasse?` &nbsp;&nbsp;energielabel ${labelBadge(b.klasse)}`:''}`).join('<br>');
   h+=p_(lijst);
   h+=p_(`${n>1?'De labels zijn':'Het label is'} geregistreerd bij RVO en ${n>1?'zijn':'is'} ook te raadplegen via ep-online.nl.`);
   h+=p_('Met vriendelijke groet,');
