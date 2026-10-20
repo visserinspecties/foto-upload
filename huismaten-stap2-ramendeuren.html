@@ -638,7 +638,7 @@
 <!-- DAKKAPEL E.D. MODE -->
 <div class="panel" id="panel-gevel" style="display:none;">
   <div style="font-weight:600;margin-bottom:8px;">Dakkapellen</div>
-  <p class="hint" id="dakkapel-daktype-hint">Stel eerst een zadeldak in (Daktype op de Woonoppervlakte-tab).</p>
+  <p class="hint" id="dakkapel-daktype-hint">Stel eerst een zadeldak of asymmetrisch dak in, of een schuine voor-/achtergevel op de bovenste verdieping (Woonoppervlakte-tab).</p>
   <div id="dakkapellen-container"></div>
   <div class="btn-row" style="margin:8px 0 14px;">
     <button class="btn-secondary" id="btn-toevoegen-dakkapel">+ Dakkapel toevoegen</button>
@@ -1912,6 +1912,63 @@ function verdiepingsvloerHoogtes(){
   return niveaus;
 }
 
+// ── Schuine voor-/achtergevel (mansarde-achtig) ─────────────────
+// De bovenste bouwlaag kan aan de voor- en/of achterkant onder een hoek naar binnen lopen
+// (bv. 75°). Het schuine vlak begint bovenop de laag eronder (hStart) en loopt over de volle
+// gevelhoogte van de bovenste laag tot het platte dak. Alleen bij plat dak of 'geen dak'.
+// Zie het als een rechte gevel waarvan de bovenste strook is 'omgeklapt' naar binnen.
+function isSchuinVlak(v){ return v === 'SV' || v === 'SA'; }
+function schuineGevels(hTotaal){
+  const res = {voor:null, achter:null, laagId:null, actief:false, fouten:[]};
+  if(typeof extraVerdiepingen === 'undefined' || !extraVerdiepingen.length) return res;
+  const top = extraVerdiepingen[extraVerdiepingen.length-1].id;
+  res.laagId = top;
+  extraVerdiepingen.forEach((v, i)=>{
+    if(v.id === top) return;
+    ['voor','achter'].forEach(z=>{
+      const a = veldGetal(`ev-schuin-${z}-${v.id}`);
+      if(!isNaN(a) && a > 0 && a < 90) res.fouten.push(`Verdieping ${i+1}: een schuine ${z}gevel kan alleen op de bovenste bouwlaag — genegeerd.`);
+    });
+  });
+  const dt = huidigDaktype();
+  const hl = getGevelhoogte(top);
+  const h = (hTotaal != null && !isNaN(hTotaal)) ? hTotaal : veldGetal('gs-hoogte');
+  ['voor','achter'].forEach(z=>{
+    const a = veldGetal(`ev-schuin-${z}-${top}`);
+    if(isNaN(a) || a <= 0 || a >= 90) return;
+    if(dt !== 'plat' && dt !== 'geen'){ res.fouten.push(`Schuine ${z}gevel werkt alleen bij een plat dak (of 'geen dak') — genegeerd.`); return; }
+    if(!(hl > 0) || isNaN(h) || h < hl - 1e-6){ res.fouten.push(`Schuine ${z}gevel: gevelhoogte van de bovenste bouwlaag (of de totale gevelhoogte) ontbreekt.`); return; }
+    const r = deg2rad(a), t = Math.tan(r);
+    res[z] = {zijde:z, code: z==='voor' ? 'VG' : 'AG', vlak: z==='voor' ? 'SV' : 'SA', hoek:a, t,
+              hoogte:hl, hStart: h - hl, inspring: hl / t, schuin: hl / Math.sin(r)};
+    res.actief = true;
+  });
+  const diepte = veldGetal('gs-diepte');
+  if(res.actief && !isNaN(diepte) && (res.voor ? res.voor.inspring : 0) + (res.achter ? res.achter.inspring : 0) >= diepte){
+    res.fouten.push('De schuine voor- en achtergevel lopen samen dieper dan het pand — controleer de hoeken en de gevelhoogte.');
+  }
+  return res;
+}
+function schuinVlakInfo(vlak, SG){
+  SG = SG || schuineGevels();
+  return vlak === 'SV' ? SG.voor : vlak === 'SA' ? SG.achter : null;
+}
+// 1,50m-regel op de bovenste laag met schuine gevel(s): strook langs de schuine kant(en)
+function schuinVloerInfo(F, b, d, SG){
+  const lijn = F + MIN_HOOGTE_WOON;
+  const x = s => s ? Math.max(0, (lijn - s.hStart) / s.t) : 0;
+  const v = x(SG.voor), a = x(SG.achter);
+  if(v === 0 && a === 0) return null;
+  const bruikD = Math.max(0, d - v - a);
+  return {type:'rand', schuin:true, voor:v, achter:a, links:0, rechts:0, bruikB:b, bruikD, opp: b*bruikD};
+}
+// Na het wijzigen van een hoek: dakkapel-keuzes en ramen-opties bijwerken
+function schuinGewijzigd(){
+  if(typeof updateDakkapelDaktypeHint === 'function') updateDakkapelDaktypeHint();
+  if(typeof updateDakvlakOpties === 'function') updateDakvlakOpties(); else herbereken();
+  if(typeof verversRamenDeurenOpties === 'function') verversRamenDeurenOpties();
+}
+
 // Schermwaarden worden door herbereken() gezet (zie REKENKERN).
 function updateVloer(){ if(typeof herbereken === 'function') herbereken(); }
 
@@ -1942,6 +1999,7 @@ function isProfielDak(t){ return t === 'zadel' || t === 'asymmetrisch'; }
 
 // Hellingshoek (graden) van dakvlak A of B — voor de dakkapel-koppeling hoogte/diepte.
 function dakvlakHellingGraden(vlak){
+  if(isSchuinVlak(vlak)){ const s = schuinVlakInfo(vlak); return s ? s.hoek : NaN; }
   const t = huidigDaktype();
   if(t === 'zadel') return leesHellingshoek().hoek;
   if(t === 'asymmetrisch') return veldGetal(vlak === 'B' ? 'gs-asym-helling-achter' : 'gs-asym-helling-voor');
@@ -2162,6 +2220,7 @@ function zetAutoWaarden(){
 // Formule voor een vloer onder het dak (1,50m-regel)
 function vloerFormule(b, d, info){
   if(!info) return `${n2(b)} × ${n2(d)}`;
+  if(info.schuin) return `${n2(b)} × bruikbaar ${n2(info.bruikD)} (${n2(d)}${info.voor > 0 ? ' − ' + n2(info.voor) : ''}${info.achter > 0 ? ' − ' + n2(info.achter) : ''} onder 1,50 m langs de schuine gevel)`;
   if(info.type === 'rand') return `bruikbaar ${n2(info.bruikB)} × ${n2(info.bruikD)} (rondom ${n2(info.links)} / ${n2(info.voor)} / ${n2(info.achter)} m onder 1,50 m)`;
   let f = `${n2(info.langs)} × bruikbaar ${n2(info.bruikbaar)} (${n2(info.span)} − ${n2(info.x1)} − ${n2(info.span - info.x2)} onder 1,50 m)`;
   if(info.wolfseindCorr > 0) f += ` − wolfseind-hoeken ${n2(info.wolfseindCorr)}`;
@@ -2178,6 +2237,7 @@ function berekenWoon(dak, schild){
 
   const vloeren = [];
   const vd = getVloerdikte();
+  const SG = (daktype === 'plat' || daktype === 'geen') ? schuineGevels() : {actief:false};
   let F = 0;
   bouwlaagIds().forEach((id, i)=>{
     const b = veldGetal(id==='bg' ? 'vloer-lengte' : 'ev-breedte-'+id);
@@ -2196,11 +2256,12 @@ function berekenWoon(dak, schild){
         vloer.detail = 'vrije hoogte < 1,50 m — telt niet mee';
         vloer.formule = '0 (vrije hoogte < 1,50 m)';
       } else {
-        const info = dakInfo(F, b, d);
+        let info = dakInfo(F, b, d);
+        if(!info && SG.actief && id === SG.laagId) info = schuinVloerInfo(F, b, d, SG);
         if(info && info.opp < b*d - 1e-9){
           vloer.basis = info.opp;
           vloer.dakInfo = info;
-          vloer.detail = 'dak snijdt door deze verdieping — 1,50m-regel toegepast';
+          vloer.detail = info.schuin ? 'schuine gevel — 1,50m-regel toegepast' : 'dak snijdt door deze verdieping — 1,50m-regel toegepast';
           vloer.formule = vloerFormule(b, d, info);
         } else {
           vloer.basis = b*d;
@@ -2258,6 +2319,19 @@ function berekenWoon(dak, schild){
   const dakvloer = zolder || [...nietZolder].reverse().find(v=>v.dakInfo) || null;
   const dakkapelExtra = {};
   alleDakkapelData().filter(d=>d.geldig).forEach(dk=>{
+    if(isSchuinVlak(dk.dakvlak)){
+      // dakkapel in een schuine gevel: extra vloer op de bovenste bouwlaag
+      const s = schuinVlakInfo(dk.dakvlak, SG);
+      const vl = vloeren.find(v=>v.id === SG.laagId);
+      if(!s || !vl){ dakkapelExtra[dk.id] = {opp:0, detail:'schuine gevel niet actief'}; return; }
+      const x = dakkapelExtraVloer(dk, vl, {geldig:true, tA:s.t, hA:s.hStart, tB:s.t, hB:s.hStart});
+      dakkapelExtra[dk.id] = x;
+      const f = x.winst > 0
+        ? `${n2(dk.breedte)} × ${n2(x.winst)} (deel van de diepte in de strook < 1,50 m van ${n2(x.strook)} m)`
+        : '0 — ' + x.detail.replace('al meegeteld in de ', 'al meegeteld in ');
+      vl.items.push({label: dk.naam + ' (extra vloer)', opp: x.opp, detail: x.detail, formule: f});
+      return;
+    }
     if(!dakvloer){
       dakkapelExtra[dk.id] = {opp:0, detail:'geen vloer direct onder het dak (open kap)'};
       melding(`${dk.naam}: er ligt geen vloer direct onder het dak (open kap) — telt niet mee in het woonoppervlak.`);
@@ -2294,6 +2368,7 @@ function berekenSchil(dak, schild){
   const R = res.regels;
   const add = (groep, orient, label, opp, detail, formule) => R.push({groep, orient, label, opp, detail: detail || '', formule: formule || ''});
   const info = (label, getal, eenheid, tekst) => res.info.push({label, getal, eenheid, tekst});
+  const SG = (!profiel && (daktype === 'plat' || daktype === 'geen')) ? schuineGevels(h) : {actief:false};
 
   // --- Gevels hoofdgebouw ---
   function gevelSpec(code){
@@ -2319,6 +2394,14 @@ function berekenSchil(dak, schild){
       }
       const hs = code === dak.codes.A ? dak.hA : dak.hB;
       return {opp: breedte*hs, cap: hs, formule:`${n2(breedte)} × ${n2(hs)}`, detail:`${bTekst} × gevelhoogte`};
+    }
+    const sg = SG.actief ? (code==='VG' ? SG.voor : code==='AG' ? SG.achter : null) : null;
+    if(sg) return {opp: breedte*sg.hStart, cap: sg.hStart, formule:`${n2(breedte)} × (${n2(h)} − ${n2(sg.hoogte)})`,
+                   detail:`${bTekst} × recht deel (daarboven de schuine ${sg.zijde}gevel)`};
+    if(SG.actief && !vaVg){
+      let opp = breedte*h, f = `${n2(breedte)} × ${n2(h)}`;
+      [SG.voor, SG.achter].filter(Boolean).forEach(s=>{ opp -= 0.5*s.inspring*s.hoogte; f += ` − ½ × ${n2(s.inspring)} × ${n2(s.hoogte)}`; });
+      return {opp, cap: h, formule: f, detail:`${bTekst} × gevelhoogte − schuine hoek(en) bovenin`};
     }
     return {opp: breedte*h, cap: h, formule:`${n2(breedte)} × ${n2(h)}`, detail:`${bTekst} × gevelhoogte`};
   }
@@ -2412,9 +2495,28 @@ function berekenSchil(dak, schild){
     res.perimeter = {waarde: P, formule: delen.join(' + ') || '0'};
   }
 
+  // --- Schuine voor-/achtergevel (bovenste laag) ---
+  if(SG.actief){
+    [SG.voor, SG.achter].filter(Boolean).forEach(s=>{
+      let netto = bS*s.schuin;
+      let f = `${n2(bS)} × ${n2(s.hoogte)} ÷ sin(${hk(s.hoek)})`;
+      let detail = `schuin vlak bovenste laag, ${n2(s.inspring)} m naar binnen`;
+      const gaten = dkData.filter(d=>d.dakvlak === s.vlak);
+      gaten.forEach(d=>{ netto -= d.gatOpp; f += ` − ${n2(d.breedte)} × √(${n2(d.hoogte)}² + ${n2(d.diepte)}²)`; });
+      if(gaten.length) detail += ', minus gat dakkapel(len)';
+      add('schuin', s.code, `Schuine ${s.zijde}gevel (${s.code}, ${hk(s.hoek)})`, Math.max(netto, 0), detail, f);
+    });
+  }
+
   // --- Daken hoofdgebouw ---
   if(daktype === 'plat'){
-    add('plat', null, 'Plat dak hoofdgebouw', bS*diepte, cm.trim(), `${n2(bS)} × ${n2(diepte)}`);
+    if(SG.actief){
+      const iV = SG.voor ? SG.voor.inspring : 0, iA = SG.achter ? SG.achter.inspring : 0;
+      add('plat', null, 'Plat dak hoofdgebouw', bS*Math.max(diepte - iV - iA, 0), 'minus de schuine gevel(s)',
+        `${n2(bS)} × (${n2(diepte)}${iV ? ' − ' + n2(iV) : ''}${iA ? ' − ' + n2(iA) : ''})`);
+    } else {
+      add('plat', null, 'Plat dak hoofdgebouw', bS*diepte, cm.trim(), `${n2(bS)} × ${n2(diepte)}`);
+    }
   } else if(profiel){
     let hoekAf = 0;
     const wolf = {};
@@ -2426,7 +2528,7 @@ function berekenSchil(dak, schild){
       });
     }
     const gatPer = {A:[], B:[]};
-    dkData.forEach(d=>{ gatPer[d.dakvlak].push(d); });
+    dkData.forEach(d=>{ if(gatPer[d.dakvlak]) gatPer[d.dakvlak].push(d); });
     ['A','B'].forEach(k=>{
       const bruto = k==='A' ? dak.oppA : dak.oppB;
       const dX = k==='A' ? dak.dA : dak.dB;
@@ -2515,6 +2617,16 @@ function berekenAlles(){
       }
     }
   });
+  {
+    const SG = schuineGevels();
+    SG.fouten.forEach(melding);
+    alleDakkapelData().filter(d=>!d.geldig && d.fout).forEach(d=> melding(`${d.naam}: ${d.fout}`));
+    const bS = veldGetal('gs-beukmaat') + correctieVoorType(document.getElementById('gs-type')?.value);
+    ['SV','SA'].forEach(v=>{
+      const som = alleDakkapelData().filter(d=>d.geldig && d.dakvlak === v).reduce((t,d)=>t + d.breedte, 0);
+      if(som > bS + 0.001) melding(`Schuine ${v==='SV' ? 'voor' : 'achter'}gevel: de dakkapellen zijn samen ${som.toFixed(2)} m breed, de gevel maar ${bS.toFixed(2)} m.`);
+    });
+  }
   const noklengte = huidigeNoklengte();
   if(noklengte !== null){
     const som = {A:0, B:0};
@@ -2804,6 +2916,19 @@ function voegVerdiepingToe(){
         <input type="text" inputmode="numeric" class="numeric-input" id="ev-verdiepingshoogte-${id}" step="1" data-eenheid="cm">
       </div>
     </div>
+
+    <!-- Schuine voor-/achtergevel (alleen bovenste bouwlaag, plat dak) -->
+    <div class="row">
+      <div class="field">
+        <label>Schuine voorgevel — hoek (°), leeg = recht</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="ev-schuin-voor-${id}" placeholder="bv. 75">
+      </div>
+      <div class="field">
+        <label>Schuine achtergevel — hoek (°), leeg = recht</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="ev-schuin-achter-${id}" placeholder="bv. 75">
+      </div>
+    </div>
+    <p class="hint" style="margin-top:-4px;">Alleen voor de bovenste bouwlaag bij een plat dak: de gevel loopt dan over de volle gevelhoogte van deze laag schuin naar binnen (hoek gemeten vanaf de vloer, bv. 75°). Zet de gevelhoogte van deze laag op de buitenmaat tot de dakrand.</p>
     
     <!-- Gevelhoogte symmetrisch (normaal geval) -->
     <div id="ev-gevelhoogte-normaal-wrap-${id}" class="row" style="display:${isAsymmetrisch ? 'none' : 'flex'};">
@@ -2863,6 +2988,7 @@ function voegVerdiepingToe(){
     updateVerdiepingUitkomst(v);
     renderDakverdiepingEnTotaal();
   });
+  ['voor','achter'].forEach(z=> document.getElementById(`ev-schuin-${z}-${id}`).addEventListener('input', schuinGewijzigd));
   
   // Gevelhoogte normaal (symmetrisch)
   const evGevelhoog = document.getElementById('ev-gevelhoogte-'+id);
@@ -2905,6 +3031,7 @@ function verwijderVerdieping(id){
   syncAlleVolgendeVerdiepingen(idx);
   if(typeof updateAutoGevelhoogte==='function') updateAutoGevelhoogte();
   renderDakverdiepingEnTotaal();
+  if(typeof schuinGewijzigd==='function') schuinGewijzigd();
 }
 
 btnToevoegenVerdieping.addEventListener('click', voegVerdiepingToe);
@@ -3555,8 +3682,23 @@ function dakvlakLabels(){
   // Geldt voor zadeldak én asymmetrisch dak: een nok van voor naar achter geeft
   // dakvlakken die naar links en rechts kijken, een nok evenwijdig aan de voorgevel
   // geeft dakvlakken die naar voren en achteren kijken.
-  return nokLoopDwars() ? {A:'Links', B:'Rechts'} : {A:'Voor', B:'Achter'};
+  const l = nokLoopDwars() ? {A:'Links', B:'Rechts'} : {A:'Voor', B:'Achter'};
+  l.SV = 'Schuin voor'; l.SA = 'Schuin achter';
+  return l;
 }
+// Keuzes voor 'Dakvlak' van een dakkapel: de dakhelften bij een zadel-/asymmetrisch dak,
+// plus de schuine voor-/achtergevel als die is ingesteld.
+function dakkapelVlakOpties(){
+  const labels = dakvlakLabels();
+  const opts = [];
+  if(isProfielDak(huidigDaktype())) opts.push(['A', labels.A], ['B', labels.B]);
+  const SG = schuineGevels();
+  if(SG.voor) opts.push(['SV', 'Schuine voorgevel']);
+  if(SG.achter) opts.push(['SA', 'Schuine achtergevel']);
+  if(!opts.length) opts.push(['A', labels.A], ['B', labels.B]);
+  return opts;
+}
+function dakkapelVlakOptiesHtml(){ return dakkapelVlakOpties().map(([v,t])=>`<option value="${v}">${t}</option>`).join(''); }
 
 function updateDakvlakOpties(){
   const labels = dakvlakLabels();
@@ -3564,8 +3706,9 @@ function updateDakvlakOpties(){
     const sel = document.getElementById('dk-dakvlak-'+dk.id);
     if(!sel) return;
     const huidige = sel.value || 'A';
-    sel.innerHTML = `<option value="A">${labels.A}</option><option value="B">${labels.B}</option>`;
-    sel.value = huidige;
+    const opts = dakkapelVlakOpties();
+    sel.innerHTML = dakkapelVlakOptiesHtml();
+    sel.value = opts.some(o=>o[0]===huidige) ? huidige : opts[0][0];
   });
   renumberDakkapellen();
   onDakkapelWijziging();
@@ -3600,6 +3743,12 @@ function berekenDakkapelData(dk){
 
   if(isNaN(breedte) || isNaN(hoogte) || isNaN(diepte) || breedte<=0 || hoogte<=0 || diepte<=0){
     return {id:dk.id, naam:dk.naam, dakvlak, afstand, geldig:false};
+  }
+  if(isSchuinVlak(dakvlak) && !schuinVlakInfo(dakvlak)){
+    return {id:dk.id, naam:dk.naam, dakvlak, afstand, geldig:false, fout:'staat in een schuine gevel die niet (meer) is ingesteld — telt niet mee'};
+  }
+  if(!isSchuinVlak(dakvlak) && !isProfielDak(huidigDaktype())){
+    return {id:dk.id, naam:dk.naam, dakvlak, afstand, geldig:false, fout:'staat op een dakvlak, maar er is geen zadel- of asymmetrisch dak — telt niet mee'};
   }
 
   const L = Math.sqrt(hoogte*hoogte + diepte*diepte);
@@ -3655,7 +3804,7 @@ function renderDakkapelResultaat(dk, extra){
   html += regelHtml(`Wang (${z1})`, d.wangOpp.toFixed(2)+' m²');
   html += regelHtml(`Wang (${z2})`, d.wangOpp.toFixed(2)+' m²');
   html += regelHtml('Plat dak dakkapel', d.platDakOpp.toFixed(2)+' m²');
-  html += regelHtml('Gat in hoofddakvlak', d.gatOpp.toFixed(2)+' m²', {detail:`L = √(${d.hoogte.toFixed(2)}² + ${d.diepte.toFixed(2)}²) = ${d.L.toFixed(2)} m`});
+  html += regelHtml(isSchuinVlak(d.dakvlak) ? 'Gat in schuine gevel' : 'Gat in hoofddakvlak', d.gatOpp.toFixed(2)+' m²', {detail:`L = √(${d.hoogte.toFixed(2)}² + ${d.diepte.toFixed(2)}²) = ${d.L.toFixed(2)} m`});
   if(extra) html += regelHtml('Extra woonoppervlak', extra.opp.toFixed(2)+' m²', {detail: extra.detail});
   html += '</div>';
   el.innerHTML = html;
@@ -3680,12 +3829,9 @@ function voegDakkapelToe(){
       <button class="btn-secondary" data-dkid="${id}" style="padding:4px 10px;font-size:0.78rem;">− verwijderen</button>
     </div>
     <div class="row">
-      <div class="field" style="flex:0 0 130px;">
+      <div class="field" style="flex:0 0 190px;">
         <label>Dakvlak</label>
-        <select id="dk-dakvlak-${id}">
-          <option value="A">${labels.A}</option>
-          <option value="B">${labels.B}</option>
-        </select>
+        <select id="dk-dakvlak-${id}">${dakkapelVlakOptiesHtml()}</select>
       </div>
       <div class="field">
         <label>Breedte (cm)</label>
@@ -3702,7 +3848,7 @@ function voegDakkapelToe(){
     </div>
     <div class="row">
       <div class="field">
-        <label>Voet dakkapel boven de goot (cm, verticaal) — bepaalt positie en extra vloer, leeg = 0</label>
+        <label>Voet dakkapel boven de goot / onderkant schuine gevel (cm, verticaal) — bepaalt positie en extra vloer, leeg = 0</label>
         <input type="text" inputmode="numeric" class="numeric-input" id="dk-afstand-${id}" step="1" data-eenheid="cm" placeholder="bv. 1">
       </div>
     </div>
@@ -3743,7 +3889,7 @@ btnToevoegenDakkapel.addEventListener('click', voegDakkapelToe);
 
 function updateDakkapelDaktypeHint(){
   const daktype = document.getElementById('gs-daktype')?.value;
-  const magDakkapel = daktype === 'zadel' || daktype === 'asymmetrisch';
+  const magDakkapel = daktype === 'zadel' || daktype === 'asymmetrisch' || schuineGevels().actief;
   dakkapelDaktypeHint.style.display = magDakkapel ? 'none' : 'block';
   btnToevoegenDakkapel.style.display = magDakkapel ? 'inline-block' : 'none';
   dakkapellenContainer.style.display = magDakkapel ? 'block' : 'none';
@@ -3822,6 +3968,7 @@ function rdStandaardGlas(){ return rdStandaardGlasSel ? rdStandaardGlasSel.value
 
 function ramenDeurenOrientatieOpties(){
   const labels = dakvlakLabels();
+  const SG = schuineGevels();
   const codeA = dakvlakNaarGevelcode('A');
   const codeB = dakvlakNaarGevelcode('B');
   return [
@@ -3830,7 +3977,9 @@ function ramenDeurenOrientatieOpties(){
     {value:'LG', label:'Linkergevel (LG)'},
     {value:'RG', label:'Rechtergevel (RG)'},
     {value:'DAKVLAK_A', label:`Dakvlak ${labels.A} → ${GEVEL_LABELS[codeA]} (${codeA}) — incl. dakkapel-aanzicht`},
-    {value:'DAKVLAK_B', label:`Dakvlak ${labels.B} → ${GEVEL_LABELS[codeB]} (${codeB}) — incl. dakkapel-aanzicht`}
+    {value:'DAKVLAK_B', label:`Dakvlak ${labels.B} → ${GEVEL_LABELS[codeB]} (${codeB}) — incl. dakkapel-aanzicht`},
+    ...(SG.voor ? [{value:'SCHUIN_V', label:'Schuine voorgevel (VG) — incl. dakkapel-aanzicht'}] : []),
+    ...(SG.achter ? [{value:'SCHUIN_A', label:'Schuine achtergevel (AG) — incl. dakkapel-aanzicht'}] : [])
   ];
 }
 function ramenDeurenVerdiepingOpties(){
@@ -3842,6 +3991,8 @@ function ramenDeurenVerdiepingOpties(){
 function ramenDeurenGevelKeyVanOrientatie(waarde){
   if(waarde === 'DAKVLAK_A') return dakvlakNaarGevelcode('A');
   if(waarde === 'DAKVLAK_B') return dakvlakNaarGevelcode('B');
+  if(waarde === 'SCHUIN_V') return 'VG';
+  if(waarde === 'SCHUIN_A') return 'AG';
   return waarde;
 }
 
@@ -4924,7 +5075,8 @@ function tekenDwarsdoorsnede(m){
   const bS = beuk + correctie;
 
   // --- profiel in doorsnede-coördinaten: x van 0 (links) tot W, hoogte in m ---
-  let W, links, rechts, profiel, hL, hR, hellL, hellR, nokX = null, nokH = null, richting;
+  let W, links, rechts, profiel, hL, hR, hellL, hellR, nokX = null, nokH = null, richting, hTopSchuin = 0;
+  const SGd = (daktype === 'plat' || daktype === 'geen') ? schuineGevels(veldGetal('gs-hoogte')) : {actief:false};
   if(isProfielDak(daktype)){
     const d = R.dak;
     if(!d || !d.geldig) return null;
@@ -4948,6 +5100,14 @@ function tekenDwarsdoorsnede(m){
     if(isNaN(h) || h <= 0) return null;
     W = diepte; links = 'VG'; rechts = 'AG'; hL = hR = h;
     profiel = [[0, h], [W, h]];
+    if(SGd.actief){
+      const sv = SGd.voor, sa = SGd.achter;
+      profiel = [[0, sv ? sv.hStart : h]];
+      if(sv) profiel.push([sv.inspring, h]);
+      if(sa) profiel.push([W - sa.inspring, h]);
+      profiel.push([W, sa ? sa.hStart : h]);
+      hL = profiel[0][1]; hR = profiel[profiel.length-1][1]; hTopSchuin = h;
+    }
   }
   richting = (links === 'VG') ? 'diepte' : 'breedte';
   const dakHoogteOp = x => {           // hoogte van de dakrand/het dakvlak boven x
@@ -4965,7 +5125,7 @@ function tekenDwarsdoorsnede(m){
 
   const fs = tekstGrootte();
   const S = SCALE;
-  const topM = Math.max(nokH || 0, hL, hR, ...ub.map(d=>d.hoogte)) ;
+  const topM = Math.max(nokH || 0, hL, hR, hTopSchuin, ...ub.map(d=>d.hoogte)) ;
   const margeL = TK_MARGIN + extraL*S + fs*9;     // ruimte voor niveau-labels links
   const margeR = TK_MARGIN + extraR*S + fs*5;
   const viewW = W*S + margeL + margeR;
@@ -4997,7 +5157,9 @@ function tekenDwarsdoorsnede(m){
     const hv = v.verdiepingshoogte;
     if(hv > 0){
       const xm = X(W*0.5);
-      tekst(xm, Y(v.niveau + hv/2) - fs*0.2, `${v.naam.toLowerCase()} — vrije hoogte ${n2(hv)} m`, {schaal:0.9});
+      // bij een 1,50m-lijn in deze laag de tekst erboven zetten, anders vallen ze over elkaar
+      const hTekst = (v.dakInfo && hv > MIN_HOOGTE_WOON + 0.5) ? (MIN_HOOGTE_WOON + hv)/2 : hv/2;
+      tekst(xm, Y(v.niveau + hTekst) - fs*0.2, `${v.naam.toLowerCase()} — vrije hoogte ${n2(hv)} m`, {schaal:0.9});
       // plafondlijn (onderkant vloer erboven) gestippeld
       svg.appendChild(svgEl('line', {x1:X(0), y1:Y(v.niveau+hv), x2:X(W), y2:Y(v.niveau+hv), stroke:'#999', 'stroke-width':0.4, 'stroke-dasharray':'2,2'}));
     }
@@ -5050,7 +5212,24 @@ function tekenDwarsdoorsnede(m){
     tekst(X(xLh) - fs*0.6, Y(dakHoogteOp(xLh)) - fs*0.4, `${String(hellL).replace('.',',')}°`, {kleur:KLEUR.dak, anchor:'end', schaal:0.9});
     tekst(X(xRh) + fs*0.6, Y(dakHoogteOp(xRh)) - fs*0.4, `${String(hellR).replace('.',',')}°`, {kleur:KLEUR.dak, anchor:'start', schaal:0.9});
   } else {
-    tekst(X(W/2), Y(hL) - fs*0.6, daktype==='plat' ? 'plat dak' : 'bovenkant gevel', {kleur:KLEUR.dak, schaal:0.9});
+    tekst(X(W/2), Y(Math.max(hL, hR, hTopSchuin)) - fs*0.6, daktype==='plat' ? 'plat dak' : 'bovenkant gevel', {kleur:KLEUR.dak, schaal:0.9});
+  }
+  if(SGd.actief){
+    [[SGd.voor, 0, 1], [SGd.achter, W, -1]].forEach(([s, xg, r])=>{
+      if(!s) return;
+      const xm = xg + r*s.inspring*0.2;
+      tekst(X(xm) - r*fs*0.5, Y(s.hStart + s.hoogte*0.2), `${hk(s.hoek)}`, {kleur:KLEUR.dak, anchor: r > 0 ? 'end' : 'start', schaal:0.9});
+    });
+    alleDakkapelData().filter(d=>d.geldig && isSchuinVlak(d.dakvlak)).forEach(d=>{
+      const s = d.dakvlak === 'SV' ? SGd.voor : SGd.achter;
+      if(!s) return;
+      const r = d.dakvlak === 'SV' ? 1 : -1, xg = r > 0 ? 0 : W;
+      const voet = Math.max(0, d.afstand || 0);
+      const xVoet = xg + r*voet / s.t, hVoet = s.hStart + voet, hTop = hVoet + d.hoogte, xAchter = xVoet + r*d.diepte;
+      svg.appendChild(svgEl('polygon', {points:`${X(xVoet)},${Y(hVoet)} ${X(xVoet)},${Y(hTop)} ${X(xAchter)},${Y(hTop)}`, fill:'white', stroke:KLEUR.gevel, 'stroke-width':1.1}));
+      svg.appendChild(svgEl('line', {x1:X(xVoet), y1:Y(hTop), x2:X(xAchter), y2:Y(hTop), stroke:KLEUR.dak, 'stroke-width':1.4}));
+      tekst(X((xVoet+xAchter)/2), Y(hTop) - fs*0.5, d.naam, {schaal:0.85});
+    });
   }
 
   // --- dakkapellen (in doorsnede: wang als driehoek, plat dakje rood) ---
@@ -5481,7 +5660,7 @@ function rdTekenLabels(svg, plan, x0, yBase, xLabels, yMin, yMax, xRand){
   });
 }
 
-function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellingshoek, dakvlakInfo, blokkage, weergaveGroepen, dakkapelLijst, dakkapelDataAlle, wolfseind, asymProfiel, asymSpiegelen){
+function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellingshoek, dakvlakInfo, blokkage, weergaveGroepen, dakkapelLijst, dakkapelDataAlle, wolfseind, asymProfiel, asymSpiegelen, schuin){
   if(isNaN(breedte) || breedte<=0) return null;
   if(!asymProfiel && (gevelhoogte==null || isNaN(gevelhoogte))) return null;
   blokkage = blokkage || 0;
@@ -5660,7 +5839,53 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
   const svg = nieuweSvg(viewW, viewH);
   const x0 = TK_MARGIN + extraLinks, yBase = viewH-TK_MARGIN, yEave = yBase-hRect, yTop = yEave-hTri-hStippel;
 
-  svg.appendChild(svgEl('rect', {x:x0,y:yEave,width:w,height:hRect,fill:'white',stroke:KLEUR.gevel,'stroke-width':1.5,'data-hoofd':'1'}));
+  // Schuine voor-/achtergevel op de bovenste laag
+  const SGz = schuin && schuin.SG && schuin.SG.actief ? schuin.SG : null;
+  const sFront = SGz ? (schuin.code==='VG' ? SGz.voor : schuin.code==='AG' ? SGz.achter : null) : null;
+  // zijaanzicht: Rechtergevel = voorgevel links, Linkergevel = voorgevel rechts
+  const sLinks = SGz && (schuin.code==='RG' ? SGz.voor : schuin.code==='LG' ? SGz.achter : null);
+  const sRechts = SGz && (schuin.code==='RG' ? SGz.achter : schuin.code==='LG' ? SGz.voor : null);
+  let schuinAftrek = 0;     // m² dat van de rechte rechthoek afgaat (zijaanzicht: hoeken, vooraanzicht: schuine strook)
+  if(SGz && (sLinks || sRechts)){
+    const pts = [[x0, yBase]];
+    if(sLinks){ pts.push([x0, yBase - sLinks.hStart*SCALE], [x0 + sLinks.inspring*SCALE, yEave]); schuinAftrek += 0.5*sLinks.inspring*sLinks.hoogte; }
+    else pts.push([x0, yEave]);
+    if(sRechts){ pts.push([x0 + w - sRechts.inspring*SCALE, yEave], [x0 + w, yBase - sRechts.hStart*SCALE]); schuinAftrek += 0.5*sRechts.inspring*sRechts.hoogte; }
+    else pts.push([x0 + w, yEave]);
+    pts.push([x0 + w, yBase]);
+    svg.appendChild(svgEl('polygon', {points: pts.map(p=>p.join(',')).join(' '), fill:'white', stroke:KLEUR.gevel, 'stroke-width':1.5, 'data-hoofd':'1'}));
+    [[sLinks, 1], [sRechts, -1]].forEach(([s, r])=>{
+      if(!s) return;
+      const xg = r > 0 ? x0 : x0 + w;
+      const xi = xg + r*s.inspring*SCALE;
+      svg.appendChild(svgEl('line', {x1:xg, y1:yBase - s.hStart*SCALE, x2:xi, y2:yEave, stroke:KLEUR.dak, 'stroke-width':1.8}));
+      const lbl = svgEl('text', {x: xi + r*4, y: yEave + (s.hoogte*SCALE)*0.55, 'text-anchor': r > 0 ? 'start' : 'end', 'font-size':tekstGrootte(), fill:KLEUR.dak});
+      lbl.textContent = `${hk(s.hoek)}`;
+      svg.appendChild(lbl);
+      // dakkapellen in deze schuine gevel, van opzij: de wang als driehoek
+      (schuin.dakkapellen || []).filter(d=>d.dakvlak === s.vlak).forEach(d=>{
+        const voet = Math.max(0, d.afstand || 0);
+        const xb = xg + r*(voet / s.t)*SCALE, yb = yBase - (s.hStart + voet)*SCALE, yt = yb - d.hoogte*SCALE;
+        svg.appendChild(svgEl('polygon', {points:`${xb},${yb} ${xb},${yt} ${xb + r*d.diepte*SCALE},${yt}`, fill:'white', stroke:KLEUR.gevel, 'stroke-width':1.1}));
+        svg.appendChild(svgEl('line', {x1:xb, y1:yt, x2:xb + r*d.diepte*SCALE, y2:yt, stroke:KLEUR.dak, 'stroke-width':1.3}));
+      });
+    });
+  } else {
+    svg.appendChild(svgEl('rect', {x:x0,y:yEave,width:w,height:hRect,fill:'white',stroke:KLEUR.gevel,'stroke-width':1.5,'data-hoofd':'1'}));
+  }
+  if(sFront){
+    // vooraanzicht: de schuine strook bovenin (rood = schuin vlak), dakkapellen erin
+    const yS = yBase - sFront.hStart*SCALE;
+    svg.appendChild(svgEl('rect', {x:x0, y:yEave, width:w, height:yS - yEave, fill:'none', stroke:KLEUR.dak, 'stroke-width':1.2}));
+    schuinAftrek = breedte*sFront.hoogte;
+    const lijst = (schuin.dakkapellen || []).filter(d=>d.dakvlak === sFront.vlak);
+    const gat = lijst.reduce((t,d)=>t + d.gatOpp, 0);
+    // label boven de gevel, zodat het niet over de dakkapel(len) in de strook valt
+    const lbl = svgEl('text', {x:x0 + w/2, y:yEave - fs*0.6, 'text-anchor':'middle', 'font-size':tekstGrootte(), fill:KLEUR.dak});
+    lbl.textContent = `schuin ${hk(sFront.hoek)}: ${Math.max(breedte*sFront.schuin - gat, 0).toFixed(2)} m²`;
+    svg.appendChild(lbl);
+    if(lijst.length) tekenDakkapelSilhouetten(svg, x0, yS, lijst, w);
+  }
 
   if(heeftDriehoek && heeftWolfseind){
     // afgeknotte kopgevel (trapezium) + wolfseindvlak als gestippelde 'receding' driehoek erboven,
@@ -5714,13 +5939,14 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
   if(weergaveGroepen.overloopLinks.length) tekenOverloopBoxen(svg, x0, yBase, weergaveGroepen.overloopLinks, -1, gap);
   if(weergaveGroepen.overloopRechts.length) tekenOverloopBoxen(svg, x0+w, yBase, weergaveGroepen.overloopRechts, 1, gap);
 
-  const oppRectNetto = Math.max(breedte*gevelhoogte - blokkage, 0);
+  const oppRectNetto = Math.max(breedte*gevelhoogte - schuinAftrek - blokkage, 0);
   const oppDriehoek = heeftDriehoek ? (heeftWolfseind ? wolfseind.opp : 0.5*breedte*driehoekHoogte) : 0;
   const oppTotaal = oppRectNetto + oppDriehoek;
 
   {
     const t = blokkage>0 ? `${oppTotaal.toFixed(2)} m² (− uitbouw)` : `${oppTotaal.toFixed(2)} m²`;
-    const p = hoofdLabelPlek(hRect/2, t, hRect);
+    const hLabelMax = sFront ? sFront.hStart*SCALE : hRect;
+    const p = hoofdLabelPlek(hLabelMax/2, t, hLabelMax);
     svg.appendChild(svgEl('text', {x:x0+p.dx,y:yBase-p.h+fs*0.35,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
     svg.lastChild.textContent = p.tekst;
   }
@@ -5938,8 +6164,11 @@ function renderTekening(targetContainerId){
   const dakkapellenPerGevel = {VG:[], AG:[], LG:[], RG:[]};
   const dkCodes = dakvlakGevelCodes();
   dakkapelDataAlle.forEach(d=>{
+    if(isSchuinVlak(d.dakvlak)) return;   // die tekent het schuine-gevel-deel zelf
     dakkapellenPerGevel[d.dakvlak==='A' ? dkCodes.A : dkCodes.B].push(d);
   });
+  const SGt = (m.daktype === 'plat' || m.daktype === 'geen') ? schuineGevels(m.hoogte) : {actief:false};
+  const schuinVoor = code => SGt.actief ? {SG:SGt, code, dakkapellen: dakkapelDataAlle.filter(d=>isSchuinVlak(d.dakvlak))} : null;
 
   const asymProfiel = (asymData && asymData.geldig) ? asymData : null;
 
@@ -5953,28 +6182,28 @@ function renderTekening(targetContainerId){
     ? (profielOpVoorAchter
         ? tekenGevelaanzicht(aanzichtTitel('VG'), m.voorAchterBreedte, null, false, null, null, blokkageVG, weergaveGroepenVoorGevel('VG'), [], dakkapelDataAlle, null, asymProfiel, false)
         : tekenGevelaanzicht(aanzichtTitel('VG'), m.voorAchterBreedte, cumGevelVoorM, false, null, dakvlakInfoVoor, blokkageVG, weergaveGroepenVoorGevel('VG'), dakkapellenPerGevel.VG, dakkapelDataAlle, null))
-    : tekenGevelaanzicht(aanzichtTitel('VG'), m.voorAchterBreedte, m.hoogte, driehoekOpVoor, m.hellingshoek, dakvlakInfoVoor, blokkageVG, weergaveGroepenVoorGevel('VG'), dakkapellenPerGevel.VG, dakkapelDataAlle, driehoekOpVoor ? m.wolfseindA : null);
+    : tekenGevelaanzicht(aanzichtTitel('VG'), m.voorAchterBreedte, m.hoogte, driehoekOpVoor, m.hellingshoek, dakvlakInfoVoor, blokkageVG, weergaveGroepenVoorGevel('VG'), dakkapellenPerGevel.VG, dakkapelDataAlle, driehoekOpVoor ? m.wolfseindA : null, null, false, schuinVoor('VG'));
   if(blokVoor) container.appendChild(blokVoor);
 
   const blokAchter = heeftAsymmetrisch
     ? (profielOpVoorAchter
         ? tekenGevelaanzicht(aanzichtTitel('AG'), m.voorAchterBreedte, null, false, null, null, blokkageAG, weergaveGroepenVoorGevel('AG'), [], dakkapelDataAlle, null, asymProfiel, true)
         : tekenGevelaanzicht(aanzichtTitel('AG'), m.voorAchterBreedte, cumGevelAchterM, false, null, dakvlakInfoVoor, blokkageAG, weergaveGroepenVoorGevel('AG'), dakkapellenPerGevel.AG, dakkapelDataAlle, null))
-    : tekenGevelaanzicht(aanzichtTitel('AG'), m.voorAchterBreedte, m.hoogte, driehoekOpVoor, m.hellingshoek, dakvlakInfoVoor, blokkageAG, weergaveGroepenVoorGevel('AG'), dakkapellenPerGevel.AG, dakkapelDataAlle, driehoekOpVoor ? m.wolfseindB : null);
+    : tekenGevelaanzicht(aanzichtTitel('AG'), m.voorAchterBreedte, m.hoogte, driehoekOpVoor, m.hellingshoek, dakvlakInfoVoor, blokkageAG, weergaveGroepenVoorGevel('AG'), dakkapellenPerGevel.AG, dakkapelDataAlle, driehoekOpVoor ? m.wolfseindB : null, null, false, schuinVoor('AG'));
   if(blokAchter) container.appendChild(blokAchter);
 
   const blokLinks = heeftAsymmetrisch
     ? (profielOpZij
         ? tekenGevelaanzicht(aanzichtTitel('LG'), m.diepte, null, false, null, null, blokkageLG, weergaveGroepenVoorGevel('LG'), [], dakkapelDataAlle, null, asymProfiel, true)
         : tekenGevelaanzicht(aanzichtTitel('LG'), m.diepte, cumGevelVoorM, false, null, dakvlakInfoZij, blokkageLG, weergaveGroepenVoorGevel('LG'), dakkapellenPerGevel.LG, dakkapelDataAlle, null))
-    : tekenGevelaanzicht(aanzichtTitel('LG'), m.diepte, m.hoogte, driehoekOpZij, m.hellingshoek, dakvlakInfoZij, blokkageLG, weergaveGroepenVoorGevel('LG'), dakkapellenPerGevel.LG, dakkapelDataAlle, driehoekOpZij ? m.wolfseindA : null);
+    : tekenGevelaanzicht(aanzichtTitel('LG'), m.diepte, m.hoogte, driehoekOpZij, m.hellingshoek, dakvlakInfoZij, blokkageLG, weergaveGroepenVoorGevel('LG'), dakkapellenPerGevel.LG, dakkapelDataAlle, driehoekOpZij ? m.wolfseindA : null, null, false, schuinVoor('LG'));
   if(blokLinks) container.appendChild(blokLinks);
 
   const blokRechts = heeftAsymmetrisch
     ? (profielOpZij
         ? tekenGevelaanzicht(aanzichtTitel('RG'), m.diepte, null, false, null, null, blokkageRG, weergaveGroepenVoorGevel('RG'), [], dakkapelDataAlle, null, asymProfiel, false)
         : tekenGevelaanzicht(aanzichtTitel('RG'), m.diepte, cumGevelAchterM, false, null, dakvlakInfoZij, blokkageRG, weergaveGroepenVoorGevel('RG'), dakkapellenPerGevel.RG, dakkapelDataAlle, null))
-    : tekenGevelaanzicht(aanzichtTitel('RG'), m.diepte, m.hoogte, driehoekOpZij, m.hellingshoek, dakvlakInfoZij, blokkageRG, weergaveGroepenVoorGevel('RG'), dakkapellenPerGevel.RG, dakkapelDataAlle, driehoekOpZij ? m.wolfseindB : null);
+    : tekenGevelaanzicht(aanzichtTitel('RG'), m.diepte, m.hoogte, driehoekOpZij, m.hellingshoek, dakvlakInfoZij, blokkageRG, weergaveGroepenVoorGevel('RG'), dakkapellenPerGevel.RG, dakkapelDataAlle, driehoekOpZij ? m.wolfseindB : null, null, false, schuinVoor('RG'));
   if(blokRechts) container.appendChild(blokRechts);
 
   // Dwarsdoorsnede (alle daktypes); de langsdoorsnede alleen bij een wolfseind, omdat die
@@ -6928,12 +7157,16 @@ function veldWaarde(id){
 // Excel gebruikt leesbare gevelcodes (LG/RG/VG/AG) i.p.v. de interne A/B.
 // Welke code bij welke dakhelft hoort volgt de nokrichting.
 function dakvlakNaarGevelcode(waarde){
+  if(waarde === 'SV') return 'VG';
+  if(waarde === 'SA') return 'AG';
   const codes = dakvlakGevelCodes();
   return waarde === 'B' ? codes.B : codes.A;
 }
 function gevelcodeNaarDakvlak(waarde){
   const v = String(waarde === undefined || waarde === null ? '' : waarde).trim().toUpperCase();
   if(v === 'A' || v === 'B') return v;           // oude bestanden
+  if(v === 'VG-SCHUIN' || v === 'SV') return 'SV';
+  if(v === 'AG-SCHUIN' || v === 'SA') return 'SA';
   if(v === 'AG' || v === 'RG') return 'B';
   if(v === 'VG' || v === 'LG') return 'A';
   return 'A';
@@ -6997,6 +7230,8 @@ function verzamelInvoerData(){
     push('Verdieping', i+1, 'gevelhoogte', veldWaarde('ev-gevelhoogte-'+v.id));
     push('Verdieping', i+1, 'gevelhoogte-'+gcodes.A, veldWaarde('ev-gevelhoogte-voor-'+v.id));
     push('Verdieping', i+1, 'gevelhoogte-'+gcodes.B, veldWaarde('ev-gevelhoogte-achter-'+v.id));
+    push('Verdieping', i+1, 'schuin-voor', veldWaarde('ev-schuin-voor-'+v.id));
+    push('Verdieping', i+1, 'schuin-achter', veldWaarde('ev-schuin-achter-'+v.id));
   });
 
   uitbouwen.forEach((u,i)=>{
@@ -7011,7 +7246,8 @@ function verzamelInvoerData(){
   });
 
   dakkapellen.forEach((dk,i)=>{
-    push('Dakkapel', i+1, 'dakvlak', dakvlakNaarGevelcode(veldWaarde('dk-dakvlak-'+dk.id)));
+    { const vl = veldWaarde('dk-dakvlak-'+dk.id);
+      push('Dakkapel', i+1, 'dakvlak', vl === 'SV' ? 'VG-schuin' : vl === 'SA' ? 'AG-schuin' : dakvlakNaarGevelcode(vl)); }
     push('Dakkapel', i+1, 'breedte', veldWaarde('dk-breedte-'+dk.id));
     push('Dakkapel', i+1, 'hoogte', veldWaarde('dk-hoogte-'+dk.id));
     push('Dakkapel', i+1, 'diepte', veldWaarde('dk-diepte-'+dk.id));
@@ -7127,6 +7363,8 @@ function vulInvoerDataIn(rows){
       gevelLater('ev-gevelhoogte-'+v.id, g.velden.gevelhoogte);
       gevelLater('ev-gevelhoogte-voor-'+v.id, gevelhoogteUitVelden(g.velden, 'A'));
       gevelLater('ev-gevelhoogte-achter-'+v.id, gevelhoogteUitVelden(g.velden, 'B'));
+      veldZettenOokLeeg('ev-schuin-voor-'+v.id, g.velden['schuin-voor']);
+      veldZettenOokLeeg('ev-schuin-achter-'+v.id, g.velden['schuin-achter']);
       v.breedteTouched = true; v.diepteTouched = true;
     });
 
