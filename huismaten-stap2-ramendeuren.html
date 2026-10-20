@@ -1938,9 +1938,13 @@ function schuineGevels(hTotaal){
     if(isNaN(a) || a <= 0 || a >= 90) return;
     if(dt !== 'plat' && dt !== 'geen'){ res.fouten.push(`Schuine ${z}gevel werkt alleen bij een plat dak (of 'geen dak') — genegeerd.`); return; }
     if(!(hl > 0) || isNaN(h) || h < hl - 1e-6){ res.fouten.push(`Schuine ${z}gevel: gevelhoogte van de bovenste bouwlaag (of de totale gevelhoogte) ontbreekt.`); return; }
+    const startRaw = veldGetal(`ev-schuin-${z}-start-${top}`);
+    const start = isNaN(startRaw) || startRaw < 0 ? 0 : startRaw;     // m boven de vloer waar de schuinte begint
+    if(start >= hl - 0.01){ res.fouten.push(`Schuine ${z}gevel: de schuinte begint (${start.toFixed(2)} m) op of boven de gevelhoogte van de laag (${hl.toFixed(2)} m) — genegeerd.`); return; }
+    const hs = hl - start;                                             // hoogte van het schuine deel
     const r = deg2rad(a), t = Math.tan(r);
-    res[z] = {zijde:z, code: z==='voor' ? 'VG' : 'AG', vlak: z==='voor' ? 'SV' : 'SA', hoek:a, t,
-              hoogte:hl, hStart: h - hl, inspring: hl / t, schuin: hl / Math.sin(r)};
+    res[z] = {zijde:z, code: z==='voor' ? 'VG' : 'AG', vlak: z==='voor' ? 'SV' : 'SA', hoek:a, t, start,
+              hoogte:hs, hStart: h - hs, inspring: hs / t, schuin: hs / Math.sin(r)};
     res.actief = true;
   });
   const diepte = veldGetal('gs-diepte');
@@ -2500,7 +2504,7 @@ function berekenSchil(dak, schild){
     [SG.voor, SG.achter].filter(Boolean).forEach(s=>{
       let netto = bS*s.schuin;
       let f = `${n2(bS)} × ${n2(s.hoogte)} ÷ sin(${hk(s.hoek)})`;
-      let detail = `schuin vlak bovenste laag, ${n2(s.inspring)} m naar binnen`;
+      let detail = `schuin vlak bovenste laag${s.start > 0 ? ', begint ' + n2(s.start) + ' m boven de vloer' : ''}, ${n2(s.inspring)} m naar binnen`;
       const gaten = dkData.filter(d=>d.dakvlak === s.vlak);
       gaten.forEach(d=>{ netto -= d.gatOpp; f += ` − ${n2(d.breedte)} × √(${n2(d.hoogte)}² + ${n2(d.diepte)}²)`; });
       if(gaten.length) detail += ', minus gat dakkapel(len)';
@@ -2924,11 +2928,21 @@ function voegVerdiepingToe(){
         <input type="text" inputmode="decimal" class="numeric-input" id="ev-schuin-voor-${id}" placeholder="bv. 75">
       </div>
       <div class="field">
+        <label>Schuinte voor begint … cm boven de vloer (leeg = 0)</label>
+        <input type="text" inputmode="numeric" class="numeric-input" id="ev-schuin-voor-start-${id}" step="1" data-eenheid="cm" placeholder="bv. 40">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
         <label>Schuine achtergevel — hoek (°), leeg = recht</label>
         <input type="text" inputmode="decimal" class="numeric-input" id="ev-schuin-achter-${id}" placeholder="bv. 75">
       </div>
+      <div class="field">
+        <label>Schuinte achter begint … cm boven de vloer (leeg = 0)</label>
+        <input type="text" inputmode="numeric" class="numeric-input" id="ev-schuin-achter-start-${id}" step="1" data-eenheid="cm" placeholder="bv. 40">
+      </div>
     </div>
-    <p class="hint" style="margin-top:-4px;">Alleen voor de bovenste bouwlaag bij een plat dak: de gevel loopt dan over de volle gevelhoogte van deze laag schuin naar binnen (hoek gemeten vanaf de vloer, bv. 75°). Zet de gevelhoogte van deze laag op de buitenmaat tot de dakrand.</p>
+    <p class="hint" style="margin-top:-4px;">Alleen voor de bovenste bouwlaag bij een plat dak: de gevel loopt vanaf de opgegeven hoogte boven de vloer schuin naar binnen tot de dakrand (hoek gemeten vanaf de horizontaal, bv. 75°). Zet de gevelhoogte van deze laag op de buitenmaat tot de dakrand.</p>
     
     <!-- Gevelhoogte symmetrisch (normaal geval) -->
     <div id="ev-gevelhoogte-normaal-wrap-${id}" class="row" style="display:${isAsymmetrisch ? 'none' : 'flex'};">
@@ -2988,7 +3002,7 @@ function voegVerdiepingToe(){
     updateVerdiepingUitkomst(v);
     renderDakverdiepingEnTotaal();
   });
-  ['voor','achter'].forEach(z=> document.getElementById(`ev-schuin-${z}-${id}`).addEventListener('input', schuinGewijzigd));
+  ['voor','achter'].forEach(z=> [`ev-schuin-${z}-${id}`, `ev-schuin-${z}-start-${id}`].forEach(fid=> document.getElementById(fid).addEventListener('input', schuinGewijzigd)));
   
   // Gevelhoogte normaal (symmetrisch)
   const evGevelhoog = document.getElementById('ev-gevelhoogte-'+id);
@@ -7232,6 +7246,8 @@ function verzamelInvoerData(){
     push('Verdieping', i+1, 'gevelhoogte-'+gcodes.B, veldWaarde('ev-gevelhoogte-achter-'+v.id));
     push('Verdieping', i+1, 'schuin-voor', veldWaarde('ev-schuin-voor-'+v.id));
     push('Verdieping', i+1, 'schuin-achter', veldWaarde('ev-schuin-achter-'+v.id));
+    push('Verdieping', i+1, 'schuin-voor-start', veldWaarde('ev-schuin-voor-start-'+v.id));
+    push('Verdieping', i+1, 'schuin-achter-start', veldWaarde('ev-schuin-achter-start-'+v.id));
   });
 
   uitbouwen.forEach((u,i)=>{
@@ -7365,6 +7381,8 @@ function vulInvoerDataIn(rows){
       gevelLater('ev-gevelhoogte-achter-'+v.id, gevelhoogteUitVelden(g.velden, 'B'));
       veldZettenOokLeeg('ev-schuin-voor-'+v.id, g.velden['schuin-voor']);
       veldZettenOokLeeg('ev-schuin-achter-'+v.id, g.velden['schuin-achter']);
+      veldZettenOokLeeg('ev-schuin-voor-start-'+v.id, g.velden['schuin-voor-start']);
+      veldZettenOokLeeg('ev-schuin-achter-start-'+v.id, g.velden['schuin-achter-start']);
       v.breedteTouched = true; v.diepteTouched = true;
     });
 
