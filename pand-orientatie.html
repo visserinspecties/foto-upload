@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pand-oriëntatie via BAG</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  /* Achtergrond: vergrootglas. Vervang de url(...) hieronder door het echte logo (bijv. url('vergrootglas.png') of een data-URI). */
+  :root { --blauw:#1f4e79; --blauw-licht:#e8f0f8; --grijs:#5b6670; --rand:#cfd8e0;
+    --vergrootglas: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Cg fill='none' stroke='%231f4e79' stroke-opacity='0.13' stroke-linecap='round'%3E%3Ccircle cx='80' cy='80' r='54' stroke-width='14'/%3E%3Cpath d='M121 121 L182 182' stroke-width='24'/%3E%3C/g%3E%3C/svg%3E"); }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:'Merriweather', Georgia, serif; font-size:14px; color:#1b2733; background:#f5f7fa var(--vergrootglas) no-repeat right -70px bottom -70px / min(560px, 90vw); background-attachment:fixed; }
+  header { background:var(--blauw); color:#fff; padding:10px 16px; }
+  header h1 { margin:0; font-size:17px; font-weight:700; }
+  .wrap { display:flex; gap:12px; padding:12px; height:calc(100vh - 52px); }
+  .zijkant { width:380px; flex:none; overflow:auto; background:rgba(255,255,255,.9); border:1px solid var(--rand); border-radius:6px; padding:12px; }
+  .kaartvak { flex:1; position:relative; border:1px solid var(--rand); border-radius:6px; overflow:hidden; background:#fff; }
+  #kaart { position:absolute; inset:0; }
+  label { display:block; font-size:12px; color:var(--grijs); margin-bottom:4px; }
+  input[type=text], select { width:100%; padding:8px; border:1px solid var(--rand); border-radius:4px; font:inherit; }
+  button { font:inherit; padding:8px 12px; border:0; border-radius:4px; background:var(--blauw); color:#fff; cursor:pointer; }
+  button.licht { background:var(--blauw-licht); color:var(--blauw); }
+  button:disabled { opacity:.5; cursor:default; }
+  .rij { display:flex; gap:8px; margin-top:8px; }
+  .rij3 { display:flex; gap:8px; }
+  .rij3 > div:nth-child(1) { flex:2; } .rij3 > div:nth-child(2) { flex:1.3; } .rij3 > div:nth-child(3) { flex:1; }
+  .rij > * { flex:1; }
+  #status { margin-top:10px; font-size:12px; color:var(--grijs); min-height:16px; }
+  #status.fout { color:#b00020; }
+  h2 { font-size:13px; margin:16px 0 6px; color:var(--blauw); }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  th, td { padding:5px 4px; border-bottom:1px solid var(--rand); text-align:left; }
+  th { color:var(--grijs); font-weight:400; }
+  tr.sel { background:var(--blauw-licht); }
+  tr.kies { cursor:pointer; }
+  .tag { display:inline-block; min-width:26px; padding:1px 5px; border-radius:3px; background:var(--blauw); color:#fff; text-align:center; font-size:11px; }
+  .tag.leeg { background:#cfd8e0; color:#1b2733; }
+  .noordpijl { position:absolute; top:12px; right:12px; z-index:1000; background:rgba(255,255,255,.9); border:1px solid var(--rand); border-radius:6px; padding:4px 8px; text-align:center; font-size:12px; font-weight:700; }
+  .gevellabel { background:rgba(255,255,255,.92); border:1px solid #333; border-radius:3px; padding:1px 4px; font-size:11px; font-family:'Merriweather',serif; white-space:nowrap; transform:translate(-50%,-50%); }
+  .klein { font-size:11px; color:var(--grijs); margin-top:10px; line-height:1.5; }
+  @media (max-width: 800px) { .wrap { flex-direction:column; height:auto; } .zijkant { width:auto; } .kaartvak { height:70vh; } }
+  @media print { header, .zijkant .invoer, button { display:none !important; } .wrap { display:block; height:auto; } .zijkant { width:auto; border:0; } .kaartvak { height:480px; } }
+</style>
+</head>
+<body>
+<header><h1>Pand-oriëntatie via BAG</h1></header>
+<div class="wrap">
+  <div class="zijkant">
+    <div class="invoer">
+      <div class="rij3">
+        <div><label for="postcode">Postcode</label><input type="text" id="postcode" placeholder="2552 AB" autocomplete="postal-code"></div>
+        <div><label for="huisnr">Huisnummer</label><input type="text" id="huisnr" placeholder="255" inputmode="numeric"></div>
+        <div><label for="toev">Toev.</label><input type="text" id="toev" placeholder="A"></div>
+      </div>
+      <label for="adres" style="margin-top:10px">Of: adres als tekst</label>
+      <input type="text" id="adres" placeholder="Straatnaam 12 Plaats">
+      <div class="rij"><button id="zoek">Zoek pand</button></div>
+      <div id="kiesWrap" style="display:none; margin-top:8px;">
+        <label for="kies">Meerdere adressen gevonden</label>
+        <select id="kies"></select>
+      </div>
+    </div>
+    <div id="status"></div>
+    <div id="resultaat" style="display:none;">
+      <h2 id="adresTitel"></h2>
+      <div id="pandInfo" class="klein" style="margin-top:0"></div>
+      <h2>Gevels</h2>
+      <div class="klein" style="margin:0 0 6px">Klik een gevel in de tabel of op de kaart om die als voorgevel (VG) aan te wijzen. AG, LG en RG volgen daaruit.</div>
+      <table>
+        <thead><tr><th>#</th><th>Lengte</th><th>Kijkt naar</th><th>Gevel</th></tr></thead>
+        <tbody id="tabel"></tbody>
+      </table>
+      <h2>Totaal per gevel</h2>
+      <table><tbody id="totaal"></tbody></table>
+      <div class="rij"><button class="licht" id="kopieer">Kopieer tabel</button><button class="licht" id="print">Print / PDF</button></div>
+    </div>
+    <div class="klein">Bron: BAG (Kadaster) via PDOK, opgehaald in je eigen browser. De BAG-contour is indicatief en geen vervanging van opmeten. "Kijkt naar" is de richting waarop de gevel uitkijkt, dus de normaal van de gevel naar buiten.</div>
+  </div>
+  <div class="kaartvak">
+    <div id="kaart"></div>
+    <div class="noordpijl"><svg width="22" height="30" viewBox="0 0 22 30"><path d="M11 1 L20 27 L11 21 L2 27 Z" fill="#1f4e79"/></svg><div>N</div></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ==GEO==
+const R_LAT = 110540, R_LON = 111320;
+
+function toLocal(ring) {
+  const lat0 = ring[0][1], k = Math.cos(lat0 * Math.PI / 180);
+  return ring.map(([lon, lat]) => [(lon - ring[0][0]) * R_LON * k, (lat - ring[0][1]) * R_LAT]);
+}
+function signedArea(p) {
+  let a = 0;
+  for (let i = 0; i < p.length; i++) {
+    const [x1, y1] = p[i], [x2, y2] = p[(i + 1) % p.length];
+    a += x1 * y2 - x2 * y1;
+  }
+  return a / 2;
+}
+function azimuth(nx, ny) { return (Math.atan2(nx, ny) * 180 / Math.PI + 360) % 360; }
+function compass(az) { return ['N', 'NO', 'O', 'ZO', 'Z', 'ZW', 'W', 'NW'][Math.round(az / 45) % 8]; }
+function angDiff(a, b) { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; }
+
+function buildEdges(ringLonLat) {
+  const ring = ringLonLat.map(p => [p[0], p[1]]);
+  const f = ring[0], l = ring[ring.length - 1];
+  if (f[0] === l[0] && f[1] === l[1]) ring.pop();
+  let loc = toLocal(ring);
+  if (signedArea(loc) < 0) { ring.reverse(); loc = toLocal(ring); }   // maak ring tegen de klok in
+  let edges = [];
+  for (let i = 0; i < ring.length; i++) {
+    const j = (i + 1) % ring.length;
+    const dx = loc[j][0] - loc[i][0], dy = loc[j][1] - loc[i][1];
+    const len = Math.hypot(dx, dy);
+    if (len < 0.05) continue;
+    edges.push({ a: ring[i], b: ring[j], la: loc[i], lb: loc[j], len, az: azimuth(dy, -dx) });
+  }
+  const samen = (e1, e2) => {
+    const dx = e2.lb[0] - e1.la[0], dy = e2.lb[1] - e1.la[1];
+    return { a: e1.a, b: e2.b, la: e1.la, lb: e2.lb, len: Math.hypot(dx, dy), az: azimuth(dy, -dx) };
+  };
+  let veranderd = true;
+  while (veranderd && edges.length > 3) {
+    veranderd = false;
+    for (let i = 0; i < edges.length; i++) {
+      const j = (i + 1) % edges.length;
+      if (i === j) continue;
+      if (angDiff(edges[i].az, edges[j].az) < 4) {
+        const m = samen(edges[i], edges[j]);
+        if (j === 0) { edges[i] = m; edges.splice(0, 1); } else { edges.splice(i, 2, m); }
+        veranderd = true;
+        break;
+      }
+    }
+  }
+  return edges;
+}
+
+// Staande voor de voorgevel, kijkend naar het huis: links = LG, rechts = RG.
+function assignLabels(edges, vgIndex) {
+  const av = edges[vgIndex].az;
+  const doelen = { VG: av, LG: (av + 90) % 360, AG: (av + 180) % 360, RG: (av + 270) % 360 };
+  return edges.map(e => {
+    let best = null, bd = 1e9;
+    for (const k in doelen) { const d = angDiff(e.az, doelen[k]); if (d < bd) { bd = d; best = k; } }
+    return best;
+  });
+}
+
+function pointInRing(pt, ring) {
+  let bin = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+    if (((yi > pt[1]) !== (yj > pt[1])) && (pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi)) bin = !bin;
+  }
+  return bin;
+}
+// ==/GEO==
+
+// ---------- kaart ----------
+const HAS_L = typeof L !== 'undefined';
+let kaart = null, laag = null;
+if (HAS_L) {
+const brt = L.tileLayer('https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/{z}/{x}/{y}.png', { maxZoom: 21, maxNativeZoom: 19, attribution: 'Kaartgegevens © Kadaster / PDOK' });
+const lucht = L.tileLayer('https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_orthoHR/EPSG:3857/{z}/{x}/{y}.jpeg', { maxZoom: 21, maxNativeZoom: 19, attribution: 'Luchtfoto © PDOK' });
+kaart = L.map('kaart', { zoomSnap: 0.5 }).setView([52.07, 4.3], 8);
+brt.addTo(kaart);
+L.control.layers({ 'Kaart': brt, 'Luchtfoto': lucht }).addTo(kaart);
+L.control.scale({ imperial: false }).addTo(kaart);
+laag = L.layerGroup().addTo(kaart);
+}
+
+const KLEUR = { N: '#1d4ed8', NO: '#0891b2', O: '#059669', ZO: '#ca8a04', Z: '#dc2626', ZW: '#c2410c', W: '#7c3aed', NW: '#4f46e5' };
+
+// ---------- state ----------
+let state = { adres: null, edges: [], vg: null, pand: null };
+const $ = id => document.getElementById(id);
+function melding(t, fout) { const s = $('status'); s.textContent = t; s.className = fout ? 'fout' : ''; }
+
+// ---------- data ----------
+async function zoekAdressen(q) {
+  const url = 'https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?q=' + encodeURIComponent(q) + '&fq=type:adres&rows=20&fl=id,weergavenaam,centroide_ll';
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('Locatieserver gaf HTTP ' + r.status);
+  const j = await r.json();
+  return (j.response && j.response.docs) || [];
+}
+async function haalPanden(lon, lat) {
+  const dx = 0.0006, dy = 0.0004;
+  const bbox = [lon - dx, lat - dy, lon + dx, lat + dy].join(',');
+  const bases = [
+    'https://api.pdok.nl/lv/bag/ogc/v1/collections/pand/items',
+    'https://api.pdok.nl/lv/bag/ogc/v1_0/collections/pand/items'
+  ];
+  let laatste;
+  for (const b of bases) {
+    try {
+      const r = await fetch(b + '?bbox=' + bbox + '&limit=50&f=json');
+      if (!r.ok) throw new Error('BAG gaf HTTP ' + r.status);
+      const j = await r.json();
+      return j.features || [];
+    } catch (e) { laatste = e; }
+  }
+  throw laatste;
+}
+function kiesPand(features, lon, lat) {
+  const kand = [];
+  for (const f of features) {
+    const st = (f.properties && f.properties.status) || '';
+    if (/gesloopt|ingetrokken|niet gerealiseerd/i.test(st)) continue;
+    const g = f.geometry; if (!g) continue;
+    const polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : [];
+    for (const p of polys) kand.push({ f, ring: p[0] });
+  }
+  if (!kand.length) return null;
+  const pt = [lon, lat];
+  const binnen = kand.filter(k => pointInRing(pt, k.ring));
+  if (binnen.length) return binnen.sort((a, b) => Math.abs(signedArea(toLocal(a.ring))) - Math.abs(signedArea(toLocal(b.ring))))[0];
+  let best = null, bd = 1e9;
+  for (const k of kand) for (const v of k.ring) { const d = Math.hypot(v[0] - lon, v[1] - lat); if (d < bd) { bd = d; best = k; } }
+  return best;
+}
+
+// ---------- tekenen ----------
+function tekenSvg(labels) {
+  const E = state.edges, el = $('kaart');
+  const xs = [], ys = [];
+  E.forEach(e => { xs.push(e.la[0], e.lb[0]); ys.push(e.la[1], e.lb[1]); });
+  const minx = Math.min(...xs), maxx = Math.max(...xs), miny = Math.min(...ys), maxy = Math.max(...ys);
+  const grootte = Math.max(maxx - minx, maxy - miny);
+  const pad = grootte * 0.3 + 3;
+  const W = maxx - minx + 2 * pad, H = maxy - miny + 2 * pad, M = Math.max(W, H);
+  const X = x => (x - minx + pad), Y = y => (maxy - y + pad);
+  const fs = M / 34;
+  let s = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:100%;background:#fff" preserveAspectRatio="xMidYMid meet">';
+  s += '<polygon points="' + E.map(e => X(e.la[0]) + ',' + Y(e.la[1])).join(' ') + '" fill="#1f4e79" fill-opacity=".12"/>';
+  E.forEach((e, i) => {
+    const kl = KLEUR[compass(e.az)];
+    const l = 'x1="' + X(e.la[0]) + '" y1="' + Y(e.la[1]) + '" x2="' + X(e.lb[0]) + '" y2="' + Y(e.lb[1]) + '"';
+    s += '<line ' + l + ' stroke="' + kl + '" stroke-width="' + (M / (i === state.vg ? 55 : 95)) + '" stroke-linecap="round"/>';
+    s += '<line data-i="' + i + '" ' + l + ' stroke="transparent" stroke-width="' + (M / 25) + '" style="cursor:pointer"/>';
+    if (e.len >= 1.0) {
+      const rad = e.az * Math.PI / 180, off = fs * 1.5;
+      const mx = (e.la[0] + e.lb[0]) / 2 + Math.sin(rad) * off, my = (e.la[1] + e.lb[1]) / 2 + Math.cos(rad) * off;
+      const tekst = (i + 1) + ' · ' + compass(e.az) + (labels ? ' · ' + labels[i] : '');
+      s += '<text x="' + X(mx) + '" y="' + Y(my) + '" font-size="' + fs + '" text-anchor="middle" dominant-baseline="middle" fill="' + kl + '" font-family="Merriweather,serif" font-weight="700" stroke="#fff" stroke-width="' + (fs / 5) + '" paint-order="stroke">' + tekst + '</text>';
+    }
+  });
+  const sx = pad * 0.3, sy = H - pad * 0.3;
+  s += '<line x1="' + sx + '" y1="' + sy + '" x2="' + (sx + 10) + '" y2="' + sy + '" stroke="#333" stroke-width="' + (M / 200) + '"/><text x="' + sx + '" y="' + (sy - fs * 0.5) + '" font-size="' + (fs * 0.8) + '" fill="#333">10 m</text>';
+  s += '<text x="' + (W / 2) + '" y="' + (fs * 1.2) + '" font-size="' + (fs * 0.7) + '" fill="#5b6670" text-anchor="middle">Noord boven · geen achtergrondkaart</text>';
+  s += '</svg>';
+  el.innerHTML = s;
+  el.querySelectorAll('[data-i]').forEach(n => n.addEventListener('click', () => { state.vg = +n.dataset.i; tekenAlles(); }));
+}
+function tekenAlles() {
+  const edges = state.edges;
+  const labels = state.vg === null ? null : assignLabels(edges, state.vg);
+  if (!HAS_L) { tekenSvg(labels); tekenTabel(labels); return; }
+  laag.clearLayers();
+  const allePunten = [];
+  edges.forEach((e, i) => {
+    const kl = KLEUR[compass(e.az)];
+    const lijn = L.polyline([[e.a[1], e.a[0]], [e.b[1], e.b[0]]], { color: kl, weight: i === state.vg ? 8 : 5, opacity: .95 }).addTo(laag);
+    lijn.on('click', () => { state.vg = i; tekenAlles(); });
+    allePunten.push([e.a[1], e.a[0]]);
+    if (e.len >= 1.0) {
+      const rad = e.az * Math.PI / 180, k = Math.cos(e.a[1] * Math.PI / 180);
+      const mlon = (e.a[0] + e.b[0]) / 2 + (Math.sin(rad) * 1.6) / (R_LON * k);
+      const mlat = (e.a[1] + e.b[1]) / 2 + (Math.cos(rad) * 1.6) / R_LAT;
+      const tekst = (i + 1) + ' · ' + compass(e.az) + (labels ? ' · ' + labels[i] : '');
+      L.marker([mlat, mlon], { interactive: false, icon: L.divIcon({ className: '', html: '<div class="gevellabel" style="border-color:' + kl + '">' + tekst + '</div>' }) }).addTo(laag);
+    }
+  });
+  L.polygon(allePunten, { stroke: false, fillColor: '#1f4e79', fillOpacity: .12 }).addTo(laag);
+  tekenTabel(labels);
+}
+function tekenTabel(labels) {
+  const tb = $('tabel'); tb.innerHTML = '';
+  const tot = {};
+  state.edges.forEach((e, i) => {
+    const lab = labels ? labels[i] : null;
+    if (lab) tot[lab] = (tot[lab] || 0) + e.len;
+    const tr = document.createElement('tr');
+    tr.className = 'kies' + (i === state.vg ? ' sel' : '');
+    tr.innerHTML = '<td>' + (i + 1) + '</td><td>' + e.len.toFixed(2).replace('.', ',') + ' m</td><td>' + Math.round(e.az) + '° (' + compass(e.az) + ')</td><td><span class="tag' + (lab ? '' : ' leeg') + '">' + (lab || '–') + '</span></td>';
+    tr.addEventListener('click', () => { state.vg = i; tekenAlles(); });
+    tb.appendChild(tr);
+  });
+  const tt = $('totaal'); tt.innerHTML = '';
+  if (!labels) { tt.innerHTML = '<tr><td class="klein">Wijs eerst een voorgevel aan.</td></tr>'; return; }
+  ['VG', 'AG', 'LG', 'RG'].forEach(k => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td><span class="tag">' + k + '</span></td><td>' + ((tot[k] || 0).toFixed(2).replace('.', ',')) + ' m</td>';
+    tt.appendChild(tr);
+  });
+}
+
+// ---------- flow ----------
+async function laadAdres(doc) {
+  melding('Pand ophalen uit BAG…');
+  const m = /POINT\(([-\d.]+) ([-\d.]+)\)/.exec(doc.centroide_ll || '');
+  if (!m) throw new Error('Geen coördinaten bij dit adres.');
+  const lon = parseFloat(m[1]), lat = parseFloat(m[2]);
+  const panden = await haalPanden(lon, lat);
+  const pand = kiesPand(panden, lon, lat);
+  if (!pand) throw new Error('Geen pand gevonden bij dit adres.');
+  state.adres = doc; state.pand = pand; state.vg = null;
+  state.edges = buildEdges(pand.ring);
+  $('resultaat').style.display = 'block';
+  $('adresTitel').textContent = doc.weergavenaam;
+  const p = pand.f.properties || {};
+  $('pandInfo').textContent = 'Pand-ID ' + (p.identificatie || '?') + (p.bouwjaar ? ' · bouwjaar ' + p.bouwjaar : '') + (p.status ? ' · ' + p.status : '') + ' · ' + state.edges.length + ' gevels';
+  tekenAlles();
+  if (HAS_L) {
+    const b = L.latLngBounds(pand.ring.map(v => [v[1], v[0]]));
+    kaart.fitBounds(b, { maxZoom: 20, padding: [60, 60] });
+  }
+  melding((HAS_L ? '' : 'Kaartbibliotheek niet geladen, contour getoond zonder achtergrondkaart. ') + (panden.length > 1 ? 'Pand gevonden (' + panden.length + ' panden in de buurt, dichtstbijzijnde bij het adrespunt gekozen).' : 'Pand gevonden.'));
+}
+function bouwQuery() {
+  const pc = $('postcode').value.replace(/\s+/g, '').toUpperCase();
+  const nr = $('huisnr').value.trim(), tv = $('toev').value.trim().toLowerCase().replace(/[\s-]/g, '');
+  const tekst = $('adres').value.trim();
+  if (pc || nr) {
+    if (!pc || !nr) return { fout: 'Vul zowel postcode als huisnummer in.' };
+    if (!/^[1-9][0-9]{3}[A-Z]{2}$/.test(pc)) return { fout: 'Postcode klopt niet: vier cijfers en twee letters, bijvoorbeeld 2552 AB.' };
+    return { q: pc + ' ' + nr, nr, tv };
+  }
+  return tekst ? { q: tekst, nr: '', tv: '' } : { fout: 'Vul postcode en huisnummer in, of een adres als tekst.' };
+}
+function sorteerDocs(docs, nr, tv) {
+  if (!nr) return docs;
+  const score = d => {
+    const s = (d.weergavenaam || '').split(',')[0].toLowerCase().replace(/[\s-]/g, '');
+    if (s.endsWith(nr + tv)) return 0;
+    if (tv) return s.includes(nr) ? 1 : 2;
+    return s.endsWith(nr) ? 0 : (s.includes(nr) ? 1 : 2);
+  };
+  return docs.map((d, i) => [score(d), i, d]).sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(x => x[2]);
+}
+async function zoek() {
+  const Q = bouwQuery();
+  if (Q.fout) { melding(Q.fout, true); return; }
+  $('zoek').disabled = true; melding('Adres zoeken…');
+  try {
+    const docs = sorteerDocs(await zoekAdressen(Q.q), Q.nr, Q.tv);
+    if (!docs.length) throw new Error('Adres niet gevonden.');
+    const sel = $('kies'); sel.innerHTML = '';
+    docs.forEach((d, i) => { const o = document.createElement('option'); o.value = i; o.textContent = d.weergavenaam; sel.appendChild(o); });
+    $('kiesWrap').style.display = docs.length > 1 ? 'block' : 'none';
+    sel._docs = docs;
+    await laadAdres(docs[0]);
+  } catch (e) { melding('Mislukt: ' + e.message + ' (staat de internetverbinding aan?)', true); }
+  $('zoek').disabled = false;
+}
+$('zoek').addEventListener('click', zoek);
+['postcode', 'huisnr', 'toev', 'adres'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') zoek(); }));
+$('kies').addEventListener('change', async e => {
+  try { await laadAdres(e.target._docs[+e.target.value]); } catch (err) { melding('Mislukt: ' + err.message, true); }
+});
+$('print').addEventListener('click', () => window.print());
+$('kopieer').addEventListener('click', async () => {
+  const labels = state.vg === null ? null : assignLabels(state.edges, state.vg);
+  const regels = ['Gevel\tLengte (m)\tGraden\tKijkt naar\tAanduiding'];
+  state.edges.forEach((e, i) => regels.push([i + 1, e.len.toFixed(2).replace('.', ','), Math.round(e.az), compass(e.az), labels ? labels[i] : ''].join('\t')));
+  try { await navigator.clipboard.writeText((state.adres ? state.adres.weergavenaam + '\n' : '') + regels.join('\n')); melding('Tabel gekopieerd.'); }
+  catch (e) { melding('Kopiëren mislukt in deze browser.', true); }
+});
+</script>
+</body>
+</html>
