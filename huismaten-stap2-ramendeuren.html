@@ -6410,8 +6410,8 @@ function samenvattingRegelsVerzamelen(){
   const dk = alleDakkapelData().filter(d=>d.geldig);
   const dkLab = dakvlakLabels();
   dk.forEach(d=>{
-    info(d.naam, null, '', `dak ${dkLab[d.dakvlak].toLowerCase()} (${dakvlakNaarGevelcode(d.dakvlak)}), b × h × d = ${n2(d.breedte)} × ${n2(d.hoogte)} × ${n2(d.diepte)} m, voet ${n2(d.afstand||0)} m boven goot`);
-    regels.push({soort:'info', label:`${d.naam} — gat in hoofddakvlak (al afgetrokken)`, getal:d.gatOpp, eenheid:'m²', tekst:'',
+    info(d.naam, null, '', `dak ${dkLab[d.dakvlak].toLowerCase()} (${dakvlakNaarGevelcode(d.dakvlak)}), b × h × d = ${n2(d.breedte)} × ${n2(d.hoogte)} × ${n2(d.diepte)} m, voet ${n2(d.afstand||0)} m boven ${isSchuinVlak(d.dakvlak) ? 'onderkant schuine gevel' : 'goot'}`);
+    regels.push({soort:'info', label:`${d.naam} — gat in ${isSchuinVlak(d.dakvlak) ? 'schuine gevel' : 'hoofddakvlak'} (al afgetrokken)`, getal:d.gatOpp, eenheid:'m²', tekst:'',
                  formule:`${n2(d.breedte)} × √(${n2(d.hoogte)}² + ${n2(d.diepte)}²)`, kleur:'dak'});
   });
 
