@@ -553,7 +553,9 @@ function gevelsUitVoorgevel(vgRichting) {
 
 // ── BAG-verrijking via PDOK ───────────────────────────────────
 const PDOK_LS  = 'https://api.pdok.nl/bzk/locatieserver/search/v3_1';
-const PDOK_WFS = 'https://service.pdok.nl/lv/bag/wfs/v2_0';
+const PDOK_WFS = 'https://service.pdok.nl/lv/bag/wfs/v2_0';          // oude dienst (reserve)
+const BAG_OGC  = 'https://api.pdok.nl/kadaster/bag/ogc/v2';           // nieuwe BAG OGC API v2
+const RD_CRS   = 'http://www.opengis.net/def/crs/EPSG/0/28992';
 
 // Laatste BAG-resultaat (voor de kaart en de oriëntatie)
 let bagState = null;
@@ -567,13 +569,50 @@ async function wfsBbox(laag, x, y, d) {
   return (await resp.json()).features || [];
 }
 
-// doc = resultaat van de PDOK-locatieserver (type adres)
-async function haalBagGegevens(doc) {
-  const punt = parseRdPunt(doc.centroide_rd);
-  if (!punt) throw new Error('geen coördinaten bij dit adres');
-  const res = { punt, vboId: doc.adresseerbaarobject_id || '' };
+// Zelfde vraag aan de nieuwe OGC API, in RD-coördinaten zodat de rest van de code gelijk blijft
+async function ogcBbox(collectie, x, y, d) {
+  const p = new URLSearchParams({ f: 'json', limit: '200', bbox: [x - d, y - d, x + d, y + d].join(','), 'bbox-crs': RD_CRS, crs: RD_CRS });
+  const resp = await fetch(`${BAG_OGC}/collections/${collectie}/items?${p}`);
+  if (!resp.ok) throw new Error(`BAG OGC ${collectie} HTTP ${resp.status}`);
+  return (await resp.json()).features || [];
+}
 
-  // 1. Verblijfsobject: oppervlakte, gebruiksdoel, pand-id
+const ringVan = f => f.geometry?.type === 'Polygon' ? f.geometry.coordinates[0]
+                   : f.geometry?.type === 'MultiPolygon' ? f.geometry.coordinates[0][0] : null;
+const BESTAAT_NIET = /gesloopt|niet gerealiseerd|ingetrokken/i;
+
+// Kies het pand: eerst een pand dat bij het verblijfsobject hoort én het punt bevat, dan een gekoppeld pand, dan elk pand rond het punt
+function kiesPand(panden, punt, hoortErbij) {
+  const bevatPunt = f => ringVan(f) && puntInPolygoon(punt, ringVan(f));
+  return panden.find(f => hoortErbij(f) && bevatPunt(f))
+      || panden.find(hoortErbij)
+      || panden.find(bevatPunt);
+}
+
+// 1+2 via de nieuwe BAG OGC API v2
+async function bagViaOgc(punt, res) {
+  const vbos = (await ogcBbox('verblijfsobject', punt[0], punt[1], 1)).filter(f => !BESTAAT_NIET.test(f.properties?.status || ''));
+  const vbo = vbos.find(f => f.properties.identificatie === res.vboId) || vbos[0];
+  let pandUuids = [];
+  if (vbo) {
+    res.oppervlakte  = vbo.properties.oppervlakte ?? '';
+    res.gebruiksdoel = (vbo.properties.gebruiksdoel || '').replace(/,\s*/g, ', ');
+    pandUuids = (vbo.properties['pand.href'] || []).map(h => String(h).split('/').pop());
+  }
+  const panden = (await ogcBbox('pand', punt[0], punt[1], 25)).filter(f => !BESTAAT_NIET.test(f.properties?.status || ''));
+  const pand = kiesPand(panden, punt, f => pandUuids.includes(String(f.id)));
+  if (pand) {
+    res.pandId    = pand.properties.identificatie || '';
+    res.bouwjaar  = pand.properties.bouwjaar ?? '';
+    res.aantalVbo = pand.properties.aantal_verblijfsobjecten ?? '';
+    res.pandRing  = ringVan(pand);
+  }
+  res.buurPanden = panden.filter(f => f !== pand).map(ringVan).filter(Boolean);
+  res.bron = 'BAG OGC API v2';
+}
+
+// 1+2 via de oude BAG WFS (reserve)
+async function bagViaWfs(punt, res) {
   const vbos = await wfsBbox('verblijfsobject', punt[0], punt[1], 1);
   const vbo = vbos.find(f => f.properties.identificatie === res.vboId) || vbos[0];
   if (vbo) {
@@ -582,19 +621,33 @@ async function haalBagGegevens(doc) {
     res.pandId       = vbo.properties.pandidentificatie || '';
     res.bouwjaar     = vbo.properties.bouwjaar ?? '';
   }
-
-  // 2. Pand: bouwjaar, aantal verblijfsobjecten, omtrek (+ buurpanden voor de kaart)
   const panden = await wfsBbox('pand', punt[0], punt[1], 25);
-  const ringVan = f => f.geometry?.type === 'Polygon' ? f.geometry.coordinates[0]
-                     : f.geometry?.type === 'MultiPolygon' ? f.geometry.coordinates[0][0] : null;
-  const pand = panden.find(f => f.properties.identificatie === res.pandId)
-            || panden.find(f => ringVan(f) && puntInPolygoon(punt, ringVan(f)));
+  const pand = kiesPand(panden, punt, f => res.pandId && f.properties.identificatie === res.pandId);
   if (pand) {
     res.bouwjaar  = pand.properties.bouwjaar ?? res.bouwjaar;
     res.aantalVbo = pand.properties.aantal_verblijfsobjecten ?? '';
     res.pandRing  = ringVan(pand);
   }
   res.buurPanden = panden.filter(f => f !== pand).map(ringVan).filter(Boolean);
+  res.bron = 'BAG WFS (reserve)';
+}
+
+// doc = resultaat van de PDOK-locatieserver (type adres)
+async function haalBagGegevens(doc) {
+  const punt = parseRdPunt(doc.centroide_rd);
+  if (!punt) throw new Error('geen coördinaten bij dit adres');
+  const res = { punt, vboId: doc.adresseerbaarobject_id || '' };
+
+  // 1. Verblijfsobject (oppervlakte, gebruiksdoel) en 2. pand (bouwjaar, aantal adressen, omtrek):
+  //    eerst de nieuwe OGC API; lukt dat niet of vindt hij niets, dan de oude WFS
+  try {
+    await bagViaOgc(punt, res);
+    if (!res.pandRing && res.oppervlakte === undefined) throw new Error('niets gevonden');
+  } catch (e) {
+    console.warn('BAG OGC API v2 mislukt, terug naar WFS:', e);
+    for (const k of ['oppervlakte', 'gebruiksdoel', 'pandId', 'bouwjaar', 'aantalVbo', 'pandRing', 'buurPanden']) delete res[k];
+    await bagViaWfs(punt, res);
+  }
 
   // 3. Straat van het adres (as van de weg) → oriëntatie
   if (doc.openbareruimte_id) {
@@ -627,6 +680,7 @@ function vulBagVelden(g) {
   const info = [];
   if (g.gebruiksdoel) info.push(`gebruiksdoel: ${g.gebruiksdoel}`);
   if (g.aantalVbo !== undefined && g.aantalVbo !== '') info.push(`${g.aantalVbo} adres(sen) in het pand`);
+  if (g.bron && /reserve/.test(g.bron)) info.push('via oude BAG-dienst');
   document.getElementById('bag-info').textContent = info.length ? 'BAG: ' + info.join(' · ') : 'Geen pandgegevens gevonden in de BAG.';
 
   // Voorstel woningtype: meer dan 1 adres in het pand → appartement
