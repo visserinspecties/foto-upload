@@ -3144,18 +3144,8 @@ function positioneerMetHoek(groepen, totaleLengtePx, breedteVeld, gapPx){
 // niveaus[0] = vloer van Verdieping 1 (= hoogte begane grond), niveaus[1] = vloer van
 // Verdieping 2, enz. De vloer van de eerste verdieping bovenop de laatste (= gevelhoogte/
 // gootlijn) wordt niet meegenomen: die lijn valt al samen met de bovenkant van de gevel.
-function verdiepingsvloerHoogtes(){
-  const niveaus = [];
-  let cum = getBgHoogte(); // Pak normale hoogte (voor asymmetrisch: voorgevel)
-  niveaus.push(cum);
-  extraVerdiepingen.forEach(v=>{
-    const h = getVdHoogte(v.id); // Pak normale hoogte
-    cum += h;
-    niveaus.push(cum);
-  });
-  niveaus.pop();
-  return niveaus;
-}
+// (verdiepingsvloerHoogtes staat bij de hoogtes bovenin: vloerniveaus incl. vloerdikte,
+//  zodat aanzichten en doorsnede dezelfde vloerlijnen tonen)
 
 // Automatische uitbouwhoogte = som van de GEVELhoogtes (buitenmaat) van de bouwlagen
 // die de uitbouw beslaat. Bij een asymmetrisch dak: de gevelhoogte van de kant waar de
@@ -5504,7 +5494,9 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
     if(niveau<=0 || niveau>=gevelhoogte) return;
     const yVloer = yBase - niveau*SCALE;
     svg.appendChild(svgEl('line', {x1:x0, y1:yVloer, x2:x0+w, y2:yVloer, stroke:'black', 'stroke-width':0.7, 'stroke-dasharray':'4,2.5'}));
-    svg.appendChild(svgEl('text', {x:x0+vloerLabelDx(niveau*SCALE), y:yVloer-2.5, 'text-anchor':'start', 'font-size':tekstGrootte(), fill:'black'}));
+    // vlak onder de schuine strook? dan het label onder de lijn, anders valt het over de rode lijn
+    const onderStrook = sFront && (yVloer - (yBase - sFront.hStart*SCALE)) < fs*1.3 && yVloer > yBase - sFront.hStart*SCALE;
+    svg.appendChild(svgEl('text', {x:x0+vloerLabelDx(niveau*SCALE), y: onderStrook ? yVloer + fs*1.1 : yVloer-2.5, 'text-anchor':'start', 'font-size':tekstGrootte(), fill:'black'}));
     svg.lastChild.textContent = `${niveau.toFixed(2)} m`;
   });
 
