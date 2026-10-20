@@ -736,9 +736,10 @@ async function zoekAdres() {
     setStatus('❌ Vul minimaal een postcode, of een straatnaam in', 'error');
     return;
   }
-  if (toevoeging) params.append('fq', `huisnummertoevoeging:${toevoeging}`);
-  params.append('fl', 'straatnaam,woonplaatsnaam,postcode,huisnummer,huisnummertoevoeging,centroide_rd,adresseerbaarobject_id,openbareruimte_id');
-  params.append('rows', '5');
+  // Toevoeging NIET als filter: in de BAG is "21 A" een huisletter en "21-1" een huisnummertoevoeging.
+  // We halen alle adressen bij dit huisnummer op en kiezen daarna zelf de juiste.
+  params.append('fl', 'straatnaam,woonplaatsnaam,postcode,huisnummer,huisletter,huisnummertoevoeging,centroide_rd,adresseerbaarobject_id,openbareruimte_id');
+  params.append('rows', huisnummer ? '50' : '5');
 
   leegBagVelden();
   setStatus('<span class="spinner"></span> Adres opzoeken...', 'loading');
@@ -753,11 +754,24 @@ async function zoekAdres() {
       return;
     }
 
-    const d = docs[0];
+    // juiste huisletter/toevoeging kiezen (A, a, -1, "A 2" … allemaal vergelijkbaar maken)
+    const norm = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const extra = x => norm((x.huisletter || '') + (x.huisnummertoevoeging || ''));
+    let d = docs.find(x => extra(x) === norm(toevoeging));
+    if (!d && toevoeging) {
+      const opties = [...new Set(docs.map(x => `${x.huisnummer}${x.huisletter || ''}${x.huisnummertoevoeging ? '-' + x.huisnummertoevoeging : ''}`))].sort();
+      setStatus(`⚠️ ${huisnummer}${toevoeging} staat niet in de BAG. Wel gevonden bij dit huisnummer: ${opties.join(', ')} — pas de toevoeging aan en zoek opnieuw`, 'error');
+      return;
+    }
+    if (!d) d = docs.find(x => !extra(x)) || docs[0];
     document.getElementById('inp-straat').value  = d.straatnaam || straat;
     document.getElementById('inp-plaats').value  = d.woonplaatsnaam || plaats;
     if (d.postcode) document.getElementById('inp-postcode').value = d.postcode;
-    const gevonden = `${d.straatnaam || ''} ${d.huisnummer || ''}${d.huisnummertoevoeging || ''}, ${d.postcode || ''} ${d.woonplaatsnaam || ''}`.replace(/\s+/g,' ').trim();
+    const gevonden = `${d.straatnaam || ''} ${d.huisnummer || ''}${d.huisletter || ''}${d.huisnummertoevoeging ? '-' + d.huisnummertoevoeging : ''}, ${d.postcode || ''} ${d.woonplaatsnaam || ''}`.replace(/\s+/g,' ').trim();
+    // toevoeging netjes overnemen zoals de BAG hem kent
+    if (huisnummer && (d.huisletter || d.huisnummertoevoeging)) {
+      document.getElementById('inp-toevoeging').value = (d.huisletter || '') + (d.huisnummertoevoeging ? (d.huisletter ? '-' : '') + d.huisnummertoevoeging : '');
+    }
     updateMapnaamPreview();
 
     // BAG-gegevens alleen ophalen als er een huisnummer is (anders weten we niet wélke woning)
