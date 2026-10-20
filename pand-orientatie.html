@@ -67,6 +67,9 @@
     <div id="resultaat" style="display:none;">
       <h2 id="adresTitel"></h2>
       <div id="pandInfo" class="klein" style="margin-top:0"></div>
+      <h2>Kaartje</h2>
+      <div class="rij"><select id="achtergrond"><option value="kaart">Achtergrond: kaart</option><option value="lucht">Achtergrond: luchtfoto</option><option value="geen">Zonder achtergrond</option></select><button id="png">Maak kaartje (PNG)</button></div>
+      <img id="pngvoorbeeld" alt="Kaartje met gevelrichtingen" style="display:none;width:100%;margin-top:8px;border:1px solid var(--rand)">
       <h2>Gevels</h2>
       <div class="klein" style="margin:0 0 6px">Klik een gevel in de tabel of op de kaart om die als voorgevel (VG) aan te wijzen. AG, LG en RG volgen daaruit.</div>
       <table>
@@ -227,6 +230,122 @@ function kiesPand(features, lon, lat) {
   return best;
 }
 
+// ---------- pijlen en kaartje ----------
+const PIJLROOD = '#d00000';
+const TILE_BRT = 'https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/{z}/{x}/{y}.png';
+const TILE_LUCHT = 'https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_orthoHR/EPSG:3857/{z}/{x}/{y}.jpeg';
+
+function pandGrootte() {
+  const xs = [], ys = [];
+  state.edges.forEach(e => { xs.push(e.la[0], e.lb[0]); ys.push(e.la[1], e.lb[1]); });
+  return { minx: Math.min(...xs), maxx: Math.max(...xs), miny: Math.min(...ys), maxy: Math.max(...ys) };
+}
+function pijlLen() { const g = pandGrootte(); return Math.max(2.5, Math.max(g.maxx - g.minx, g.maxy - g.miny) * 0.16); }
+function lokaalNaarLL(x, y) {
+  const e0 = state.edges[0], k = Math.cos(e0.a[1] * Math.PI / 180);
+  return [e0.a[0] + (x - e0.la[0]) / (R_LON * k), e0.a[1] + (y - e0.la[1]) / R_LAT];
+}
+// Pijl in lokale meters: vanaf het midden van de gevel naar buiten.
+function pijlLokaal(e) {
+  const rad = e.az * Math.PI / 180, nx = Math.sin(rad), ny = Math.cos(rad), L = pijlLen(), H = L * 0.32;
+  const mx = (e.la[0] + e.lb[0]) / 2, my = (e.la[1] + e.lb[1]) / 2;
+  const tip = [mx + nx * L, my + ny * L], base = [tip[0] - nx * H, tip[1] - ny * H];
+  return { start: [mx, my], tip, base,
+    links: [base[0] - ny * H * 0.6, base[1] + nx * H * 0.6],
+    rechts: [base[0] + ny * H * 0.6, base[1] - nx * H * 0.6] };
+}
+
+async function maakKaartje(achtergrond) {
+  const S = 1200, TOP = 96, g = pandGrootte(), pl = pijlLen();
+  const [clon, clat] = lokaalNaarLL((g.minx + g.maxx) / 2, (g.miny + g.maxy) / 2);
+  const zichtM = Math.max(g.maxx - g.minx, g.maxy - g.miny) + 2 * pl + 10;
+  const ppm = S / (zichtM * 1.1);
+  const zv = Math.min(22, Math.log2(ppm * 156543.03392 * Math.cos(clat * Math.PI / 180)));
+  const sch = 256 * Math.pow(2, zv);
+  const wx = lon => (lon + 180) / 360 * sch;
+  const wy = lat => { const s = Math.sin(lat * Math.PI / 180); return (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * sch; };
+  const ox = wx(clon) - S / 2, oy = wy(clat) - S / 2;
+  const P = (px, py) => { const r = lokaalNaarLL(px, py); return [wx(r[0]) - ox, wy(r[1]) - oy + TOP]; };
+  const c = document.createElement('canvas'); c.width = S; c.height = S + TOP;
+  const x = c.getContext('2d');
+  x.fillStyle = '#fff'; x.fillRect(0, 0, S, S + TOP);
+
+  let achterOK = false;
+  if (achtergrond !== 'geen') {
+    const sjabloon = achtergrond === 'lucht' ? TILE_LUCHT : TILE_BRT;
+    const zt = Math.max(0, Math.min(19, Math.floor(zv)));
+    const tp = 256 * Math.pow(2, zv - zt);
+    const tx0 = Math.floor(ox / tp), tx1 = Math.floor((ox + S) / tp), ty0 = Math.floor(oy / tp), ty1 = Math.floor((oy + S) / tp);
+    const jobs = [];
+    for (let tx = tx0; tx <= tx1; tx++) for (let ty = ty0; ty <= ty1; ty++) {
+      jobs.push(new Promise(res => {
+        const im = new Image(); im.crossOrigin = 'anonymous';
+        im.onload = () => res({ im, tx, ty }); im.onerror = () => res(null);
+        im.src = sjabloon.replace('{z}', zt).replace('{x}', tx).replace('{y}', ty);
+      }));
+    }
+    const tegels = (await Promise.all(jobs)).filter(Boolean);
+    x.save(); x.beginPath(); x.rect(0, TOP, S, S); x.clip();
+    tegels.forEach(r => x.drawImage(r.im, r.tx * tp - ox, r.ty * tp - oy + TOP, tp + 1, tp + 1));
+    x.restore();
+    achterOK = tegels.length > 0;
+  }
+
+  const labels = state.vg === null ? null : assignLabels(state.edges, state.vg);
+  x.save(); x.beginPath(); x.rect(0, TOP, S, S); x.clip();
+  x.beginPath();
+  state.edges.forEach((e, i) => { const q = P(e.la[0], e.la[1]); if (i) x.lineTo(q[0], q[1]); else x.moveTo(q[0], q[1]); });
+  x.closePath(); x.fillStyle = 'rgba(31,78,121,.18)'; x.fill();
+  const lw = Math.max(5, S / 220), fs = Math.round(S / 40);
+  state.edges.forEach(e => {
+    const a = P(e.la[0], e.la[1]), b = P(e.lb[0], e.lb[1]);
+    x.beginPath(); x.moveTo(a[0], a[1]); x.lineTo(b[0], b[1]);
+    x.strokeStyle = KLEUR[compass(e.az)]; x.lineWidth = lw; x.lineCap = 'round'; x.stroke();
+  });
+  state.edges.forEach((e, i) => {
+    if (e.len < 1.0) return;
+    const pj = pijlLokaal(e), s0 = P(...pj.start), b0 = P(...pj.base), t0 = P(...pj.tip), l0 = P(...pj.links), r0 = P(...pj.rechts);
+    x.strokeStyle = PIJLROOD; x.lineWidth = lw * 0.9; x.lineCap = 'butt';
+    x.beginPath(); x.moveTo(s0[0], s0[1]); x.lineTo(b0[0], b0[1]); x.stroke();
+    x.fillStyle = PIJLROOD; x.beginPath(); x.moveTo(t0[0], t0[1]); x.lineTo(l0[0], l0[1]); x.lineTo(r0[0], r0[1]); x.closePath(); x.fill();
+    const rad = e.az * Math.PI / 180;
+    const lp = P(pj.tip[0] + Math.sin(rad) * 1.6, pj.tip[1] + Math.cos(rad) * 1.6);
+    const tekst = (i + 1) + ' · ' + compass(e.az) + (labels ? ' · ' + labels[i] : '');
+    x.font = '700 ' + fs + 'px Merriweather, Georgia, serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.lineJoin = 'round'; x.lineWidth = fs / 3.5; x.strokeStyle = '#fff'; x.strokeText(tekst, lp[0], lp[1]);
+    x.fillStyle = '#8a0000'; x.fillText(tekst, lp[0], lp[1]);
+  });
+
+  // noordpijl
+  const nx0 = S - 70, ny0 = TOP + 120;
+  x.fillStyle = 'rgba(255,255,255,.9)'; x.beginPath(); x.arc(nx0, ny0 - 25, 62, 0, 7); x.fill();
+  x.fillStyle = '#111'; x.beginPath(); x.moveTo(nx0, ny0 - 85); x.lineTo(nx0 + 24, ny0 + 5); x.lineTo(nx0, ny0 - 14); x.lineTo(nx0 - 24, ny0 + 5); x.closePath(); x.fill();
+  x.font = '700 30px Merriweather, Georgia, serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = '#111';
+  x.fillText('N', nx0, ny0 + 28);
+  // schaalbalk
+  const keuze = [2, 5, 10, 20, 50, 100].filter(m => m * ppm <= S * 0.25).pop() || 2;
+  const sx = 36, sy = TOP + S - 44, sl = keuze * ppm;
+  x.fillStyle = 'rgba(255,255,255,.85)'; x.fillRect(sx - 14, sy - 34, sl + 28, 62);
+  x.strokeStyle = '#111'; x.lineWidth = 5; x.lineCap = 'butt';
+  x.beginPath(); x.moveTo(sx, sy - 10); x.lineTo(sx, sy + 6); x.lineTo(sx + sl, sy + 6); x.lineTo(sx + sl, sy - 10); x.stroke();
+  x.font = '600 24px Merriweather, Georgia, serif'; x.textAlign = 'left'; x.fillStyle = '#111'; x.fillText(keuze + ' m', sx + 4, sy - 16);
+  // bron
+  x.font = '18px Merriweather, Georgia, serif'; x.textAlign = 'right'; x.textBaseline = 'alphabetic';
+  x.fillStyle = 'rgba(255,255,255,.85)'; x.fillRect(S - 470, TOP + S - 30, 470, 30);
+  x.fillStyle = '#333'; x.fillText('Bron: BAG / PDOK (Kadaster)' + (achterOK ? ' · achtergrond PDOK' : ''), S - 10, TOP + S - 9);
+  x.restore();
+
+  // kop
+  x.fillStyle = '#1f4e79'; x.fillRect(0, 0, S, TOP);
+  x.fillStyle = '#fff'; x.textBaseline = 'alphabetic'; x.textAlign = 'left';
+  x.font = '700 34px Merriweather, Georgia, serif';
+  x.fillText((state.adres && state.adres.weergavenaam) || 'Pand', 24, 42);
+  x.font = '20px Merriweather, Georgia, serif';
+  x.fillText('Rode pijl = richting waarop de gevel uitkijkt · Noord boven' + (labels ? ' · Voorgevel kijkt naar ' + compass(state.edges[state.vg].az) + ' (' + Math.round(state.edges[state.vg].az) + '°)' : ''), 24, 78);
+  x.textAlign = 'right'; x.fillText(new Date().toLocaleDateString('nl-NL'), S - 24, 42);
+  return { canvas: c, achterOK };
+}
+
 // ---------- tekenen ----------
 function tekenSvg(labels) {
   const E = state.edges, el = $('kaart');
@@ -234,7 +353,7 @@ function tekenSvg(labels) {
   E.forEach(e => { xs.push(e.la[0], e.lb[0]); ys.push(e.la[1], e.lb[1]); });
   const minx = Math.min(...xs), maxx = Math.max(...xs), miny = Math.min(...ys), maxy = Math.max(...ys);
   const grootte = Math.max(maxx - minx, maxy - miny);
-  const pad = grootte * 0.3 + 3;
+  const pad = grootte * 0.3 + pijlLen() + 3;
   const W = maxx - minx + 2 * pad, H = maxy - miny + 2 * pad, M = Math.max(W, H);
   const X = x => (x - minx + pad), Y = y => (maxy - y + pad);
   const fs = M / 34;
@@ -246,8 +365,10 @@ function tekenSvg(labels) {
     s += '<line ' + l + ' stroke="' + kl + '" stroke-width="' + (M / (i === state.vg ? 55 : 95)) + '" stroke-linecap="round"/>';
     s += '<line data-i="' + i + '" ' + l + ' stroke="transparent" stroke-width="' + (M / 25) + '" style="cursor:pointer"/>';
     if (e.len >= 1.0) {
-      const rad = e.az * Math.PI / 180, off = fs * 1.5;
-      const mx = (e.la[0] + e.lb[0]) / 2 + Math.sin(rad) * off, my = (e.la[1] + e.lb[1]) / 2 + Math.cos(rad) * off;
+      const pj = pijlLokaal(e), rad = e.az * Math.PI / 180, pt = q => X(q[0]) + ',' + Y(q[1]);
+      s += '<line x1="' + X(pj.start[0]) + '" y1="' + Y(pj.start[1]) + '" x2="' + X(pj.base[0]) + '" y2="' + Y(pj.base[1]) + '" stroke="' + PIJLROOD + '" stroke-width="' + (M / 120) + '"/>';
+      s += '<polygon points="' + pt(pj.tip) + ' ' + pt(pj.links) + ' ' + pt(pj.rechts) + '" fill="' + PIJLROOD + '"/>';
+      const mx = pj.tip[0] + Math.sin(rad) * fs * 0.9, my = pj.tip[1] + Math.cos(rad) * fs * 0.9;
       const tekst = (i + 1) + ' · ' + compass(e.az) + (labels ? ' · ' + labels[i] : '');
       s += '<text x="' + X(mx) + '" y="' + Y(my) + '" font-size="' + fs + '" text-anchor="middle" dominant-baseline="middle" fill="' + kl + '" font-family="Merriweather,serif" font-weight="700" stroke="#fff" stroke-width="' + (fs / 5) + '" paint-order="stroke">' + tekst + '</text>';
     }
@@ -271,11 +392,13 @@ function tekenAlles() {
     lijn.on('click', () => { state.vg = i; tekenAlles(); });
     allePunten.push([e.a[1], e.a[0]]);
     if (e.len >= 1.0) {
-      const rad = e.az * Math.PI / 180, k = Math.cos(e.a[1] * Math.PI / 180);
-      const mlon = (e.a[0] + e.b[0]) / 2 + (Math.sin(rad) * 1.6) / (R_LON * k);
-      const mlat = (e.a[1] + e.b[1]) / 2 + (Math.cos(rad) * 1.6) / R_LAT;
+      const pj = pijlLokaal(e), ll = q => { const r = lokaalNaarLL(q[0], q[1]); return [r[1], r[0]]; };
+      L.polyline([ll(pj.start), ll(pj.base)], { color: PIJLROOD, weight: 4 }).addTo(laag);
+      L.polygon([ll(pj.tip), ll(pj.links), ll(pj.rechts)], { color: PIJLROOD, weight: 1, fillColor: PIJLROOD, fillOpacity: 1 }).addTo(laag);
+      const rad = e.az * Math.PI / 180;
+      const lp = ll([pj.tip[0] + Math.sin(rad) * 1.6, pj.tip[1] + Math.cos(rad) * 1.6]);
       const tekst = (i + 1) + ' · ' + compass(e.az) + (labels ? ' · ' + labels[i] : '');
-      L.marker([mlat, mlon], { interactive: false, icon: L.divIcon({ className: '', html: '<div class="gevellabel" style="border-color:' + kl + '">' + tekst + '</div>' }) }).addTo(laag);
+      L.marker(lp, { interactive: false, icon: L.divIcon({ className: '', html: '<div class="gevellabel" style="border-color:' + kl + '">' + tekst + '</div>' }) }).addTo(laag);
     }
   });
   L.polygon(allePunten, { stroke: false, fillColor: '#1f4e79', fillOpacity: .12 }).addTo(laag);
@@ -366,6 +489,22 @@ $('kies').addEventListener('change', async e => {
   try { await laadAdres(e.target._docs[+e.target.value]); } catch (err) { melding('Mislukt: ' + err.message, true); }
 });
 $('print').addEventListener('click', () => window.print());
+$('png').addEventListener('click', async () => {
+  if (!state.edges.length) return;
+  $('png').disabled = true; melding('Kaartje maken…');
+  try {
+    let r = await maakKaartje($('achtergrond').value), blob;
+    const naarBlob = c => new Promise((ok, nok) => { try { c.toBlob(b => b ? ok(b) : nok(new Error('geen afbeelding')), 'image/png'); } catch (e) { nok(e); } });
+    try { blob = await naarBlob(r.canvas); }
+    catch (e) { r = await maakKaartje('geen'); blob = await naarBlob(r.canvas); r.achterOK = false; }
+    const url = URL.createObjectURL(blob);
+    const img = $('pngvoorbeeld'); img.src = url; img.style.display = 'block';
+    const naam = 'Orientatie ' + (((state.adres && state.adres.weergavenaam) || 'pand').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '_')) + '.png';
+    const a = document.createElement('a'); a.href = url; a.download = naam; document.body.appendChild(a); a.click(); a.remove();
+    melding($('achtergrond').value !== 'geen' && !r.achterOK ? 'Kaartje klaar, maar zonder achtergrond (kaartlaag niet beschikbaar). Houd je vinger op de afbeelding om op te slaan.' : 'Kaartje klaar. Houd je vinger op de afbeelding om op te slaan als het niet vanzelf downloadt.');
+  } catch (e) { melding('Kaartje maken mislukt: ' + e.message, true); }
+  $('png').disabled = false;
+});
 $('kopieer').addEventListener('click', async () => {
   const labels = state.vg === null ? null : assignLabels(state.edges, state.vg);
   const regels = ['Gevel\tLengte (m)\tGraden\tKijkt naar\tAanduiding'];
