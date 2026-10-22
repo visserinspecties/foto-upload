@@ -491,6 +491,7 @@
         <option value="zadel">Zadeldak (driehoek erbij)</option>
         <option value="asymmetrisch">Asymmetrisch dak (voor- en achtergevel verschillende hoogte)</option>
         <option value="schilddak">Schilddak (4 hellende vlakken)</option>
+        <option value="mansarde">Mansardekap (steil + flauw deel per kant)</option>
       </select>
     </div>
   </div>
@@ -606,6 +607,37 @@
         <input type="text" inputmode="decimal" class="numeric-input" id="gs-schilddak-helling-achter" step="0.1" placeholder="bv. 35">
       </div>
     </div>
+  </div>
+
+  <div id="gs-mansardevragen" style="display:none;">
+    <div style="color:#6b6555; font-size:0.8rem; margin-bottom:12px; padding:8px; background:#f0ebe3; border-radius:6px;">
+      Mansardekap: elke dakhelft heeft een steil deel (onderaan) en een flauw deel (bovenaan). De dakhelling begint op de gevelhoogte (automatisch uit de gevelhoogtes per bouwlaag). Meet de <strong>lengte van het steile deel langs de helling</strong>; knikhoogte, nokhoogte en oppervlaktes volgen daaruit. Kies hierboven ook de nokrichting.
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Lengte steile deel, langs de helling (m)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="gs-mansarde-steil-lengte" step="0.01" placeholder="bv. 2,50">
+      </div>
+      <div class="field">
+        <label>Hoek steile deel (&deg;)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="gs-mansarde-hoek-steil" step="0.1" placeholder="bv. 70">
+      </div>
+      <div class="field">
+        <label>Hoek flauwe deel (&deg;)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="gs-mansarde-hoek-flauw" step="0.1" placeholder="bv. 30">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Knikhoogte (berekend, m)</label>
+        <input type="text" readonly style="background:#f0f0f0;" id="gs-mansarde-knik-display" placeholder="&mdash;">
+      </div>
+      <div class="field">
+        <label>Nokhoogte (berekend, m)</label>
+        <input type="text" readonly style="background:#f0f0f0;" id="gs-mansarde-nok-display" placeholder="&mdash;">
+      </div>
+    </div>
+    <div id="gs-mansarde-validatie" style="color:#a8472e; font-size:0.85rem; margin:10px 0; padding:8px; background:#f0ebe3; border-radius:6px; display:none;"></div>
   </div>
 
   <div style="font-weight:600;margin:18px 0 8px;"><span id="dakverdieping-nummer-label">Zolderverdieping</span> — dakverdieping / zolder (onder schuin dak, &gt;1,50m)</div>
@@ -1855,7 +1887,7 @@ function getVloerdikte(){
 function heeftZolder(){
   const t = document.getElementById('gs-daktype')?.value;
   const openKap = document.getElementById('gs-geen-zoldervloer')?.checked || false;
-  return (t === 'zadel' || t === 'asymmetrisch' || t === 'schilddak') && !openKap;
+  return (t === 'zadel' || t === 'asymmetrisch' || t === 'schilddak' || t === 'mansarde') && !openKap;
 }
 function bouwlaagIds(){ return ['bg', ...extraVerdiepingen.map(v=>v.id)]; }
 
@@ -2156,6 +2188,68 @@ function schildVloerInfo(F, breedteF, diepteF, s){
   return {type:'rand', voor:xV, achter:xA, links:xZ, rechts:xZ, bruikB, bruikD, opp: bruikB*bruikD, knie: s.h - F};
 }
 
+// ---------- Mansardekap ----------
+// Per dakhelft een steil deel (lengte langs de helling + hoek) onderaan en een flauw deel
+// (eigen hoek) tot de nok. Beide helften zijn gelijk. Gootlijn = gevelhoogte (gs-hoogte).
+// Nokrichting en overspanning volgen dezelfde keuze als bij het zadeldak.
+function berekenMansardeData(){
+  if(huidigDaktype() !== 'mansarde') return null;
+  const beuk = veldGetal('gs-beukmaat'), diepte = veldGetal('gs-diepte');
+  const h = veldGetal('gs-hoogte');
+  const Ls = veldGetal('gs-mansarde-steil-lengte');
+  const aS = veldGetal('gs-mansarde-hoek-steil');
+  const aF = veldGetal('gs-mansarde-hoek-flauw');
+  if([beuk,diepte].some(v=>isNaN(v)||v<=0)) return {geldig:false, fout:'Vul beukmaat en diepte in.'};
+  if(isNaN(h) || h<=0) return {geldig:false, fout:'Vul de gevelhoogte in.'};
+  if(isNaN(Ls) || Ls<=0) return {geldig:false, fout:'Vul de lengte van het steile deel in (langs de helling, in meters).'};
+  if([aS,aF].some(v=>isNaN(v)||v<=0||v>=90)) return {geldig:false, fout:'Vul de hoek van het steile en van het flauwe deel in (tussen 0° en 90°).'};
+  const dwars = nokLoopDwars();
+  const codes = dakvlakGevelCodes();
+  const correctie = correctieVoorType(document.getElementById('gs-type')?.value);
+  const bS = beuk + correctie;
+  const span = dwars ? bS : diepte;          // overspanning loodrecht op de nok
+  const noklengte = dwars ? diepte : bS;     // lengte van de nok
+  const half = span/2;
+  const xs = Ls*Math.cos(deg2rad(aS)), ys = Ls*Math.sin(deg2rad(aS));
+  if(xs >= half - 0.01){
+    return {geldig:false, fout:`Het steile deel komt horizontaal ${xs.toFixed(2)} m naar binnen, maar de halve overspanning is ${half.toFixed(2)} m — er blijft geen ruimte voor het flauwe deel. Controleer de lengte en de hoek.`};
+  }
+  const xf = half - xs;
+  const yf = xf*Math.tan(deg2rad(aF));
+  const schuinF = xf/Math.cos(deg2rad(aF));
+  const nokhoogte = h + ys + yf;
+  return {
+    geldig:true, daktype:'mansarde', dwars, codes, b:bS, d:diepte, span, noklengte, h, correctie,
+    Ls, hoekSteil:aS, hoekFlauw:aF, xs, ys, xf, yf, schuinF,
+    knikhoogte: h + ys, nokhoogte,
+    oppSteil: noklengte*Ls, oppFlauw: noklengte*schuinF,
+    // kopgevel: rechthoek tot de gootlijn + twee helften profiel (driehoek onder het steile deel + trapezium onder het flauwe deel)
+    kopOpp: span*h + 2*(xs*ys/2 + xf*(ys + yf/2))
+  };
+}
+
+// 1,50m-regel onder een mansardekap: de strook langs beide gootlijnen waar het dak lager dan
+// F + 1,50 m blijft. Eerst het steile deel, daarna (als dat niet genoeg is) het flauwe deel.
+function mansardeVloerInfo(F, breedteF, diepteF, M){
+  const span = M.dwars ? breedteF : diepteF;
+  const langs = M.dwars ? diepteF : breedteF;
+  const as = M.dwars ? 'breedte' : 'diepte';
+  const lijn = F + MIN_HOOGTE_WOON;
+  const knie = M.h - F;
+  if(M.nokhoogte <= lijn){
+    return {type:'strook', as, span, langs, x1:0, x2:0, bruikbaar:0, opp:0, knieA:knie, knieB:knie, geenHoogte:true};
+  }
+  const nodig = lijn - M.h;                 // hoogte die het dak boven de gootlijn moet hebben
+  if(nodig <= 0) return null;               // dak zit niet in de weg
+  const x = nodig <= M.ys
+    ? nodig / Math.tan(deg2rad(M.hoekSteil))
+    : M.xs + (nodig - M.ys) / Math.tan(deg2rad(M.hoekFlauw));
+  const x1 = Math.min(x, span);
+  const x2 = Math.max(span - x, x1);
+  const bruikbaar = x2 - x1;
+  return {type:'strook', as, span, langs, x1, x2, xA:x, xB:x, bruikbaar, opp: bruikbaar*langs, knieA:knie, knieB:knie, wolfseindCorr:0};
+}
+
 // ---------- Dakkapel: alleen het deel dat echt nieuw vloeroppervlak oplevert ----------
 // De zolderberekening telt alles voorbij de 1,50m-lijn al mee. Een dakkapel voegt alleen
 // het stuk toe dat binnen de strook < 1,50m valt. Positie: de voet van de dakkapel ligt
@@ -2232,12 +2326,15 @@ function vloerFormule(b, d, info){
 }
 
 // ---------- Woonoppervlakte per bouwlaag ----------
-function berekenWoon(dak, schild){
+function berekenWoon(dak, schild, mans){
   const daktype = huidigDaktype();
   const dakGeom = isProfielDak(daktype) ? (dak && dak.geldig ? dak : null)
-                : daktype === 'schilddak' ? (schild && schild.geldig ? schild : null) : null;
+                : daktype === 'schilddak' ? (schild && schild.geldig ? schild : null)
+                : daktype === 'mansarde' ? (mans && mans.geldig ? mans : null) : null;
   const dakInfo = (F, b, d) => !dakGeom ? null
-    : (daktype === 'schilddak' ? schildVloerInfo(F, b, d, dakGeom) : profielVloerInfo(F, b, d, dakGeom));
+    : (daktype === 'schilddak' ? schildVloerInfo(F, b, d, dakGeom)
+      : daktype === 'mansarde' ? mansardeVloerInfo(F, b, d, dakGeom)
+      : profielVloerInfo(F, b, d, dakGeom));
 
   const vloeren = [];
   const vd = getVloerdikte();
@@ -2285,7 +2382,7 @@ function berekenWoon(dak, schild){
   let zolder = null;
   if(dakGeom && !openKap){
     const beuk = veldGetal('gs-beukmaat'), diep = veldGetal('gs-diepte');
-    const hGoot = daktype === 'schilddak' ? dakGeom.h : Math.min(dakGeom.hA, dakGeom.hB);
+    const hGoot = (daktype === 'schilddak' || daktype === 'mansarde') ? dakGeom.h : Math.min(dakGeom.hA, dakGeom.hB);
     const offTekst = String(document.getElementById('gs-vloeroffset')?.value || '').trim();
     const off = parseFloat(offTekst.replace(',', '.'));
     let Fz, bron;
@@ -2293,7 +2390,7 @@ function berekenWoon(dak, schild){
     else { Fz = F; bron = `vrije hoogtes + vloeren van ${(vd*100).toFixed(0)} cm`; }
     const info = dakInfo(Fz, beuk, diep);
     const opp = info ? info.opp : beuk*diep;
-    const nok = daktype === 'schilddak' ? dakGeom.nokhoogte : dakGeom.hNok;
+    const nok = (daktype === 'schilddak' || daktype === 'mansarde') ? dakGeom.nokhoogte : dakGeom.hNok;
     let detail = `zoldervloer op ${Fz.toFixed(2)} m (${bron}), gootlijn ${hGoot.toFixed(2)} m → dakhelling begint ${(hGoot-Fz).toFixed(2)} m boven de zoldervloer, nok ${nok.toFixed(2)} m`;
     if(info && info.type === 'strook'){
       detail += info.geenHoogte ? ' → nergens 1,50 m stahoogte' : ` → bruikbare ${info.as} ${info.bruikbaar.toFixed(2)} m`;
@@ -2356,7 +2453,7 @@ function berekenWoon(dak, schild){
 
 // ---------- Schil (EPA) ----------
 // Regels: {groep:'gevel'|'vloer'|'schuin'|'plat', orient, label, detail, formule, opp}
-function berekenSchil(dak, schild){
+function berekenSchil(dak, schild, mans){
   const type = document.getElementById('gs-type').value;
   const daktype = huidigDaktype();
   const beuk = veldGetal('gs-beukmaat'), diepte = veldGetal('gs-diepte'), h = veldGetal('gs-hoogte');
@@ -2398,6 +2495,12 @@ function berekenSchil(dak, schild){
       }
       const hs = code === dak.codes.A ? dak.hA : dak.hB;
       return {opp: breedte*hs, cap: hs, formule:`${n2(breedte)} × ${n2(hs)}`, detail:`${bTekst} × gevelhoogte`};
+    }
+    if(mans && mans.geldig && mans.dwars === vaVg){
+      // kopgevel van de mansardekap: rechthoek tot de gootlijn + mansardeprofiel erboven
+      return {opp: mans.kopOpp, cap: mans.nokhoogte, kop:true,
+              formule:`${n2(mans.span)} × ${n2(mans.h)} + 2 × (½ × ${n2(mans.xs)} × ${n2(mans.ys)} + ${n2(mans.xf)} × (${n2(mans.ys)} + ½ × ${n2(mans.yf)}))`,
+              detail:`kopgevel: rechthoek + mansardeprofiel tot nok ${mans.nokhoogte.toFixed(2)} m`};
     }
     const sg = SG.actief ? (code==='VG' ? SG.voor : code==='AG' ? SG.achter : null) : null;
     if(sg) return {opp: breedte*sg.hStart, cap: sg.hStart, formule:`${n2(breedte)} × (${n2(h)} − ${n2(sg.hoogte)})`,
@@ -2578,6 +2681,23 @@ function berekenSchil(dak, schild){
       info('Schilddak', null, '', (schild && schild.fout) || 'nog niet compleet');
       melding('Schilddak: ' + ((schild && schild.fout) || 'nog niet compleet'));
     }
+  } else if(daktype === 'mansarde'){
+    if(mans && mans.geldig){
+      ['A','B'].forEach(k=>{
+        const code = mans.codes[k];
+        const zijde = GEVEL_NAAM[code].toLowerCase().replace('gevel','zijde');
+        add('schuin', code, `Dakvlak ${zijde} — steil deel (${code}, ${hk(mans.hoekSteil)})`, mans.oppSteil, 'mansardekap, steil deel', `${n2(mans.noklengte)} × ${n2(mans.Ls)}`);
+        add('schuin', code, `Dakvlak ${zijde} — flauw deel (${code}, ${hk(mans.hoekFlauw)})`, mans.oppFlauw, 'mansardekap, flauw deel', `${n2(mans.noklengte)} × ${n2(mans.xf)} ÷ cos(${hk(mans.hoekFlauw)})`);
+      });
+      info('Knikhoogte', mans.knikhoogte, 'm');
+      info('Nokhoogte', mans.nokhoogte, 'm');
+      info('Noklengte', mans.noklengte, 'm');
+      if(mans.hoekSteil <= mans.hoekFlauw) melding('Mansardekap: het "steile" deel is niet steiler dan het flauwe deel — controleer de hoeken.');
+      if(mans.hoekSteil > 60) melding(`Mansardekap: het steile deel (${mans.hoekSteil}°) is steiler dan 60° — controleer in Vabi of dit als gevel of als dakvlak ingevoerd moet worden.`);
+    } else {
+      info('Mansardekap', null, '', (mans && mans.fout) || 'nog niet compleet');
+      melding('Mansardekap: ' + ((mans && mans.fout) || 'nog niet compleet'));
+    }
   }
 
   // --- Daken uitbouwen en dakkapellen ---
@@ -2608,9 +2728,10 @@ function berekenAlles(){
   zetAutoWaarden();
   const dak = berekenDakprofiel();
   const schild = berekenSchilddakData();
+  const mans = berekenMansardeData();
   if(dak && !dak.geldig && dak.fout && /nok valt buiten/i.test(dak.fout)) melding(dak.fout);
-  const woon = berekenWoon(dak, schild);
-  const schil = berekenSchil(dak, schild);
+  const woon = berekenWoon(dak, schild, mans);
+  const schil = berekenSchil(dak, schild, mans);
   // plausibiliteit dakkapellen
   alleDakkapelData().filter(d=>d.geldig).forEach(d=>{
     const t = Math.tan(deg2rad(dakvlakHellingGraden(d.dakvlak)));
@@ -2643,7 +2764,7 @@ function berekenAlles(){
   alleUitbouwData().filter(d=>d.geldig && d.daktype==='zadel' && d.hellingDefault).forEach(d=>{
     melding(`${d.naam}: geen hellingshoek ingevuld — gerekend met ${DAK_DEFAULT_HOEK}°.`);
   });
-  return {dak, schild, woon, schil, meldingen: rekenMeldingen.slice()};
+  return {dak, schild, mans, woon, schil, meldingen: rekenMeldingen.slice()};
 }
 
 // ---------- Resultaat op het scherm ----------
@@ -2742,10 +2863,10 @@ function renderAlles(R){
   if(offRij) offRij.style.display = W.openKap ? 'none' : 'flex';
   if(W.openKap){
     out.innerHTML = '<p class="hint">Open kap: geen zoldervloer, dus geen extra vloeroppervlak. De dakvlakken (EPA-schil) worden gewoon berekend.</p>';
-  } else if(!['zadel','asymmetrisch','schilddak'].includes(daktype)){
-    out.innerHTML = '<p class="hint">Geen zolder: kies bij Daktype een zadeldak, asymmetrisch dak of schilddak.</p>';
+  } else if(!['zadel','asymmetrisch','schilddak','mansarde'].includes(daktype)){
+    out.innerHTML = '<p class="hint">Geen zolder: kies bij Daktype een zadeldak, asymmetrisch dak, schilddak of mansardekap.</p>';
   } else if(!W.zolder){
-    const f = (R.dak && R.dak.fout) || (R.schild && R.schild.fout) || 'Vul de dakgegevens in.';
+    const f = (R.dak && R.dak.fout) || (R.schild && R.schild.fout) || (R.mans && R.mans.fout) || 'Vul de dakgegevens in.';
     out.innerHTML = `<p class="hint">${f}</p>`;
   } else {
     out.innerHTML = regelHtml('Zolderverdieping', fm(W.zolder.basis)+' m²', {detail: W.zolder.detail, formule: W.zolder.formule});
@@ -2778,6 +2899,14 @@ function renderAlles(R){
   }
   const nokEl = document.getElementById('gs-schilddak-nok-display');
   if(nokEl) nokEl.value = (R.schild && R.schild.geldig) ? R.schild.nokhoogte.toFixed(2) : '';
+  const mKnik = document.getElementById('gs-mansarde-knik-display'), mNok = document.getElementById('gs-mansarde-nok-display'), mVal = document.getElementById('gs-mansarde-validatie');
+  if(mKnik) mKnik.value = (R.mans && R.mans.geldig) ? R.mans.knikhoogte.toFixed(2) : '';
+  if(mNok) mNok.value = (R.mans && R.mans.geldig) ? R.mans.nokhoogte.toFixed(2) : '';
+  if(mVal){
+    const toonM = daktype === 'mansarde' && R.mans && !R.mans.geldig && R.mans.fout && /steile deel komt/.test(R.mans.fout);
+    mVal.style.display = toonM ? 'block' : 'none';
+    if(toonM) mVal.innerHTML = '⚠ ' + R.mans.fout;
+  }
 
   if(S.fout){
     gsResultaten.innerHTML = `<p class="hint">${S.fout}</p>` + meldingenHtml(R.meldingen);
@@ -3517,14 +3646,16 @@ const gsDaktype = document.getElementById('gs-daktype');
 const gsZadelvragen = document.getElementById('gs-zadelvragen');
 const gsAsymmetrischVragen = document.getElementById('gs-asymmetrisch-vragen');
 const gsSchilddakvragen = document.getElementById('gs-schilddakvragen');
+const gsMansardeVragen = document.getElementById('gs-mansardevragen');
 const gsNokrichtingWrap = document.getElementById('gs-nokrichting-wrap');
 function updateDaktypeZichtbaarheid(){
   const v = gsDaktype.value;
   gsZadelvragen.style.display = v === 'zadel' ? 'block' : 'none';
   gsAsymmetrischVragen.style.display = v === 'asymmetrisch' ? 'block' : 'none';
   gsSchilddakvragen.style.display = v === 'schilddak' ? 'block' : 'none';
+  if(gsMansardeVragen) gsMansardeVragen.style.display = v === 'mansarde' ? 'block' : 'none';
   // Nokrichting geldt voor zadeldak én asymmetrisch dak
-  if(gsNokrichtingWrap) gsNokrichtingWrap.style.display = (v === 'zadel' || v === 'asymmetrisch') ? 'flex' : 'none';
+  if(gsNokrichtingWrap) gsNokrichtingWrap.style.display = (v === 'zadel' || v === 'asymmetrisch' || v === 'mansarde') ? 'flex' : 'none';
   updateAsymLabels();
 }
 gsDaktype.addEventListener('change', ()=>{
@@ -3655,6 +3786,8 @@ document.getElementById('gs-hellingshoek').addEventListener('input', renderResul
 document.getElementById('gs-schilddak-helling-voor').addEventListener('input', renderResultaten);
 document.getElementById('gs-schilddak-helling-zij').addEventListener('input', renderResultaten);
 document.getElementById('gs-schilddak-helling-achter').addEventListener('input', renderResultaten);
+['gs-mansarde-steil-lengte','gs-mansarde-hoek-steil','gs-mansarde-hoek-flauw'].forEach(id=> document.getElementById(id).addEventListener('input', renderResultaten));
+document.getElementById('gs-nokrichting')?.addEventListener('change', renderResultaten);
 
 // Asymmetrisch dak event listeners
 document.getElementById('gs-asym-helling-voor').addEventListener('input', renderResultaten);
@@ -5099,6 +5232,12 @@ function tekenDwarsdoorsnede(m){
     }
     hL = hR = s.h; nokH = s.nokhoogte;
     profiel = [[0, hL], [nokX, nokH], [W, hR]];
+  } else if(daktype === 'mansarde'){
+    const mm = R.mans;
+    if(!mm || !mm.geldig) return null;
+    W = mm.span; links = mm.codes.A; rechts = mm.codes.B;
+    hL = hR = mm.h; hellL = hellR = mm.hoekSteil; nokX = W/2; nokH = mm.nokhoogte;
+    profiel = [[0, mm.h], [mm.xs, mm.knikhoogte], [W/2, mm.nokhoogte], [W - mm.xs, mm.knikhoogte], [W, mm.h]];
   } else {
     const h = veldGetal('gs-hoogte');
     if(isNaN(h) || h <= 0) return null;
@@ -6130,6 +6269,10 @@ function renderTekening(targetContainerId){
     dakvlakInfoVoor = {nokhoogte: R.schild.nokhoogte};
     dakvlakInfoZij = {nokhoogte: R.schild.nokhoogte};
   }
+  if(m.daktype==='mansarde' && R && R.mans && R.mans.geldig){
+    dakvlakInfoVoor = {nokhoogte: R.mans.nokhoogte};
+    dakvlakInfoZij = {nokhoogte: R.mans.nokhoogte};
+  }
   const asymNok = asymData ? asymData.h_nok : 0;
   const capHoogteVG = heeftAsymmetrisch ? (asymDwars ? asymNok : (cumGevelVoorM || 0)) : m.hoogte;
   const capHoogteAG = heeftAsymmetrisch ? (asymDwars ? asymNok : (cumGevelAchterM || 0)) : m.hoogte;
@@ -6406,6 +6549,12 @@ function samenvattingRegelsVerzamelen(){
     info('Dakhelling voorzijde', getalVeld('gs-schilddak-helling-voor'), '°');
     info('Dakhelling zijkanten', getalVeld('gs-schilddak-helling-zij'), '°');
     info('Dakhelling achterzijde', getalVeld('gs-schilddak-helling-achter'), '°');
+  }
+  if(daktype === 'mansarde'){
+    info('Nokrichting', null, '', sel('gs-nokrichting'));
+    info('Lengte steile deel (langs de helling)', getalVeld('gs-mansarde-steil-lengte'), 'm');
+    info('Hoek steile deel', getalVeld('gs-mansarde-hoek-steil'), '°');
+    info('Hoek flauwe deel', getalVeld('gs-mansarde-hoek-flauw'), '°');
   }
   if(R.woon.openKap) info('Zoldervloer', null, '', 'geen — open kap');
   else if(R.woon.zolder) info('Zoldervloer op', R.woon.zolder.niveau, 'm', R.woon.zolder.niveauBron);
@@ -7208,6 +7357,9 @@ function verzamelInvoerData(){
   push('Gevel', 1, 'schilddak-helling-voor', veldWaarde('gs-schilddak-helling-voor'));
   push('Gevel', 1, 'schilddak-helling-zij', veldWaarde('gs-schilddak-helling-zij'));
   push('Gevel', 1, 'schilddak-helling-achter', veldWaarde('gs-schilddak-helling-achter'));
+  push('Gevel', 1, 'mansarde-steil-lengte', veldWaarde('gs-mansarde-steil-lengte'));
+  push('Gevel', 1, 'mansarde-hoek-steil', veldWaarde('gs-mansarde-hoek-steil'));
+  push('Gevel', 1, 'mansarde-hoek-flauw', veldWaarde('gs-mansarde-hoek-flauw'));
   push('Gevel', 1, 'vloeroffset', veldWaarde('gs-vloeroffset'));
   push('Gevel', 1, 'vloerdikte', veldWaarde('vloer-tussenvloer'));
   push('Gevel', 1, 'geen-zoldervloer', document.getElementById('gs-geen-zoldervloer')?.checked ? '1' : '0');
@@ -7446,6 +7598,9 @@ function vulInvoerDataIn(rows){
     veldZettenOokLeeg('gs-schilddak-helling-voor', V['schilddak-helling-voor']);
     veldZettenOokLeeg('gs-schilddak-helling-zij', V['schilddak-helling-zij']);
     veldZettenOokLeeg('gs-schilddak-helling-achter', V['schilddak-helling-achter']);
+    veldZettenOokLeeg('gs-mansarde-steil-lengte', V['mansarde-steil-lengte']);
+    veldZettenOokLeeg('gs-mansarde-hoek-steil', V['mansarde-hoek-steil']);
+    veldZettenOokLeeg('gs-mansarde-hoek-flauw', V['mansarde-hoek-flauw']);
     veldZettenOokLeeg('gs-vloeroffset', V.vloeroffset);
     const gzCb = document.getElementById('gs-geen-zoldervloer');
     if(gzCb) gzCb.checked = isEen(V['geen-zoldervloer']);
