@@ -202,13 +202,13 @@ laag = L.layerGroup().addTo(kaart);
 const KLEUR = { N: '#1d4ed8', NO: '#0891b2', O: '#059669', ZO: '#ca8a04', Z: '#dc2626', ZW: '#c2410c', W: '#7c3aed', NW: '#4f46e5' };
 
 // ---------- state ----------
-let state = { adres: null, edges: [], vg: null, pand: null };
+let state = { adres: null, edges: [], vg: null, vgBron: '', pand: null };
 const $ = id => document.getElementById(id);
 function melding(t, fout) { const s = $('status'); s.textContent = t; s.className = fout ? 'fout' : ''; }
 
 // ---------- data ----------
 async function zoekAdressen(q) {
-  const url = 'https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?q=' + encodeURIComponent(q) + '&fq=type:adres&rows=20&fl=id,weergavenaam,centroide_ll';
+  const url = 'https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?q=' + encodeURIComponent(q) + '&fq=type:adres&rows=20&fl=id,weergavenaam,straatnaam,centroide_ll,centroide_rd,openbareruimte_id';
   const r = await fetch(url);
   if (!r.ok) throw new Error('Locatieserver gaf HTTP ' + r.status);
   const j = await r.json();
@@ -399,7 +399,7 @@ function tekenSvg(labels) {
   s += '<text x="' + (W / 2) + '" y="' + (fs * 1.2) + '" font-size="' + (fs * 0.7) + '" fill="#5b6670" text-anchor="middle">Noord boven · geen achtergrondkaart</text>';
   s += '</svg>';
   el.innerHTML = s;
-  el.querySelectorAll('[data-i]').forEach(n => n.addEventListener('click', () => { state.vg = +n.dataset.i; tekenAlles(); }));
+  el.querySelectorAll('[data-i]').forEach(n => n.addEventListener('click', () => kiesVoorgevel(+n.dataset.i)));
 }
 function tekenAlles() {
   const edges = state.edges;
@@ -410,7 +410,7 @@ function tekenAlles() {
   edges.forEach((e, i) => {
     const kl = KLEUR[compass(e.az)];
     const lijn = L.polyline([[e.a[1], e.a[0]], [e.b[1], e.b[0]]], { color: kl, weight: i === state.vg ? 8 : 5, opacity: .95 }).addTo(laag);
-    lijn.on('click', () => { state.vg = i; tekenAlles(); });
+    lijn.on('click', () => kiesVoorgevel(i));
     allePunten.push([e.a[1], e.a[0]]);
     if (e.len >= 1.0) {
       const pj = pijlLokaal(e), ll = q => { const r = lokaalNaarLL(q[0], q[1]); return [r[1], r[0]]; };
@@ -434,7 +434,7 @@ function tekenTabel(labels) {
     const tr = document.createElement('tr');
     tr.className = 'kies' + (i === state.vg ? ' sel' : '');
     tr.innerHTML = '<td>' + (i + 1) + '</td><td>' + e.len.toFixed(2).replace('.', ',') + ' m</td><td>' + Math.round(e.az) + '° (' + compass(e.az) + ')</td><td><span class="tag' + (lab ? '' : ' leeg') + '">' + (lab || '–') + '</span></td>';
-    tr.addEventListener('click', () => { state.vg = i; tekenAlles(); });
+    tr.addEventListener('click', () => kiesVoorgevel(i));
     tb.appendChild(tr);
   });
   const tt = $('totaal'); tt.innerHTML = '';
@@ -446,6 +446,62 @@ function tekenTabel(labels) {
   });
 }
 
+// ---------- voorgevel: de gevel die naar de straat van het adres kijkt ----------
+function parseRdPunt(wkt) { const m = /POINT\(([\d.\-]+) ([\d.\-]+)\)/.exec(wkt || ''); return m ? [parseFloat(m[1]), parseFloat(m[2])] : null; }
+function parseRdLijnen(wkt) {
+  const lijnen = [];
+  for (const g of (wkt || '').match(/\(([^()]+)\)/g) || []) {
+    const pts = g.replace(/[()]/g, '').split(',').map(t => t.trim().split(/\s+/).map(Number));
+    if (pts.length >= 2) lijnen.push(pts);
+  }
+  return lijnen;
+}
+function opSegment(p, a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy;
+  const t = l2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2)) : 0;
+  return [a[0] + t * dx, a[1] + t * dy];
+}
+function dichtstbijOpLijnen(p, lijnen) {
+  let best = null, bd = Infinity;
+  for (const l of lijnen) for (let i = 0; i < l.length - 1; i++) {
+    const q = opSegment(p, l[i], l[i + 1]), d = Math.hypot(q[0] - p[0], q[1] - p[1]);
+    if (d < bd) { bd = d; best = q; }
+  }
+  return best ? { punt: best, afstand: bd } : null;
+}
+// De pandcontour staat in lengte/breedte, de straat-as in RD (meters). Beide naar dezelfde lokale meters:
+// de straat wordt verschoven met het adrespunt als ankerpunt (op deze afstand is RD gelijk aan lokaal, op ~1° na).
+async function autoVoorgevel(doc) {
+  const m = /POINT\(([-\d.]+) ([-\d.]+)\)/.exec(doc.centroide_ll || '');
+  const adresRd = parseRdPunt(doc.centroide_rd);
+  if (!m || !adresRd || !doc.openbareruimte_id) return ' Voorgevel niet automatisch bepaald (geen straatgegevens): wijs hem zelf aan.';
+  const r = await fetch('https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?fq=type:weg&fq=openbareruimte_id:' + encodeURIComponent(doc.openbareruimte_id) + '&rows=1&fl=id,geometrie_rd');
+  if (!r.ok) throw new Error('straat ophalen: HTTP ' + r.status);
+  const weg = (((await r.json()).response || {}).docs || [])[0];
+  if (!weg || !weg.geometrie_rd) return ' Voorgevel niet automatisch bepaald (straat niet gevonden): wijs hem zelf aan.';
+  const e0 = state.edges[0], k = Math.cos(e0.a[1] * Math.PI / 180);
+  const adresLokaal = [(parseFloat(m[1]) - e0.a[0]) * R_LON * k + e0.la[0], (parseFloat(m[2]) - e0.a[1]) * R_LAT + e0.la[1]];
+  const straat = parseRdLijnen(weg.geometrie_rd).map(l => l.map(q => [q[0] - adresRd[0] + adresLokaal[0], q[1] - adresRd[1] + adresLokaal[1]]));
+  const dichtbij = dichtstbijOpLijnen(adresLokaal, straat);
+  if (!dichtbij) return ' Voorgevel niet automatisch bepaald (straat zonder lijn): wijs hem zelf aan.';
+  const richting = azimuth(dichtbij.punt[0] - adresLokaal[0], dichtbij.punt[1] - adresLokaal[1]);
+  let beste = null, bestScore = Infinity, ruim = false;
+  for (const grens of [50, 181]) {
+    state.edges.forEach((e, i) => {
+      if (e.len < 2) return;
+      const verschil = angDiff(e.az, richting); if (verschil > grens) return;
+      const mid = [(e.la[0] + e.lb[0]) / 2, (e.la[1] + e.lb[1]) / 2];
+      const score = dichtstbijOpLijnen(mid, straat).afstand + verschil * 0.05 - Math.min(e.len, 10) * 0.2;
+      if (score < bestScore) { bestScore = score; beste = i; }
+    });
+    if (beste !== null) { ruim = grens > 50; break; }
+  }
+  if (beste === null) return ' Voorgevel niet automatisch bepaald: wijs hem zelf aan.';
+  state.vg = beste; state.vgBron = 'automatisch';
+  return ' Voorgevel automatisch gekozen: gevel ' + (beste + 1) + ' kijkt naar ' + (doc.straatnaam || 'de straat') + (ruim ? ' (bij benadering)' : '') + '. Klopt het niet? Klik een andere gevel aan.';
+}
+function kiesVoorgevel(i) { state.vg = i; state.vgBron = 'handmatig'; tekenAlles(); }
+
 // ---------- flow ----------
 async function laadAdres(doc) {
   melding('Pand ophalen uit BAG…');
@@ -455,8 +511,11 @@ async function laadAdres(doc) {
   const panden = await haalPanden(lon, lat);
   const pand = kiesPand(panden, lon, lat);
   if (!pand) throw new Error('Geen pand gevonden bij dit adres.');
-  state.adres = doc; state.pand = pand; state.vg = null;
+  state.adres = doc; state.pand = pand; state.vg = null; state.vgBron = '';
   state.edges = buildEdges(pand.ring);
+  let autoTekst = '';
+  try { autoTekst = await autoVoorgevel(doc); }
+  catch (e) { autoTekst = ' Voorgevel kon niet automatisch bepaald worden (' + e.message + '): wijs hem zelf aan.'; }
   $('resultaat').style.display = 'block';
   $('adresTitel').textContent = doc.weergavenaam;
   const p = pand.f.properties || {};
@@ -466,7 +525,7 @@ async function laadAdres(doc) {
     const b = L.latLngBounds(pand.ring.map(v => [v[1], v[0]]));
     kaart.fitBounds(b, { maxZoom: 20, padding: [60, 60] });
   }
-  melding((HAS_L ? '' : 'Kaartbibliotheek niet geladen, contour getoond zonder achtergrondkaart. ') + (panden.length > 1 ? 'Pand gevonden (' + panden.length + ' panden in de buurt, dichtstbijzijnde bij het adrespunt gekozen).' : 'Pand gevonden.'));
+  melding((HAS_L ? '' : 'Kaartbibliotheek niet geladen, contour getoond zonder achtergrondkaart. ') + (panden.length > 1 ? 'Pand gevonden (' + panden.length + ' panden in de buurt, dichtstbijzijnde bij het adrespunt gekozen).' : 'Pand gevonden.') + autoTekst);
 }
 function bouwQuery() {
   const pc = $('postcode').value.replace(/\s+/g, '').toUpperCase();
@@ -797,7 +856,7 @@ async function opslaanInProject() {
     const o = {};
     [['VG', 0], ['LG', 90], ['AG', 180], ['RG', 270]].forEach(([k, off]) => { o[k] = compass((vgAz + off) % 360); });
     const data = Object.assign({ versie: 1, mapnaam: gekozenProject.naam }, pg || {});
-    data.orientatie = o; data.orientatieHoek = Math.round(vgAz); data.orientatieBron = 'handmatig';
+    data.orientatie = o; data.orientatieHoek = Math.round(vgAz); data.orientatieBron = state.vgBron || 'handmatig';
     if (!data.adres && state.adres) data.adres = state.adres.weergavenaam;
     const bj = state.pand && state.pand.f && state.pand.f.properties && state.pand.f.properties.bouwjaar;
     if (!data.bouwjaar && bj) data.bouwjaar = String(bj);
