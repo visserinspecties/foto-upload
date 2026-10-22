@@ -36,7 +36,7 @@ main{flex:1;width:100%;max-width:1280px;margin:0 auto;padding:20px 14px 40px;dis
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
 .chip{border:1px solid var(--line);background:var(--bg);border-radius:99px;padding:6px 12px;font-size:13px;cursor:pointer;min-height:34px}
 .chip.on{background:var(--brand);border-color:var(--brand);color:#fff}
-input[type=text],input[type=date],input[type=time],input[type=number],textarea,select{width:100%;min-height:40px;padding:8px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);font-size:15px}
+input[type=text],input[type=email],input[type=date],input[type=time],input[type=number],textarea,select{width:100%;min-height:40px;padding:8px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);font-size:15px}
 textarea{min-height:56px;resize:vertical}
 label.l{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px}
 .toggle{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0}
@@ -54,7 +54,9 @@ label.l{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px}
 .msg{border-radius:10px;padding:10px 12px;font-size:13.5px;margin-bottom:12px}
 .msg.err{background:color-mix(in srgb,var(--err) 14%,var(--card));color:var(--err)}
 .msg.ok{background:color-mix(in srgb,var(--ok) 14%,var(--card));color:var(--ok)}
+.msg.warn{background:color-mix(in srgb,var(--warn) 14%,var(--card));color:var(--warn)}
 .msg.info{background:var(--lila-soft)}
+.msg a{color:inherit;font-weight:700}
 .voorbeeld{background:var(--lila-soft);border-left:4px solid var(--lila);border-radius:8px;padding:8px 12px;font-size:14px;margin-top:8px}
 .sub{padding-left:4px}
 #pv{width:100%;height:calc(100vh - 150px);min-height:600px;border:1px solid var(--line);border-radius:var(--r);background:#fff}
@@ -66,7 +68,7 @@ input[type=file]{display:none}
 <body>
 <div class="band">
   <span class="titel">Opdrachtbevestiging</span>
-  <div class="who">Visser Inspecties</div>
+  <div class="who" id="who">Visser Inspecties</div>
   <a href="index.html" aria-label="Terug naar het dashboard">⌂</a>
 </div>
 <main>
@@ -76,7 +78,7 @@ input[type=file]{display:none}
     <h2><span class="stap">1</span>Project</h2>
     <button class="btn sec" id="b-txt" style="margin-bottom:8px">📄 Projectgegevens (.txt) inlezen</button>
     <input type="file" id="f-txt" accept=".txt,text/plain">
-    <div class="hint" style="margin:0 0 8px">Kies het .txt-bestand uit de projectmap (gemaakt door Nieuwe projectmap). Naam, datum, prijs en soort opname worden dan ingevuld.</div>
+    <div class="hint" style="margin:0 0 8px">Kies het .txt-bestand uit de projectmap (gemaakt door Nieuwe projectmap). Naam, e-mail, datum, prijs en soort opname worden dan ingevuld.</div>
     <select id="project"></select>
     <div id="eigenAdres" class="hidden">
       <label class="l">Straat en huisnummer</label><input type="text" id="straat" placeholder="bijv. Bergselaan 154B">
@@ -113,15 +115,24 @@ input[type=file]{display:none}
       </select>
       <input type="number" id="eigenPrijs" class="hidden" placeholder="Bedrag incl. btw" step="0.01" style="margin-top:6px">
     </div>
-    <label class="l">Eigen zin (optioneel)</label><textarea id="extra" placeholder="bijv. De sleutel ligt bij de buren op nummer 156."></textarea>
+    <label class="l">Eigen zin (optioneel, komt in PDF én mail)</label><textarea id="extra" placeholder="bijv. De sleutel ligt bij de buren op nummer 156."></textarea>
   </div>
   <div class="card">
     <h2><span class="stap">4</span>PDF</h2>
     <div class="rij">
       <button class="btn sec" id="b-vb">👁 Voorbeeld</button>
-      <button class="btn" id="b-pdf">⬇️ PDF downloaden</button>
+      <button class="btn sec" id="b-pdf">⬇️ Downloaden</button>
     </div>
-    <div class="hint">Bestandsnaam: <b id="naam"></b><br>Sla de PDF op in de projectmap. Tip: zet in Edge/Chrome "Vragen waar elk bestand moet worden opgeslagen" aan, dan kies je de map direct.</div>
+    <div class="hint">Bestandsnaam: <b id="naam"></b></div>
+  </div>
+  <div class="card">
+    <h2><span class="stap">5</span>Mail aan de klant</h2>
+    <label class="l">E-mailadres klant</label><input type="email" id="mail" placeholder="naam@voorbeeld.nl" autocomplete="off">
+    <label class="l">Onderwerp</label><input type="text" id="onderwerp">
+    <div class="toggle"><div><b>PDF ook opslaan in de projectmap</b><span>In 0_In Behandeling, map met deze postcode</span></div><label class="sw"><input type="checkbox" id="opslaan" checked><i></i></label></div>
+    <button class="btn" id="b-mail" style="margin-top:6px">✉️ Concept-mail maken met PDF</button>
+    <div class="hint">Het concept komt in Outlook (Concepten). Voeg daar je handtekening toe en verstuur. Gebruikt dezelfde Microsoft-inlog als Factuur versturen.</div>
+    <div id="resultaat" style="margin-top:12px"></div>
   </div>
 </div>
 <div><iframe id="pv" title="Voorbeeld"></iframe></div>
@@ -135,6 +146,7 @@ const PROJECTEN=[
   ["Forellendaal 202","2553 LJ 's-Gravenhage"],["Annastraat 4C","3062 KA Rotterdam"],["Sumatrastraat 39","3312 XR Dordrecht"],
   ["Dorpsstraat 21A","4505 AN Zuidzande"],["Kieweg 1","4511 RP Breskens"],["Heilleweg 21A","4524 KL Sluis"],
   ["Noordstraat 6","4525 AB Retranchement"],["Pierssenspolderstraat 124","4541 GM Sluiskil"],["Oranjestraat 11","4551 AB Sas van Gent"]];
+const PROJECTMAP_ROOT='0_In Behandeling';
 const BRL=[
  'De gegevens van deze opname worden opgenomen in een monitoringsbestand en het energielabel wordt geregistreerd in de landelijke database www.ep-online.nl.',
  'De certificatie-instelling kan een controleonderzoek uitvoeren, ook op locatie. Wordt hiervoor geen toestemming gegeven, dan kan het EP-rapport uit EP-Online worden verwijderd.',
@@ -146,10 +158,36 @@ const STEEKPROEF='Labelregistraties worden per steekproef gecontroleerd door het
 
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const LS={get(k,d){try{const v=localStorage.getItem(k);return v===null?d:v}catch(e){return d}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
 function say(type,html){$('status').innerHTML=html?`<div class="msg ${type}">${html}</div>`:''}
 const sel=$('project');
 PROJECTEN.forEach((p,i)=>sel.add(new Option(p[0]+', '+p[1],i)));
 sel.add(new Option('Ander adres…','anders'));
+
+/* ══════════ Microsoft-inlog: hergebruikt de inlog van Factuur versturen (zelfde site) ══════════ */
+const CLIENT_ID='fdf237c9-bf46-47fa-ab3d-a8834a73e284';
+const TENANT_ID='984fd1fb-3d68-4c94-aff2-47f699fb5dae';
+const SCOPE='https://graph.microsoft.com/Files.ReadWrite https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/User.Read offline_access';
+const RT_KEY='rt_factuur';
+let token=null;
+async function vernieuw(){
+  const rt=LS.get(RT_KEY);if(!rt)throw new Error('NIET_INGELOGD');
+  const r=await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:new URLSearchParams({client_id:CLIENT_ID,scope:SCOPE,grant_type:'refresh_token',refresh_token:rt})});
+  const d=await r.json();if(!d.access_token)throw new Error('NIET_INGELOGD');
+  token=d.access_token;if(d.refresh_token)LS.set(RT_KEY,d.refresh_token);
+}
+const G='https://graph.microsoft.com/v1.0/';
+const ENC=p=>p.split('/').map(encodeURIComponent).join('/');
+async function graph(url,opts={},retry=true){
+  if(!token)await vernieuw();
+  const r=await fetch(url.startsWith('http')?url:G+url,{...opts,headers:{...(opts.headers||{}),Authorization:'Bearer '+token}});
+  if(r.status===401&&retry){token=null;await vernieuw();return graph(url,opts,false)}
+  return r;
+}
+async function graphJSON(url,opts){const r=await graph(url,opts);let d={};try{d=await r.json()}catch(e){}
+  if(!r.ok)throw new Error((d.error&&d.error.message)||('Graph-fout '+r.status));return d}
+const b64=u8=>{let s='';for(let i=0;i<u8.length;i+=0x8000)s+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000));return btoa(s)};
 
 /* aanhef */
 const A={groet:'Geachte',titel:'heer'};
@@ -163,7 +201,7 @@ function renderAanhef(){
   document.querySelectorAll('[data-groep]').forEach(g=>g.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on',A[g.dataset.groep]===c.dataset.v)));
   $('a-voorbeeld').textContent=aanhefTekst();
 }
-document.querySelectorAll('[data-groep]').forEach(g=>g.addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;A[g.dataset.groep]=c.dataset.v;renderAanhef();plan()}));
+document.querySelectorAll('[data-groep]').forEach(g=>g.addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;A[g.dataset.groep]=c.dataset.v;render();plan()}));
 
 /* projectgegevens uit het .txt-bestand van Nieuwe projectmap */
 const MAANDEN=['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december'];
@@ -173,13 +211,13 @@ $('f-txt').onchange=async()=>{
   try{
     const t=await f.text();
     const veld=re=>{const m=t.match(re);return m?m[1].trim():''};
-    const naam=veld(/^Naam:\s*(.+)$/m);
+    const leeg=s=>!s||/niet opgegeven|^\(geen\)$|^-$/i.test(s);
+    const naam=veld(/^Naam:\s*(.+)$/m),mail=veld(/^E-mailadres:\s*(.+)$/m);
     const adres=veld(/^Adres:\s*(.+)$/m);
     const afspraak=veld(/^Afspraak opname:\s*(.+)$/m);
     const prijs=veld(/^Afgesproken prijs:\s*(.+)$/m);
     const wil=veld(/^- Wil graag:\s*(.+)$/m);
-    const voor=veld(/^- Voornaam:\s*(.+)$/m),achter=veld(/^- Achternaam:\s*(.+)$/m),aanhef=veld(/^- Aanhef:\s*(.+)$/m);
-    // adres: "Noordstraat 6, 4525AB Retranchement"
+    const achter=veld(/^- Achternaam:\s*(.+)$/m),aanhef=veld(/^- Aanhef:\s*(.+)$/m);
     if(adres){
       const m=adres.match(/^(.+?),\s*(\d{4})\s?([A-Z]{2})\s+(.+)$/);
       if(m){
@@ -188,35 +226,48 @@ $('f-txt').onchange=async()=>{
         if(i>=0)sel.value=i;else{sel.value='anders';$('straat').value=straat;$('pcplaats').value=pc}
       }
     }
-    if(naam&&!/niet opgegeven/i.test(naam))$('adresnaam').value=naam;
-    if(achter&&!/niet opgegeven/i.test(achter))$('aanhefnaam').value=achter;
+    if(!leeg(naam))$('adresnaam').value=naam;
+    if(!leeg(mail))$('mail').value=mail;
+    if(!leeg(achter))$('aanhefnaam').value=achter;
     if(/mevrouw/i.test(aanhef))A.titel='mevrouw';else if(/heer/i.test(aanhef))A.titel='heer';
-    // datum: "zaterdag 17 oktober 2026"
     const d=afspraak.toLowerCase().match(/(\d{1,2})\s+([a-z]+)\s+(\d{4})/);
     if(d&&MAANDEN.includes(d[2]))$('datum').value=`${d[3]}-${String(MAANDEN.indexOf(d[2])+1).padStart(2,'0')}-${d[1].padStart(2,'0')}`;
     const tm=afspraak.match(/(\d{1,2})[:.](\d{2})/);if(tm){$('metTijd').checked=true;$('tijd').value=tm[1].padStart(2,'0')+':'+tm[2]}
-    // prijs: "€ 600,00 incl. btw"
     const pm=prijs.match(/(\d[\d.]*)(?:,(\d{2}))?/);
     if(pm){const v=parseFloat(pm[1].replace(/\./g,'')+'.'+(pm[2]||'00'));$('metPrijs').checked=true;
       if(v===325||v===175)$('prijs').value=String(v);else{$('prijs').value='eigen';$('eigenPrijs').value=v}}
-    // soort
     const w=wil.toLowerCase();
     if(/utiliteit|ep-u/.test(w))$('soort').selectedIndex=4;
     else if(/maatwerk/.test(w)&&/label/.test(w))$('soort').selectedIndex=2;
     else if(/maatwerk/.test(w))$('soort').selectedIndex=3;
     else if(/detail/.test(w))$('soort').selectedIndex=1;
     else if(w)$('soort').selectedIndex=0;
-    render();voorbeeld();say('ok','✓ Projectgegevens ingelezen. Controleer de aanhef.');
+    $('onderwerp').dataset.auto='1';
+    render();voorbeeld();say('ok','✓ Projectgegevens ingelezen. Controleer de aanhef'+(tm?'':' en vul de tijd in')+'.');
   }catch(e){say('err','Inlezen mislukt: '+esc(e.message))}
   $('f-txt').value='';
 };
 
 function adres(){return sel.value==='anders'?[$('straat').value.trim()||'…',$('pcplaats').value.trim()]:PROJECTEN[sel.value]}
 const datumLang=d=>new Intl.DateTimeFormat('nl-NL',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(d);
+const datumZonderJaar=d=>new Intl.DateTimeFormat('nl-NL',{weekday:'long',day:'numeric',month:'long'}).format(d);
 const datumKort=d=>new Intl.DateTimeFormat('nl-NL',{day:'2-digit',month:'2-digit',year:'numeric'}).format(d);
 const fmt=n=>n.toLocaleString('nl-NL',{minimumFractionDigits:2,maximumFractionDigits:2});
+const opnameDatum=()=>{const v=$('datum').value;return v?new Date(v+'T12:00'):null};
+const opnameTijd=()=>$('metTijd').checked&&$('tijd').value?$('tijd').value+' uur':'';
 function prijs(){if(!$('metPrijs').checked)return null;const v=$('prijs').value==='eigen'?parseFloat($('eigenPrijs').value):parseFloat($('prijs').value);return isNaN(v)?null:v}
 const bestandsnaam=()=>{const [s,p]=adres();return `Opdrachtbevestiging ${s}${p?' '+p:''}.pdf`.replace(/[\\/:*?"<>|]/g,'')};
+const isLabel=()=>$('soort').selectedIndex!==3;
+function onderwerpAuto(){
+  if($('onderwerp').dataset.auto!=='1')return;
+  const [s,p]=adres();const plaats=(p||'').replace(/^\d{4}\s?[A-Z]{2}\s*/,'');
+  const wat=isLabel()?'Inspectie energielabel':'Opname maatwerkadvies';
+  const d=opnameDatum(),t=opnameTijd();
+  $('onderwerp').value=d?`${wat} ${datumZonderJaar(d)}${t?' '+t:''} – ${s}${plaats?', '+plaats:''}`
+                        :`Opdrachtbevestiging ${wat.toLowerCase()} – ${s}${plaats?', '+plaats:''}`;
+}
+$('onderwerp').dataset.auto='1';
+$('onderwerp').addEventListener('input',()=>{$('onderwerp').dataset.auto=''});
 
 /* bibliotheken en huisstijl-bestanden */
 function laadScript(src){return new Promise((ok,fout)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=()=>fout(new Error('Kan '+src+' niet laden'));document.head.appendChild(s)})}
@@ -260,22 +311,36 @@ async function maakPdf(){
 
   nieuwePagina();
   [$('adresnaam').value.trim(),straat,pc].filter(Boolean).forEach((t,i)=>tekst(t,L,148+i*14,9.5,fR,INKT));
-  const dv=$('datum').value,d=dv?new Date(dv+'T12:00'):null;
+  const d=opnameDatum(),tijd=opnameTijd();
   tekst('Opdrachtbevestiging',R,150,20,fB,PAARS,'r');
-  [['Datum',datumKort(new Date())],['Opname',d?datumKort(d):'in overleg']].forEach(([k,v],i)=>{
-    tekst(k,R-92,170+i*14,8.5,fL,GRIJS,'r');tekst(v,R,170+i*14,8.5,i===1?fB:fR,INKT,'r')});
+  tekst('Datum',R-92,170,8.5,fL,GRIJS,'r');tekst(datumKort(new Date()),R,170,8.5,fR,INKT,'r');
   top=250;
   alinea(aanhefTekst(),{na:4});
-  alinea(d?'Hartelijk dank voor uw opdracht. Hierbij bevestig ik de opname van uw woning.'
-          :'Hartelijk dank voor uw opdracht. Hierbij bevestig ik de opname van uw woning. Ik neem binnenkort contact met u op om een datum te plannen.',{na:16});
+  alinea(d?'Hartelijk dank voor uw opdracht. Hierbij bevestig ik de afspraak voor de opname van uw woning:'
+          :'Hartelijk dank voor uw opdracht. Hierbij bevestig ik de opname van uw woning. Ik neem binnenkort contact met u op om een datum te plannen.',{na:10});
+
+  // ── afspraakblok: datum en tijd groot en direct in beeld ──
+  const bh=d?78:60;
+  page.drawSvgPath(rondPad(R-L,bh,8),{x:L,y:H-top,color:TINT});
+  page.drawRectangle({x:L,y:H-(top+bh),width:5,height:bh,color:PAARS});
+  tekst('AFSPRAAK OPNAME',L+20,top+18,7.5,fB,GRIJS);
+  if(d){
+    const dt=datumLang(d);const zin=dt.charAt(0).toUpperCase()+dt.slice(1);
+    const w=tekst(zin,L+20,top+40,17,fB,PAARS);
+    if(tijd)tekst('om '+tijd,L+20+w+10,top+40,17,fR,PAARS);
+    tekst(`${straat}${pc?', '+pc:''}  ·  duur ongeveer 1 uur`,L+20,top+60,9,fR,INKT);
+  } else {
+    tekst('Datum in overleg',L+20,top+38,15,fB,PAARS);
+    tekst(`${straat}${pc?', '+pc:''}`,L+20,top+52,9,fR,INKT);
+  }
+  top+=bh+22;
+
+  // ── opdracht en prijs ──
   const pr=prijs();
   page.drawRectangle({x:L,y:H-(top+6),width:R-L,height:20,color:PAARS});
   tekst('Opdracht',L+8,top-1,8,fB,WIT);if(pr!==null)tekst('Bedrag incl. btw',R-8,top-1,8,fB,WIT,'r');top+=30;
   tekst($('soort').value,L+8,top,9,fB,INKT);if(pr!==null)tekst('€ '+fmt(pr),R-8,top,9,fR,INKT,'r');top+=15;
-  let wanneer=d?datumLang(d):'in overleg';
-  if(d&&$('metTijd').checked&&$('tijd').value)wanneer+=', om '+$('tijd').value.replace(':','.')+' uur';
-  [`Opnameadres: ${straat}${pc?', '+pc:''}`,`Datum opname: ${wanneer}`,'Duur van de opname: ongeveer 1 tot 2 uur'].forEach(s=>{
-    wrap(s,fL,8.5,R-L-120).forEach((t,i)=>{tekst((i?'    ':'–  ')+t,L+18,top,8.5,fL,GRIJS);top+=13})});
+  tekst(`–  Opnameadres: ${straat}${pc?', '+pc:''}`,L+18,top,8.5,fL,GRIJS);top+=13;
   top+=6;page.drawLine({start:{x:L,y:H-top},end:{x:R,y:H-top},thickness:0.6,color:LIJN});top+=4;
   if(pr!==null){
     top+=14;const tx=R-200;
@@ -286,10 +351,10 @@ async function maakPdf(){
   const kl=['#019541','#54ae32','#c6d500','#ffee02','#faba00','#ec670a'],sw=(R-L)/6;
   kl.forEach((k,i)=>page.drawRectangle({x:L+i*sw,y:H-top,width:sw+0.3,height:3,color:hex(k)}));top+=18;
   const doct='Heeft u bouwtekeningen, facturen van verbeteringen (zoals isolatie, glas, zonnepanelen of installaties) of andere documenten over de woning? Die ontvang ik graag vooraf per mail of tijdens de opname. Heeft u niets? Geen probleem: u krijgt in alle gevallen een energielabel. Waar gegevens ontbreken, gebruik ik de standaardwaarden die horen bij het bouwjaar van de woning.';
-  const dl=wrap(doct,fR,8.8,R-L-28),bh=34+dl.length*12.5+8;
-  page.drawSvgPath(rondPad(R-L,bh,6),{x:L,y:H-top,color:TINT});
+  const dl=wrap(doct,fR,8.8,R-L-28),dh=34+dl.length*12.5+8;
+  page.drawSvgPath(rondPad(R-L,dh,6),{x:L,y:H-top,color:TINT});
   tekst('Documenten van uw woning',L+14,top+20,10.5,fB,PAARS);
-  dl.forEach((t,i)=>tekst(t,L+14,top+37+i*12.5,8.8,fR,INKT));top+=bh+20;
+  dl.forEach((t,i)=>tekst(t,L+14,top+37+i*12.5,8.8,fR,INKT));top+=dh+20;
   alinea('Na de opname ontvangt u de factuur. Na betaling registreer ik het energielabel in EP-Online en ontvangt u het certificaat.');
   const ex=$('extra').value.trim();if(ex)alinea(ex);
   alinea(`Klopt er iets niet of wilt u de afspraak verzetten? Laat het me gerust weten via ${bed.mail} of ${bed.tel}.`,{na:16});
@@ -305,6 +370,70 @@ async function maakPdf(){
   return await doc.save();
 }
 
+/* ══════════ Mail ══════════ */
+const ST='font-family:Merriweather,Georgia,serif;font-size:11pt;color:#000000;line-height:150%;margin:0 0 10pt 0';
+const p_=h=>`<p style="${ST}">${h}</p>`;
+function klantMail(){
+  const [s,p]=adres();const d=opnameDatum(),t=opnameTijd();
+  let h=p_(esc(aanhefTekst()));
+  if(d){
+    h+=p_('Hartelijk dank voor uw opdracht. Hierbij bevestig ik de afspraak voor de opname van uw woning:');
+    const dt=datumLang(d);
+    h+=`<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 12pt 0"><tr><td style="background:#f4f2f6;border-left:5px solid #432d6a;border-radius:6px;padding:10px 16px">`+
+       `<div style="font-family:Merriweather,Georgia,serif;font-size:15pt;font-weight:bold;color:#432d6a">${esc(dt.charAt(0).toUpperCase()+dt.slice(1))}${t?' om '+esc(t):''}</div>`+
+       `<div style="font-family:Merriweather,Georgia,serif;font-size:10pt;color:#1e1830;margin-top:4px">${esc(s)}${p?', '+esc(p):''} &nbsp;·&nbsp; duur ongeveer 1 uur</div></td></tr></table>`;
+  } else {
+    h+=p_(`Hartelijk dank voor uw opdracht voor de opname van uw woning aan de ${esc(s)}${p?', '+esc(p):''}. Ik neem binnenkort contact met u op om een datum te plannen.`);
+  }
+  h+=p_('In de bijlage vindt u de opdrachtbevestiging.');
+  h+=p_('Heeft u bouwtekeningen of facturen van verbeteringen aan de woning (isolatie, glas, zonnepanelen, installaties)? Die ontvang ik graag vooraf per mail of tijdens de opname. Heeft u niets, dan is dat geen probleem.');
+  const ex=$('extra').value.trim();if(ex)h+=p_(esc(ex).replace(/\n/g,'<br>'));
+  h+=p_('Klopt er iets niet of wilt u de afspraak verzetten? Laat het me gerust weten.');
+  h+=p_('Met vriendelijke groet,');
+  return h;
+}
+async function zoekProjectmap(){
+  const [s,p]=adres();const pc=((p||'').match(/(\d{4})\s?([A-Z]{2})/)||[]).slice(1).join('');
+  const nr=(s.match(/(\d+\s*[a-zA-Z]{0,2})\s*$/)||[])[1]||'';
+  if(!pc)return null;
+  const d=await graphJSON(`me/drive/root:/${ENC(PROJECTMAP_ROOT)}:/children?$select=name,folder&$top=200`);
+  const kaal=x=>x.toLowerCase().replace(/\s/g,'');
+  const m=(d.value||[]).filter(i=>i.folder&&kaal(i.name).includes(kaal(pc))&&(!nr||kaal(i.name).includes(kaal(nr))));
+  return m.length?PROJECTMAP_ROOT+'/'+m[0].name:null;
+}
+$('b-mail').onclick=async()=>{
+  const aan=$('mail').value.trim();
+  if(aan&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(aan)){$('resultaat').innerHTML='<div class="msg err">Het e-mailadres klopt niet.</div>';return}
+  const b=$('b-mail');b.disabled=true;const res=$('resultaat');
+  res.innerHTML='<div class="msg info"><span class="spin"></span>PDF maken…</div>';
+  try{
+    const pdf=await maakPdf();
+    let opgeslagen=null,mapMelding='';
+    if($('opslaan').checked){
+      res.innerHTML='<div class="msg info"><span class="spin"></span>Projectmap zoeken…</div>';
+      const map=await zoekProjectmap();
+      if(map){
+        const r=await graph(`me/drive/root:/${ENC(map+'/'+bestandsnaam())}:/content?@microsoft.graph.conflictBehavior=replace`,{method:'PUT',headers:{'Content-Type':'application/pdf'},body:pdf});
+        opgeslagen=await r.json().catch(()=>({}));if(!r.ok)throw new Error('Opslaan in OneDrive mislukt');
+        mapMelding=`PDF opgeslagen in <b>${esc(map)}</b>${opgeslagen.webUrl?` · <a href="${esc(opgeslagen.webUrl)}" target="_blank">bekijken</a>`:''}.<br>`;
+      } else mapMelding='⚠️ Geen projectmap gevonden met deze postcode en dit huisnummer, de PDF is niet in OneDrive opgeslagen.<br>';
+    }
+    res.innerHTML='<div class="msg info"><span class="spin"></span>Concept-mail maken…</div>';
+    const msg=await graphJSON('me/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      subject:$('onderwerp').value.trim(),body:{contentType:'HTML',content:`<div>${klantMail()}</div>`},
+      toRecipients:aan?[{emailAddress:{address:aan}}]:[]})});
+    await graphJSON(`me/messages/${msg.id}/attachments`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      '@odata.type':'#microsoft.graph.fileAttachment',name:bestandsnaam(),contentType:'application/pdf',contentBytes:b64(pdf)})});
+    res.innerHTML=`<div class="msg ok"><b>✓ Klaar.</b><br>${mapMelding}Concept staat in Outlook (Concepten)${msg.webLink?` · <a href="${esc(msg.webLink)}" target="_blank">openen</a>`:''}.<br><span style="font-size:12px">Voeg in Outlook je handtekening toe en verstuur.</span></div>`;
+  }catch(e){
+    console.error(e);
+    res.innerHTML=e.message==='NIET_INGELOGD'
+      ?`<div class="msg warn">Je bent nog niet ingelogd. Open <a href="factuur.html">Factuur versturen</a>, log in met Microsoft en kom daarna hier terug. Daarna werkt het hier vanzelf.</div>`
+      :`<div class="msg err">Mislukt: ${esc(e.message)}</div>`;
+  }
+  b.disabled=false;
+};
+
 /* voorbeeld en download */
 let pvUrl=null,timer=null;
 async function voorbeeld(){
@@ -319,9 +448,9 @@ function render(){
   $('tijdBlok').classList.toggle('hidden',!$('metTijd').checked);
   $('prijsBlok').classList.toggle('hidden',!$('metPrijs').checked);
   $('eigenPrijs').classList.toggle('hidden',$('prijs').value!=='eigen');
-  $('naam').textContent=bestandsnaam();renderAanhef();
+  $('naam').textContent=bestandsnaam();renderAanhef();onderwerpAuto();
 }
-document.querySelectorAll('input:not([type=file]),select,textarea').forEach(el=>['input','change'].forEach(ev=>el.addEventListener(ev,()=>{render();plan()})));
+document.querySelectorAll('input:not([type=file]):not(#onderwerp):not(#mail),select,textarea').forEach(el=>['input','change'].forEach(ev=>el.addEventListener(ev,()=>{render();plan()})));
 $('b-vb').onclick=voorbeeld;
 $('b-pdf').onclick=async()=>{
   const b=$('b-pdf');b.disabled=true;
