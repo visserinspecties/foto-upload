@@ -41,12 +41,29 @@
   .noordpijl { position:absolute; top:12px; right:12px; z-index:1000; background:rgba(255,255,255,.9); border:1px solid var(--rand); border-radius:6px; padding:4px 8px; text-align:center; font-size:12px; font-weight:700; }
   .gevellabel { background:rgba(255,255,255,.92); border:1px solid #333; border-radius:3px; padding:1px 4px; font-size:11px; font-family:'Merriweather',serif; white-space:nowrap; transform:translate(-50%,-50%); }
   .klein { font-size:11px; color:var(--grijs); margin-top:10px; line-height:1.5; }
+  #od-status { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:7px 16px; font-size:12px; background:#efece3; color:#6b6555; }
+  #od-status button { padding:4px 12px; font-size:12px; font-weight:700; border:1px solid currentColor; background:#fff; color:inherit; border-radius:5px; }
+  .opslaan-vak { margin-top:8px; padding:10px; border:1px solid var(--rand); border-radius:6px; background:var(--blauw-licht); }
+  .opslaan-vak .klein { margin-top:6px; }
+  #pj-scherm { position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; padding:12px; }
+  #pj-doos { background:#fff; border-radius:8px; width:min(520px,100%); max-height:85vh; display:flex; flex-direction:column; padding:14px; gap:8px; }
+  #pj-doos h3 { margin:0; font-size:15px; color:var(--blauw); }
+  #pj-lijst { overflow:auto; border:1px solid var(--rand); border-radius:4px; flex:1; min-height:120px; }
+  #pj-lijst button { display:block; width:100%; text-align:left; background:#fff; color:#1b2733; border-bottom:1px solid var(--rand); border-radius:0; padding:10px; }
+  #pj-lijst button:hover { background:var(--blauw-licht); }
   @media (max-width: 800px) { .wrap { flex-direction:column; height:auto; } .zijkant { width:auto; } .kaartvak { height:70vh; } }
-  @media print { header, .zijkant .invoer, button { display:none !important; } .wrap { display:block; height:auto; } .zijkant { width:auto; border:0; } .kaartvak { height:480px; } }
+  @media print { header, #od-status, #pj-scherm, .opslaan-vak, .zijkant .invoer, button { display:none !important; } .wrap { display:block; height:auto; } .zijkant { width:auto; border:0; } .kaartvak { height:480px; } }
 </style>
 </head>
 <body>
 <header><h1>Pand-oriëntatie via BAG</h1></header>
+<div id="od-status">☁️ OneDrive: controleren…</div>
+<div id="pj-scherm"><div id="pj-doos">
+  <h3>Bij welk project hoort dit pand?</h3>
+  <input type="text" id="pj-zoek" placeholder="Zoek op adres of projectnaam" autocomplete="off">
+  <div id="pj-lijst"></div>
+  <div class="rij"><button class="licht" id="pj-sluit">Annuleren</button></div>
+</div></div>
 <div class="wrap">
   <div class="zijkant">
     <div class="invoer">
@@ -79,6 +96,10 @@
       <h2>Totaal per gevel</h2>
       <table><tbody id="totaal"></tbody></table>
       <div class="rij"><button class="licht" id="kopieer">Kopieer tabel</button><button class="licht" id="print">Print / PDF</button></div>
+      <div class="opslaan-vak">
+        <button id="opslaan" style="width:100%">Opslaan in project (voor de A3)</button>
+        <div class="klein" id="opslaanInfo">Zet het kaartje en de gevelrichtingen in de map 020 AANTEKENINGEN van het gekozen project. Huismaten neemt ze daar over in de A3.</div>
+      </div>
     </div>
     <div class="klein">Bron: BAG (Kadaster) via PDOK, opgehaald in je eigen browser. De BAG-contour is indicatief en geen vervanging van opmeten. "Kijkt naar" is de richting waarop de gevel uitkijkt, dus de normaal van de gevel naar buiten.</div>
   </div>
@@ -489,14 +510,19 @@ $('kies').addEventListener('change', async e => {
   try { await laadAdres(e.target._docs[+e.target.value]); } catch (err) { melding('Mislukt: ' + err.message, true); }
 });
 $('print').addEventListener('click', () => window.print());
+// Maakt het kaartje als PNG-blob; lukt dat niet met achtergrond (tainted canvas), dan zonder.
+async function maakPngBlob() {
+  const naarBlob = c => new Promise((ok, nok) => { try { c.toBlob(b => b ? ok(b) : nok(new Error('geen afbeelding')), 'image/png'); } catch (e) { nok(e); } });
+  let r = await maakKaartje($('achtergrond').value), blob;
+  try { blob = await naarBlob(r.canvas); }
+  catch (e) { r = await maakKaartje('geen'); blob = await naarBlob(r.canvas); r.achterOK = false; }
+  return { blob, achterOK: r.achterOK };
+}
 $('png').addEventListener('click', async () => {
   if (!state.edges.length) return;
   $('png').disabled = true; melding('Kaartje maken…');
   try {
-    let r = await maakKaartje($('achtergrond').value), blob;
-    const naarBlob = c => new Promise((ok, nok) => { try { c.toBlob(b => b ? ok(b) : nok(new Error('geen afbeelding')), 'image/png'); } catch (e) { nok(e); } });
-    try { blob = await naarBlob(r.canvas); }
-    catch (e) { r = await maakKaartje('geen'); blob = await naarBlob(r.canvas); r.achterOK = false; }
+    const r = await maakPngBlob(), blob = r.blob;
     const url = URL.createObjectURL(blob);
     const img = $('pngvoorbeeld'); img.src = url; img.style.display = 'block';
     const naam = 'Orientatie ' + (((state.adres && state.adres.weergavenaam) || 'pand').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '_')) + '.png';
@@ -512,6 +538,295 @@ $('kopieer').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText((state.adres ? state.adres.weergavenaam + '\n' : '') + regels.join('\n')); melding('Tabel gekopieerd.'); }
   catch (e) { melding('Kopiëren mislukt in deze browser.', true); }
 });
+
+// ================= OneDrive: inloggen, project kiezen, opslaan =================
+// Zelfde Entra-app en dezelfde opslag (localStorage 'rt') als Huismaten, Foto-upload en de Projectmap-app:
+// ben je daar ingelogd, dan ben je het hier ook. Het adres van déze pagina moet in Entra staan als
+// redirect-URI (platform "Single-page application").
+const GRAPH_CLIENT_ID = 'fdf237c9-bf46-47fa-ab3d-a8834a73e284';
+const GRAPH_TENANT_ID = '984fd1fb-3d68-4c94-aff2-47f699fb5dae';
+const GRAPH_SCOPE = 'https://graph.microsoft.com/Files.ReadWrite offline_access';
+const LOGIN_SCOPE = 'https://graph.microsoft.com/Files.ReadWrite https://graph.microsoft.com/Tasks.ReadWrite offline_access';
+const LOGIN_VASTE_ORIGIN = 'https://visserinspecties.github.io';
+const PROJECTEN_ROOT = '0_In Behandeling';
+const SUBMAP = '020 AANTEKENINGEN';
+const PROJECT_SLEUTEL = 'orientatie_project';
+const LOGIN_PKCE = 'orientatie_pkce_v', LOGIN_KLAAR = 'orientatie_login_klaar', LOGIN_MODUS = 'orientatie_login_modus';
+const GRAPH = 'https://graph.microsoft.com/v1.0/me/drive';
+let gekozenProject = null; // { naam, pad }
+
+const gp = pad => pad.split('/').map(encodeURIComponent).join('/');
+function laadProject() {
+  try { const p = JSON.parse(localStorage.getItem(PROJECT_SLEUTEL) || 'null'); return (p && p.naam && p.pad) ? p : null; } catch (_) { return null; }
+}
+function bewaarProject() { try { localStorage.setItem(PROJECT_SLEUTEL, JSON.stringify(gekozenProject)); } catch (_) {} }
+
+// Foutcodes (e.code): 'geen-login' | 'verlopen' | 'netwerk'
+async function graphRefreshToken() {
+  const rt = localStorage.getItem('rt');
+  if (!rt) { const e = new Error('Niet ingelogd bij OneDrive — klik bovenaan op "Inloggen".'); e.code = 'geen-login'; throw e; }
+  let resp;
+  try {
+    resp = await fetch('https://login.microsoftonline.com/' + GRAPH_TENANT_ID + '/oauth2/v2.0/token', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ client_id: GRAPH_CLIENT_ID, grant_type: 'refresh_token', refresh_token: rt, scope: GRAPH_SCOPE })
+    });
+  } catch (err) { const e = new Error('Geen verbinding met Microsoft.'); e.code = 'netwerk'; throw e; }
+  const data = await resp.json().catch(() => ({}));
+  if (!data.access_token) {
+    if (data.error === 'invalid_grant' || data.error === 'interaction_required') { try { localStorage.removeItem('rt'); } catch (_) {} }
+    const e = new Error('Inlog verlopen — klik bovenaan op "Inloggen".'); e.code = 'verlopen'; throw e;
+  }
+  if (data.refresh_token) localStorage.setItem('rt', data.refresh_token);
+  return data.access_token;
+}
+async function onedriveBeschikbaar() {
+  if (!navigator.onLine) return false;
+  try { if (!localStorage.getItem('rt')) return false; await graphRefreshToken(); return true; } catch (_) { return false; }
+}
+
+// ---- inloggen (PKCE, in een pop-up zodat je zoekresultaat blijft staan) ----
+function loginRedirectUri() { return location.origin + location.pathname; }
+function loginMogelijk() { return location.origin === LOGIN_VASTE_ORIGIN; }
+function b64url(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, ''); }
+async function loginBouwUrl() {
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+  localStorage.setItem(LOGIN_PKCE, verifier);
+  const params = new URLSearchParams({
+    client_id: GRAPH_CLIENT_ID, response_type: 'code', redirect_uri: loginRedirectUri(),
+    scope: LOGIN_SCOPE, code_challenge: b64url(digest), code_challenge_method: 'S256',
+    state: 'orientatie', domain_hint: 'organizations'
+  });
+  return 'https://login.microsoftonline.com/' + GRAPH_TENANT_ID + '/oauth2/v2.0/authorize?' + params;
+}
+async function startLogin() {
+  if (!loginMogelijk()) {
+    alert('Inloggen kan alleen via het vaste adres:\n' + LOGIN_VASTE_ORIGIN + '/foto-upload/pand-orientatie.html\n\nOpen de tool via dat adres in Edge of Safari.');
+    return;
+  }
+  const popup = window.open('', 'orientatie_login', 'width=520,height=720');
+  try {
+    const url = await loginBouwUrl();
+    try { localStorage.removeItem(LOGIN_KLAAR); } catch (_) {}
+    if (popup && !popup.closed) {
+      localStorage.setItem(LOGIN_MODUS, 'popup:' + Date.now());
+      popup.location.href = url;
+      wachtOpLogin(popup);
+    } else {
+      if (!confirm('De pop-up is geblokkeerd. Inloggen in dit venster? Het zoekresultaat gaat dan verloren.')) return;
+      localStorage.setItem(LOGIN_MODUS, 'pagina');
+      location.href = url;
+    }
+  } catch (e) {
+    try { if (popup) popup.close(); } catch (_) {}
+    alert('Inloggen starten mislukt: ' + (e && e.message ? e.message : e));
+  }
+}
+function wachtOpLogin(popup) {
+  const start = Date.now();
+  const timer = setInterval(async () => {
+    let klaar = null; try { klaar = localStorage.getItem(LOGIN_KLAAR); } catch (_) {}
+    if (klaar || popup.closed || Date.now() - start > 5 * 60 * 1000) {
+      clearInterval(timer);
+      try { localStorage.removeItem(LOGIN_KLAAR); } catch (_) {}
+      try { popup.close(); } catch (_) {}
+      controleerOneDrive();
+    }
+  }, 800);
+}
+// Komt deze pagina terug van Microsoft (?code=…), dan wordt de inlog hier afgerond.
+async function verwerkLoginCallback() {
+  const p = new URLSearchParams(location.search);
+  if (p.get('state') !== 'orientatie' || !(p.get('code') || p.get('error'))) return false;
+  const popupModus = (localStorage.getItem(LOGIN_MODUS) || '').startsWith('popup');
+  const scherm = document.createElement('div');
+  scherm.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#fff;color:#1b2733;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font:700 18px Merriweather,Georgia,serif;padding:24px;gap:16px;';
+  scherm.textContent = 'Inloggen afronden…';
+  document.body.appendChild(scherm);
+  try {
+    if (p.get('error')) throw new Error(p.get('error_description') || p.get('error'));
+    const verifier = localStorage.getItem(LOGIN_PKCE);
+    if (!verifier) throw new Error('inlogpoging niet gevonden — probeer opnieuw');
+    const resp = await fetch('https://login.microsoftonline.com/' + GRAPH_TENANT_ID + '/oauth2/v2.0/token', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ client_id: GRAPH_CLIENT_ID, grant_type: 'authorization_code', code: p.get('code'),
+        redirect_uri: loginRedirectUri(), code_verifier: verifier, scope: LOGIN_SCOPE })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!data.refresh_token) throw new Error(data.error_description || 'token ophalen mislukt');
+    localStorage.setItem('rt', data.refresh_token);
+    localStorage.setItem('rt_login_ts', String(Date.now()));
+    localStorage.removeItem(LOGIN_PKCE);
+    localStorage.setItem(LOGIN_KLAAR, String(Date.now()));
+    history.replaceState({}, '', location.pathname);
+    if (popupModus) {
+      scherm.textContent = '✅ Ingelogd. Dit venster sluit vanzelf — lukt dat niet, ga dan terug naar de tab met de tool.';
+      setTimeout(() => { try { window.close(); } catch (_) {} }, 400);
+    } else { scherm.remove(); }
+  } catch (e) {
+    history.replaceState({}, '', location.pathname);
+    scherm.textContent = '❌ Inloggen mislukt: ' + (e && e.message ? e.message : e);
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = popupModus ? 'Venster sluiten' : 'Terug naar de tool';
+    b.addEventListener('click', () => { if (popupModus) { try { window.close(); } catch (_) {} } scherm.remove(); });
+    scherm.appendChild(b);
+  }
+  return true;
+}
+
+// ---- statusbalk bovenin ----
+const OD_KLEUREN = { ok: ['#e3f1e3', '#1d5a2b'], fout: ['#fbe3dc', '#8f2410'], let: ['#fff1d6', '#7a4b00'], neutraal: ['#efece3', '#6b6555'] };
+function zetOdBalk(soort, tekst, knoppen) {
+  const el = $('od-status'), k = OD_KLEUREN[soort || 'neutraal'];
+  el.style.background = k[0]; el.style.color = k[1];
+  el.textContent = tekst;
+  (knoppen || []).forEach(([label, actie]) => {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = label;
+    b.addEventListener('click', actie); el.appendChild(b);
+  });
+}
+let odControleLoopt = false;
+async function controleerOneDrive() {
+  if (odControleLoopt) return;
+  odControleLoopt = true;
+  try {
+    zetOdBalk('neutraal', '☁️ OneDrive: controleren…');
+    const inloggen = ['🔐 Inloggen', startLogin], opnieuw = ['Controleer', controleerOneDrive];
+    if (!navigator.onLine) { zetOdBalk('let', '📵 Geen internet — opslaan in het project kan nu niet. Gebruik "Maak kaartje (PNG)" als vangnet.', [opnieuw]); return; }
+    if (!loginMogelijk()) { zetOdBalk('fout', '⛔ Deze pagina draait niet op het vaste adres (visserinspecties.github.io) en kan niet inloggen of opslaan. De kaart zelf werkt wel.'); return; }
+    let token;
+    try { token = await graphRefreshToken(); }
+    catch (e) {
+      if (e.code === 'netwerk') zetOdBalk('let', '⚠️ Microsoft is nu niet bereikbaar.', [opnieuw]);
+      else zetOdBalk('fout', e.code === 'verlopen' ? '❌ OneDrive: inlog verlopen.' : '❌ OneDrive: niet ingelogd — opslaan in een project kan niet.', [inloggen]);
+      return;
+    }
+    if (!gekozenProject) { zetOdBalk('let', '☁️ OneDrive verbonden — nog geen project gekozen.', [['Kies project', kiesProject], opnieuw]); return; }
+    let resp;
+    try { resp = await fetch(GRAPH + '/root:/' + gp(gekozenProject.pad), { headers: { Authorization: 'Bearer ' + token } }); }
+    catch (_) { zetOdBalk('let', '⚠️ OneDrive verbonden, maar de projectmap kon niet gecontroleerd worden.', [opnieuw]); return; }
+    if (resp.ok) zetOdBalk('ok', '✅ OneDrive verbonden · project: ' + gekozenProject.naam, [['Ander project', kiesProject], opnieuw]);
+    else if (resp.status === 404) zetOdBalk('fout', '❌ Projectmap niet gevonden in OneDrive: ' + gekozenProject.pad, [['Kies project', kiesProject], opnieuw]);
+    else zetOdBalk('fout', '❌ OneDrive gaf fout ' + resp.status + ' bij het controleren van de projectmap.', [inloggen, opnieuw]);
+  } finally { odControleLoopt = false; }
+}
+
+// ---- project kiezen (mappen onder 0_In Behandeling) ----
+async function odProjecten() {
+  const token = await graphRefreshToken();
+  let url = GRAPH + '/root:/' + gp(PROJECTEN_ROOT) + ':/children?$top=200&$select=name,folder,lastModifiedDateTime';
+  const uit = [];
+  for (let n = 0; url && n < 10; n++) {
+    const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+    if (!r.ok) throw new Error('projectenlijst ophalen mislukt (' + r.status + ')');
+    const j = await r.json();
+    (j.value || []).forEach(i => { if (i.folder) uit.push(i); });
+    url = j['@odata.nextLink'] || null;
+  }
+  return uit.sort((a, b) => (b.lastModifiedDateTime || '').localeCompare(a.lastModifiedDateTime || ''));
+}
+async function kiesProject() {
+  if (!(await onedriveBeschikbaar())) { alert('Geen verbinding met OneDrive.\n\nJe hebt geen internet, of je bent niet (meer) ingelogd. Klik bovenaan op "Inloggen" en probeer het opnieuw.'); return; }
+  const scherm = $('pj-scherm'), lijst = $('pj-lijst'), zoekveld = $('pj-zoek');
+  scherm.style.display = 'flex'; lijst.textContent = 'Projecten ophalen…'; zoekveld.value = '';
+  let items;
+  try { items = await odProjecten(); } catch (e) { lijst.textContent = 'Mislukt: ' + e.message; return; }
+  const toon = () => {
+    const q = zoekveld.value.trim().toLowerCase();
+    const sel = items.filter(i => !q || i.name.toLowerCase().includes(q)).slice(0, 60);
+    lijst.innerHTML = '';
+    if (!sel.length) { lijst.textContent = 'Geen projecten gevonden.'; return; }
+    sel.forEach(i => {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = i.name;
+      b.addEventListener('click', () => kiesProjectMap(i.name));
+      lijst.appendChild(b);
+    });
+  };
+  zoekveld.oninput = toon; toon(); zoekveld.focus();
+}
+async function kiesProjectMap(naam) {
+  $('pj-scherm').style.display = 'none';
+  gekozenProject = { naam, pad: PROJECTEN_ROOT + '/' + naam + '/' + SUBMAP };
+  bewaarProject();
+  controleerOneDrive();
+  await vulAdresUitProject();
+}
+
+// projectgegevens.json lezen (null als hij er niet is)
+async function leesProjectJson(pad, token) {
+  token = token || await graphRefreshToken();
+  const r = await fetch(GRAPH + '/root:/' + gp(pad) + '/projectgegevens.json:/content', { headers: { Authorization: 'Bearer ' + token } });
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error('projectgegevens lezen mislukt (' + r.status + ')');
+  try { return JSON.parse((await r.text()).replace(/^﻿/, '')); } catch (_) { throw new Error('projectgegevens.json is onleesbaar'); }
+}
+// Adres uit het gekozen project in het zoekveld zetten en meteen zoeken
+async function vulAdresUitProject() {
+  if (!gekozenProject) return;
+  let q = '';
+  try { const pg = await leesProjectJson(gekozenProject.pad); if (pg && pg.adres) q = pg.adres; } catch (_) {}
+  if (!q) q = gekozenProject.naam;   // terugval: de mapnaam bevat meestal het adres
+  ['postcode', 'huisnr', 'toev'].forEach(id => { $(id).value = ''; });
+  $('adres').value = q;
+  await zoek();
+}
+
+// ---- opslaan in het project: kaartje.png + oriëntatie in projectgegevens.json ----
+// Huismaten leest beide bestanden uit 020 AANTEKENINGEN en zet het kaartje vooraan in de A3.
+async function opslaanInProject() {
+  if (!state.edges.length) return;
+  const info = $('opslaanInfo'), knop = $('opslaan');
+  const fout = t => { info.textContent = '❌ ' + t; info.style.color = '#b00020'; melding(t, true); };
+  info.style.color = '';
+  if (state.vg === null) { fout('Wijs eerst een voorgevel aan: klik een gevel in de tabel of op de kaart.'); return; }
+  if (!gekozenProject) { fout('Kies eerst een project.'); kiesProject(); return; }
+  const pad = gekozenProject.pad;
+  knop.disabled = true; info.textContent = 'Opslaan…';
+  try {
+    const token = await graphRefreshToken();
+    const H = { Authorization: 'Bearer ' + token };
+    const map = await fetch(GRAPH + '/root:/' + gp(pad), { headers: H });
+    if (map.status === 404) throw new Error('Projectmap bestaat niet in OneDrive: ' + pad + ' — niets opgeslagen. Kies het project opnieuw.');
+    if (!map.ok) throw new Error('OneDrive gaf fout ' + map.status + ' bij het controleren van de projectmap.');
+    // Eerst alles lezen en voorbereiden, dan pas schrijven
+    const pg = await leesProjectJson(pad, token);
+    const bestaand = await fetch(GRAPH + '/root:/' + gp(pad) + '/kaartje.png', { headers: H });
+    if (bestaand.ok && !confirm('Er staat al een kaartje in dit project. Vervangen?')) { info.textContent = 'Niet opgeslagen: het bestaande kaartje blijft staan.'; return; }
+    const png = await maakPngBlob();
+    const vgAz = state.edges[state.vg].az;
+    const o = {};
+    [['VG', 0], ['LG', 90], ['AG', 180], ['RG', 270]].forEach(([k, off]) => { o[k] = compass((vgAz + off) % 360); });
+    const data = Object.assign({ versie: 1, mapnaam: gekozenProject.naam }, pg || {});
+    data.orientatie = o; data.orientatieHoek = Math.round(vgAz); data.orientatieBron = 'handmatig';
+    if (!data.adres && state.adres) data.adres = state.adres.weergavenaam;
+    const bj = state.pand && state.pand.f && state.pand.f.properties && state.pand.f.properties.bouwjaar;
+    if (!data.bouwjaar && bj) data.bouwjaar = String(bj);
+
+    const p1 = await fetch(GRAPH + '/root:/' + gp(pad) + '/kaartje.png:/content', { method: 'PUT', headers: Object.assign({ 'Content-Type': 'image/png' }, H), body: png.blob });
+    if (!p1.ok) throw new Error('kaartje opslaan mislukt (' + p1.status + ')');
+    const p2 = await fetch(GRAPH + '/root:/' + gp(pad) + '/projectgegevens.json:/content', { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, H), body: JSON.stringify(data, null, 2) });
+    if (!p2.ok) throw new Error('kaartje is opgeslagen, maar projectgegevens.json niet (' + p2.status + ')');
+    const tekst = '✅ Opgeslagen in ' + gekozenProject.naam + ': kaartje.png + oriëntatie (voorgevel ' + compass(vgAz) + ', ' + Math.round(vgAz) + '°). Open Huismaten opnieuw of kies daar het project nog eens: de A3 krijgt dan het blok "Ligging en oriëntatie".'
+      + (png.achterOK || $('achtergrond').value === 'geen' ? '' : ' (Let op: zonder achtergrondkaart, die was niet beschikbaar.)');
+    info.textContent = tekst; melding('Opgeslagen in het project.');
+  } catch (e) {
+    fout((e && e.message ? e.message : e) + ' Gebruik zo nodig "Maak kaartje (PNG)" als vangnet.');
+  }
+  knop.disabled = false;
+}
+
+$('opslaan').addEventListener('click', opslaanInProject);
+$('pj-sluit').addEventListener('click', () => { $('pj-scherm').style.display = 'none'; });
+$('pj-scherm').addEventListener('click', e => { if (e.target === $('pj-scherm')) $('pj-scherm').style.display = 'none'; });
+window.addEventListener('online', controleerOneDrive);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) controleerOneDrive(); });
+
+(async () => {
+  gekozenProject = laadProject();
+  const wasCallback = await verwerkLoginCallback();
+  if (wasCallback && (localStorage.getItem(LOGIN_MODUS) || '').startsWith('popup')) return;  // pop-up sluit zichzelf
+  controleerOneDrive();
+})();
 </script>
 </body>
 </html>
