@@ -2693,7 +2693,7 @@ function berekenSchil(dak, schild, mans){
       info('Nokhoogte', mans.nokhoogte, 'm');
       info('Noklengte', mans.noklengte, 'm');
       if(mans.hoekSteil <= mans.hoekFlauw) melding('Mansardekap: het "steile" deel is niet steiler dan het flauwe deel — controleer de hoeken.');
-      if(mans.hoekSteil > 60) melding(`Mansardekap: het steile deel (${mans.hoekSteil}°) is steiler dan 60° — controleer in Vabi of dit als gevel of als dakvlak ingevoerd moet worden.`);
+      if(mans.hoekSteil > 75) melding(`Mansardekap: het steile deel (${mans.hoekSteil}°) is steiler dan 75° — controleer in Vabi of dit als gevel of als dakvlak ingevoerd moet worden.`);
     } else {
       info('Mansardekap', null, '', (mans && mans.fout) || 'nog niet compleet');
       melding('Mansardekap: ' + ((mans && mans.fout) || 'nog niet compleet'));
