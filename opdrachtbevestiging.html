@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#432d6a">
+<title>Opdrachtbevestiging · Visser Inspecties</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --brand:#432d6a; --lila:#8e81a6; --lila-soft:#e8e6ed;
+  --bg:#f4f2f6; --card:#fff; --ink:#1d1833; --muted:#6b6584; --line:#d9d5e1;
+  --btn:#432d6a; --ok:#1f7a45; --warn:#b05a00; --err:#b3261e;
+  --r:14px; --shadow:0 1px 3px rgba(67,45,106,.10);
+  --serif:'Merriweather',Georgia,'Times New Roman',serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--serif);background:var(--bg);color:var(--ink);font-size:14.5px;line-height:1.45;min-height:100vh;display:flex;flex-direction:column}
+button,select,input,textarea{font-family:inherit;font-size:inherit;color:inherit}
+.hidden{display:none!important}
+.band{background:var(--brand);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:20}
+.band::after{content:"";position:absolute;left:0;right:0;bottom:-5px;height:5px;background:linear-gradient(90deg,#019541 0 16.6%,#54ae32 0 33.3%,#c6d500 0 50%,#ffee02 0 66.6%,#faba00 0 83.3%,#ec670a 0)}
+.band .titel{font-weight:700;font-size:15px}
+.band .who{margin-left:auto;text-align:right;font-size:11.5px;color:#cfc8e6}
+main{flex:1;width:100%;max-width:1280px;margin:0 auto;padding:20px 14px 40px;display:grid;grid-template-columns:420px 1fr;gap:16px}
+@media (max-width:980px){main{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:12px;box-shadow:var(--shadow)}
+.card h2{font-weight:700;font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+.stap{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--brand);color:#fff;font-size:11px;margin-right:6px;letter-spacing:0}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.chip{border:1px solid var(--line);background:var(--bg);border-radius:99px;padding:6px 12px;font-size:13px;cursor:pointer;min-height:34px}
+.chip.on{background:var(--brand);border-color:var(--brand);color:#fff}
+input[type=text],input[type=date],input[type=time],input[type=number],textarea,select{width:100%;min-height:40px;padding:8px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);font-size:15px}
+textarea{min-height:56px;resize:vertical}
+label.l{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+.toggle{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0}
+.toggle b{display:block;font-size:14px}.toggle span{font-size:12px;color:var(--muted)}
+.sw{position:relative;width:51px;height:31px;flex:none}
+.sw input{opacity:0;width:0;height:0}
+.sw i{position:absolute;inset:0;background:var(--line);border-radius:31px;transition:.2s;cursor:pointer}
+.sw i:before{content:"";position:absolute;height:27px;width:27px;left:2px;top:2px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.sw input:checked+i{background:var(--ok)}.sw input:checked+i:before{transform:translateX(20px)}
+.btn{border:0;border-radius:12px;min-height:46px;padding:0 16px;font-weight:700;font-size:14.5px;cursor:pointer;background:var(--btn);color:#fff;display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%}
+.btn.sec{background:var(--lila-soft);color:var(--ink)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.rij{display:flex;gap:8px}.rij>*{flex:1}
+.hint{font-size:12px;color:var(--muted);margin-top:6px}
+.msg{border-radius:10px;padding:10px 12px;font-size:13.5px;margin-bottom:12px}
+.msg.err{background:color-mix(in srgb,var(--err) 14%,var(--card));color:var(--err)}
+.msg.info{background:var(--lila-soft)}
+.voorbeeld{background:var(--lila-soft);border-left:4px solid var(--lila);border-radius:8px;padding:8px 12px;font-size:14px;margin-top:8px}
+.sub{padding-left:4px}
+#pv{width:100%;height:calc(100vh - 150px);min-height:600px;border:1px solid var(--line);border-radius:var(--r);background:#fff}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="band">
+  <span class="titel">Opdrachtbevestiging</span>
+  <div class="who">Visser Inspecties</div>
+</div>
+<main>
+<div>
+  <div id="status"></div>
+  <div class="card">
+    <h2><span class="stap">1</span>Project</h2>
+    <select id="project"></select>
+    <div id="eigenAdres" class="hidden">
+      <label class="l">Straat en huisnummer</label><input type="text" id="straat" placeholder="bijv. Bergselaan 154B">
+      <label class="l">Postcode en plaats</label><input type="text" id="pcplaats" placeholder="bijv. 3037 CH Rotterdam">
+    </div>
+    <label class="l">Naam op het adres (optioneel)</label><input type="text" id="adresnaam" placeholder="bijv. R. van den Hoek">
+  </div>
+  <div class="card">
+    <h2><span class="stap">2</span>Aanhef</h2>
+    <div class="chips" data-groep="groet"><button class="chip" data-v="Geachte">Geachte</button><button class="chip" data-v="Beste">Beste</button></div>
+    <div class="chips" data-groep="titel"><button class="chip" data-v="heer">heer</button><button class="chip" data-v="mevrouw">mevrouw</button><button class="chip" data-v="familie">familie</button><button class="chip" data-v="">—</button></div>
+    <label class="l">Naam in de aanhef</label><input type="text" id="aanhefnaam" placeholder="bijv. Van den Hoek (of voornaam bij Beste)">
+    <div class="voorbeeld" id="a-voorbeeld"></div>
+  </div>
+  <div class="card">
+    <h2><span class="stap">3</span>Opdracht</h2>
+    <label class="l">Soort opdracht</label>
+    <select id="soort">
+      <option>Energielabel woning (EP-W, basismethodiek)</option>
+      <option>Energielabel woning (EP-W, detailopname)</option>
+      <option>Energielabel en maatwerkadvies woning</option>
+      <option>Maatwerkadvies woning</option>
+      <option>Energielabel utiliteitsgebouw (EP-U)</option>
+    </select>
+    <label class="l">Datum opname (leeg = in overleg)</label><input type="date" id="datum">
+    <div class="toggle"><div><b>Tijd vermelden</b><span>Anders alleen de datum</span></div><label class="sw"><input type="checkbox" id="metTijd"><i></i></label></div>
+    <div id="tijdBlok" class="hidden sub"><input type="time" id="tijd" value="10:00"></div>
+    <div class="toggle"><div><b>Prijs vermelden</b><span>Incl. btw, voorrijkosten en afmelden</span></div><label class="sw"><input type="checkbox" id="metPrijs"><i></i></label></div>
+    <div id="prijsBlok" class="hidden sub">
+      <select id="prijs">
+        <option value="325">€ 325,- (appartement &lt; 120 m²)</option>
+        <option value="175">€ 175,-</option>
+        <option value="eigen">Ander bedrag…</option>
+      </select>
+      <input type="number" id="eigenPrijs" class="hidden" placeholder="Bedrag incl. btw" step="0.01" style="margin-top:6px">
+    </div>
+    <label class="l">Eigen zin (optioneel)</label><textarea id="extra" placeholder="bijv. De sleutel ligt bij de buren op nummer 156."></textarea>
+  </div>
+  <div class="card">
+    <h2><span class="stap">4</span>PDF</h2>
+    <div class="rij">
+      <button class="btn sec" id="b-vb">👁 Voorbeeld</button>
+      <button class="btn" id="b-pdf">⬇️ PDF downloaden</button>
+    </div>
+    <div class="hint">Bestandsnaam: <b id="naam"></b><br>Sla de PDF op in de projectmap. Tip: zet in Edge/Chrome "Vragen waar elk bestand moet worden opgeslagen" aan, dan kies je de map direct.</div>
+  </div>
+</div>
+<div><iframe id="pv" title="Voorbeeld"></iframe></div>
+</main>
+<script>
+/* Huisstijl en briefpapier komen uit de factuurtool op GitHub Pages */
+const BASE=/github\.io$/.test(location.hostname)?'':'https://visserinspecties.github.io/foto-upload/';
+const BEDRIJF={naam:'Visserinspecties.nl',iban:'NL30 KNAB 0409 0615 57',kvk:'83376704',btw:'NL003811767B63',
+  mail:'info@visserinspecties.nl',tel:'06 51 60 47 35',voorwaarden:'www.visserinspecties.nl/algemene-voorwaarden'};
+const PROJECTEN=[
+  ["Forellendaal 202","2553 LJ 's-Gravenhage"],["Annastraat 4C","3062 KA Rotterdam"],["Sumatrastraat 39","3312 XR Dordrecht"],
+  ["Dorpsstraat 21A","4505 AN Zuidzande"],["Kieweg 1","4511 RP Breskens"],["Heilleweg 21A","4524 KL Sluis"],
+  ["Noordstraat 6","4525 AB Retranchement"],["Pierssenspolderstraat 124","4541 GM Sluiskil"],["Oranjestraat 11","4551 AB Sas van Gent"]];
+const BRL=[
+ 'De gegevens van deze opname worden opgenomen in een monitoringsbestand en het energielabel wordt geregistreerd in de landelijke database www.ep-online.nl.',
+ 'De certificatie-instelling kan een controleonderzoek uitvoeren, ook op locatie. Wordt hiervoor geen toestemming gegeven, dan kan het EP-rapport uit EP-Online worden verwijderd.',
+ 'U heeft het recht het volledige projectdossier op te vragen. Wordt het label door de certificatie-instelling ingetrokken, dan meldt de adviseur dit aan u.',
+ 'Voor nieuwe gebouwen groter dan 1.000 m² is vanaf 1 januari 2028 een WLC-GWP-berekening verplicht.',
+ 'Bij een klacht volgens bijlage 7 van BRL 9500-W/U is de adviseur verplicht informatie (opnamegegevens en berekening van de betrokken woning) te verstrekken aan andere belanghebbenden.',
+ 'Een integrale video-opname voor het maken van plattegronden gebeurt alleen met vooraf schriftelijke toestemming van de bewoner.'];
+const STEEKPROEF='Labelregistraties worden per steekproef gecontroleerd door het bevoegd gezag. Bij aanpassing op aanwijzing van dit bevoegd gezag zal Visserinspecties kosteloos het label vervangen en opnieuw bij RVO aanmelden. Opdrachtgever of klant kan geen gevolgschade claimen door het opnieuw registreren van dit aangepaste label.';
+
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function say(type,html){$('status').innerHTML=html?`<div class="msg ${type}">${html}</div>`:''}
+const sel=$('project');
+PROJECTEN.forEach((p,i)=>sel.add(new Option(p[0]+', '+p[1],i)));
+sel.add(new Option('Ander adres…','anders'));
+
+/* aanhef (zelfde logica als de factuurtool) */
+const A={groet:'Geachte',titel:'heer'};
+function aanhefTekst(){
+  const n=$('aanhefnaam').value.trim();
+  if(n){const nn=A.groet==='Geachte'?n.charAt(0).toUpperCase()+n.slice(1):n;return `${A.groet} ${A.titel?A.titel+' ':''}${nn},`}
+  if(A.titel==='heer'||A.titel==='mevrouw')return `${A.groet} ${A.titel},`;
+  return A.groet==='Geachte'?'Geachte heer, mevrouw,':'Beste,';
+}
+function renderAanhef(){
+  document.querySelectorAll('[data-groep]').forEach(g=>g.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on',A[g.dataset.groep]===c.dataset.v)));
+  $('a-voorbeeld').textContent=aanhefTekst();
+}
+document.querySelectorAll('[data-groep]').forEach(g=>g.addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;A[g.dataset.groep]=c.dataset.v;renderAanhef();plan()}));
+
+function adres(){return sel.value==='anders'?[$('straat').value.trim()||'…',$('pcplaats').value.trim()]:PROJECTEN[sel.value]}
+const datumLang=d=>new Intl.DateTimeFormat('nl-NL',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(d);
+const datumKort=d=>new Intl.DateTimeFormat('nl-NL',{day:'2-digit',month:'2-digit',year:'numeric'}).format(d);
+const fmt=n=>n.toLocaleString('nl-NL',{minimumFractionDigits:2,maximumFractionDigits:2});
+function prijs(){if(!$('metPrijs').checked)return null;const v=$('prijs').value==='eigen'?parseFloat($('eigenPrijs').value):parseFloat($('prijs').value);return isNaN(v)?null:v}
+const bestandsnaam=()=>{const [s,p]=adres();return `Opdrachtbevestiging ${s}${p?' '+p:''}.pdf`.replace(/[\\/:*?"<>|]/g,'')};
+
+/* assets van GitHub Pages */
+function laadScript(src){return new Promise((ok,fout)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=()=>fout(new Error('Kan '+src+' niet laden (ben je online?)'));document.head.appendChild(s)})}
+let _as=null;
+async function assets(){
+  if(_as)return _as;
+  if(!window.PDFLib)await laadScript(BASE+'lib/pdf-lib.min.js');
+  if(!window.fontkit)await laadScript(BASE+'lib/fontkit.umd.min.js');
+  const get=async u=>{const r=await fetch(BASE+u);if(!r.ok)throw new Error(u+' niet gevonden ('+r.status+')');return new Uint8Array(await r.arrayBuffer())};
+  const [bp,r,l,b,i]=await Promise.all(['assets/briefpapier.pdf','fonts/Merriweather-400-normal.ttf','fonts/Merriweather-300-normal.ttf','fonts/Merriweather-700-normal.ttf','fonts/Merriweather-400-italic.ttf'].map(get));
+  _as={bp,r,l,b,i};return _as;
+}
+const hex=h=>{const n=parseInt(h.slice(1),16);return PDFLib.rgb((n>>16&255)/255,(n>>8&255)/255,(n&255)/255)};
+function rondPad(w,h,r){return `M ${r} 0 H ${w-r} Q ${w} 0 ${w} ${r} V ${h-r} Q ${w} ${h} ${w-r} ${h} H ${r} Q 0 ${h} 0 ${h-r} V ${r} Q 0 0 ${r} 0 Z`}
+
+/* PDF op het briefpapier, opmaak gelijk aan de factuur */
+async function maakPdf(){
+  const {PDFDocument}=PDFLib;const as=await assets();
+  const doc=await PDFDocument.create();doc.registerFontkit(fontkit);
+  const fR=await doc.embedFont(as.r,{subset:true}),fL=await doc.embedFont(as.l,{subset:true}),fB=await doc.embedFont(as.b,{subset:true}),fI=await doc.embedFont(as.i,{subset:true});
+  const [bp]=await doc.embedPdf(as.bp,[0]);
+  const [straat,pc]=adres();
+  doc.setTitle('Opdrachtbevestiging '+straat);doc.setAuthor('John Visser – Visserinspecties.nl');doc.setCreator('Visser Inspecties – opdrachtbevestiging');
+  const PAARS=hex('#432d6a'),PAARS_D=hex('#372968'),GRIJS=hex('#5f5872'),INKT=hex('#1e1830'),TINT=hex('#f4f2f6'),LIJN=hex('#d9d5e1'),WIT=PDFLib.rgb(1,1,1);
+  const W=595.28,H=841.89,L=56.69,R=W-56.69,MAX=690;
+  const bed=BEDRIJF;let page,top;
+  const nieuwePagina=()=>{page=doc.addPage([W,H]);page.drawPage(bp,{x:0,y:0,width:W,height:H});
+    page.drawRectangle({x:250,y:H-806,width:200,height:60,color:WIT});
+    [`BTW: ${bed.btw}`,`IBAN: ${bed.iban}`,`KVK: ${bed.kvk}`].forEach((t,i)=>page.drawText(t,{x:255.6,y:H-(761+i*19),size:9.2,font:fR,color:PAARS_D}));
+    page.drawText('Op al onze diensten zijn de algemene voorwaarden van toepassing: '+bed.voorwaarden,{x:L,y:H-712,size:7,font:fL,color:GRIJS});
+    top=150};
+  const tekst=(t,x,tp,size,font,color,align)=>{t=String(t);const w=font.widthOfTextAtSize(t,size);
+    const xx=align==='r'?x-w:align==='c'?x-w/2:x;page.drawText(t,{x:xx,y:H-tp,size,font,color});return w};
+  const wrap=(t,font,size,maxW)=>{const woorden=String(t).split(/\s+/);const out=[];let r='';
+    woorden.forEach(w=>{const p=r?r+' '+w:w;if(font.widthOfTextAtSize(p,size)>maxW&&r){out.push(r);r=w}else r=p});if(r)out.push(r);return out};
+  const alinea=(t,o={})=>{const size=o.size||9.5,font=o.font||fR,color=o.color||INKT,lh=o.lh||14,x=o.x||L;
+    wrap(t,font,size,(o.maxW||R-x)).forEach(r=>{if(top>MAX)nieuwePagina();tekst(r,x,top,size,font,color);top+=lh});top+=(o.na??6)};
+
+  nieuwePagina();
+  // adresblok
+  [$('adresnaam').value.trim(),straat,pc].filter(Boolean).forEach((t,i)=>tekst(t,L,148+i*14,9.5,fR,INKT));
+  // kop
+  const dv=$('datum').value,d=dv?new Date(dv+'T12:00'):null;
+  tekst('Opdrachtbevestiging',R,150,20,fB,PAARS,'r');
+  [['Datum',datumKort(new Date())],['Opname',d?datumKort(d):'in overleg']].forEach(([k,v],i)=>{
+    tekst(k,R-92,170+i*14,8.5,fL,GRIJS,'r');tekst(v,R,170+i*14,8.5,i===1?fB:fR,INKT,'r')});
+  top=250;
+  alinea(aanhefTekst(),{na:4});
+  alinea(d?'Hartelijk dank voor uw opdracht. Hierbij bevestig ik de opname van uw woning.'
+          :'Hartelijk dank voor uw opdracht. Hierbij bevestig ik de opname van uw woning. Ik neem binnenkort contact met u op om een datum te plannen.',{na:16});
+  // tabel
+  const pr=prijs();
+  page.drawRectangle({x:L,y:H-(top+6),width:R-L,height:20,color:PAARS});
+  tekst('Opdracht',L+8,top-1,8,fB,WIT);if(pr!==null)tekst('Bedrag incl. btw',R-8,top-1,8,fB,WIT,'r');top+=30;
+  tekst($('soort').value,L+8,top,9,fB,INKT);if(pr!==null)tekst('€ '+fmt(pr),R-8,top,9,fR,INKT,'r');top+=15;
+  let wanneer=d?datumLang(d):'in overleg';
+  if(d&&$('metTijd').checked&&$('tijd').value)wanneer+=', om '+$('tijd').value.replace(':','.')+' uur';
+  [`Opnameadres: ${straat}${pc?', '+pc:''}`,`Datum opname: ${wanneer}`,'Duur van de opname: ongeveer 1 tot 2 uur'].forEach(s=>{
+    wrap(s,fL,8.5,R-L-120).forEach((t,i)=>{tekst((i?'    ':'–  ')+t,L+18,top,8.5,fL,GRIJS);top+=13})});
+  top+=6;page.drawLine({start:{x:L,y:H-top},end:{x:R,y:H-top},thickness:0.6,color:LIJN});top+=4;
+  if(pr!==null){
+    top+=14;const tx=R-200;
+    page.drawRectangle({x:tx-8,y:H-(top+10),width:R-tx+8,height:24,color:PAARS});
+    tekst('Totaal incl. btw',tx,top+2,10.5,fB,WIT);tekst('€ '+fmt(pr),R-8,top+2,10.5,fB,WIT,'r');top+=28;
+    tekst('inclusief btw, voorrijkosten en afmelden bij de rijksoverheid',R-8,top,7.5,fL,GRIJS,'r');top+=24;
+  } else top+=18;
+  // energielabelstreep
+  const kl=['#019541','#54ae32','#c6d500','#ffee02','#faba00','#ec670a'],sw=(R-L)/6;
+  kl.forEach((k,i)=>page.drawRectangle({x:L+i*sw,y:H-top,width:sw+0.3,height:3,color:hex(k)}));top+=18;
+  // documentenblok
+  const doct='Heeft u bouwtekeningen, facturen van verbeteringen (zoals isolatie, glas, zonnepanelen of installaties) of andere documenten over de woning? Die ontvang ik graag vooraf per mail of tijdens de opname. Heeft u niets? Geen probleem: u krijgt in alle gevallen een energielabel. Waar gegevens ontbreken, gebruik ik de standaardwaarden die horen bij het bouwjaar van de woning.';
+  const dl=wrap(doct,fR,8.8,R-L-28),bh=34+dl.length*12.5+8;
+  page.drawSvgPath(rondPad(R-L,bh,6),{x:L,y:H-top,color:TINT});
+  tekst('Documenten van uw woning',L+14,top+20,10.5,fB,PAARS);
+  dl.forEach((t,i)=>tekst(t,L+14,top+37+i*12.5,8.8,fR,INKT));top+=bh+20;
+  alinea('Na de opname ontvangt u de factuur. Na betaling registreer ik het energielabel in EP-Online en ontvangt u het certificaat.');
+  const ex=$('extra').value.trim();if(ex)alinea(ex);
+  alinea(`Klopt er iets niet of wilt u de afspraak verzetten? Laat het me gerust weten via ${bed.mail} of ${bed.tel}.`,{na:16});
+  if(top>MAX-50)nieuwePagina();
+  tekst('Met vriendelijke groet,',L,top,9,fR,INKT);top+=16;
+  tekst('John Visser',L,top,9,fB,INKT);top+=13;
+  tekst('EnergiePrestatie-adviseur',L,top,8.5,fI,GRIJS);top+=28;
+  // verplichte informatie
+  const regels=BRL.reduce((n,t)=>n+wrap(t,fL,6.8,R-L-12).length,0)+wrap(STEEKPROEF,fL,6.8,R-L).length+2;
+  if(top+regels*9>MAX+8)nieuwePagina();
+  tekst('Verplichte informatie (BRL 9500, §4.3.1)',L,top,7.5,fB,PAARS);top+=12;
+  BRL.forEach((t,n)=>{wrap(t,fL,6.8,R-L-12).forEach((r,i)=>{if(!i)tekst((n+1)+'.',L,top,6.8,fL,GRIJS);tekst(r,L+12,top,6.8,fL,GRIJS);top+=9});top+=1});
+  top+=4;wrap(STEEKPROEF,fL,6.8,R-L).forEach(r=>{tekst(r,L,top,6.8,fL,GRIJS);top+=9});
+  return await doc.save();
+}
+
+/* voorbeeld en download */
+let pvUrl=null,timer=null;
+async function voorbeeld(){
+  try{const bytes=await maakPdf();if(pvUrl)URL.revokeObjectURL(pvUrl);
+    pvUrl=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));$('pv').src=pvUrl+'#view=FitH';say()}
+  catch(e){console.error(e);say('err','Voorbeeld mislukt: '+esc(e.message))}
+}
+function plan(){clearTimeout(timer);timer=setTimeout(voorbeeld,700)}
+function render(){
+  $('eigenAdres').classList.toggle('hidden',sel.value!=='anders');
+  $('tijdBlok').classList.toggle('hidden',!$('metTijd').checked);
+  $('prijsBlok').classList.toggle('hidden',!$('metPrijs').checked);
+  $('eigenPrijs').classList.toggle('hidden',$('prijs').value!=='eigen');
+  $('naam').textContent=bestandsnaam();renderAanhef();
+}
+document.querySelectorAll('input,select,textarea').forEach(el=>['input','change'].forEach(ev=>el.addEventListener(ev,()=>{render();plan()})));
+$('b-vb').onclick=voorbeeld;
+$('b-pdf').onclick=async()=>{
+  const b=$('b-pdf');b.disabled=true;
+  try{const bytes=await maakPdf();const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));
+    const a=document.createElement('a');a.href=url;a.download=bestandsnaam();document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),4000)}
+  catch(e){say('err','PDF maken mislukt: '+esc(e.message))}
+  b.disabled=false;
+};
+render();say('info','<span class="spin"></span>Briefpapier en lettertypes laden…');voorbeeld();
+</script>
+</body>
+</html>
