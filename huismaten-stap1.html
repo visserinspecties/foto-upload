@@ -144,6 +144,16 @@
     font-size:0.95rem;
     font-weight:500;
   }
+  /* Ramen & deuren: ingeklapte regels + vaste toevoegknop */
+  .rd-kop{display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;-webkit-user-select:none;user-select:none;}
+  .rd-pijl{flex:0 0 auto;width:14px;color:#6b6555;font-size:0.8rem;}
+  .rd-samenvatting{flex:1;min-width:0;font-size:0.82rem;color:#6b6555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .rd-blok.dicht{padding:8px 12px !important;margin-top:6px !important;}
+  .rd-blok.dicht .rd-kop{margin-bottom:0;}
+  .rd-blok.dicht .rd-body{display:none;}
+  .rd-blok:not(.dicht) .rd-samenvatting{display:none;}
+  .rd-blok.leeg .rd-samenvatting{color:#b5651d;}
+  .rd-sticky{position:sticky;bottom:0;z-index:20;background:white;margin:8px -16px 14px !important;padding:10px 16px;border-top:1px solid var(--line);box-shadow:0 -4px 10px rgba(0,0,0,0.06);}
   .canvas-wrap{
     border:1px solid var(--line);
     border-radius:10px;
@@ -698,8 +708,10 @@
   </div>
   <p class="hint">Elk nieuw raam krijgt dit glastype. Pas je het glastype van één raam aan, dan blijft die keuze staan als je het standaard glastype later wijzigt. Per stuk, per verdieping en per oriëntatie — informatief, telt niet mee in de bruto gevel-m² (netto gebeurt in VABI). Dakramen (Velux) en ramen in een dakkapel-aanzicht: kies bij Oriëntatie het dakvlak.</p>
   <div id="ramendeuren-container"></div>
-  <div class="btn-row" style="margin:8px 0 14px;">
+  <div class="btn-row rd-sticky">
     <button class="btn-secondary" id="btn-toevoegen-ramendeur">+ Toevoegen (kopie van vorige)</button>
+    <button class="btn-secondary" id="btn-rd-alles-open" style="font-weight:500;">Alles open</button>
+    <button class="btn-secondary" id="btn-rd-alles-dicht" style="font-weight:500;">Alles dicht</button>
   </div>
   <div id="ramendeuren-waarschuwing"></div>
   <div id="ramendeuren-resultaten"></div>
@@ -4184,6 +4196,79 @@ function renumberRamenDeuren(){
     const titelEl = document.getElementById('rd-titel-'+rd.id);
     if(titelEl) titelEl.textContent = rd.naam;
   });
+  rdSamenvattingenBijwerken();
+}
+
+// ---- Inklappen: elk element als één korte regel, alleen het actieve element staat open ----
+const RD_GLAS_KORT = {e:'enkel', D:'dubbel', Hr:'HR', 'Hr+':'HR+', '++':'HR++', Vz:'voorzetraam', '+++':'triple'};
+function rdVerdiepingKort(waarde){
+  if(waarde === 'bg') return 'BG';
+  if(waarde === RD_VERDIEPING_ZOLDER) return 'Zolder';
+  const i = extraVerdiepingen.findIndex(v=>'ev-'+v.id === waarde);
+  return i>=0 ? 'V'+(i+1) : waarde;
+}
+function rdSamenvattingTekst(rd){
+  const d = berekenRaamDeurData(rd);
+  if(!d.geldig) return {tekst:'maten nog invullen', leeg:true};
+  const delen = [];
+  if(d.type === 'dakkoepel'){
+    delen.push('Plat dak' + (d.koepelOp && d.koepelOp !== 'hoofd' ? ' ' + d.koepelOpLabel : ''));
+  } else if(d.plaatsInfo){
+    delen.push(`${d.plaatsInfo.label} (${d.gevelKey})`);
+  } else {
+    const o = d.orientatieRaw || '';
+    delen.push(d.gevelKey + (/^DAKVLAK/.test(o) ? ' dakvlak' : /^SCHUIN/.test(o) ? ' schuin' : ''));
+  }
+  delen.push(rdVerdiepingKort(d.verdieping));
+  const m2 = n => (+n).toFixed(2).replace('.', ',');
+  let maat = `${m2(d.breedte)} × ${m2(d.hoogte)} m`;
+  if(d.type === 'deurmetraam' && d.raamBreedte > 0 && d.raamHoogte > 0) maat += ` (raam ${m2(d.raamBreedte)} × ${m2(d.raamHoogte)})`;
+  delen.push(maat);
+  if(d.type === 'deur' || d.type === 'deurmetraam') delen.push(d.isolatie === 'iso' ? 'geïsoleerd' : 'ongeïsoleerd');
+  if(d.type !== 'deur' && d.type !== 'paneel' && d.glastype) delen.push(RD_GLAS_KORT[d.glastype] || d.glastype);
+  if(d.aantal > 1) delen.push(d.aantal + '×');
+  if(d.zonwering) delen.push('zonwering');
+  return {tekst: delen.join(' · '), leeg:false};
+}
+function rdSamenvattingenBijwerken(){
+  ramenDeuren.forEach(rd=>{
+    const el = document.getElementById('rd-sam-'+rd.id);
+    if(!el) return;
+    const s = rdSamenvattingTekst(rd);
+    el.textContent = s.tekst;
+    document.getElementById('rd-blok-'+rd.id)?.classList.toggle('leeg', s.leeg);
+  });
+}
+function rdZetOpen(id, open){
+  const blok = document.getElementById('rd-blok-'+id);
+  if(!blok) return;
+  blok.classList.toggle('dicht', !open);
+  const pijl = blok.querySelector('.rd-pijl');
+  if(pijl) pijl.textContent = open ? '▾' : '▸';
+}
+function rdOpenAlleen(id){ ramenDeuren.forEach(r=>rdZetOpen(r.id, r.id===id)); }
+function rdKlapAlles(open){ ramenDeuren.forEach(r=>rdZetOpen(r.id, open)); }
+function rdScrollNaar(blok, midden){
+  // alleen verticaal scrollen (scrollIntoView schuift de pagina soms ook opzij)
+  if(!blok) return;
+  const r = blok.getBoundingClientRect();
+  const balk = document.querySelector('.rd-sticky');
+  const onder = window.innerHeight - (balk ? balk.offsetHeight : 0);
+  let dy = 0;
+  if(midden) dy = r.top - Math.max(10, (onder - r.height) / 2);
+  else if(r.top < 10) dy = r.top - 10;
+  else if(r.bottom > onder) dy = Math.min(r.bottom - onder + 10, r.top - 10);
+  if(dy) window.scrollBy({top: dy, left: 0, behavior: 'smooth'});
+}
+function rdKopKlik(id){
+  const blok = document.getElementById('rd-blok-'+id);
+  if(!blok) return;
+  if(blok.classList.contains('dicht')){
+    rdOpenAlleen(id);
+    rdScrollNaar(blok, false);
+  } else {
+    rdZetOpen(id, false);
+  }
 }
 
 function onRamenDeurenWijziging(){
@@ -4247,15 +4332,18 @@ function voegRaamDeurToe(kopieerVan){
   const isoOptiesHtml = Object.entries(RD_ISOLATIE_LABELS).map(([v,l])=>`<option value="${v}">${l}</option>`).join('');
 
   const blok = document.createElement('div');
-  blok.className = 'panel';
+  blok.className = 'panel rd-blok';
   blok.id = 'rd-blok-'+id;
   blok.style.background = '#fbfaf6';
   blok.style.marginTop = '10px';
   blok.innerHTML = `
-    <div class="btn-row" style="justify-content:space-between;align-items:center;margin-bottom:8px;">
-      <div style="font-weight:600;" id="rd-titel-${id}">Element</div>
-      <button class="btn-secondary" data-rdid="${id}" style="padding:4px 10px;font-size:0.78rem;">− verwijderen</button>
+    <div class="rd-kop" id="rd-kop-${id}" title="Tik om open of dicht te klappen">
+      <span class="rd-pijl">▾</span>
+      <div style="font-weight:600;white-space:nowrap;" id="rd-titel-${id}">Element</div>
+      <div class="rd-samenvatting" id="rd-sam-${id}"></div>
+      <button class="btn-secondary" data-rdid="${id}" style="padding:4px 10px;font-size:0.78rem;margin-left:auto;flex:0 0 auto;">− verwijderen</button>
     </div>
+    <div class="rd-body">
     <div class="row">
       <div class="field" style="flex:0 0 170px;">
         <label>Type</label>
@@ -4327,13 +4415,18 @@ function voegRaamDeurToe(kopieerVan){
       </div>
     </div>
     <div id="rd-resultaat-${id}" class="hint"></div>
+    </div>
   `;
   ramenDeurenContainer.appendChild(blok);
 
   // nieuw element krijgt het standaard glastype
   document.getElementById('rd-glastype-'+id).value = rdStandaardGlas();
 
-  blok.querySelector('button[data-rdid]').addEventListener('click', ()=>verwijderRaamDeur(id));
+  blok.querySelector('button[data-rdid]').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    if(confirm(`${rd.naam} verwijderen?`)) verwijderRaamDeur(id);
+  });
+  document.getElementById('rd-kop-'+id).addEventListener('click', ()=>rdKopKlik(id));
   document.getElementById('rd-type-'+id).addEventListener('change', ()=>{ toggleRaamDeurVelden(id); onRamenDeurenWijziging(); });
   ['rd-orientatie-','rd-verdieping-','rd-aantal-','rd-breedte-','rd-hoogte-','rd-isolatie-','rd-raambreedte-','rd-raamhoogte-','rd-zonwering-'].forEach(pref=>{
     const el = document.getElementById(pref+id);
@@ -4365,6 +4458,7 @@ function voegRaamDeurToe(kopieerVan){
 
   toggleRaamDeurVelden(id);
   rdPlaatsUI(id);
+  rdOpenAlleen(id);   // nieuw element open, de rest ingeklapt
   renumberRamenDeuren();
   renderRamenDeurenResultaten();
 }
@@ -4378,7 +4472,17 @@ function verwijderRaamDeur(id){
   renderRamenDeurenResultaten();
 }
 
-if(btnToevoegenRaamDeur) btnToevoegenRaamDeur.addEventListener('click', ()=>voegRaamDeurToe(ramenDeuren[ramenDeuren.length-1]));
+if(btnToevoegenRaamDeur) btnToevoegenRaamDeur.addEventListener('click', ()=>{
+  voegRaamDeurToe(ramenDeuren[ramenDeuren.length-1]);
+  const nieuw = ramenDeuren[ramenDeuren.length-1];
+  if(!nieuw) return;
+  // Direct verder typen: breedte actief en geselecteerd (kopie van vorige overschrijf je zo meteen)
+  const br = document.getElementById('rd-breedte-'+nieuw.id);
+  if(br){ try{ br.focus({preventScroll:true}); br.select(); }catch(e){} }
+  rdScrollNaar(document.getElementById('rd-blok-'+nieuw.id), true);
+});
+document.getElementById('btn-rd-alles-open')?.addEventListener('click', ()=>rdKlapAlles(true));
+document.getElementById('btn-rd-alles-dicht')?.addEventListener('click', ()=>rdKlapAlles(false));
 
 function berekenRaamDeurData(rd){
   const type = document.getElementById('rd-type-'+rd.id)?.value || 'raam';
@@ -7589,6 +7693,7 @@ function vulInvoerDataIn(rows){
       toggleRaamDeurVelden(rd.id);
     });
     verversRamenDeurenOpties();
+    rdKlapAlles(false);   // na inlezen: overzichtelijke lijst van korte regels
     onRamenDeurenWijziging();
 
     // 4. Overige gevel- en dakvelden
