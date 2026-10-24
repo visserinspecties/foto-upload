@@ -350,11 +350,27 @@ async function maakPdf(){
   } else top+=18;
   const kl=['#019541','#54ae32','#c6d500','#ffee02','#faba00','#ec670a'],sw=(R-L)/6;
   kl.forEach((k,i)=>page.drawRectangle({x:L+i*sw,y:H-top,width:sw+0.3,height:3,color:hex(k)}));top+=18;
-  const doct='Heeft u bouwtekeningen, facturen van verbeteringen (zoals isolatie, glas, zonnepanelen of installaties) of andere documenten over de woning? Die ontvang ik graag vooraf per mail of tijdens de opname. Heeft u niets? Geen probleem: u krijgt in alle gevallen een energielabel. Waar gegevens ontbreken, gebruik ik de standaardwaarden die horen bij het bouwjaar van de woning.';
-  const dl=wrap(doct,fR,8.8,R-L-28),dh=34+dl.length*12.5+8;
+  // ── documentenblok: inleiding, genummerde opsomming, afsluiting ──
+  const DOC_IN='Voor een nauwkeurig energielabel ontvang ik graag vooraf per mail, of tijdens de opname, de documenten die u van de woning heeft, zoals:';
+  const DOC_LIJST=['Bouwtekeningen (plattegronden, doorsneden en details) of de plattegronden van de makelaar.',
+    'Facturen of foto’s van aangebrachte isolatie en isolatieglas.',
+    'Facturen van zonnepanelen of een zonneboiler.',
+    'Merk en type van de warmtepomp of koelunit (airco), indien aanwezig.',
+    'Installatiegegevens of inregelrapporten.',
+    'Vergunningen of tekeningen van een aanbouw of uitbouw.'];
+  const DOC_UIT='Heeft u niets? Geen probleem: u krijgt in alle gevallen een energielabel. Waar gegevens ontbreken, gebruik ik de standaardwaarden die horen bij het bouwjaar van de woning.';
+  const BW=R-L-28,IN=16,LH=12.5;
+  const dIn=wrap(DOC_IN,fR,8.8,BW),dLijst=DOC_LIJST.map(t=>wrap(t,fR,8.8,BW-IN)),dUit=wrap(DOC_UIT,fR,8.8,BW);
+  const nRegels=dIn.length+dLijst.reduce((n,r)=>n+r.length,0)+dUit.length;
+  const dh=34+nRegels*LH+8+8;
+  if(top+dh>MAX+20)nieuwePagina();
   page.drawSvgPath(rondPad(R-L,dh,6),{x:L,y:H-top,color:TINT});
   tekst('Documenten van uw woning',L+14,top+20,10.5,fB,PAARS);
-  dl.forEach((t,i)=>tekst(t,L+14,top+37+i*12.5,8.8,fR,INKT));top+=dh+20;
+  let y=top+37;
+  dIn.forEach(t=>{tekst(t,L+14,y,8.8,fR,INKT);y+=LH});y+=3;
+  dLijst.forEach((rr,n)=>rr.forEach((t,i)=>{if(!i)tekst((n+1)+'.',L+14,y,8.8,fB,PAARS);tekst(t,L+14+IN,y,8.8,fR,INKT);y+=LH}));y+=5;
+  dUit.forEach(t=>{tekst(t,L+14,y,8.8,fR,INKT);y+=LH});
+  top+=dh+20;
   alinea('Na de opname ontvangt u de factuur. Na betaling registreer ik het energielabel in EP-Online en ontvangt u het certificaat.');
   const ex=$('extra').value.trim();if(ex)alinea(ex);
   alinea(`Klopt er iets niet of wilt u de afspraak verzetten? Laat het me gerust weten via ${bed.mail} of ${bed.tel}.`,{na:16});
