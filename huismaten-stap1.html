@@ -318,6 +318,7 @@
 <div id="od-status" style="font-size:13px; font-weight:600; margin:-10px 0 8px; padding:8px 10px; border-radius:6px; background:#efece3; color:#6b6555; display:flex; flex-wrap:wrap; gap:8px; align-items:center;">☁️ OneDrive: controleren…</div>
 <div id="project-banner" style="display:none; font-size:12px; color:#6b6555; margin:-10px 0 14px; padding:6px 10px; background:#efece3; border-radius:6px;"></div>
 
+<div id="autosave-status" style="font-size:11px;color:#8a8473;margin:-10px 0 10px;min-height:14px;"></div>
 <div class="tabs">
   <div class="tab active" data-mode="vloer">Woonoppervlakte</div>
   <div class="tab" data-mode="gevelstandaard">Schil</div>
@@ -8070,11 +8071,147 @@ document.querySelectorAll('.tab').forEach(tab=>{
   });
 });
 
+// ============================================================
+// AUTOMATISCH BEWAREN — de invoer wordt na elke wijziging op dit apparaat bewaard
+// (localStorage, werkt ook zonder internet). Laadt Safari de pagina opnieuw,
+// dan biedt de tool aan om de laatste invoer terug te zetten.
+// Zelfde gegevens als het tabblad 'Invoer' van de Excel-export (verzamelInvoerData / vulInvoerDataIn).
+// Elke pagina-opening is een eigen 'sessie'; de laatste 5 sessies blijven bewaard,
+// zodat een per ongeluk gestarte nieuwe sessie de vorige nooit overschrijft.
+// ============================================================
+const AUTOSAVE_SLEUTEL = 'huismaten-autosave-v1', AUTOSAVE_MAX = 5;
+const autosaveSessie = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+let autosaveVuil = false, autosaveTimer = null, autosaveUit = false;
+
+function autosaveLijst(){
+  try { const l = JSON.parse(localStorage.getItem(AUTOSAVE_SLEUTEL) || '[]'); return Array.isArray(l) ? l : []; }
+  catch(_) { return []; }
+}
+function autosaveHeeftInhoud(rows){
+  return (rows || []).some(r => ['lengte','breedte','beukmaat','diepte'].includes(r.veld) && String(r.waarde ?? '').trim() !== '');
+}
+function autosaveNu(){
+  autosaveVuil = false;
+  if(autosaveUit || !initKlaar) return;
+  let rows;
+  try { rows = verzamelInvoerData(); } catch(e) { console.warn('autosave: invoer verzamelen mislukt', e); return; }
+  if(!autosaveHeeftInhoud(rows)) return;   // lege pagina nooit bewaren
+  const rec = {
+    sessie: autosaveSessie, tijd: Date.now(),
+    project: (typeof actiefProjectNaam === 'function' ? actiefProjectNaam() : null) || '',
+    versie: typeof huismatenVersie !== 'undefined' ? huismatenVersie : 1,
+    aantalRD: (typeof ramenDeuren !== 'undefined' ? ramenDeuren.length : 0),
+    rows
+  };
+  const inhoud = JSON.stringify(rows);
+  // eigen sessie vervangen; precies dezelfde invoer uit een andere sessie (bv. na herstellen) niet dubbel bewaren
+  let lijst = autosaveLijst().filter(r => r.sessie !== autosaveSessie && JSON.stringify(r.rows) !== inhoud);
+  lijst.unshift(rec);
+  lijst = lijst.slice(0, AUTOSAVE_MAX);
+  try { localStorage.setItem(AUTOSAVE_SLEUTEL, JSON.stringify(lijst)); }
+  catch(e) {
+    // vol? dan alleen deze sessie bewaren
+    try { localStorage.setItem(AUTOSAVE_SLEUTEL, JSON.stringify([rec])); } catch(_) { console.warn('autosave: opslaan mislukt', e); }
+  }
+  const st = document.getElementById('autosave-status');
+  if(st) st.textContent = '💾 Invoer automatisch bewaard om ' + new Date(rec.tijd).toLocaleTimeString('nl-NL', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+}
+function autosavePlan(){
+  autosaveVuil = true;
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(autosaveNu, 700);
+}
+['input','change'].forEach(ev => document.addEventListener(ev, e => {
+  if(e.target && e.target.id === 'excel-input') return;
+  autosavePlan();
+}, true));
+// knoppen (toevoegen/verwijderen) veranderen ook de invoer: na de klik even bewaren
+document.addEventListener('click', e => { if(e.target && e.target.closest && e.target.closest('button')) autosavePlan(); }, true);
+// pagina gaat naar de achtergrond (andere app, vergrendelen, tabblad wisselen): direct bewaren
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'hidden') autosaveNu(); });
+window.addEventListener('pagehide', autosaveNu);
+setInterval(() => { if(autosaveVuil) autosaveNu(); }, 10000);
+
+function autosaveTijdTekst(t){
+  const d = new Date(t), nu = new Date();
+  const tijd = d.toLocaleTimeString('nl-NL', {hour:'2-digit', minute:'2-digit'});
+  if(d.toDateString() === nu.toDateString()) return 'vandaag ' + tijd;
+  const gisteren = new Date(nu); gisteren.setDate(nu.getDate() - 1);
+  if(d.toDateString() === gisteren.toDateString()) return 'gisteren ' + tijd;
+  return d.toLocaleDateString('nl-NL', {day:'numeric', month:'short'}) + ' ' + tijd;
+}
+function autosaveOmschrijving(r){
+  return `${r.project ? '<b>' + escHtmlAs(r.project) + '</b>' : '<b>(geen project gekozen)</b>'} · ${autosaveTijdTekst(r.tijd)}` +
+         (r.aantalRD ? ` · ${r.aantalRD} ramen/deuren` : '');
+}
+function escHtmlAs(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function autosaveHerstel(r){
+  const banner = document.getElementById('autosave-banner');
+  try {
+    autosaveUit = true;
+    vulInvoerDataIn(r.rows);
+    if(r.versie) huismatenVersie = r.versie;
+    if(typeof verversRamenDeurenOpties === 'function') verversRamenDeurenOpties();
+    if(typeof onRamenDeurenWijziging === 'function') onRamenDeurenWijziging();
+  } catch(e) {
+    console.error(e);
+    alert('Herstellen mislukt: ' + (e && e.message ? e.message : e));
+    autosaveUit = false;
+    return;
+  }
+  autosaveUit = false;
+  autosaveNu();   // de herstelde invoer telt nu als deze sessie
+  if(banner){
+    banner.style.background = '#e8f3ea'; banner.style.borderColor = '#9cc9a6';
+    banner.innerHTML = `✅ Invoer hersteld: ${autosaveOmschrijving(r)}. Controleer even of alles klopt. <button type="button" class="btn-secondary" id="autosave-sluit" style="padding:4px 10px;font-size:0.78rem;margin-left:6px;">OK</button>`;
+    document.getElementById('autosave-sluit').onclick = () => { banner.style.display = 'none'; };
+  }
+  if(r.project && typeof actiefProjectNaam === 'function' && actiefProjectNaam() && actiefProjectNaam() !== r.project){
+    alert(`Let op: deze invoer hoort bij "${r.project}", maar nu is "${actiefProjectNaam()}" gekozen als project. Kies zo nodig het juiste project voordat je exporteert.`);
+  }
+}
+
+function autosaveToonBanner(){
+  const kandidaten = autosaveLijst().filter(r => r.sessie !== autosaveSessie && autosaveHeeftInhoud(r.rows));
+  if(!kandidaten.length) return;
+  let banner = document.getElementById('autosave-banner');
+  if(!banner){
+    banner = document.createElement('div');
+    banner.id = 'autosave-banner';
+    banner.style.cssText = 'font-size:13px;margin:-6px 0 14px;padding:10px 12px;border-radius:8px;background:#fff4ea;border:1px solid #f0c08a;color:#1e1830;line-height:1.5;';
+    const tabs = document.querySelector('.tabs');
+    tabs.parentNode.insertBefore(banner, tabs);
+  }
+  const eerste = kandidaten[0];
+  const andere = kandidaten.slice(1);
+  banner.innerHTML =
+    `<div>💾 <b>Eerder ingevoerde gegevens gevonden:</b> ${autosaveOmschrijving(eerste)}</div>` +
+    `<div class="btn-row" style="margin-top:8px;">` +
+      `<button type="button" class="btn-primary" id="autosave-herstel" style="padding:7px 14px;">Herstellen</button>` +
+      `<button type="button" class="btn-secondary" id="autosave-negeer" style="padding:7px 14px;">Nieuw beginnen</button>` +
+      (andere.length ? `<button type="button" class="btn-secondary" id="autosave-ouder" style="padding:7px 14px;font-weight:500;">Oudere (${andere.length})…</button>` : '') +
+    `</div>` +
+    `<div id="autosave-ouder-lijst" style="display:none;margin-top:8px;"></div>` +
+    `<div style="font-size:11px;color:#6b6555;margin-top:6px;">Bij "Nieuw beginnen" blijft deze invoer nog bewaard (de laatste ${AUTOSAVE_MAX} worden onthouden).</div>`;
+  document.getElementById('autosave-herstel').onclick = () => autosaveHerstel(eerste);
+  document.getElementById('autosave-negeer').onclick = () => { banner.style.display = 'none'; };
+  const ouderBtn = document.getElementById('autosave-ouder');
+  if(ouderBtn) ouderBtn.onclick = () => {
+    const l = document.getElementById('autosave-ouder-lijst');
+    l.style.display = l.style.display === 'none' ? 'block' : 'none';
+    l.innerHTML = andere.map((r, i) =>
+      `<div style="display:flex;align-items:center;gap:8px;margin:4px 0;"><button type="button" class="btn-secondary" data-i="${i}" style="padding:4px 10px;font-size:0.78rem;">Herstellen</button><span>${autosaveOmschrijving(r)}</span></div>`).join('');
+    l.querySelectorAll('button[data-i]').forEach(b => b.onclick = () => autosaveHerstel(andere[+b.dataset.i]));
+  };
+}
+
 // === FINAL INIT ===
 initKlaar = true;
 toggleAsymmetrischHoogteInputs(); // Toggle de inputs op basis van huidige daktype
 updateDaktypeZichtbaarheid();     // Nokrichting-vraag tonen/verbergen + labels zetten
 herbereken();
+try { autosaveToonBanner(); } catch(e) { console.warn('autosave-banner', e); }
 
 </script>
 </body>
