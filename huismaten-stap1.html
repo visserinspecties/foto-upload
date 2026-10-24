@@ -5457,8 +5457,16 @@ function tekenDwarsdoorsnede(m){
   if(nokH != null){
     tekst(X(nokX), Y(nokH) - fs*0.7, `nok ${n2(nokH)} m`, {kleur:KLEUR.dak});
     const xLh = nokX*0.72, xRh = nokX + (W-nokX)*0.28;
-    tekst(X(xLh) - fs*0.6, Y(dakHoogteOp(xLh)) - fs*0.4, `${String(hellL).replace('.',',')}°`, {kleur:KLEUR.dak, anchor:'end', schaal:0.9});
-    tekst(X(xRh) + fs*0.6, Y(dakHoogteOp(xRh)) - fs*0.4, `${String(hellR).replace('.',',')}°`, {kleur:KLEUR.dak, anchor:'start', schaal:0.9});
+    const mmD = daktype === 'mansarde' ? R.mans : null;
+    const hoekL = mmD ? mmD.hoekFlauw : hellL, hoekR = mmD ? mmD.hoekFlauw : hellR;
+    tekst(X(xLh) - fs*0.6, Y(dakHoogteOp(xLh)) - fs*0.4, `${String(hoekL).replace('.',',')}°`, {kleur:KLEUR.dak, anchor:'end', schaal:0.9});
+    tekst(X(xRh) + fs*0.6, Y(dakHoogteOp(xRh)) - fs*0.4, `${String(hoekR).replace('.',',')}°`, {kleur:KLEUR.dak, anchor:'start', schaal:0.9});
+    if(mmD){
+      // steile deel: hoek naast de onderste knik, aan de buitenkant
+      const ySt = mmD.h + mmD.ys*0.55;
+      tekst(X(mmD.xs*0.55) - fs*0.6, Y(ySt), `${String(mmD.hoekSteil).replace('.',',')}°`, {kleur:KLEUR.dak, anchor:'end', schaal:0.9});
+      tekst(X(W - mmD.xs*0.55) + fs*0.6, Y(ySt), `${String(mmD.hoekSteil).replace('.',',')}°`, {kleur:KLEUR.dak, anchor:'start', schaal:0.9});
+    }
   } else {
     tekst(X(W/2), Y(Math.max(hL, hR, hTopSchuin)) - fs*0.6, daktype==='plat' ? 'plat dak' : 'bovenkant gevel', {kleur:KLEUR.dak, schaal:0.9});
   }
@@ -5637,6 +5645,13 @@ function rdHeeftElementen(soort, naam, kant){
 // ---------- geometrie ----------
 // Profiel van de gevel: hoogte links/rechts (goot), nok en de horizontale plek van de nok (m).
 function rdBreedteOpHoogte(p, y){
+  if(p.mans){
+    // mansardeprofiel: eerst het steile deel, daarna het flauwe deel naar de nok (beide kanten gelijk)
+    const M = p.mans, dy = y - p.hL;
+    let inset = 0;
+    if(dy > 0) inset = dy <= M.ys ? M.xs*dy/M.ys : M.xs + M.xf*Math.min(1, (dy - M.ys)/M.yf);
+    return {xl:inset, xr:p.breedte - inset};
+  }
   let xl = 0, xr = p.breedte;
   if(p.nok > p.hL && y > p.hL) xl = p.nokX * Math.min(1, (y - p.hL) / (p.nok - p.hL));
   if(p.nok > p.hR && y > p.hR) xr = p.breedte - (p.breedte - p.nokX) * Math.min(1, (y - p.hR) / (p.nok - p.hR));
@@ -5908,7 +5923,7 @@ function rdTekenLabels(svg, plan, x0, yBase, xLabels, yMin, yMax, xRand){
   });
 }
 
-function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellingshoek, dakvlakInfo, blokkage, weergaveGroepen, dakkapelLijst, dakkapelDataAlle, wolfseind, asymProfiel, asymSpiegelen, schuin){
+function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellingshoek, dakvlakInfo, blokkage, weergaveGroepen, dakkapelLijst, dakkapelDataAlle, wolfseind, asymProfiel, asymSpiegelen, schuin, mansProfiel){
   if(isNaN(breedte) || breedte<=0) return null;
   if(!asymProfiel && (gevelhoogte==null || isNaN(gevelhoogte))) return null;
   blokkage = blokkage || 0;
@@ -6069,16 +6084,19 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
   if(heeftDriehoek){
     driehoekHoogte = (breedte/2) * Math.tan(deg2rad(hellingshoek));
   }
+  // Mansardekap op deze (kop)gevel: profiel met knik i.p.v. een driehoek
+  const MP = (mansProfiel && mansProfiel.geldig) ? mansProfiel : null;
+  if(MP){ heeftDriehoek = false; driehoekHoogte = Math.max(MP.nokhoogte - gevelhoogte, 0); }
   // hoogte van de stippellijn-rechthoek (dakvolume) als deze gevel zelf geen driehoek draagt
   let stippelHoogteM = 0;
-  if(!heeftDriehoek && dakvlakInfo && dakvlakInfo.nokhoogte){
+  if(!heeftDriehoek && !MP && dakvlakInfo && dakvlakInfo.nokhoogte){
     stippelHoogteM = Math.max(dakvlakInfo.nokhoogte - gevelhoogte, 0);
   }
 
   const totaalHoogte = gevelhoogte + driehoekHoogte + stippelHoogteM;
   const w = breedte*SCALE, hRect = gevelhoogte*SCALE, hTri = driehoekHoogte*SCALE, hStippel = stippelHoogteM*SCALE;
 
-  const rdPlan = rdPlanGevel(rdGevel, {breedte, hL:gevelhoogte, hR:gevelhoogte, nok: heeftDriehoek ? gevelhoogte+driehoekHoogte : gevelhoogte, nokX: breedte/2, zolderTot: gevelhoogte + (heeftDriehoek ? driehoekHoogte : stippelHoogteM), driehoek:heeftDriehoek && driehoekHoogte>0, helling:hellingshoek},
+  const rdPlan = rdPlanGevel(rdGevel, {breedte, hL:gevelhoogte, hR:gevelhoogte, nok: (heeftDriehoek || MP) ? gevelhoogte+driehoekHoogte : gevelhoogte, nokX: breedte/2, zolderTot: gevelhoogte + ((heeftDriehoek || MP) ? driehoekHoogte : stippelHoogteM), driehoek:(heeftDriehoek && driehoekHoogte>0) || !!MP, helling:hellingshoek, mans: MP ? {xs:MP.xs, ys:MP.ys, xf:MP.xf, yf:MP.yf} : null},
     rdVlakken(rdGevel, {wPx:w, gapPx:gap, eigenGroepen:weergaveGroepen.eigen, overloopLinks:weergaveGroepen.overloopLinks, overloopRechts:weergaveGroepen.overloopRechts,
       dakkapelLijst:dakkapelLijst||[], gevelTopM:gevelhoogte, driehoek:heeftDriehoek && driehoekHoogte>0, hellingshoek, dakkapelDataAlle}));
   const rdExtra = rdExtraBreedte(rdPlan); rdBezetZet(rdPlan);
@@ -6155,6 +6173,21 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
     if(dakkapelDataAlle && dakkapelDataAlle.length){
       tekenDakkapelOpDriehoek(svg, x0, yEave, w, hellingshoek, dakkapelDataAlle);
     }
+  } else if(MP && hTri>0){
+    // mansardeprofiel: steil deel tot de knik, flauw deel tot de nok (zelfde aan beide kanten)
+    const xsPx = MP.xs*SCALE, yKnik = yEave - MP.ys*SCALE;
+    const pts = `${x0},${yEave} ${x0+xsPx},${yKnik} ${x0+w/2},${yTop} ${x0+w-xsPx},${yKnik} ${x0+w},${yEave}`;
+    svg.appendChild(svgEl('polygon', {points:pts, fill:'white', stroke:KLEUR.gevel,'stroke-width':1.5,'data-hoofd':'1'}));
+    svg.appendChild(svgEl('polyline', {points:pts, fill:'none', stroke:KLEUR.dak,'stroke-width':1.8}));
+    // knikhoogte gestippeld + hoeken
+    svg.appendChild(svgEl('line', {x1:x0+xsPx, y1:yKnik, x2:x0+w-xsPx, y2:yKnik, stroke:KLEUR.dak, 'stroke-width':0.6, 'stroke-dasharray':'3,2'}));
+    svg.appendChild(svgEl('text', {x:x0+w/2, y:yKnik-3, 'text-anchor':'middle', 'font-size':tekstGrootte()*0.85, fill:KLEUR.dak}));
+    svg.lastChild.textContent = `knik ${MP.knikhoogte.toFixed(2)} m`;
+    const lblS = svgEl('text', {x:x0+xsPx+4, y:yEave-MP.ys*SCALE*0.35, 'text-anchor':'start', 'font-size':tekstGrootte()*0.85, fill:KLEUR.dak});
+    lblS.textContent = `${hk(MP.hoekSteil)}`; svg.appendChild(lblS);
+    const xF = x0 + xsPx + (w/2 - xsPx)*0.45, yF = yKnik - (yKnik - yTop)*0.45;
+    const lblF = svgEl('text', {x:xF, y:yF-4, 'text-anchor':'end', 'font-size':tekstGrootte()*0.85, fill:KLEUR.dak});
+    lblF.textContent = `${hk(MP.hoekFlauw)}`; svg.appendChild(lblF);
   } else if(hStippel>0){
     svg.appendChild(svgEl('rect', {x:x0,y:yEave-hStippel,width:w,height:hStippel,fill:'none',stroke:KLEUR.dak,'stroke-width':1,'stroke-dasharray':'5,3'}));
   }
@@ -6190,7 +6223,8 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
   if(weergaveGroepen.overloopRechts.length) tekenOverloopBoxen(svg, x0+w, yBase, weergaveGroepen.overloopRechts, 1, gap);
 
   const oppRectNetto = Math.max(breedte*gevelhoogte - schuinAftrek - blokkage, 0);
-  const oppDriehoek = heeftDriehoek ? (heeftWolfseind ? wolfseind.opp : 0.5*breedte*driehoekHoogte) : 0;
+  const oppDriehoek = MP ? Math.max(MP.kopOpp - MP.span*MP.h, 0)
+                    : heeftDriehoek ? (heeftWolfseind ? wolfseind.opp : 0.5*breedte*driehoekHoogte) : 0;
   const oppTotaal = oppRectNetto + oppDriehoek;
 
   {
@@ -6215,6 +6249,9 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
     svg.appendChild(svgEl('text', {x:x0+w/2,y:yTop-6,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
     svg.lastChild.textContent = `nok ${totaalHoogte.toFixed(2)} m — ${hellingshoek}°`;
     svg.lastChild.setAttribute('fill', KLEUR.dak);
+  } else if(MP && hTri>0){
+    svg.appendChild(svgEl('text', {x:x0+w/2,y:yTop-6,'text-anchor':'middle','font-size':tekstGrootte(),fill:KLEUR.dak}));
+    svg.lastChild.textContent = `nok ${totaalHoogte.toFixed(2)} m — mansarde ${hk(MP.hoekSteil)} / ${hk(MP.hoekFlauw)}`;
   } else if(hStippel>0){
     svg.appendChild(svgEl('text', {x:x0+w/2,y:yTop-6,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
     svg.lastChild.textContent = `nok ${totaalHoogte.toFixed(2)} m`;
@@ -6374,9 +6411,13 @@ function renderTekening(targetContainerId){
     dakvlakInfoVoor = {nokhoogte: R.schild.nokhoogte};
     dakvlakInfoZij = {nokhoogte: R.schild.nokhoogte};
   }
-  if(m.daktype==='mansarde' && R && R.mans && R.mans.geldig){
-    dakvlakInfoVoor = {nokhoogte: R.mans.nokhoogte};
-    dakvlakInfoZij = {nokhoogte: R.mans.nokhoogte};
+  // Mansardekap: het profiel (met knik) op de kopgevels, stippel-rechthoek op de gevels met de dakvlakken
+  const mansGeldig = (m.daktype==='mansarde' && R && R.mans && R.mans.geldig) ? R.mans : null;
+  const mansOpVoor = mansGeldig && mansGeldig.dwars;    // nok van voor naar achter → profiel op VG/AG
+  const mansOpZij = mansGeldig && !mansGeldig.dwars;    // nok evenwijdig aan de voorgevel → profiel op LG/RG
+  if(mansGeldig){
+    dakvlakInfoVoor = mansOpVoor ? null : {nokhoogte: mansGeldig.nokhoogte};
+    dakvlakInfoZij = mansOpZij ? null : {nokhoogte: mansGeldig.nokhoogte};
   }
   const asymNok = asymData ? asymData.h_nok : 0;
   const capHoogteVG = heeftAsymmetrisch ? (asymDwars ? asymNok : (cumGevelVoorM || 0)) : m.hoogte;
@@ -6436,28 +6477,28 @@ function renderTekening(targetContainerId){
     ? (profielOpVoorAchter
         ? tekenGevelaanzicht(aanzichtTitel('VG'), m.voorAchterBreedte, null, false, null, null, blokkageVG, weergaveGroepenVoorGevel('VG'), [], dakkapelDataAlle, null, asymProfiel, false)
         : tekenGevelaanzicht(aanzichtTitel('VG'), m.voorAchterBreedte, cumGevelVoorM, false, null, dakvlakInfoVoor, blokkageVG, weergaveGroepenVoorGevel('VG'), dakkapellenPerGevel.VG, dakkapelDataAlle, null))
-    : tekenGevelaanzicht(aanzichtTitel('VG'), m.voorAchterBreedte, m.hoogte, driehoekOpVoor, m.hellingshoek, dakvlakInfoVoor, blokkageVG, weergaveGroepenVoorGevel('VG'), dakkapellenPerGevel.VG, dakkapelDataAlle, driehoekOpVoor ? m.wolfseindA : null, null, false, schuinVoor('VG'));
+    : tekenGevelaanzicht(aanzichtTitel('VG'), m.voorAchterBreedte, m.hoogte, driehoekOpVoor, m.hellingshoek, dakvlakInfoVoor, blokkageVG, weergaveGroepenVoorGevel('VG'), dakkapellenPerGevel.VG, dakkapelDataAlle, driehoekOpVoor ? m.wolfseindA : null, null, false, schuinVoor('VG'), mansOpVoor ? mansGeldig : null);
   if(blokVoor) container.appendChild(blokVoor);
 
   const blokAchter = heeftAsymmetrisch
     ? (profielOpVoorAchter
         ? tekenGevelaanzicht(aanzichtTitel('AG'), m.voorAchterBreedte, null, false, null, null, blokkageAG, weergaveGroepenVoorGevel('AG'), [], dakkapelDataAlle, null, asymProfiel, true)
         : tekenGevelaanzicht(aanzichtTitel('AG'), m.voorAchterBreedte, cumGevelAchterM, false, null, dakvlakInfoVoor, blokkageAG, weergaveGroepenVoorGevel('AG'), dakkapellenPerGevel.AG, dakkapelDataAlle, null))
-    : tekenGevelaanzicht(aanzichtTitel('AG'), m.voorAchterBreedte, m.hoogte, driehoekOpVoor, m.hellingshoek, dakvlakInfoVoor, blokkageAG, weergaveGroepenVoorGevel('AG'), dakkapellenPerGevel.AG, dakkapelDataAlle, driehoekOpVoor ? m.wolfseindB : null, null, false, schuinVoor('AG'));
+    : tekenGevelaanzicht(aanzichtTitel('AG'), m.voorAchterBreedte, m.hoogte, driehoekOpVoor, m.hellingshoek, dakvlakInfoVoor, blokkageAG, weergaveGroepenVoorGevel('AG'), dakkapellenPerGevel.AG, dakkapelDataAlle, driehoekOpVoor ? m.wolfseindB : null, null, false, schuinVoor('AG'), mansOpVoor ? mansGeldig : null);
   if(blokAchter) container.appendChild(blokAchter);
 
   const blokLinks = heeftAsymmetrisch
     ? (profielOpZij
         ? tekenGevelaanzicht(aanzichtTitel('LG'), m.diepte, null, false, null, null, blokkageLG, weergaveGroepenVoorGevel('LG'), [], dakkapelDataAlle, null, asymProfiel, true)
         : tekenGevelaanzicht(aanzichtTitel('LG'), m.diepte, cumGevelVoorM, false, null, dakvlakInfoZij, blokkageLG, weergaveGroepenVoorGevel('LG'), dakkapellenPerGevel.LG, dakkapelDataAlle, null))
-    : tekenGevelaanzicht(aanzichtTitel('LG'), m.diepte, m.hoogte, driehoekOpZij, m.hellingshoek, dakvlakInfoZij, blokkageLG, weergaveGroepenVoorGevel('LG'), dakkapellenPerGevel.LG, dakkapelDataAlle, driehoekOpZij ? m.wolfseindA : null, null, false, schuinVoor('LG'));
+    : tekenGevelaanzicht(aanzichtTitel('LG'), m.diepte, m.hoogte, driehoekOpZij, m.hellingshoek, dakvlakInfoZij, blokkageLG, weergaveGroepenVoorGevel('LG'), dakkapellenPerGevel.LG, dakkapelDataAlle, driehoekOpZij ? m.wolfseindA : null, null, false, schuinVoor('LG'), mansOpZij ? mansGeldig : null);
   if(blokLinks) container.appendChild(blokLinks);
 
   const blokRechts = heeftAsymmetrisch
     ? (profielOpZij
         ? tekenGevelaanzicht(aanzichtTitel('RG'), m.diepte, null, false, null, null, blokkageRG, weergaveGroepenVoorGevel('RG'), [], dakkapelDataAlle, null, asymProfiel, false)
         : tekenGevelaanzicht(aanzichtTitel('RG'), m.diepte, cumGevelAchterM, false, null, dakvlakInfoZij, blokkageRG, weergaveGroepenVoorGevel('RG'), dakkapellenPerGevel.RG, dakkapelDataAlle, null))
-    : tekenGevelaanzicht(aanzichtTitel('RG'), m.diepte, m.hoogte, driehoekOpZij, m.hellingshoek, dakvlakInfoZij, blokkageRG, weergaveGroepenVoorGevel('RG'), dakkapellenPerGevel.RG, dakkapelDataAlle, driehoekOpZij ? m.wolfseindB : null, null, false, schuinVoor('RG'));
+    : tekenGevelaanzicht(aanzichtTitel('RG'), m.diepte, m.hoogte, driehoekOpZij, m.hellingshoek, dakvlakInfoZij, blokkageRG, weergaveGroepenVoorGevel('RG'), dakkapellenPerGevel.RG, dakkapelDataAlle, driehoekOpZij ? m.wolfseindB : null, null, false, schuinVoor('RG'), mansOpZij ? mansGeldig : null);
   if(blokRechts) container.appendChild(blokRechts);
 
   // Dwarsdoorsnede (alle daktypes); de langsdoorsnede alleen bij een wolfseind, omdat die
