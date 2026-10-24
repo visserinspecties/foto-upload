@@ -194,7 +194,7 @@ const A={groet:'Geachte',titel:'heer'};
 function aanhefTekst(){
   const n=$('aanhefnaam').value.trim();
   if(n){const nn=A.groet==='Geachte'?n.charAt(0).toUpperCase()+n.slice(1):n;return `${A.groet} ${A.titel?A.titel+' ':''}${nn},`}
-  if(A.titel==='heer'||A.titel==='mevrouw')return `${A.groet} ${A.titel},`;
+  if(A.titel==='heer'||A.titel==='mevrouw'||A.titel==='familie')return `${A.groet} ${A.titel},`;
   return A.groet==='Geachte'?'Geachte heer, mevrouw,':'Beste,';
 }
 function renderAanhef(){
@@ -229,7 +229,7 @@ $('f-txt').onchange=async()=>{
     if(!leeg(naam))$('adresnaam').value=naam;
     if(!leeg(mail))$('mail').value=mail;
     if(!leeg(achter))$('aanhefnaam').value=achter;
-    if(/mevrouw/i.test(aanhef))A.titel='mevrouw';else if(/heer/i.test(aanhef))A.titel='heer';
+    if(/familie/i.test(aanhef))A.titel='familie';else if(/mevrouw/i.test(aanhef))A.titel='mevrouw';else if(/heer/i.test(aanhef))A.titel='heer';
     const d=afspraak.toLowerCase().match(/(\d{1,2})\s+([a-z]+)\s+(\d{4})/);
     if(d&&MAANDEN.includes(d[2]))$('datum').value=`${d[3]}-${String(MAANDEN.indexOf(d[2])+1).padStart(2,'0')}-${d[1].padStart(2,'0')}`;
     const tm=afspraak.match(/(\d{1,2})[:.](\d{2})/);if(tm){$('metTijd').checked=true;$('tijd').value=tm[1].padStart(2,'0')+':'+tm[2]}
