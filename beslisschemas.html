@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Beslisschema's ISSO 82.1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paars:#5b2d86; --paars-licht:#efe8f6; --groen:#3f9a2c; --groen-licht:#e6f3e1;
+  --rood:#b3401f; --rood-licht:#fbeae4; --grijs:#5d5d66; --lijn:#d9d6df; --bg:#f7f6f9; --kaart:#fff; --tekst:#1f1b27;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --paars:#c3a4ea; --paars-licht:#2c2339; --groen:#7fd16b; --groen-licht:#1f3320; --rood:#f0a58b; --rood-licht:#3a231b;
+         --grijs:#b3b0bb; --lijn:#3b3846; --bg:#16131c; --kaart:#201c29; --tekst:#efedf3; }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tekst);font-family:Merriweather,Georgia,serif;font-size:16px;line-height:1.55}
+.wrap{max-width:860px;margin:0 auto;padding:16px}
+h1{font-size:1.35rem;margin:.2rem 0 .1rem;color:var(--paars)}
+h2{font-size:1.05rem;margin:0 0 .5rem;color:var(--paars)}
+.sub{color:var(--grijs);font-size:.85rem;margin:0 0 1rem}
+.kaart{background:var(--kaart);border:1px solid var(--lijn);border-radius:12px;padding:16px;margin:0 0 14px}
+label{display:block;font-size:.8rem;color:var(--grijs);margin:0 0 3px}
+input[type=text]{width:100%;font:inherit;font-size:1rem;padding:10px 12px;border:1px solid var(--lijn);border-radius:8px;background:var(--bg);color:var(--tekst)}
+.rij{display:grid;grid-template-columns:1fr;gap:10px}
+@media(min-width:620px){.rij{grid-template-columns:1fr 1fr}}
+.tegels{display:grid;grid-template-columns:1fr;gap:8px}
+@media(min-width:620px){.tegels{grid-template-columns:1fr 1fr}}
+.tegel{font:inherit;text-align:left;padding:12px 14px;border:1px solid var(--lijn);border-radius:10px;background:var(--kaart);color:var(--tekst);cursor:pointer;min-height:56px}
+.tegel b{display:block;font-size:.95rem}
+.tegel span{font-size:.75rem;color:var(--grijs)}
+.tegel.actief{border-color:var(--paars);background:var(--paars-licht)}
+button{font:inherit;cursor:pointer}
+.knoppen{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0 4px}
+.ja,.nee{font-weight:700;font-size:1.05rem;padding:16px;border-radius:10px;border:2px solid;min-height:56px}
+.ja{background:var(--groen-licht);border-color:var(--groen);color:var(--groen)}
+.nee{background:var(--rood-licht);border-color:var(--rood);color:var(--rood)}
+.sec{display:inline-block;font-size:.72rem;background:var(--paars-licht);color:var(--paars);padding:2px 9px;border-radius:99px;margin-bottom:8px}
+.vraag{font-size:1.1rem;font-weight:700;margin:2px 0 6px}
+.klein{font-size:.8rem;color:var(--grijs)}
+.sec-knop{background:none;border:none;color:var(--paars);padding:6px 0;font-size:.85rem;text-decoration:underline}
+details{margin:8px 0;border:1px solid var(--lijn);border-radius:8px;padding:2px 12px;background:var(--bg)}
+summary{cursor:pointer;padding:8px 0;font-size:.85rem;color:var(--paars);font-weight:700}
+details p,details li{font-size:.84rem}
+.toel{font-size:.84rem;background:var(--bg);border-left:3px solid var(--paars);padding:8px 12px;margin:8px 0;border-radius:0 8px 8px 0}
+.toel b{color:var(--paars)}
+.route{font-size:.82rem;color:var(--grijs);margin:0 0 10px;padding-left:18px}
+.route li{margin:2px 0}
+.uitkomst{border-radius:10px;padding:14px 16px;margin:6px 0 12px;font-weight:700;border:2px solid}
+.uitkomst.g{background:var(--groen-licht);border-color:var(--groen)}
+.uitkomst.r{background:var(--rood-licht);border-color:var(--rood)}
+.uitkomst.n{background:var(--paars-licht);border-color:var(--paars)}
+.extra{font-size:.85rem;font-weight:400;margin-top:8px}
+.actie{padding:11px 16px;border-radius:8px;border:1px solid var(--paars);background:var(--paars);color:#fff;font-weight:700;min-height:44px}
+.actie.licht{background:transparent;color:var(--paars)}
+.acties{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+table{border-collapse:collapse;width:100%;font-size:.8rem;margin:6px 0}
+th,td{border:1px solid var(--lijn);padding:5px 8px;text-align:left}
+th{background:var(--paars-licht)}
+.logitem{border-top:1px solid var(--lijn);padding:10px 0;font-size:.85rem}
+.logitem:first-child{border-top:none}
+.logitem .x{float:right;background:none;border:none;color:var(--rood);font-size:1rem;min-width:36px;min-height:36px}
+.leeg{color:var(--grijs);font-size:.85rem}
+.odbalk{font-size:.82rem;font-weight:700;padding:9px 12px;border-radius:8px;margin:0 0 14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--paars-licht);color:var(--paars)}
+.odbalk.ok{background:var(--groen-licht);color:var(--groen)}
+.odbalk.fout{background:var(--rood-licht);color:var(--rood)}
+.odbalk.let{background:#fff1d6;color:#7a4b00}
+.odbalk button{font-size:.78rem;font-weight:700;padding:5px 12px;border:1px solid currentColor;background:var(--kaart);color:inherit;border-radius:6px;min-height:32px}
+.melding{font-size:.84rem;margin-top:10px;padding:9px 12px;border-radius:8px}
+.melding.ok{background:var(--groen-licht);color:var(--groen)}
+.melding.fout{background:var(--rood-licht);color:var(--rood)}
+.od-overlay{display:none;position:fixed;inset:0;background:rgba(20,15,30,.5);z-index:1000;align-items:center;justify-content:center;padding:16px}
+.od-overlay.actief{display:flex}
+.od-venster{background:var(--kaart);border:1px solid var(--lijn);border-radius:12px;width:100%;max-width:480px;padding:18px}
+.od-pad{font-size:.72rem;color:var(--grijs);background:var(--bg);border-radius:6px;padding:6px 8px;margin-bottom:8px;word-break:break-all}
+.od-lijst{border:1px solid var(--lijn);border-radius:8px;background:var(--bg);max-height:260px;overflow-y:auto;margin-bottom:12px}
+.od-item{padding:11px 12px;border-bottom:1px solid var(--lijn);cursor:pointer;font-size:.88rem}
+.od-item:last-child{border-bottom:none}
+.od-leeg{padding:18px 12px;text-align:center;color:var(--grijs);font-size:.82rem}
+.od-knoppen{display:flex;gap:8px;flex-wrap:wrap}
+.od-knoppen button{padding:10px 14px;border-radius:8px;border:1px solid var(--lijn);background:var(--kaart);color:var(--tekst);min-height:44px}
+.od-knoppen button.primair{background:var(--paars);border-color:var(--paars);color:#fff;font-weight:700}
+.od-knoppen button:disabled{opacity:.45}
+#od-annuleer{margin-left:auto}
+.snel{display:block;width:100%;text-align:left;font:inherit;padding:14px 16px;margin:0 0 14px;border-radius:12px;border:2px solid var(--paars);background:var(--paars);color:#fff;min-height:64px}
+.snel b{display:block;font-size:1rem}
+.snel span{font-size:.78rem;opacity:.9}
+footer{font-size:.72rem;color:var(--grijs);margin:18px 0 40px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a href="index.html" style="display:inline-block;font-size:.8rem;color:var(--paars);text-decoration:none;margin:0 0 6px">‹ Tools</a>
+  <h1>Beslisschema's ISSO 82.1</h1>
+  <p class="sub">7e druk &middot; Visser Inspecties &middot; doorloop het schema, leg de uitkomst vast bij het project</p>
+
+  <div class="odbalk" id="od-status">☁️ OneDrive: controleren…</div>
+
+  <div class="kaart">
+    <div class="rij">
+      <div><label for="project">Project (adres)</label><input type="text" id="project" placeholder="bijv. 4525AB Retranchement, Noordstraat 6"></div>
+      <div><label for="oms">Ruimte / constructie waar de beslissing over gaat</label><input type="text" id="oms" placeholder="bijv. berging achterzijde, gevel aanbouw"></div>
+    </div>
+  </div>
+
+  <button class="snel" id="snel" type="button"><b>🚪 Gezamenlijke opgang / verkeersruimte</b><span>Direct naar het schema – veelgebruikt, hoort bij hoofdstuk 6</span></button>
+
+  <div class="kaart">
+    <h2>Kies een schema</h2>
+    <div class="tegels" id="tegels"></div>
+  </div>
+
+  <div id="wizard"></div>
+
+  <div class="kaart">
+    <h2>Vastgelegd bij dit project</h2>
+    <div id="log"></div>
+    <div class="acties" id="logacties"></div>
+    <div id="opslagmelding"></div>
+  </div>
+
+  <div class="od-overlay" id="od-overlay"><div class="od-venster">
+    <h2 id="od-titel">Kies het project</h2>
+    <div class="od-pad" id="od-pad">OneDrive</div>
+    <div class="od-lijst" id="od-lijst"></div>
+    <div class="od-knoppen"><button id="od-terug">↑ Terug</button><button id="od-annuleer">Annuleren</button><button id="od-ok" class="primair">Dit project gebruiken</button></div>
+  </div></div>
+
+  <footer>Bron: ISSO-publicatie 82.1 Energieprestatie woningen en woongebouwen, 7e druk. Deze tool is een hulpmiddel en vervangt de publicatie niet; bij twijfel geldt de tekst van de ISSO en de BRL 9500-W.</footer>
+</div>
+
+<script>
+"use strict";
+/* ============ SCHEMA'S ============ */
+const SCHEMAS = [
+{
+  id:'garage', titel:'Garage', ref:'§6.3.3 · Afb. 6.1',
+  intro:'Bepalen of een garage een sterk geventileerde ruimte of een ‘overige ruimte’ is.',
+  start:'q1',
+  noten:{
+    1:'Een ventilatieopening is groot als er een of meerdere niet-afsluitbare openingen in de ruimte aanwezig zijn, met een oppervlakte van in totaal ten minste 0,2 m², die in verbinding staan met de buitenlucht.',
+    2:'Een grote toegangsdeur is een enkele of dubbele deur van minimaal 1,50 meter breed en minimaal 1,75 meter hoog.',
+    3:'Een grote toegangsdeur is luchtdoorlatend als dit een stalen kanteldeur is, of een deur die openingen heeft van in totaal ten minste 0,2 m².',
+    4:'Hiervan is sprake als meer dan 70% van het totale oppervlak van de gesloten uitwendige scheidingsconstructies (wanden, vloeren, panelen en daken) geïsoleerd is én de oppervlakte gewogen gemiddelde thermische weerstand van de totale gesloten uitwendige scheidingsconstructies van de ruimte kleiner is dan de oppervlakte gewogen gemiddelde thermische weerstand van de constructies tussen de ruimte en de rekenzone. Ramen en deuren in de uitwendige scheidingsconstructie en in de constructie tussen de ruimte en rekenzone laat je hierbij buiten beschouwing. Uitwendige scheidingsconstructies grenzen aan buitenlucht, kruipruimte, grond, water of sterk geventileerde ruimte.'
+  },
+  nodes:{
+    q1:{q:'Is er een grote ventilatieopening aanwezig?',n:[1],ja:'sterk',nee:'q2'},
+    q2:{q:'Heeft de ruimte een grote toegangsdeur?',n:[2],ja:'q3',nee:'overig'},
+    q3:{q:'Is de grote toegangsdeur luchtdoorlatend?',n:[3],ja:'sterk',nee:'q4'},
+    q4:{q:'Is de warmteweerstand van de omhulling kleiner dan die van de scheiding met de woning?',n:[4],ja:'sterk',nee:'overig'},
+    sterk:{end:true,kind:'n',titel:'Ruimte is een sterk geventileerde ruimte'},
+    overig:{end:true,kind:'n',titel:'Ruimte is een ‘overige ruimte’',
+      extra:'Bepaal daarna met het thermische-zone-schema of deze overige ruimte tot de thermische zone behoort.',
+      volgende:{schema:'tz',label:'Verder met thermische zone (6.3a–c)'}}
+  }
+},
+{
+  id:'tz', titel:'Thermische zone – overige ruimte', ref:'§6.3.3 · Afb. 6.3a, 6.3b, 6.3c',
+  intro:'Bepalen of een overige ruimte wel of niet tot de thermische zone behoort. Begin altijd met een ruimte die grenst aan een ruimte die tot de thermische zone behoort. Geeft een schema aan dat de ruimte wél of niet bij de thermische zone hoort, dan sla je de overige schema’s over. Ga daarna verder met de volgende ruimte die grenst aan een ruimte die op dat moment tot de thermische zone behoort.',
+  voor:`<details><summary>Welke ruimten vallen hieronder?</summary><ul>
+  <li>Niet-gemeenschappelijke stallingsruimten (niet bestemd voor motorvoertuigen)</li>
+  <li>Bergruimten (niet groepen van bergingen, inclusief toegangsgangen, in een woongebouw of combinatiegebouw)</li>
+  <li>Technische ruimten in de woning (stookruimte)</li>
+  <li>Technische ruimten met kleine installaties voor verwarmen, koelen, ventileren en tapwaterbereiding (bedoeld voor een gebruiksoppervlakte van energieprestatieplichtige delen van 500 m² of minder)</li>
+  <li>Vlieringen en zolders zonder vaste trap bereikbaar</li><li>Kelders</li><li>Souterrains</li><li>Serres</li><li>Balkonafdichtingen</li></ul></details>
+  <details><summary>Zolder, bergruimten en meterkast</summary>
+  <p><b>Zolder.</b> Een beloopbare zolder met een minimale hoogte van 1,5 m die vanuit het gebouw met vaste trap bereikbaar is, behoort per definitie tot de thermische zone. Op de zolder kunnen aparte ruimten aanwezig zijn doordat er knieschotten zijn geplaatst.</p>
+  <p><b>Ruimte achter het knieschot.</b> Als de knieschotten en de vloer achter het knieschot geïsoleerd zijn en de warmteweerstand van knieschotten en vloer groter is dan die van het achterliggende dak/de gevel, behoort de ruimte achter de knieschotten niet bij de thermische zone (aangrenzende onverwarmde ruimte). In alle andere gevallen wordt de ruimte achter knieschotten niet als aparte, onverwarmde ruimte beschouwd: de hele zolder inclusief ruimte achter de knieschotten hoort dan bij de thermische zone.</p>
+  <p><b>Beloopbare zolder zonder vaste trap:</b> bepaal met dit schema of de zolder tot de thermische zone behoort. Hoort de zolder erbij, bepaal dan de gebruiksoppervlakte volgens §7.2.1.</p>
+  <p><b>Bergruimten.</b> Of een inpandige of aangebouwde berging bij de thermische zone hoort, bepaal je met dit schema. De toegankelijkheid van de berging (van binnenuit of buiten) is niet van belang.</p>
+  <p><b>Meterkast</b> (niet via de woning toegankelijk): ook hiervoor bepaal je met dit schema of hij bij de thermische zone hoort.</p></details>`,
+  start:'q1',
+  noten:{
+    1:'Een ruimte wordt alleen verwarmd voor het verblijven van mensen als er ook daadwerkelijk mensen langdurig in de ruimte (kunnen) verblijven. Verkeersruimten worden bijvoorbeeld niet verwarmd t.b.v. het verblijven van mensen. Ruimten met mobiele verwarmingselementen en koelers, zoals elektrische kacheltjes, verrijdbare airco’s en dergelijke, vallen hier ook niet onder.',
+    2:'Een open verbinding is een opening tussen twee ruimten die niet met aanwezige harde elementen is af te sluiten. Een opening is niet afgesloten als in de opening alleen een gordijn is aangebracht. Als een deur of luik in gesloten toestand meer dan 10% van de totale oppervlakte van de opening openlaat, geldt dit ook als open verbinding. Als de deur uit een kozijn is verwijderd, mag je dit alleen als open verbinding beschouwen als de scharnieren/bevestiging van de deur ook uit het kozijn zijn verwijderd.',
+    '3a':'Er is sprake van isolatie of spouw als meer dan 70% van het totale oppervlak van de gesloten uitwendige scheidingsconstructies (wanden, vloeren, panelen en daken) minimaal 1 cm isolatie of spouw bevat. Ramen en deuren laat je hierbij buiten beschouwing. Het betreft het netto oppervlak. Uitwendige scheidingsconstructies zijn constructies die grenzen aan buitenlucht, kruipruimte, grond of water. NTA 8800 geeft aan dat de uitwendige scheidingsconstructie een warmteweerstand ≥ 0,36 m²·K/W moet hebben. Dit komt overeen met een constructie met een spouw of met een constructie met 1 cm isolatie.',
+    '3b':'Alleen raam/glas komt voor als er bijvoorbeeld sprake is van een loggia die volledig met raam/glas is voorzien.',
+    4:'Het gaat hier om uitwendige daglichtopeningen en deuren van de overige ruimte met een samengestelde U-waarde (kozijn inclusief glas/deur) ≥ 4,5 W/m²·K. Er is gekozen voor enkel glas, omdat deuren (ongeïsoleerd en geïsoleerd) in alle gevallen een U-waarde hebben < 4,5 W/m²·K. De U-waarde van dubbel glas in een kozijn is ook < 4,5 W/m²·K. In een situatie waarbij de U-waarde van het raam en/of de deur toch groter is dan 4,5 W/m²·K, moet je 4,5 W/m²·K als grens aanhouden.',
+    5:'Hiervan is sprake als meer dan 70% van het totale oppervlak van de gesloten uitwendige scheidingsconstructies (wanden, vloeren, panelen en daken) geïsoleerd is én de oppervlakte gewogen gemiddelde thermische weerstand van de totale gesloten uitwendige scheidingsconstructies van de overige ruimte groter is dan de oppervlakte gewogen gemiddelde thermische weerstand van de constructies tussen de overige ruimte en de rekenzone. Ramen en deuren laat je hierbij buiten beschouwing. Het gaat om het netto oppervlak. Uitwendige scheidingsconstructies grenzen aan buitenlucht, kruipruimte, grond, water of sterk geventileerde ruimte.',
+    6:'Radiatoren voor vorstbeveiliging mag je niet beschouwen als een gebouwgebonden warmteafgiftesysteem. Mobiele verwarmingselementen, zoals elektrische kacheltjes en dergelijke, mag je ook niet beschouwen als een gebouwgebonden warmteafgiftesysteem. Een warmteopwekker mag je ook niet beschouwen als een warmteafgiftesysteem.'
+  },
+  nodes:{
+    q1:{sec:'Beslisschema 1',q:'Grenst de ruimte aan een ruimte die hoort tot de thermische zone?',ja:'q2',nee:'niet'},
+    q2:{sec:'Beslisschema 1',q:'Wordt de ruimte verwarmd of gekoeld voor het verblijf van mensen?',n:[1],ja:'wel',nee:'q3'},
+    q3:{sec:'Beslisschema 1',q:'Is er een open verbinding tussen de ruimte en een andere ruimte behorend bij de thermische zone?',n:[2],ja:'wel',nee:'q4'},
+    q4:{sec:'Beslisschema 2',q:'Wordt de ruimte omsloten door isolatie of een spouwmuur, of alleen door raam/glas?',n:['3a','3b'],ja:'q5',nee:'q8'},
+    q5:{sec:'Beslisschema 2',q:'Is in de gevel(s) of het dak van de ruimte meer dan 10% raamoppervlak aanwezig én bestaat meer dan 30% van de oppervlakte van het raam uit enkel glas?',n:[4],ja:'q8',nee:'q6'},
+    q6:{sec:'Beslisschema 2',q:'Is de constructie tussen de ruimte en de andere ruimte behorend bij de rekenzone van een spouw en/of isolatie voorzien?',n:['3a'],ja:'q7',nee:'wel'},
+    q7:{sec:'Beslisschema 2',q:'Is de warmteweerstand van de constructie tussen de ruimte en de andere ruimte behorend bij de thermische zone kleiner dan de warmteweerstand van de omhulling van de ruimte?',n:[5],ja:'wel',nee:'q8'},
+    q8:{sec:'Beslisschema 3',q:'Wordt de ruimte omsloten door isolatie of een spouwmuur?',n:['3a'],ja:'niet',nee:'q9'},
+    q9:{sec:'Beslisschema 3',q:'Is de constructie tussen de ruimte en de andere ruimte behorend bij de rekenzone van een spouw en/of isolatie voorzien?',n:['3a'],ja:'niet',nee:'q10'},
+    q10:{sec:'Beslisschema 3',q:'Is er in de ruimte een gebouwgebonden warmteafgiftesysteem aanwezig?',n:[6],ja:'wel',nee:'niet'},
+    wel:{end:true,kind:'g',titel:'Ruimte behoort tot de thermische zone'},
+    niet:{end:true,kind:'r',titel:'Ruimte behoort niet tot de thermische zone',
+      extra:'Is dit een aangrenzende ruimte (AVR, AOR, AOS)? Bepaal dan het type met het schema voor aangrenzende ruimten.',
+      volgende:{schema:'aangrenzend',label:'Verder met aangrenzende ruimte (6.4)'}}
+  }
+},
+{
+  id:'aangrenzend', titel:'Aangrenzende ruimte', ref:'§6.3.4 · Afb. 6.4',
+  intro:'Alle ruimten buiten de thermische zone beschouw je als aangrenzende ruimten: aangrenzende verwarmde ruimte (AVR), aangrenzende onverwarmde ruimte (AOR), aangrenzende onverwarmde serre (AOS; in de basisopname beschouw je een constructie grenzend aan een AOS als grenzend aan buiten) en aangrenzende sterk geventileerde ruimte (voor scheidingsconstructies hiernaartoe wordt in de basisopname het energieverlies door de thermische schil gelijkgesteld aan een scheidingsconstructie grenzend aan buitenlucht). Kun je op basis van de voorgaande regels geen uitsluitsel geven, gebruik dan dit schema.',
+  start:'q1',
+  noten:{
+    1:'Bepaal met de schema’s uit §6.3.3 of de betreffende aangrenzende ruimte tot de thermische zone van het gebouw behoort, als je van het gebouw de energieprestatie zou bepalen. Behoort de aangrenzende ruimte tot de thermische zone van het gebouw, dan beschouw je de aangrenzende ruimte als verwarmd en is de constructie tussen de twee ruimten geen onderdeel van de thermische schil. Behoort de aangrenzende ruimte niet tot de thermische zone van het gebouw, dan beschouw je de aangrenzende ruimte als onverwarmd en is de constructie tussen de twee ruimten onderdeel van de thermische schil.'
+  },
+  nodes:{
+    q1:{q:'Is de aangrenzende ruimte sterk geventileerd?',ja:'sterk',nee:'q2'},
+    q2:{q:'Heeft de ruimte het hele jaar rond continu een binnentemperatuur van minimaal 15°C?',ja:'verw',nee:'q3'},
+    q3:{q:'Behoort de ruimte tot de thermische zone als van het hele gebouw de energieprestatie bepaald wordt?',n:[1],ja:'verw',nee:'onverw'},
+    sterk:{end:true,kind:'n',titel:'Aangrenzende ruimte als sterk geventileerd / buitenlucht beschouwen'},
+    verw:{end:true,kind:'g',titel:'Aangrenzende ruimte als verwarmd beschouwen',extra:'De constructie tussen de twee ruimten is geen onderdeel van de thermische schil.'},
+    onverw:{end:true,kind:'r',titel:'Aangrenzende ruimte als onverwarmd beschouwen',extra:'De constructie tussen de twee ruimten is onderdeel van de thermische schil.'}
+  }
+},
+{
+  id:'opgang', titel:'Gezamenlijke opgang / trappenhuis (afgeleid)', ref:'§6.3.1, 6.3.2, 6.3.3 [DETAIL], 6.3.4',
+  intro:'Let op: dit is geen schema uit de ISSO. De ISSO heeft hier geen beslisschema voor, alleen losse regels in hoofdstuk 6. Dit schema is door mij samengesteld uit die regels (zie toelichting) en dient als route naar de officiële schema’s 6.3a–c en 6.4. Controleer bij twijfel de tekst in de ISSO.',
+  voor:`<details><summary>Welke regels zijn gebruikt?</summary><ul>
+  <li><b>§6.3.1</b> – Altijd thermische zone: “Opgang (niet-gemeenschappelijk) achter de voordeur van de betreffende bovenwoning” en niet-gemeenschappelijke verkeersroutes die bij de woning horen (gangen, hallen, overlopen).</li>
+  <li><b>§6.3.2</b> – Voor een woning in een appartementencomplex behoren gemeenschappelijke ruimten in het complex nooit tot de rekenzone van de afzonderlijke woning.</li>
+  <li><b>§6.3.3 [DETAIL]</b> – Bij een energieprestatierapport voor een woongebouw als geheel gelden de beslisschema’s voor overige ruimten ook voor de algemene verkeersruimten.</li>
+  <li><b>§6.3.4</b> – Alle ruimten buiten de thermische zone beschouw je als aangrenzende ruimten (AVR, AOR, AOS, sterk geventileerd); een aangrenzende ruimte zonder afgiftesysteem die volledig door verwarmde ruimten wordt omsloten (bijvoorbeeld een volledig inpandige gang) is AVR.</li>
+  <li><b>§7.1.1.1</b> – Meerdere woningen in stapelvorm met een gedeelde verkeersroute tussen straat en woningentrees: woongebouw of woning in een woongebouw. Beneden-/bovenwoningen (BeBo) zijn ook woningen in een woongebouw.</li>
+  <li><b>§7.1.1</b> – Een kleine vloeroppervlakte van de opgang van een bovenwoning telt niet als significante vloer.</li>
+  <li><b>§7.2.2</b> – Bij een bovenwoning behoort de opgang achter de voordeur tot de rekenzone en telt als aparte bouwlaag.</li></ul></details>`,
+  start:'q1',
+  noten:{},
+  nodes:{
+    q1:{q:'Ligt de opgang achter de eigen voordeur van de bovenwoning, en wordt hij alleen door deze woning gebruikt (niet-gemeenschappelijk)?',ja:'tz',nee:'q2'},
+    q2:{q:'Is de opgang of het trappenhuis een gemeenschappelijke verkeersruimte, gedeeld door meerdere woningen?',ja:'q3',nee:'geen'},
+    q3:{q:'Stel je het energieprestatierapport op voor het woongebouw als geheel?',ja:'gebouw',nee:'woning'},
+    tz:{end:true,kind:'g',titel:'Opgang behoort tot de thermische zone van de bovenwoning',
+      extra:'Je beschouwt de opgang als aparte bouwlaag (§7.2.2). Een kleine vloeroppervlakte van de opgang telt niet als significante vloer (§7.1.1).'},
+    geen:{end:true,kind:'n',titel:'Geen gemeenschappelijke opgang',
+      extra:'Bepaal de ruimte met het thermische-zone-schema (overige ruimte).',
+      volgende:{schema:'tz',label:'Verder met thermische zone (6.3a–c)'}},
+    gebouw:{end:true,kind:'n',titel:'Algemene verkeersruimte van het woongebouw: bepaal met de schema’s voor overige ruimten of deze tot de thermische zone van het woongebouw behoort',
+      extra:'Geldt specifiek voor een energieprestatierapport voor het woongebouw als geheel (§6.3.3 [DETAIL]).',
+      volgende:{schema:'tz',label:'Verder met thermische zone (6.3a–c)'}},
+    woning:{end:true,kind:'r',titel:'Gemeenschappelijke opgang behoort nooit tot de rekenzone van de woning: beschouw hem als aangrenzende ruimte',
+      extra:'Bepaal met het schema voor aangrenzende ruimten of de opgang als verwarmd (AVR), onverwarmd (AOR) of sterk geventileerd moet worden beschouwd. Een opgang die volledig door verwarmde ruimten wordt omsloten, is AVR (§6.3.4).',
+      volgende:{schema:'aangrenzend',label:'Verder met aangrenzende ruimte (6.4)'}}
+  }
+},
+{
+  id:'rc', titel:'Rc bij renovatie of later aangebouwd deel', ref:'§8.7.2.1 · Afb. 8.14',
+  intro:'Gebruik dit schema als het gebouw of een deel van het gebouw is gerenoveerd, of als er een aanbouw is geplaatst en de Rc-waarde via de bouwjaarklasse bepaald moet worden. Het bouwjaar van het gebouw is het oorspronkelijke bouwjaar; het jaar van renovatie of aanbouw gebruik je alleen volgens dit schema.',
+  voor:`<details><summary>Volgorde bij het bepalen van de Rc-waarde (§8.7.2)</summary><ol>
+  <li>Ter plekke bij de betreffende constructie de isolatiedikte meten.</li>
+  <li>Isolatiedikte bepalen uit tekeningen, rekeningen of ander bewijsmateriaal dat bij het gebouw hoort (met adres). Ter plekke controleren of de aangegeven dikte aannemelijk is.</li>
+  <li>Rc-waarde bepalen op basis van de bouwjaarklasse.</li></ol>
+  <p>Aantoonbaar nageïsoleerd in de spouw, maar spouwdikte niet vast te stellen? Ga uit van tabel 8.26:</p>
+  <table><tr><th>Bouwjaar</th><th>Dikte van de spouw</th></tr><tr><td>1930 tot 1970</td><td>40 mm</td></tr><tr><td>1970 tot en met 1985</td><td>70 mm</td></tr><tr><td>Na 1985</td><td>100 mm</td></tr></table>
+  <p class="klein">Dikte uit tekeningen alleen gebruiken als die gemaatvoerd of op schaal zijn én ander bewijs bevestigt dat de dikte is toegepast. Een Rc-waarde op een rekening of tekening mag je niet gebruiken, tenzij een gecontroleerde verklaring bevestigt dat die klopt.</p></details>
+  <details><summary>Hoofdgebouw en later aangebouwd deel</summary><p>Het hoofdgebouw is het oorspronkelijke bouwdeel (zonder aanbouwen), voor zover dit ook het grootste deel van het te beoordelen gebouw betreft. Is een later aangebouwd deel groter, dan kan het zijn dat het oorspronkelijke bouwdeel niet meer het hoofdgebouw is.</p></details>`,
+  start:'q1',
+  noten:{
+    1:'Bewijs dat tijdens de renovatie of aanbouw is geïsoleerd conform de eisen die toen golden, moet je in het projectdossier opnemen.',
+    2:'Voorbeeld: een gebouw is in 1995 volledig gerenoveerd, de isolatiedikte van de gevel is niet te bepalen en er is geen bewijs dat de Rc-waarde van de gevel voldoet aan het Bouwbesluit van 1995. Voor de gevel houd je dan bouwjaarklasse ‘van 1988 tot 1992’ aan. De hoogst aan te houden bouwjaarklasse in deze situatie is ‘van 1992 tot 2014’ (Rc = 2,5 m²·K/W).'
+  },
+  nodes:{
+    q1:{q:'Is isolatie vast te stellen?',ja:'q2',nee:'e1'},
+    q2:{q:'Is de dikte van de isolatie vast te stellen?',ja:'e2',nee:'q3'},
+    q3:{q:'Is het jaar van renovatie of aanbouw bekend?',ja:'q4',nee:'e3'},
+    q4:{q:'Is geïsoleerd volgens de eis van de bouwregelgeving in het betreffende jaar?',n:[1],ja:'e4',nee:'e5'},
+    e1:{end:true,kind:'n',titel:'Bouwjaarklasse is gelijk aan het bouwjaar van het gebouw'},
+    e2:{end:true,kind:'g',titel:'Rond de isolatiedikte af op hele cm’s en bepaal de Rc-waarde met tabel 8.11 + formule 8.4'},
+    e3:{end:true,kind:'n',titel:'Neem de bouwjaarklasse volgend op de klasse van het bouwjaar van het gebouw',
+      extra:'Uitzondering: gebouwen met bouwjaar vóór 1965 – gebruik daarvoor de kolom ‘(na)geïsoleerd’ uit tabel 8.9.',tabel89:true},
+    e4:{end:true,kind:'g',titel:'Bouwjaarklasse is gelijk aan het jaar van renovatie of de aanbouw',extra:'Neem het bewijs op in het projectdossier.'},
+    e5:{end:true,kind:'r',titel:'Neem de bouwjaarklasse voorafgaand aan de klasse van het jaar van renovatie of aanbouw',
+      extra:'Hoogst aan te houden klasse: ‘van 1992 tot 2014’ (Rc = 2,5 m²·K/W). Voorbeeld: volledig gerenoveerd in 1995, geen bewijs → gevel: klasse ‘van 1988 tot 1992’.'}
+  }
+},
+{
+  id:'infil', titel:'Renovatiejaar bij infiltratie', ref:'§7.1.4 / 7.1.5 · Afb. 7.3',
+  intro:'Bepalen of het renovatiejaar gebruikt mag worden voor de bepaling van de infiltratie.',
+  start:'q1',
+  noten:{
+    1:'Als in de thermische schil van de woning geen dak aanwezig is, dan telt het dak van het woongebouw niet mee. Verder geldt dat als het een gebouw is met een doorlopende (balkon)vloer die niet in de renovatie meegenomen kan worden, het oppervlak van de doorsnede van de vloer niet meetelt in de 90%-regel.',
+    2:'Als niet het dak, maar de zoldervloer is geïsoleerd (zolder behoort dan niet tot de rekenzone), volstaat ook de isolatie van de zoldervloer.',
+    3:'Kierdichting tussen muur en kozijn moet een flexibele en uitzettende afdichting zijn, zoals uitzetband. Uitsluitend afkitten volstaat niet. In geval van naïsolatie van de gevel volstaat spouwmuurisolatie of geïsoleerde voorzetwanden. Bij voorzetwanden moeten ook de dagkant van de wandopening zijn naïsoleerd en/of afgewerkt met plaatmateriaal, en de afwerking van de dagkanten moet naadloos aansluiten op de kozijnen. Er mogen dus geen openstaande naden zichtbaar zijn.'
+  },
+  nodes:{
+    q1:{q:'Is van het betreffende gebouw de luchtdichtheid (qv;10-waarde) gemeten?',ja:'q2',nee:'q3'},
+    q2:{q:'Voldoet de meting aan de eisen uit paragraaf 7.1.5?',ja:'meting',nee:'q3'},
+    q3:{q:'Is minimaal 90% van het oppervlak van de schil (grenzend aan buiten) na het bouwjaar naïsoleerd?',n:[1,2],ja:'q4',nee:'nee'},
+    q4:{q:'Is bij minimaal 90% van het raamoppervlak het glas vervangen door isolerend glas én is er kierdichting aangebracht bij de te openen ramen?',ja:'q5',nee:'nee'},
+    q5:{q:'Zijn bij minimaal 90% van het raamoppervlak de kozijnen vervangen door nieuwe kozijnen?',ja:'ja',nee:'q6'},
+    q6:{q:'Is bij minimaal 90% van het raamoppervlak kierdichting tussen muur en kozijn aangebracht, of is de aansluiting tussen muur en kozijn kierdicht als gevolg van naïsolatie van de gevel?',n:[3],ja:'ja',nee:'nee'},
+    meting:{end:true,kind:'n',titel:'Gebruik de qv;10-waarde voor de infiltratie'},
+    ja:{end:true,kind:'g',titel:'Renovatiejaar is van toepassing',
+      extra:'<b>Renovatiejaar onbekend?</b> Hou dan het eerste jaar uit de volgende hogere jaarklasse (één klasse hoger dan die van het oorspronkelijke bouwjaar) aan. Voorbeeld: bouwjaar 1965, er is energiebesparend gerenoveerd maar het jaar is niet te achterhalen → hou 1970 aan. Jaarklassen: J&lt;1970; 1970≤J&lt;1980; 1980≤J&lt;1990; 1990≤J&lt;2000; 2000≤J&lt;2010; J≥2010.<br><b>Dak en gevel in verschillende perioden geïsoleerd?</b> Dan is het jaar dat leidend is het jaar van het dak (voorbeeld: gevels 1984, dak 1992 → 1992). Bij een woning zonder dak (tussenwoning in appartementsgebouw) is de gevel maatgevend. Zijn maatregelen aan kozijnen en de rest van de gevel in verschillende jaren uitgevoerd, hou dan het oudste jaar aan.'},
+    nee:{end:true,kind:'r',titel:'Renovatiejaar is niet van toepassing'}
+  }
+}
+];
+
+const TABEL89 = `<table><tr><th>Constructie</th><th>Spouw</th><th>Rc isolatie onbekend of afwezig</th><th>Rc (na)geïsoleerd</th></tr>
+<tr><td rowspan="2">Gevels</td><td>Spouw</td><td>0,35</td><td>0,85</td></tr><tr><td>Geen spouw of onbekend</td><td>0,19</td><td>0,69</td></tr>
+<tr><td rowspan="2">Vloer boven kruipruimte of direct op ondergrond; onder maaiveld gelegen uitwendige scheidingsconstructies die de verwarmde binnenruimte scheiden van de grond of een AOR</td><td>Spouw</td><td>0,33</td><td>0,83</td></tr><tr><td>Geen spouw of onbekend</td><td>0,15</td><td>0,65</td></tr>
+<tr><td rowspan="2">Daken en vloeren grenzend aan de buitenlucht</td><td>Spouw</td><td>0,35</td><td>0,85</td></tr><tr><td>Geen spouw of onbekend</td><td>0,22</td><td>0,72</td></tr></table>
+<p class="klein">Tabel 8.9 – forfaitaire Rc-waarden (m²·K/W), bouwjaar vóór 1965 met niet te bepalen isolatiedikte of zonder isolatie.</p>`;
+
+/* ============ STATE ============ */
+let huidig = null;       // schema-object
+let pad = [];            // [{id, ans}]
+let nodeId = null;
+let log = [];
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const schemaById = id => SCHEMAS.find(s => s.id === id);
+
+const logSleutel = () => 'bs_log:' + (project ? project.pad : '');
+function bewaarLokaal(){ try{ localStorage.setItem(logSleutel(), JSON.stringify(log)); localStorage.setItem('bs_project_tekst', $('project').value); }catch(e){} }
+function leesLokaal(){ try{ log = JSON.parse(localStorage.getItem(logSleutel())||'[]'); }catch(e){ log=[]; } }
+
+/* ============ RENDER ============ */
+function renderTegels(){
+  $('tegels').innerHTML = SCHEMAS.map(s =>
+    `<button class="tegel ${huidig&&huidig.id===s.id?'actief':''}" data-id="${s.id}"><b>${esc(s.titel)}</b><span>${esc(s.ref)}</span></button>`).join('');
+  document.querySelectorAll('.tegel').forEach(b => b.onclick = () => start(b.dataset.id));
+}
+
+function start(id){
+  huidig = schemaById(id); pad = []; nodeId = huidig.start;
+  renderTegels(); renderWizard();
+  $('wizard').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function noteHtml(ns){
+  if(!ns) return '';
+  return `<details><summary>Toelichting (${ns.map(n=>esc(n)).join(', ')})</summary>` +
+    ns.map(n => `<div class="toel"><b>${esc(n)}.</b> ${esc(huidig.noten[n])}</div>`).join('') + `</details>`;
+}
+
+function renderWizard(){
+  const w = $('wizard');
+  if(!huidig){ w.innerHTML=''; return; }
+  const node = huidig.nodes[nodeId];
+  let h = `<div class="kaart"><h2>${esc(huidig.titel)}</h2><p class="klein">${esc(huidig.ref)}</p>`;
+  if(pad.length===0){ h += `<p class="klein">${esc(huidig.intro)}</p>${huidig.voor||''}`; }
+
+  if(!node.end){
+    h += `${node.sec?`<span class="sec">${esc(node.sec)}</span>`:''}
+      <p class="vraag">${esc(node.q)}</p>${noteHtml(node.n)}
+      <div class="knoppen"><button class="ja" id="bja">Ja</button><button class="nee" id="bnee">Nee</button></div>`;
+    if(pad.length) h += `<button class="sec-knop" id="bterug">← Terug</button> <button class="sec-knop" id="bopnieuw">Opnieuw beginnen</button>`;
+  } else {
+    h += `<div class="uitkomst ${node.kind}">${esc(node.titel)}${node.extra?`<div class="extra">${node.extra}</div>`:''}</div>`;
+    if(node.tabel89) h += `<details><summary>Tabel 8.9 – voor bouwjaar vóór 1965</summary>${TABEL89}</details>`;
+    if(huidig.id==='rc' && (nodeId==='e5')) h += noteHtml([2]);
+    if(huidig.id==='rc' && (nodeId==='e4')) h += noteHtml([1]);
+    h += `<label for="oms2">Wat betreft: (ruimte / constructie)</label><input type="text" id="oms2" value="${esc($('oms').value)}" placeholder="bijv. berging achterzijde">`;
+    h += `<div class="acties"><button class="actie" id="bvast">Leg vast bij project</button>`;
+    if(node.volgende) h += `<button class="actie licht" id="bvolg">${esc(node.volgende.label)}</button>`;
+    h += `<button class="actie licht" id="bterug">← Terug</button><button class="actie licht" id="bopnieuw">Opnieuw</button></div>`;
+  }
+  if(pad.length){
+    h += `<details><summary>Doorlopen route (${pad.length} stap${pad.length>1?'pen':''})</summary><ol class="route">` +
+      pad.map(p => `<li>${esc(huidig.nodes[p.id].q)} <b>${p.ans==='ja'?'Ja':'Nee'}</b></li>`).join('') + `</ol></details>`;
+  }
+  h += `</div>`;
+  w.innerHTML = h;
+
+  const q = id => document.getElementById(id);
+  if(q('bja')) q('bja').onclick = () => antwoord('ja');
+  if(q('bnee')) q('bnee').onclick = () => antwoord('nee');
+  if(q('bterug')) q('bterug').onclick = terug;
+  if(q('bopnieuw')) q('bopnieuw').onclick = () => start(huidig.id);
+  if(q('bvast')) q('bvast').onclick = vastleggen;
+  if(q('bvolg')) q('bvolg').onclick = () => { $('oms').value = q('oms2').value; start(node.volgende.schema); };
+}
+
+function antwoord(a){
+  const node = huidig.nodes[nodeId];
+  pad.push({id:nodeId, ans:a});
+  nodeId = node[a];
+  renderWizard();
+}
+function terug(){
+  const laatste = pad.pop();
+  if(laatste){ nodeId = laatste.id; renderWizard(); }
+}
+
+function vastleggen(){
+  const node = huidig.nodes[nodeId];
+  const oms = $('oms2').value.trim();
+  $('oms').value = oms;
+  log.push({
+    tijd: new Date().toISOString(),
+    schema: huidig.titel, ref: huidig.ref, oms,
+    route: pad.map(p => [huidig.nodes[p.id].q, p.ans==='ja'?'Ja':'Nee']),
+    uitkomst: node.titel
+  });
+  bewaarLokaal(); renderLog();
+  $('log').scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+function renderLog(){
+  if(!log.length){ $('log').innerHTML = '<p class="leeg">Nog niets vastgelegd.</p>'; $('logacties').innerHTML=''; return; }
+  $('log').innerHTML = log.map((l,i) => `<div class="logitem"><button class="x" data-i="${i}" title="Verwijderen">✕</button>
+    <b>${esc(l.oms||'(geen omschrijving)')}</b><br>${esc(l.schema)} <span class="klein">(${esc(l.ref)})</span><br>→ ${esc(l.uitkomst)}</div>`).join('');
+  document.querySelectorAll('.logitem .x').forEach(b => b.onclick = () => { log.splice(+b.dataset.i,1); bewaarLokaal(); renderLog(); });
+  $('logacties').innerHTML = `${location.origin===VASTE_ORIGIN?'<button class="actie" id="bod">☁️ Opslaan in projectmap</button>':''}<button class="actie ${location.origin===VASTE_ORIGIN?'licht':''}" id="bdl">Download .txt</button><button class="actie licht" id="bkopie">Kopieer tekst</button><button class="actie licht" id="bwis">Alles wissen</button>`;
+  if($('bod')) $('bod').onclick = opslaanInProject;
+  $('bdl').onclick = downloadTxt;
+  $('bkopie').onclick = async () => { try{ await navigator.clipboard.writeText(maakTxt()); $('bkopie').textContent='Gekopieerd'; }catch(e){ alert('Kopiëren niet gelukt; gebruik Download.'); } };
+  $('bwis').onclick = () => { if(confirm('Alle vastgelegde beslissingen wissen?')){ log=[]; bewaarLokaal(); renderLog(); } };
+}
+
+function maakTxt(){
+  const p = $('project').value.trim() || '(project niet ingevuld)';
+  const d = new Date();
+  let t = `BESLISSCHEMA'S ISSO 82.1 (7e druk)\nProject: ${p}\nGemaakt: ${d.toLocaleDateString('nl-NL')} ${d.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})}\n`;
+  log.forEach((l,i) => {
+    t += `\n${i+1}. ${l.oms||'(geen omschrijving)'}\n   Schema: ${l.schema} (${l.ref})\n`;
+    l.route.forEach(r => t += `   - ${r[0]} ${r[1]}\n`);
+    t += `   UITKOMST: ${l.uitkomst}\n`;
+  });
+  return t;
+}
+
+function bestandsnaam(){
+  const p = $('project').value.trim().replace(/[\\/:*?"<>|]/g,'').slice(0,80);
+  const d = new Date(); const dd = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  return `Beslisschema's ISSO 82.1${p?' - '+p:''} - ${dd}.txt`;
+}
+function downloadTxt(){
+  const blob = new Blob([maakTxt()],{type:'text/plain;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = bestandsnaam();
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+
+/* ============ ONEDRIVE ============
+   Zelfde inlog als Huismaten en de Projectmap-app: die staan op hetzelfde adres
+   (visserinspecties.github.io) en delen dus dezelfde opslag in de browser. */
+const GRAPH_CLIENT_ID = 'fdf237c9-bf46-47fa-ab3d-a8834a73e284';
+const GRAPH_TENANT_ID = '984fd1fb-3d68-4c94-aff2-47f699fb5dae';
+const GRAPH_SCOPE = 'https://graph.microsoft.com/Files.ReadWrite offline_access';
+const VASTE_ORIGIN = 'https://visserinspecties.github.io';
+const PROJECTEN_ROOT = '0_In Behandeling';
+const SUBMAP = '020 AANTEKENINGEN';
+let project = null;   // {naam, pad}  (pad eindigt op 020 AANTEKENINGEN)
+
+function leesProject(){
+  for(const sleutel of ['bs_gekozen_project','huismaten_project']){   // eigen keuze eerst, anders die van Huismaten
+    try{
+      const p = JSON.parse(localStorage.getItem(sleutel)||'null');
+      if(p && p.naam && p.pad && p.naam !== SUBMAP) return p;
+    }catch(e){}
+  }
+  return null;
+}
+
+async function graphRefreshToken(){
+  let rt = null; try{ rt = localStorage.getItem('rt'); }catch(e){}
+  if(!rt){ const e = new Error('Niet ingelogd bij OneDrive.'); e.code='geen-login'; throw e; }
+  let resp;
+  try{
+    resp = await fetch(`https://login.microsoftonline.com/${GRAPH_TENANT_ID}/oauth2/v2.0/token`, {
+      method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:new URLSearchParams({client_id:GRAPH_CLIENT_ID, grant_type:'refresh_token', refresh_token:rt, scope:GRAPH_SCOPE})
+    });
+  }catch(err){ const e = new Error('Geen verbinding met Microsoft.'); e.code='netwerk'; throw e; }
+  const data = await resp.json().catch(()=>({}));
+  if(!data.access_token){
+    if(data.error==='invalid_grant' || data.error==='interaction_required'){ try{ localStorage.removeItem('rt'); }catch(e){} }
+    const e = new Error('Inlog verlopen.'); e.code='verlopen'; throw e;
+  }
+  if(data.refresh_token){ try{ localStorage.setItem('rt', data.refresh_token); }catch(e){} }
+  return data.access_token;
+}
+
+function zetBalk(soort, tekst, knoppen){
+  const el = $('od-status');
+  el.className = 'odbalk ' + (soort||'');
+  el.textContent = tekst;
+  (knoppen||[]).forEach(([label, actie]) => { const b = document.createElement('button'); b.type='button'; b.textContent=label; b.onclick=actie; el.appendChild(b); });
+}
+
+let controleLoopt = false;
+async function controleerOneDrive(){
+  if(controleLoopt) return; controleLoopt = true;
+  try{
+    zetBalk('', '☁️ OneDrive: controleren…');
+    const opnieuw = ['Controleer', controleerOneDrive];
+    const kies = ['Kies project', kiesProject];
+    if(location.origin !== VASTE_ORIGIN){ $('od-status').style.display='none'; return; }   // losse kopie: geen OneDrive-onderdelen tonen
+    if(!navigator.onLine){ zetBalk('let','📵 Geen internet — download het bestand, of probeer later opnieuw.',[opnieuw]); return; }
+    let token;
+    try{ token = await graphRefreshToken(); }
+    catch(e){
+      if(e.code==='netwerk') zetBalk('let','⚠️ Microsoft is nu niet bereikbaar.',[opnieuw]);
+      else zetBalk('fout', 'Niet ingelogd bij OneDrive. Open Huismaten of de Projectmap-app, tik daar op “Inloggen” en kom dan hier terug.',[opnieuw]);
+      return;
+    }
+    if(!project){ zetBalk('let','☁️ OneDrive verbonden — maar nog geen project gekozen.',[kies, opnieuw]); return; }
+    let resp;
+    try{ resp = await fetch(`https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(project.pad)}`, {headers:{Authorization:'Bearer '+token}}); }
+    catch(_){ zetBalk('let','⚠️ OneDrive verbonden, maar de projectmap kon niet gecontroleerd worden.',[opnieuw]); return; }
+    if(resp.ok) zetBalk('ok', `✅ OneDrive verbonden · project: ${project.naam}`, [['Wijzig project', kiesProject], opnieuw]);
+    else if(resp.status===404) zetBalk('fout', `❌ Projectmap niet gevonden in OneDrive: ${project.pad}`, [kies, opnieuw]);
+    else zetBalk('fout', `❌ OneDrive gaf een fout (${resp.status}).`, [opnieuw]);
+  } finally { controleLoopt = false; }
+}
+
+async function odHaalItems(mapId){
+  const token = await graphRefreshToken();
+  const url = mapId ? `https://graph.microsoft.com/v1.0/me/drive/items/${mapId}/children?$top=200`
+                    : `https://graph.microsoft.com/v1.0/me/drive/root/children?$top=200`;
+  const resp = await fetch(url, {headers:{Authorization:'Bearer '+token}});
+  if(!resp.ok) throw new Error('mappen ophalen mislukt ('+resp.status+')');
+  return (await resp.json()).value || [];
+}
+async function odMapIdViaPad(pad){
+  const token = await graphRefreshToken();
+  const resp = await fetch(`https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(pad)}`, {headers:{Authorization:'Bearer '+token}});
+  if(!resp.ok) throw new Error('map niet gevonden');
+  return (await resp.json()).id;
+}
+
+function kiesOnedriveMap(){
+  return new Promise(resolve => {
+    const overlay=$('od-overlay'), lijst=$('od-lijst'), padEl=$('od-pad'), ok=$('od-ok'), terug=$('od-terug'), ann=$('od-annuleer');
+    const stapel = [];
+    const huidigId = () => stapel.length ? stapel[stapel.length-1].id : null;
+    const huidigPad = () => 'OneDrive' + stapel.map(x => ' / '+x.naam).join('');
+    async function toon(){
+      padEl.textContent = huidigPad(); terug.disabled = stapel.length===0; ok.disabled = true;
+      lijst.innerHTML = '<div class="od-leeg">Mappen laden…</div>';
+      try{
+        const mappen = (await odHaalItems(huidigId())).filter(i => i.folder);
+        ok.disabled = false; lijst.innerHTML = '';
+        mappen.forEach(m => { const d=document.createElement('div'); d.className='od-item'; d.textContent='📁 '+m.name; d.onclick=()=>{ stapel.push({id:m.id,naam:m.name}); toon(); }; lijst.appendChild(d); });
+        if(!lijst.children.length) lijst.innerHTML = '<div class="od-leeg">Geen submappen hier.</div>';
+      }catch(err){ lijst.innerHTML = '<div class="od-leeg">⚠️ '+esc(err.message||err)+'</div>'; ok.disabled = true; }
+    }
+    function sluit(r){ overlay.classList.remove('actief'); ok.onclick=terug.onclick=ann.onclick=null; resolve(r); }
+    terug.onclick = () => { stapel.pop(); toon(); };
+    ann.onclick = () => sluit(null);
+    ok.onclick = () => sluit({pad:huidigPad(), delen:stapel.map(x=>x.naam)});
+    overlay.classList.add('actief');
+    (async () => {
+      lijst.innerHTML = '<div class="od-leeg">Mappen laden…</div>';
+      try{ stapel.push({id: await odMapIdViaPad(PROJECTEN_ROOT), naam: PROJECTEN_ROOT}); }catch(_){}
+      toon();
+    })();
+  });
+}
+
+async function kiesProject(){
+  try{ await graphRefreshToken(); }
+  catch(e){ alert('Niet ingelogd bij OneDrive of geen verbinding. Log in via Huismaten of de Projectmap-app en probeer het opnieuw.'); return; }
+  const keuze = await kiesOnedriveMap();
+  if(!keuze) return;
+  const delen = keuze.delen;
+  if(!delen.length){ alert('Kies een projectmap, niet de hoofdmap van OneDrive.'); return; }
+  let naam, doel;
+  if(delen[delen.length-1]===SUBMAP && delen.length>=2){ naam = delen[delen.length-2]; doel = delen; }
+  else { naam = delen[delen.length-1]; doel = [...delen, SUBMAP]; }
+  bewaarLokaal();                                   // log van het vorige project veiligstellen
+  project = {naam, pad: doel.join('/')};
+  try{ localStorage.setItem('bs_gekozen_project', JSON.stringify(project)); }catch(e){}
+  leesLokaal(); renderLog();
+  await laadProjectGegevens();
+  controleerOneDrive();
+}
+
+// adres uit projectgegevens.json (door de Projectmap-app geschreven) als projectnaam gebruiken
+async function laadProjectGegevens(){
+  $('project').value = project ? project.naam : '';
+  if(!project) return;
+  try{
+    const token = await graphRefreshToken();
+    const r = await fetch(`https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(project.pad)}/projectgegevens.json:/content`, {headers:{Authorization:'Bearer '+token}});
+    if(!r.ok) return;
+    const pg = JSON.parse(await r.text());
+    if(pg && pg.adres) $('project').value = pg.adres;
+  }catch(_){}
+}
+
+function toonMelding(soort, tekst){ $('opslagmelding').innerHTML = `<div class="melding ${soort}">${esc(tekst)}</div>`; }
+
+async function opslaanInProject(){
+  if(!log.length){ toonMelding('fout','Er is nog niets vastgelegd.'); return; }
+  if(location.origin !== VASTE_ORIGIN){ toonMelding('fout','Opslaan in OneDrive kan alleen via visserinspecties.github.io. Gebruik Download .txt.'); return; }
+  if(!project){ await kiesProject(); if(!project) return; }
+  try{
+    const token = await graphRefreshToken();
+    const bestaat = await fetch(`https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(project.pad)}`, {headers:{Authorization:'Bearer '+token}});
+    if(bestaat.status===404) throw new Error('Projectmap bestaat niet in OneDrive: '+project.pad+' — niet opgeslagen. Kies het project opnieuw.');
+    const naam = bestandsnaam();
+    const blob = new Blob([maakTxt()], {type:'text/plain;charset=utf-8'});
+    const resp = await fetch(`https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(project.pad)}/${encodeURIComponent(naam)}:/content?@microsoft.graph.conflictBehavior=rename`,
+      {method:'PUT', headers:{Authorization:'Bearer '+token}, body:blob});
+    if(!resp.ok){ let m = resp.statusText; try{ m = (await resp.json()).error.message || m; }catch(_){} throw new Error(m); }
+    const res = await resp.json();
+    toonMelding('ok', `Opgeslagen in ${project.naam} / ${SUBMAP} als “${res.name||naam}”.`);
+  }catch(e){
+    toonMelding('fout', 'Niet opgeslagen in OneDrive: '+(e.message||e)+' — de lijst staat nog hier; download het bestand als vangnet.');
+    controleerOneDrive();
+  }
+}
+
+$('snel').onclick = () => start('opgang');
+$('project').addEventListener('input', bewaarLokaal);
+project = leesProject();
+try{ if(!project) $('project').value = localStorage.getItem('bs_project_tekst')||''; }catch(e){}
+leesLokaal(); renderTegels(); renderLog();
+if(project) laadProjectGegevens().then(()=>{});
+controleerOneDrive();
+window.addEventListener('online', controleerOneDrive);
+document.addEventListener('visibilitychange', () => { if(!document.hidden) controleerOneDrive(); });
+</script>
+</body>
+</html>
