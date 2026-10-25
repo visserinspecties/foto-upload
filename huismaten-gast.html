@@ -2831,7 +2831,7 @@ const KLEUR_RGB = {vloer:[29,29,29], gevel:[26,127,55], dak:[192,57,43], deur:[9
 // Sleutel = groep|oriëntatie|label van een schilregel; waarde = de reden.
 // Een uitgezet vlak blijft zichtbaar (grijs), maar telt niet mee in de totalen.
 const UITGEZET = new Map();
-const UIT_REDENEN = ['grenst aan buren', 'woning erboven', 'woning eronder', 'onverwarmde ruimte', 'anders'];
+const UIT_REDENEN = ['grenst aan buren', 'woning erboven', 'woning eronder', 'grenst aan AVR', 'anders'];
 function schilSleutel(r){ return `${r.groep}|${r.orient||''}|${r.label}`; }
 function uitKeuzeHtml(sleutel){
   const huidig = UITGEZET.get(sleutel) || '';
@@ -5705,8 +5705,22 @@ function rdZone(p, verd){
 function rdVerdeel(lijst, z, opts){
   opts = opts || {};
   const uit = [];
-  const n = lijst.length; if(!n) return uit;
-  const somB = lijst.reduce((s,o)=>s+o.d.breedte, 0);
+  const n0 = lijst.length; if(!n0) return uit;
+  // Paneel met dezelfde breedte als een raam (zelfde gevel en verdieping): raam boven het paneel, in één kolom.
+  const ZELFDE = 0.005;   // m
+  const kolommen = lijst.map(o=>({items:[o], b:o.d.breedte}));
+  const vrijRaam = kolommen.filter(k=>k.items[0].d.type==='raam');
+  const panelen = kolommen.filter(k=>k.items[0].d.type==='paneel');
+  panelen.forEach(k=>{
+    const d = k.items[0].d;
+    const j = vrijRaam.findIndex(r=>Math.abs(r.b - d.breedte) < ZELFDE);
+    if(j < 0) return;
+    vrijRaam[j].items.unshift(k.items[0]);   // [paneel, raam]: paneel onder, raam erboven
+    vrijRaam.splice(j, 1);
+    kolommen.splice(kolommen.indexOf(k), 1);
+  });
+  const n = kolommen.length;
+  const somB = kolommen.reduce((s,k)=>s+k.b, 0);
   const ruimte = z.xr - z.xl, randMin = opts.rand != null ? opts.rand : RD_RAND_M;
   let rand = (ruimte - somB)/(n+1), tussen = rand;
   if(rand < randMin){
@@ -5714,22 +5728,41 @@ function rdVerdeel(lijst, z, opts){
     tussen = n>1 ? (ruimte - 2*rand - somB)/(n-1) : 0;
   }
   const bandH = z.tot - z.van;
-  let x = z.xl + rand;
-  lijst.forEach(o=>{
-    const d = o.d;
+  const hoogteVan = d => {
     let hEcht = d.hoogte;
     if(d.type==='dakraam' && opts.projectie) hEcht = d.hoogte * opts.projectie;   // dakvlak schuin gezien
-    const h = Math.max(Math.min(hEcht, bandH - 0.05), 0.05);
-    let y;
-    if(z.zolder || d.type==='dakraam') y = z.van + Math.max((bandH - h)/2, 0);
-    else if(d.type==='deur' || d.type==='deurmetraam') y = z.van;
-    else {
-      const kop = z.van + Math.min(2.3, bandH - 0.25);   // bovenkant op dezelfde lijn als een deur
-      y = Math.max(z.van + 0.05, kop - h);
-      if(y + h > z.tot) y = Math.max(z.van, z.tot - h);
+    return Math.max(Math.min(hEcht, bandH - 0.05), 0.05);
+  };
+  let x = z.xl + rand;
+  kolommen.forEach(k=>{
+    if(k.items.length === 2){
+      // paneel + raam gestapeld
+      const [op, or] = k.items;
+      let hp = hoogteVan(op.d), hr = hoogteVan(or.d);
+      if(hp + hr > bandH - 0.05){ const f = (bandH - 0.05)/(hp + hr); hp *= f; hr *= f; }
+      let yp;
+      if(z.zolder) yp = z.van + Math.max((bandH - hp - hr)/2, 0);
+      else {
+        const kop = z.van + Math.min(2.3, bandH - 0.25);   // bovenkant raam op de deurlijn
+        yp = Math.max(z.van + 0.05, kop - hr - hp);
+        if(yp + hp + hr > z.tot) yp = Math.max(z.van, z.tot - hp - hr);
+      }
+      uit.push({d:op.d, x, y:yp,      b:op.d.breedte, h:hp, eerste:op.eerste, laatste:false, z, onderRaam:true});
+      uit.push({d:or.d, x, y:yp + hp, b:or.d.breedte, h:hr, eerste:or.eerste, laatste:false, z});
+    } else {
+      const o = k.items[0], d = o.d;
+      const h = hoogteVan(d);
+      let y;
+      if(z.zolder || d.type==='dakraam') y = z.van + Math.max((bandH - h)/2, 0);
+      else if(d.type==='deur' || d.type==='deurmetraam') y = z.van;
+      else {
+        const kop = z.van + Math.min(2.3, bandH - 0.25);   // bovenkant op dezelfde lijn als een deur
+        y = Math.max(z.van + 0.05, kop - h);
+        if(y + h > z.tot) y = Math.max(z.van, z.tot - h);
+      }
+      uit.push({d, x, y, b:d.breedte, h, eerste:o.eerste, laatste:false, z});
     }
-    uit.push({d, x, y, b:d.breedte, h, eerste:o.eerste, laatste:false, z});
-    x += d.breedte + tussen;
+    x += k.b + tussen;
   });
   // het meest rechtse exemplaar van elk element krijgt het lijntje
   const gezien = new Set();
@@ -5935,7 +5968,9 @@ function rdTekenLabels(svg, plan, x0, yBase, xLabels, yMin, yMax, xRand){
       cursor = ly + fs*1.35;
       const cx = st.px + st.pw/2;
       const xr = Math.max(xRand, x0 + (st.xRechts != null ? st.xRechts : 0)*S + 3);
-      svg.appendChild(svgEl('polyline', {points:`${cx},${st.py} ${cx},${ry} ${xr},${ry} ${xLabels-3},${ly-fs*0.35}`, fill:'none', stroke:k.lijn, 'stroke-width':PRINT_MODE ? 0.18 : 0.6}));
+      // paneel onder een raam: lijntje via de rechterzijkant, niet dwars door het raam
+      const begin = st.onderRaam ? `${st.px+st.pw},${st.py+st.ph/2} ${st.px+st.pw+fs*0.4},${st.py+st.ph/2} ${st.px+st.pw+fs*0.4},${ry}` : `${cx},${st.py} ${cx},${ry}`;
+      svg.appendChild(svgEl('polyline', {points:`${begin} ${xr},${ry} ${xLabels-3},${ly-fs*0.35}`, fill:'none', stroke:k.lijn, 'stroke-width':PRINT_MODE ? 0.18 : 0.6}));
       rdTekst(svg, xLabels, ly, rdZijTekst(o.z), k.lijn, 'start');
     } else {
       const ly = Math.min(Math.max(o.doelY, cursor), yMax);
@@ -7656,7 +7691,7 @@ function vulInvoerDataIn(rows){
   UITGEZET.clear();
   GEKOPIEERD.clear();
   groepen.filter(g=>g.sectie==='Gekopieerd').forEach(g=>{ if(g.velden.regel) GEKOPIEERD.set(String(g.velden.regel), String(g.velden.tijd || '')); });
-  groepen.filter(g=>g.sectie==='Uitgezet').forEach(g=>{ if(g.velden.vlak) UITGEZET.set(String(g.velden.vlak), String(g.velden.reden || 'anders')); });
+  groepen.filter(g=>g.sectie==='Uitgezet').forEach(g=>{ if(g.velden.vlak){ let r = String(g.velden.reden || 'anders'); if(r==='onverwarmde ruimte') r = 'grenst aan AVR'; UITGEZET.set(String(g.velden.vlak), r); } });
   const V = (groepen.find(g=>g.sectie==='Gevel') || {velden:{}}).velden;
 
   // Tijdens het inlezen niet steeds herrekenen; aan het eind één keer.
