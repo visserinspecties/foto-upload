@@ -4587,32 +4587,34 @@ function rdGlasLabel(g){ return RD_GLASTYPE_LABELS[g] || g || 'geen glastype'; }
 
 // Regels-per-item voor overzicht/PDF/Excel: een deur met raam geeft twee regels (deur en raam)
 function rdItemRegels(d){
+  // Bij aantal > 1: elk exemplaar een eigen regel (niet de oppervlaktes optellen), bv. "R1 (1 van 2)".
   const uit = [];
   const orient = d.gevelKey===RD_PLATDAK_KEY ? `Plat dak ${d.koepelOpLabel} (PD)` : `${ramenDeurenOrientatieLabel(d.gevelKey)} (${d.gevelKey})` + (d.plaatsInfo ? ` — ${d.plaatsInfo.label}` : '');
-  const aantalTxt = d.aantal>1 ? `${d.aantal} × ` : '';
   const n2l = x => (Math.round(x*100)/100).toFixed(2);
-  if(d.raamOpp>0){
-    const isDR = d.type==='deurmetraam';
-    const formule = isDR ? `${aantalTxt}${n2l(d.raamBreedte)} × ${n2l(d.raamHoogte)}` : `${aantalTxt}${n2l(d.breedte)} × ${n2l(d.hoogte)}`;
-    uit.push({soort:'raam', opp:d.raamOpp, glastype:d.glastype, gevelKey:d.gevelKey,
-      zonwering:d.zonwering,
-      label:`${d.naam}${isDR?' — raam in deur':''}${rdGlasKort(d.glastype) ? ' ('+rdGlasKort(d.glastype)+')' : ''} — ${orient}`, detail: rdGlasLabel(d.glastype) + (d.zonwering ? ', met zonwering' : ''), formule});
-  }
-  if(d.deurOpp>0){
-    const isDR = d.type==='deurmetraam';
-    const formule = isDR
-      ? `${aantalTxt}(${n2l(d.breedte)} × ${n2l(d.hoogte)} − ${n2l(d.raamBreedte)} × ${n2l(d.raamHoogte)})`
-      : `${aantalTxt}${n2l(d.breedte)} × ${n2l(d.hoogte)}`;
-    uit.push({soort:'deur', opp:d.deurOpp, isolatie:d.isolatie, gevelKey:d.gevelKey,
-      label:`${d.naam}${isDR?' — deurdeel':''} — ${orient}`, detail: RD_ISOLATIE_LABELS[d.isolatie] || d.isolatie, formule});
-  }
-  if(d.paneelOpp>0){
-    const n2 = x => (Math.round(x*100)/100).toFixed(2);
-    uit.push({soort:'paneel', opp:d.paneelOpp, gevelKey:d.gevelKey,
-      label:`${d.naam} — ${orient}`, detail:'Paneel', formule:`${aantalTxt}${n2(d.breedte)} × ${n2(d.hoogte)}`});
+  const isDR = d.type==='deurmetraam';
+  for(let i = 0; i < d.aantal; i++){
+    const nr = d.aantal>1 ? ` (${i+1} van ${d.aantal})` : '';
+    if(d.raamOppStuk>0){
+      const formule = isDR ? `${n2l(d.raamBreedte)} × ${n2l(d.raamHoogte)}` : `${n2l(d.breedte)} × ${n2l(d.hoogte)}`;
+      uit.push({soort:'raam', opp:d.raamOppStuk, glastype:d.glastype, gevelKey:d.gevelKey,
+        zonwering:d.zonwering,
+        label:`${d.naam}${nr}${isDR?' — raam in deur':''}${rdGlasKort(d.glastype) ? ' ('+rdGlasKort(d.glastype)+')' : ''} — ${orient}`, detail: rdGlasLabel(d.glastype) + (d.zonwering ? ', met zonwering' : ''), formule});
+    }
+    if(d.deurOppStuk>0){
+      const formule = isDR
+        ? `${n2l(d.breedte)} × ${n2l(d.hoogte)} − ${n2l(d.raamBreedte)} × ${n2l(d.raamHoogte)}`
+        : `${n2l(d.breedte)} × ${n2l(d.hoogte)}`;
+      uit.push({soort:'deur', opp:d.deurOppStuk, isolatie:d.isolatie, gevelKey:d.gevelKey,
+        label:`${d.naam}${nr}${isDR?' — deurdeel':''} — ${orient}`, detail: RD_ISOLATIE_LABELS[d.isolatie] || d.isolatie, formule});
+    }
+    if(d.paneelOppStuk>0){
+      uit.push({soort:'paneel', opp:d.paneelOppStuk, gevelKey:d.gevelKey,
+        label:`${d.naam}${nr} — ${orient}`, detail:'Paneel', formule:`${n2l(d.breedte)} × ${n2l(d.hoogte)}`});
+    }
   }
   return uit;
 }
+
 
 function renderRamenDeurenResultaten(){
   const data = alleRamenDeurenData();
