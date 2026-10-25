@@ -387,7 +387,7 @@ async function maakPdf(){
 }
 
 /* ══════════ Mail ══════════ */
-const ST='font-family:Merriweather,Georgia,serif;font-size:11pt;color:#000000;line-height:150%;margin:0 0 10pt 0';
+const ST='font-family:Cambria,Charter,Georgia,serif;font-variant-numeric:lining-nums;font-size:11pt;color:#000000;line-height:150%;margin:0 0 10pt 0';
 const p_=h=>`<p style="${ST}">${h}</p>`;
 function klantMail(){
   const [s,p]=adres();const d=opnameDatum(),t=opnameTijd();
@@ -396,8 +396,8 @@ function klantMail(){
     h+=p_('Hartelijk dank voor uw opdracht. Hierbij bevestig ik de afspraak voor de opname van uw woning:');
     const dt=datumLang(d);
     h+=`<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 12pt 0"><tr><td style="background:#f4f2f6;border-left:5px solid #432d6a;border-radius:6px;padding:10px 16px">`+
-       `<div style="font-family:Merriweather,Georgia,serif;font-size:15pt;font-weight:bold;color:#432d6a">${esc(dt.charAt(0).toUpperCase()+dt.slice(1))}${t?' om '+esc(t):''}</div>`+
-       `<div style="font-family:Merriweather,Georgia,serif;font-size:10pt;color:#1e1830;margin-top:4px">${esc(s)}${p?', '+esc(p):''} &nbsp;·&nbsp; duur ongeveer 1 uur</div></td></tr></table>`;
+       `<div style="font-family:Cambria,Charter,Georgia,serif;font-variant-numeric:lining-nums;font-size:15pt;font-weight:bold;color:#432d6a">${esc(dt.charAt(0).toUpperCase()+dt.slice(1))}${t?' om '+esc(t):''}</div>`+
+       `<div style="font-family:Cambria,Charter,Georgia,serif;font-variant-numeric:lining-nums;font-size:10pt;color:#1e1830;margin-top:4px">${esc(s)}${p?', '+esc(p):''} &nbsp;·&nbsp; duur ongeveer 1 uur</div></td></tr></table>`;
   } else {
     h+=p_(`Hartelijk dank voor uw opdracht voor de opname van uw woning aan de ${esc(s)}${p?', '+esc(p):''}. Ik neem binnenkort contact met u op om een datum te plannen.`);
   }

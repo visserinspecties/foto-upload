@@ -732,8 +732,13 @@ async function maakFactuurPdf(){
 function rondPad(w,h,r){return `M ${r} 0 H ${w-r} Q ${w} 0 ${w} ${r} V ${h-r} Q ${w} ${h} ${w-r} ${h} H ${r} Q 0 ${h} 0 ${h-r} V ${r} Q 0 0 ${r} 0 Z`}
 
 /* ══════════ Mails ══════════ */
-const ST='font-family:Merriweather,Georgia,serif;font-size:11pt;color:#000000;line-height:150%;margin:0 0 10pt 0';
+const ST='font-family:Cambria,Charter,Georgia,serif;font-variant-numeric:lining-nums;font-size:11pt;color:#000000;line-height:150%;margin:0 0 10pt 0';
 const p_=h=>`<p style="${ST}">${h}</p>`;
+/* Voorkomt dat Outlook/iPhone nummers, datums en webadressen automatisch blauw onderstreept (als telefoonnummer/link).
+   vast(): tekst in een anker zonder href, zodat de herkenner hem overslaat.
+   vastZw(): idem plus onzichtbare tekens tussen cijfers (alleen voor tekst die niet gekopieerd hoeft te worden, dus niet voor de IBAN). */
+const vast=(s,kleur)=>`<a name="vi" style="color:${kleur||'#000000'};text-decoration:none;white-space:nowrap">${esc(s)}</a>`;
+const vastZw=(s,kleur)=>`<a name="vi" style="color:${kleur||'#000000'};text-decoration:none;white-space:nowrap">${esc(s).replace(/(\d)(?=\d)/g,'$1&zwnj;')}</a>`;
 function adresRegels(metKlasse){
   const lijst=F.adressen.length?F.adressen:[{mooi:F.regels.map(r=>r.oms).join(', ')}];
   return lijst.map(a=>`<b>${esc(a.mooi)}</b>${metKlasse&&a.label&&a.label.klasse&&gekozenLabels().includes(a.label)?` &nbsp;&nbsp;energielabel ${labelBadge(a.label.klasse)}`:''}`).join('<br>');
@@ -747,9 +752,9 @@ function klantMail(){
   h+=p_(`In de bijlage vindt u ${wat} voor ${meer}:`);
   h+=p_(adresRegels($('m-klasse').checked));
   if(nl)h+=p_(`${nl>1?'De labels zijn':'Het label is'} geregistreerd bij RVO en ${nl>1?'zijn':'is'} ook terug te vinden op ep-online.nl.`);
-  h+=p_(`<b>Factuur ${esc(F.nr)}</b> &nbsp;·&nbsp; ${esc(euro(F.incl))} incl. btw &nbsp;·&nbsp; graag betalen vóór ${esc(F.verval)}`);
-  if(F.link)h+=`<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 10pt 0"><tr><td style="background:#432d6a;border-radius:6px;padding:10px 20px"><a href="${esc(F.link)}" style="font-family:Merriweather,Georgia,serif;font-size:11pt;font-weight:bold;color:#ffffff;text-decoration:none">Direct betalen met iDEAL of Bancontact &rsaquo;</a></td></tr></table>`;
-  h+=p_(`<span style="font-size:10pt;color:#555555">Liever zelf overmaken? Dat kan naar <b>${esc((F.bedrijf&&F.bedrijf.iban)||BEDRIJF.iban)}</b> t.n.v. ${esc(BEDRIJF.naam)}, onder vermelding van factuurnummer ${esc(F.nr)}.</span>`);
+  h+=p_(`<b>Factuur ${vastZw(F.nr)}</b> &nbsp;·&nbsp; ${vastZw(euro(F.incl))} incl. btw &nbsp;·&nbsp; graag betalen vóór ${vastZw(F.verval)}`);
+  if(F.link)h+=`<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 10pt 0"><tr><td style="background:#432d6a;border-radius:6px;padding:10px 20px"><a href="${esc(F.link)}" style="font-family:Cambria,Charter,Georgia,serif;font-variant-numeric:lining-nums;font-size:11pt;font-weight:bold;color:#ffffff;text-decoration:none">Direct betalen met iDEAL of Bancontact &rsaquo;</a></td></tr></table>`;
+  h+=p_(`<span style="font-size:10pt;color:#555555">Liever zelf overmaken? Dat kan naar <b>${vast((F.bedrijf&&F.bedrijf.iban)||BEDRIJF.iban,'#555555')}</b> t.n.v. ${vast(BEDRIJF.naam,'#555555')}, onder vermelding van factuurnummer ${vastZw(F.nr,'#555555')}.</span>`);
   if($('k-aan').checked&&$('k-naam').value.trim())h+=p_(`Een kopie van ${nl>1?'de labels':'het label'} stuur ik naar ${esc($('k-naam').value.trim())} voor het verkoop- en overdrachtsdossier.`);
   const eigen=$('m-eigen').value.trim();if(eigen)h+=p_(esc(eigen).replace(/\n/g,'<br>'));
   h+=p_('Met vriendelijke groet,');
