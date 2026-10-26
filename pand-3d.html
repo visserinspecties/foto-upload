@@ -126,10 +126,11 @@
       </div>
 
       <h2>Opslaan</h2>
-      <div class="rij"><button class="licht" id="png">Afbeelding (PNG)</button></div>
+      <div class="rij"><button class="licht" id="png">Afbeelding (PNG)</button><button class="licht" id="aanzichtenPdf">Aanzichten A3 (PDF)</button></div>
+      <div class="klein" style="margin-top:4px">Aanzichten: de vier gevels op schaal met maatlijnen tot de nok, dakhellingen en een tabel met breedte, diepte en hoogtes. Wijs eerst de voorgevel goed aan.</div>
       <div class="vak">
         <button id="opslaan" style="width:100%">Opslaan in project</button>
-        <div class="klein" id="opslaanInfo">Zet 3d-model.png (huidig aanzicht met maten en schetsen) en 3d-schets.json (de schetsen, om later verder te gaan) in 020 AANTEKENINGEN van het gekozen project.</div>
+        <div class="klein" id="opslaanInfo">Zet 3d-model.png (huidig aanzicht met maten en schetsen), 3d-aanzichten.pdf (vier gevels op A3) en 3d-schets.json (de schetsen, om later verder te gaan) in 020 AANTEKENINGEN van het gekozen project.</div>
       </div>
     </div>
     <div class="klein">Bron: 3DBAG (3DGI / TU Delft, CC BY 4.0), gemaakt uit de AHN-hoogtemeting, en BAG via PDOK. Het model is een vorm-idee: geen ramen of deuren, kleine dakkapellen en overstekken ontbreken vaak, en het is zo oud als de AHN-meting. Maten van de contour zijn BAG-maten (bovenaanzicht, inclusief overstek).</div>
@@ -633,6 +634,7 @@ function tekenDakvlakken() {
 // en hoe hoog de buur is (net buiten de gevel). Wat boven de buur uitsteekt, of waar geen buur staat, is vrij.
 function berekenVrijeDelen() {
   wisGroep('vrij');
+  M.vrij = [];
   const ray = new THREE.Raycaster(), omlaag = new V3(0, 0, -1);
   const top = (x, y, objs) => { ray.set(new V3(x, y, 500), omlaag); const h = ray.intersectObjects(objs, false)[0]; return h ? h.point.z : null; };
   const stap = 0.2, verschuif = 0.35, minHoog = 0.3;
@@ -666,10 +668,7 @@ function berekenVrijeDelen() {
 function tekenVrijStuk(e, run, stap) {
   const o = 0.04, nx = e.n[0] * o, ny = e.n[1] * o;
   // stuk iets verlengen zodat het tot de randen van de laatste meetpunten loopt
-  const pts = run.map((q, i) => {
-    let d = q.d; if (i === 0) d -= stap / 2; if (i === run.length - 1) d += stap / 2;
-    return { x: e.la[0] + e.t[0] * d + nx, y: e.la[1] + e.t[1] * d + ny, boven: q.hO, onder: q.onder };
-  });
+  const pts = run.map(q => ({ x: e.la[0] + e.t[0] * q.d + nx, y: e.la[1] + e.t[1] * q.d + ny, boven: q.hO, onder: q.onder }));
   const pos = [];
   for (let i = 0; i < pts.length - 1; i++) {
     const a = pts[i], b = pts[i + 1];
@@ -685,6 +684,7 @@ function tekenVrijStuk(e, run, stap) {
   const opp = run.reduce((t, q) => t + (q.hO - q.onder) * stap, 0);
   const midden = pts[Math.floor(pts.length / 2)];
   const soort = run.every(q => q.belend) ? 'boven buur' : run.some(q => q.belend) ? 'vrij' : 'naast buur';
+  M.vrij.push({ edge: M.edges.indexOf(e), soort, breed, hoog, opp });
   maakLabel(new V3(midden.x + e.n[0] * 0.3, midden.y + e.n[1] * 0.3, (midden.boven + midden.onder) / 2), soort + ' · ' + nl(breed) + ' × max ' + nl(hoog) + ' m · ' + nl(opp, 1) + ' m²', 'vrij', 'vrij');
 }
 
@@ -964,6 +964,287 @@ $('png').addEventListener('click', async () => {
     const a = document.createElement('a'); a.href = url; a.download = naam; document.body.appendChild(a); a.click(); a.remove();
     melding('Afbeelding gemaakt van het huidige aanzicht.');
   } catch (e) { melding('Afbeelding maken mislukt: ' + e.message, true); }
+});
+
+// ================= aanzichten op A3 (vier gevels op schaal, met maten en tabel) =================
+// Elke gevel wordt loodrecht (orthografisch) getekend vanuit de 3D-scène, dus verborgen delen vallen vanzelf weg.
+// De maatlijnen en teksten tekenen we daarna zelf, uit de geometrie.
+const PXMM = 6, A3W = 420, A3H = 297;                    // 6 px per mm ≈ 150 dpi
+const SCHALEN = [50, 75, 100, 125, 150, 200, 250, 300, 400, 500, 750, 1000];
+const JSPDF_URL = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+const P = mm => mm * PXMM;
+const LETTER = 'Merriweather, Georgia, serif';
+let tekenRenderer = null;
+
+function laadScript(src) {
+  return new Promise((ok, nok) => {
+    if (document.querySelector('script[src="' + src + '"]')) return ok();
+    const s = document.createElement('script'); s.src = src; s.onload = ok;
+    s.onerror = () => nok(new Error('PDF-bibliotheek niet te laden')); document.head.appendChild(s);
+  });
+}
+function gevelRichtingen() {
+  const av = M.edges[M.vg].az;   // zelfde afspraak als de oriëntatie tool: LG = VG + 90°, RG = VG + 270°
+  return [['VG', 'Voorgevel', av], ['AG', 'Achtergevel', (av + 180) % 360], ['LG', 'Linkergevel', (av + 90) % 360], ['RG', 'Rechtergevel', (av + 270) % 360]];
+}
+function aanzichtMaten(az) {
+  const r = az * Math.PI / 180, n = [Math.sin(r), Math.cos(r)], rechts = [-n[1], n[0]];
+  const u = p => p[0] * rechts[0] + p[1] * rechts[1], d = p => p[0] * n[0] + p[1] * n[1];
+  const pts = M.info.flatMap(v => v.rings[0]);
+  const us = pts.map(u), uMin = Math.min(...us), uMax = Math.max(...us);
+  const dMax = Math.max(...pts.map(d));
+  const dakVoor = M.info.filter(v => v.type === 'RoofSurface').flatMap(v => v.rings[0]).filter(p => d(p) >= dMax - 1.0);
+  const goot = dakVoor.length ? Math.min(...dakVoor.map(p => p[2])) : M.hMin;
+  return { n, rechts, u, uMin, uMax, breed: uMax - uMin, goot, nok: M.hMax };
+}
+function muurPerGevel(R) {
+  const tot = {};
+  M.info.filter(v => v.type === 'WallSurface' && Math.abs(v.n.z) < 0.3).forEach(v => {
+    const az = azimuth(v.n.x, v.n.y); let best = null, bd = 1e9;
+    R.forEach(([k, , a]) => { const dd = angDiff(az, a); if (dd < bd) { bd = dd; best = k; } });
+    tot[best] = (tot[best] || 0) + v.opp;
+  });
+  return tot;
+}
+function renderAanzicht(a, s, wPx, hPx, u0, z0) {
+  if (!tekenRenderer) { tekenRenderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); tekenRenderer.setPixelRatio(1); }
+  tekenRenderer.setSize(wPx, hPx, false);
+  const wM = wPx / s, hM = hPx / s, uc = u0 + wM / 2, zc = z0 - hM / 2;
+  const cam = new THREE.OrthographicCamera(-wM / 2, wM / 2, hM / 2, -hM / 2, 1, 2000);
+  cam.up.set(0, 0, 1);
+  cam.position.set(a.rechts[0] * uc + a.n[0] * 500, a.rechts[1] * uc + a.n[1] * 500, zc);
+  cam.lookAt(cam.position.x - a.n[0], cam.position.y - a.n[1], zc);
+  cam.updateProjectionMatrix();
+  lijnMaterialen.forEach(m => m.resolution.set(wPx, hPx));
+  zon.position.set(a.n[0] * 60 - a.rechts[0] * 25, a.n[1] * 60 - a.rechts[1] * 25, 70);
+  tekenRenderer.render(scene, cam);
+  return tekenRenderer.domElement;
+}
+// Tijdelijk alleen pand, vrije delen en schetsen tonen; daarna alles terugzetten.
+function metTekenScene(fn) {
+  const zicht = {}; GROEPEN.forEach(g => { zicht[g] = groep[g].visible; });
+  ['buren', 'maten', 'hoogte', 'dak', 'verdieping', 'hulp'].forEach(g => { groep[g].visible = false; });
+  groep.pand.visible = true; groep.schets.visible = true;
+  const oud = { grond: grond.visible, bg: scene.background, zon: zon.position.clone(), mat: M.mesh.material };
+  grond.visible = false; scene.background = new THREE.Color(0xffffff);
+  M.mesh.material = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });   // vlakke kleuren, zoals een tekening
+  try { return fn(); }
+  finally {
+    GROEPEN.forEach(g => { groep[g].visible = zicht[g]; });
+    grond.visible = oud.grond; scene.background = oud.bg; zon.position.copy(oud.zon);
+    M.mesh.material.dispose(); M.mesh.material = oud.mat;
+    lijnMaterialen.forEach(m => m.resolution.set(houder.clientWidth, houder.clientHeight));
+  }
+}
+function maatlijn(ctx, x1, y1, x2, y2, tekst, kant) {
+  // kant: -1 = tekst links/boven de lijn, +1 = rechts/onder
+  ctx.save();
+  ctx.strokeStyle = '#1b2733'; ctx.fillStyle = '#1b2733'; ctx.lineWidth = P(0.18);
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  const t = P(1.3);
+  [[x1, y1], [x2, y2]].forEach(([x, y]) => { ctx.beginPath(); ctx.moveTo(x - t, y + t); ctx.lineTo(x + t, y - t); ctx.lineWidth = P(0.35); ctx.stroke(); });
+  ctx.font = P(2.6) + 'px ' + LETTER; ctx.textAlign = 'center';
+  const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+  if (Math.abs(x2 - x1) < Math.abs(y2 - y1)) {          // verticaal: tekst gedraaid
+    ctx.translate(mx + kant * P(1.4), my); ctx.rotate(-Math.PI / 2);
+    ctx.textBaseline = kant < 0 ? 'bottom' : 'top'; ctx.fillText(tekst, 0, 0);
+  } else {
+    ctx.textBaseline = kant < 0 ? 'bottom' : 'top'; ctx.fillText(tekst, mx, my + kant * P(1));
+  }
+  ctx.restore();
+}
+function hulplijn(ctx, x1, y1, x2, y2) {
+  ctx.save(); ctx.strokeStyle = '#8a949e'; ctx.lineWidth = P(0.12);
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.restore();
+}
+function kaderTekst(ctx, x, y, tekst, opties) {
+  opties = opties || {};
+  ctx.save();
+  ctx.font = (opties.vet ? '700 ' : '') + P(opties.mm || 2.5) + 'px ' + LETTER;
+  const w = ctx.measureText(tekst).width + P(2), h = P((opties.mm || 2.5) + 1.6);
+  ctx.fillStyle = opties.bg || 'rgba(255,255,255,.92)'; ctx.fillRect(x - w / 2, y - h / 2, w, h);
+  ctx.strokeStyle = opties.rand || '#1b2733'; ctx.lineWidth = P(0.15); ctx.strokeRect(x - w / 2, y - h / 2, w, h);
+  ctx.fillStyle = opties.kleur || '#1b2733'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(tekst, x, y + P(0.1));
+  ctx.restore();
+}
+function tekenAanzicht(ctx, a, x0, y0, cel, marge, s) {
+  ctx.strokeStyle = '#cfd8e0'; ctx.lineWidth = P(0.2); ctx.strokeRect(P(x0), P(y0), P(cel.w), P(cel.h));
+  ctx.fillStyle = '#1f4e79'; ctx.font = '700 ' + P(3.2) + 'px ' + LETTER; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  const titel = a.naam + ' (' + a.k + ')';
+  ctx.fillText(titel, P(x0 + 4), P(y0 + 6.5));
+  const tb = ctx.measureText(titel).width;
+  ctx.fillStyle = '#5b6670'; ctx.font = P(2.5) + 'px ' + LETTER;
+  ctx.fillText('kijkt naar ' + compass(a.az) + ' (' + Math.round(a.az) + '°)', P(x0 + 4) + tb + P(3), P(y0 + 6.5));
+
+  const ax = P(x0 + marge.l), ay = P(y0 + marge.t), aw = P(cel.w - marge.l - marge.r), ah = P(cel.h - marge.t - marge.o);
+  const bw = a.breed * s, bh = M.hMax * s;
+  const ox = ax + (aw - bw) / 2, grondY = ay + ah - (ah - bh) / 2;
+  const X = u => ox + (u - a.uMin) * s, Y = z => grondY - z * s;
+
+  // 3D-aanzicht erin
+  const pad = P(3);
+  const rx = Math.round(ox - pad), ry = Math.round(grondY - bh - pad), rw = Math.round(bw + 2 * pad), rh = Math.round(bh + pad + P(0.5));
+  const img = renderAanzicht(a, s, rw, rh, a.uMin - (ox - rx) / s, (grondY - ry) / s);
+  ctx.drawImage(img, rx, ry);
+
+  // maaiveld
+  ctx.strokeStyle = '#1b2733'; ctx.lineWidth = P(0.5);
+  ctx.beginPath(); ctx.moveTo(X(a.uMin) - P(5), Y(0)); ctx.lineTo(X(a.uMax) + P(5), Y(0)); ctx.stroke();
+  ctx.lineWidth = P(0.12);
+  for (let x = X(a.uMin) - P(5); x < X(a.uMax) + P(5); x += P(2)) { ctx.beginPath(); ctx.moveTo(x, Y(0)); ctx.lineTo(x - P(1.5), Y(0) + P(1.5)); ctx.stroke(); }
+
+  // hoogtematen links: binnen goot + rest, buiten totaal tot de nok
+  const xBin = X(a.uMin) - P(8), xBui = X(a.uMin) - P(15);
+  hulplijn(ctx, X(a.uMin) - P(1), Y(a.nok), xBui - P(1.5), Y(a.nok));
+  if (a.nok - a.goot > 0.25) {
+    hulplijn(ctx, X(a.uMin) - P(1), Y(a.goot), xBin - P(1.5), Y(a.goot));
+    maatlijn(ctx, xBin, Y(0), xBin, Y(a.goot), nl(a.goot), -1);
+    maatlijn(ctx, xBin, Y(a.goot), xBin, Y(a.nok), nl(a.nok - a.goot), -1);
+  }
+  maatlijn(ctx, xBui, Y(0), xBui, Y(a.nok), nl(a.nok), -1);
+  // breedte onder het maaiveld
+  const yb = Y(0) + P(7);
+  hulplijn(ctx, X(a.uMin), Y(0) + P(1), X(a.uMin), yb + P(1.5));
+  hulplijn(ctx, X(a.uMax), Y(0) + P(1), X(a.uMax), yb + P(1.5));
+  maatlijn(ctx, X(a.uMin), yb, X(a.uMax), yb, ((a.k === 'LG' || a.k === 'RG') ? 'diepte ' : 'breedte ') + nl(a.breed) + ' m', 1);
+
+  // peilmaten rechts
+  const peil = (z, tekst) => {
+    const x = X(a.uMax) + P(3), y = Y(z);
+    ctx.save(); ctx.fillStyle = '#1f4e79';
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + P(1.6), y - P(1.6)); ctx.lineTo(x - P(1.6), y - P(1.6)); ctx.closePath(); ctx.fill();
+    ctx.font = P(2.5) + 'px ' + LETTER; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+    ctx.fillText(tekst, x + P(2.2), y - P(0.2)); ctx.restore();
+    hulplijn(ctx, X(a.uMax) + P(0.5), y, x + P(1.6), y);
+  };
+  peil(a.nok, '+' + nl(a.nok) + ' nok');
+  if (a.nok - a.goot > 0.25) peil(a.goot, '+' + nl(a.goot) + ' goot');
+  peil(0, '±0 mv');
+
+  // dakhellingen op de zichtbare dakvlakken
+  const ray = new THREE.Raycaster(), naarKijker = new V3(a.n[0], a.n[1], 0);
+  const geplaatst = [];
+  M.info.filter(v => v.type === 'RoofSurface' && v.opp >= 2).sort((p, q) => q.opp - p.opp).forEach(v => {
+    const helling = Math.acos(Math.min(1, Math.abs(v.n.z))) * 180 / Math.PI;
+    if (helling < 5 || geplaatst.length >= 8) return;
+    ray.set(v.c.clone().add(v.n.clone().multiplyScalar(0.05)).add(naarKijker.clone().multiplyScalar(0.02)), naarKijker);
+    if (ray.intersectObject(M.mesh, false).length) return;     // achter iets anders
+    const px = X(a.u([v.c.x, v.c.y])), py = Y(v.c.z);
+    if (geplaatst.some(q => Math.hypot(q[0] - px, q[1] - py) < P(9))) return;
+    geplaatst.push([px, py]);
+    kaderTekst(ctx, px, py, Math.round(helling) + '°', { rand: '#b5543c', kleur: '#7a2e1d' });
+  });
+}
+function tekenBladTabel(ctx, A, R, N) {
+  const x = P(325), w = P(87);
+  let y = P(30);
+  const kop = t => { ctx.fillStyle = '#1f4e79'; ctx.font = '700 ' + P(3) + 'px ' + LETTER; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.fillText(t, x, y); y += P(1.6); ctx.strokeStyle = '#1f4e79'; ctx.lineWidth = P(0.25); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.stroke(); y += P(4); };
+  const rij = (cellen, kolommen, opties) => {
+    ctx.fillStyle = (opties && opties.grijs) ? '#5b6670' : '#1b2733';
+    ctx.font = ((opties && opties.vet) ? '700 ' : '') + P(2.5) + 'px ' + LETTER; ctx.textBaseline = 'alphabetic';
+    cellen.forEach((c, i) => { const [kx, uitl] = kolommen[i]; ctx.textAlign = uitl; ctx.fillText(String(c), x + P(kx), y); });
+    y += P(1.4); ctx.strokeStyle = '#e1e6eb'; ctx.lineWidth = P(0.12); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.stroke(); y += P(3.4);
+  };
+  const regel = (t, mm) => {   // tekst met afbreken
+    ctx.fillStyle = '#5b6670'; ctx.font = P(mm || 2.3) + 'px ' + LETTER; ctx.textAlign = 'left';
+    let lijn = '';
+    t.split(' ').forEach(woord => { const test = lijn ? lijn + ' ' + woord : woord; if (ctx.measureText(test).width > w && lijn) { ctx.fillText(lijn, x, y); y += P(3.3); lijn = woord; } else lijn = test; });
+    if (lijn) { ctx.fillText(lijn, x, y); y += P(3.3); }
+  };
+  const muur = muurPerGevel(R);
+  const K = [[0, 'left'], [32, 'right'], [47, 'right'], [62, 'right'], [87, 'right']];
+  kop('Gevels');
+  rij(['Gevel', 'Breedte', 'Goot', 'Nok', 'Muur bruto'], K, { vet: true });
+  A.forEach(a => rij([a.k + ' · ' + compass(a.az), nl(a.breed) + ' m', nl(a.goot) + ' m', nl(a.nok) + ' m', muur[a.k] ? nl(muur[a.k], 1) + ' m²' : '–'], K));
+  regel('Breedte van LG en RG = diepte van het pand. Hoogtes boven maaiveld. Muur bruto: uit 3DBAG, inclusief ramen en eventuele scheidingsmuur.');
+  const lab = assignLabels(M.edges, M.vg), cont = {};
+  M.edges.forEach((e, i) => { cont[lab[i]] = (cont[lab[i]] || 0) + e.len; });
+  regel('BAG-contour per gevel: ' + ['VG', 'AG', 'LG', 'RG'].map(k => k + ' ' + nl(cont[k] || 0)).join(' · ') + ' m');
+  y += P(3);
+
+  const dak = M.info.filter(v => v.type === 'RoofSurface' && v.opp >= 2).sort((p, q) => q.opp - p.opp).slice(0, 10);
+  if (dak.length) {
+    kop('Dakvlakken');
+    const KD = [[0, 'left'], [32, 'right'], [55, 'right'], [87, 'right']];
+    rij(['Vlak', 'Helling', 'Richting', 'Oppervlak'], KD, { vet: true });
+    dak.forEach((v, i) => {
+      const h = Math.acos(Math.min(1, Math.abs(v.n.z))) * 180 / Math.PI;
+      rij([String(i + 1), h < 5 ? 'plat' : Math.round(h) + '°', h < 5 ? '–' : compass(azimuth(v.n.x, v.n.y)), nl(v.opp, 1) + ' m²'], KD);
+    });
+    y += P(3);
+  }
+  if (M.vrij && M.vrij.length) {
+    kop('Vrije delen scheidingsmuur');
+    const KV = [[0, 'left'], [40, 'right'], [62, 'right'], [87, 'right']];
+    rij(['Gevel', 'Breed', 'Max hoog', 'Oppervlak'], KV, { vet: true });
+    M.vrij.forEach(v => rij([(lab[v.edge] || '?') + ' · ' + v.soort, nl(v.breed) + ' m', nl(v.hoog) + ' m', nl(v.opp, 1) + ' m²'], KV));
+    y += P(3);
+  }
+  const at = M.pand.attr;
+  kop('Pand');
+  const KP = [[0, 'left'], [87, 'right']];
+  rij(['Hoogste punt', nl(M.hMax) + ' m boven maaiveld'], KP);
+  rij(['Maaiveld', nl(M.O[2]) + ' m +NAP'], KP);
+  if (at.oorspronkelijkbouwjaar) rij(['Bouwjaar', at.oorspronkelijkbouwjaar], KP);
+  if (getal(at, 'b3_opp_grond') != null) rij(['Grondvlak', nl(getal(at, 'b3_opp_grond'), 1) + ' m²'], KP);
+  if (getal(at, 'b3_volume_lod22') != null) rij(['Volume', nl(getal(at, 'b3_volume_lod22'), 0) + ' m³'], KP);
+  if (at.b3_pw_bron) rij(['Hoogtemeting', String(at.b3_pw_bron).toUpperCase() + (at.b3_pw_datum ? ' (' + at.b3_pw_datum + ')' : '')], KP);
+  rij(['Schaal op A3', '1:' + N], KP);
+  y += P(2);
+  regel('Indicatief vormmodel uit 3DBAG (AHN-hoogtemeting). Geen ramen, deuren of overstekken; kleine dakkapellen kunnen ontbreken. Contourmaten zijn BAG-maten (bovenaanzicht, inclusief overstek). Niet gebruiken als vervanging van de opname.', 2.2);
+}
+async function maakAanzichtenCanvas() {
+  if (!M) throw new Error('Bouw eerst een pand.');
+  if (M.vg == null) throw new Error('Wijs eerst de voorgevel aan met 🎯 Voorgevel.');
+  rondLijnAf();
+  try { await Promise.all([document.fonts.load(P(3) + 'px Merriweather'), document.fonts.load('700 ' + P(3) + 'px Merriweather')]); } catch (_) {}
+  const R = gevelRichtingen();
+  const A = R.map(([k, naam, az]) => Object.assign({ k, naam, az }, aanzichtMaten(az)));
+  const cel = { w: 157, h: 130 }, marge = { l: 30, r: 30, t: 12, o: 16 };
+  const maxB = Math.max(...A.map(a => a.breed));
+  const mmPerM = Math.min((cel.w - marge.l - marge.r) / maxB, (cel.h - marge.t - marge.o) / (M.hMax + 0.3));
+  const N = SCHALEN.find(n => 1000 / n <= mmPerM) || 1000;
+  const s = 1000 / N * PXMM;   // pixels per meter
+  const c = document.createElement('canvas'); c.width = P(A3W); c.height = P(A3H);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+  // kop
+  ctx.fillStyle = '#1f4e79'; ctx.fillRect(0, 0, c.width, P(20));
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.font = '700 ' + P(5.5) + 'px ' + LETTER; ctx.fillText((M.doc && M.doc.weergavenaam) || M.pand.id, P(8), P(9.5));
+  ctx.font = P(3) + 'px ' + LETTER; ctx.fillText('Aanzichten uit 3DBAG · indicatief vormmodel · schaal 1:' + N + ' op A3 · ' + new Date().toLocaleDateString('nl-NL'), P(8), P(16));
+  ctx.textAlign = 'right'; ctx.font = '700 ' + P(3.6) + 'px ' + LETTER; ctx.fillText('Visser Inspecties', P(A3W - 8), P(9.5));
+  ctx.font = P(2.6) + 'px ' + LETTER; ctx.fillText('EnergiePrestatie-advies', P(A3W - 8), P(16));
+  // vier aanzichten
+  const plek = [[6, 24], [6 + cel.w, 24], [6, 24 + cel.h], [6 + cel.w, 24 + cel.h]];
+  metTekenScene(() => A.forEach((a, i) => tekenAanzicht(ctx, a, plek[i][0], plek[i][1], cel, marge, s)));
+  tekenBladTabel(ctx, A, R, N);
+  // schaalstok onder de tabel
+  const sx = P(325), sy = P(A3H - 12), stap = Math.max(1, [1, 2, 5, 10].find(m => m * s >= P(8)) || 10);
+  for (let i = 0; i < 5; i++) { ctx.fillStyle = i % 2 ? '#fff' : '#1b2733'; ctx.fillRect(sx + i * stap * s, sy, stap * s, P(1.4)); }
+  ctx.strokeStyle = '#1b2733'; ctx.lineWidth = P(0.15); ctx.strokeRect(sx, sy, 5 * stap * s, P(1.4));
+  ctx.fillStyle = '#1b2733'; ctx.font = P(2.3) + 'px ' + LETTER; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  ctx.fillText('0', sx, sy + P(2)); ctx.textAlign = 'right'; ctx.fillText(5 * stap + ' m', sx + 5 * stap * s, sy + P(2));
+  ctx.fillStyle = '#5b6670'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.font = P(2.2) + 'px ' + LETTER;
+  ctx.fillText('Bron: 3DBAG (3DGI / TU Delft, CC BY 4.0) en BAG via PDOK · gemaakt met Pand in 3D', P(6), P(A3H - 2.5));
+  return c;
+}
+async function maakAanzichtenPdf() {
+  const c = await maakAanzichtenCanvas();
+  await laadScript(JSPDF_URL);
+  const doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' });
+  doc.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, A3W, A3H);
+  return doc.output('blob');
+}
+$('aanzichtenPdf').addEventListener('click', async () => {
+  const knop = $('aanzichtenPdf'); knop.disabled = true; melding('Aanzichten tekenen…');
+  try {
+    const blob = await maakAanzichtenPdf(), url = URL.createObjectURL(blob);
+    const naam = 'Aanzichten ' + (((M.doc && M.doc.weergavenaam) || 'pand').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '_')) + '.pdf';
+    const a = document.createElement('a'); a.href = url; a.download = naam; document.body.appendChild(a); a.click(); a.remove();
+    melding('Aanzichten klaar (A3, PDF).');
+  } catch (e) { melding('Aanzichten maken mislukt: ' + e.message, true); }
+  knop.disabled = false;
 });
 
 // ================= zoeken en starten =================
@@ -1282,9 +1563,17 @@ async function opslaanInProject() {
     };
     const p1 = await fetch(GRAPH + '/root:/' + gp(pad) + '/3d-model.png:/content', { method: 'PUT', headers: Object.assign({ 'Content-Type': 'image/png' }, H), body: png });
     if (!p1.ok) throw new Error('afbeelding opslaan mislukt (' + p1.status + ')');
+    let pdfTekst = '';
+    if (M.vg != null) {
+      try {
+        const pdf = await maakAanzichtenPdf();
+        const p3 = await fetch(GRAPH + '/root:/' + gp(pad) + '/3d-aanzichten.pdf:/content', { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/pdf' }, H), body: pdf });
+        pdfTekst = p3.ok ? ', 3d-aanzichten.pdf' : ' (aanzichten-PDF mislukt: ' + p3.status + ')';
+      } catch (e) { pdfTekst = ' (aanzichten-PDF mislukt: ' + e.message + ')'; }
+    }
     const p2 = await fetch(GRAPH + '/root:/' + gp(pad) + '/3d-schets.json:/content', { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, H), body: JSON.stringify(data, null, 2) });
     if (!p2.ok) throw new Error('afbeelding staat er, maar 3d-schets.json niet (' + p2.status + ')');
-    info.textContent = '✅ Opgeslagen in ' + gekozenProject.naam + ': 3d-model.png en 3d-schets.json (' + M.schetsen.length + ' schetsen). Open je dit project later weer, dan komen de schetsen terug.';
+    info.textContent = '✅ Opgeslagen in ' + gekozenProject.naam + ': 3d-model.png' + pdfTekst + ' en 3d-schets.json (' + M.schetsen.length + ' schetsen). Open je dit project later weer, dan komen de schetsen terug.';
     melding('Opgeslagen in het project.');
   } catch (e) { fout((e && e.message ? e.message : e) + ' Gebruik zo nodig "Afbeelding (PNG)" als vangnet.'); }
   knop.disabled = false;
