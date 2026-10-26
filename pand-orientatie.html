@@ -43,6 +43,12 @@
   .klein { font-size:11px; color:var(--grijs); margin-top:10px; line-height:1.5; }
   #od-status { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:7px 16px; font-size:12px; background:#efece3; color:#6b6555; }
   #od-status button { padding:4px 12px; font-size:12px; font-weight:700; border:1px solid currentColor; background:#fff; color:inherit; border-radius:5px; }
+  .hoogte-vak { margin-top:10px; padding:10px; border:1px solid var(--rand); border-radius:6px; background:#fff; }
+  .hoogte-vak .groot { font-size:20px; font-weight:700; color:var(--blauw); margin:2px 0 6px; }
+  .hoogte-vak table td:last-child { text-align:right; white-space:nowrap; }
+  .hoogte-vak .waarschuwing { color:#9a5b00; font-size:11px; margin-top:6px; }
+  .hoogte-vak details { margin-top:8px; font-size:12px; }
+  .hoogte-vak summary { cursor:pointer; color:var(--blauw); }
   .opslaan-vak { margin-top:8px; padding:10px; border:1px solid var(--rand); border-radius:6px; background:var(--blauw-licht); }
   .opslaan-vak .klein { margin-top:6px; }
   #pj-scherm { position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; padding:12px; }
@@ -84,6 +90,7 @@
     <div id="resultaat" style="display:none;">
       <h2 id="adresTitel"></h2>
       <div id="pandInfo" class="klein" style="margin-top:0"></div>
+      <div id="hoogteVak" class="hoogte-vak" style="display:none"></div>
       <h2>Kaartje</h2>
       <div class="rij"><select id="achtergrond"><option value="kaart">Achtergrond: kaart</option><option value="lucht">Achtergrond: luchtfoto</option><option value="geen">Zonder achtergrond</option></select><button id="png">Maak kaartje (PNG)</button></div>
       <img id="pngvoorbeeld" alt="Kaartje met gevelrichtingen" style="display:none;width:100%;margin-top:8px;border:1px solid var(--rand)">
@@ -101,7 +108,7 @@
         <div class="klein" id="opslaanInfo">Zet het kaartje en de gevelrichtingen in de map 020 AANTEKENINGEN van het gekozen project. Huismaten neemt ze daar over in de A3.</div>
       </div>
     </div>
-    <div class="klein">Bron: BAG (Kadaster) via PDOK, opgehaald in je eigen browser. De BAG-contour is indicatief en geen vervanging van opmeten. "Kijkt naar" is de richting waarop de gevel uitkijkt, dus de normaal van de gevel naar buiten.</div>
+    <div class="klein">Bron: BAG (Kadaster) via PDOK; hoogte uit 3DBAG (3DGI / TU Delft, CC BY 4.0), opgehaald in je eigen browser. De BAG-contour is indicatief en geen vervanging van opmeten. "Kijkt naar" is de richting waarop de gevel uitkijkt, dus de normaal van de gevel naar buiten.</div>
   </div>
   <div class="kaartvak">
     <div id="kaart"></div>
@@ -502,6 +509,88 @@ async function autoVoorgevel(doc) {
 }
 function kiesVoorgevel(i) { state.vg = i; state.vgBron = 'handmatig'; tekenAlles(); }
 
+// ---------- 3DBAG: hoogste punt van het pand ----------
+// 3DBAG = 3D-model van elk BAG-pand, gemaakt uit de AHN-puntenwolk. Hoogtes staan in meters t.o.v. NAP;
+// "boven maaiveld" rekenen we zelf uit (dakhoogte min maaiveldhoogte).
+const BAG3D_API = 'https://api.3dbag.nl/collections/pand/items/';
+const DAKTYPE = { 'slanted': 'hellend', 'horizontal': 'plat', 'multiple horizontal': 'meerdere platte delen', 'unknown': 'onbekend', 'no points': 'geen meetpunten', 'no planes': 'geen dakvlakken herkend' };
+function getal(a, ...namen) { for (const n of namen) { const v = a[n]; if (typeof v === 'number' && isFinite(v)) return v; } return null; }
+const nl = (v, d = 2) => v.toFixed(d).replace('.', ',');
+async function haal3dbag(pandId) {
+  const id = 'NL.IMBAG.Pand.' + String(pandId).replace(/^NL\.IMBAG\.Pand\./, '').padStart(16, '0');
+  const ctrl = new AbortController(), klok = setTimeout(() => ctrl.abort(), 15000);
+  let r;
+  try { r = await fetch(BAG3D_API + encodeURIComponent(id), { signal: ctrl.signal, headers: { Accept: 'application/json' } }); }
+  catch (e) { throw new Error(e.name === 'AbortError' ? '3DBAG reageert niet' : '3DBAG niet bereikbaar'); }
+  finally { clearTimeout(klok); }
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error('3DBAG gaf HTTP ' + r.status);
+  const j = await r.json();
+  const co = ((j.feature || j).CityObjects) || {};
+  const gebouw = co[id] || Object.values(co).find(o => o.type === 'Building');
+  if (!gebouw || !gebouw.attributes) return null;
+  const a = gebouw.attributes;
+  // Veldnamen verschillen per 3DBAG-versie (b3_h_dak_max / b3_h_max): beide proberen.
+  return {
+    id,
+    maaiveld: getal(a, 'b3_h_maaiveld'),
+    max: getal(a, 'b3_h_dak_max', 'b3_h_max'),
+    nok: getal(a, 'b3_h_nok'),
+    min: getal(a, 'b3_h_dak_min', 'b3_h_min'),
+    daktype: a.b3_dak_type || '',
+    bouwlagen: getal(a, 'b3_bouwlagen'),
+    bron: a.b3_pw_bron || '', jaar: a.b3_pw_datum || '',
+    twijfel: a.b3_kwaliteitsindicator === false || a.b3_pw_onvoldoende === true,
+    schil: {
+      grond: getal(a, 'b3_opp_grond'), buitenmuur: getal(a, 'b3_opp_buitenmuur'), scheidingsmuur: getal(a, 'b3_opp_scheidingsmuur'),
+      dakPlat: getal(a, 'b3_opp_dak_plat'), dakSchuin: getal(a, 'b3_opp_dak_schuin'), volume: getal(a, 'b3_volume_lod22')
+    }
+  };
+}
+function boven(v, h) { return (v == null || h.maaiveld == null) ? null : v - h.maaiveld; }
+function toonHoogte() {
+  const vak = $('hoogteVak'), h = state.hoogte;
+  vak.style.display = 'block';
+  if (state.hoogteFout) { vak.innerHTML = '<div class="klein" style="margin:0">Hoogte (3DBAG): ' + state.hoogteFout + ' Zie <a href="https://3dbag.nl/" target="_blank" rel="noopener">3dbag.nl</a>.</div>'; return; }
+  if (!h) { vak.innerHTML = '<div class="klein" style="margin:0">Hoogte ophalen uit 3DBAG…</div>'; return; }
+  const top = boven(h.max, h);
+  const rij = (k, v) => v == null ? '' : '<tr><td>' + k + '</td><td>' + v + '</td></tr>';
+  let s = '<h2 style="margin:0">Hoogste punt (3DBAG)</h2>';
+  s += '<div class="groot">' + (top == null ? 'onbekend' : nl(top) + ' m boven maaiveld') + '</div>';
+  s += '<table><tbody>'
+    + rij('Hoogste dakpunt', h.max == null ? null : nl(h.max) + ' m +NAP')
+    + rij('Maaiveld', h.maaiveld == null ? null : nl(h.maaiveld) + ' m +NAP')
+    + rij('Nok boven maaiveld', boven(h.nok, h) == null ? null : nl(boven(h.nok, h)) + ' m')
+    + rij('Laagste dakpunt boven maaiveld', boven(h.min, h) == null ? null : nl(boven(h.min, h)) + ' m')
+    + rij('Daktype', h.daktype ? (DAKTYPE[h.daktype] || h.daktype) : null)
+    + rij('Bouwlagen (schatting)', h.bouwlagen)
+    + rij('Puntenwolk', h.bron ? h.bron.toUpperCase() + (h.jaar ? ' (' + h.jaar + ')' : '') : null)
+    + '</tbody></table>';
+  if (h.twijfel) s += '<div class="waarschuwing">⚠ 3DBAG meldt dat dit model mogelijk niet klopt (te weinig of afwijkende meetpunten). Controleer ter plaatse.</div>';
+  const c = h.schil, m = v => v == null ? null : nl(v, 1) + ' m²';
+  s += '<details><summary>Schil-indicatie uit 3DBAG (controle, niet voor de EPA-invoer)</summary><table><tbody>'
+    + rij('Grondvlak', m(c.grond)) + rij('Buitenmuur (incl. ramen)', m(c.buitenmuur)) + rij('Scheidingsmuur', m(c.scheidingsmuur))
+    + rij('Plat dak', m(c.dakPlat)) + rij('Hellend dak', m(c.dakSchuin)) + rij('Volume', c.volume == null ? null : nl(c.volume, 0) + ' m³')
+    + '</tbody></table><div class="klein">Geldt voor het héle BAG-pand (bij appartementen dus het hele gebouw). Gemeten op de buitenkant; het model kent geen ramen, overstekken of kleine dakkapellen.</div></details>';
+  vak.innerHTML = s;
+}
+async function laad3dbag(pand) {
+  state.hoogte = null; state.hoogteFout = '';
+  toonHoogte();
+  const pid = pand.f.properties && pand.f.properties.identificatie;
+  try {
+    if (!pid) throw new Error('geen pand-ID bekend.');
+    const h = await haal3dbag(pid);
+    if (state.pand !== pand) return; // intussen een ander adres gekozen
+    if (!h) state.hoogteFout = 'dit pand staat (nog) niet in 3DBAG.';
+    else state.hoogte = h;
+  } catch (e) {
+    if (state.pand !== pand) return;
+    state.hoogteFout = e.message + '.';
+  }
+  toonHoogte();
+}
+
 // ---------- flow ----------
 async function laadAdres(doc) {
   melding('Pand ophalen uit BAG…');
@@ -521,6 +610,7 @@ async function laadAdres(doc) {
   const p = pand.f.properties || {};
   $('pandInfo').textContent = 'Pand-ID ' + (p.identificatie || '?') + (p.bouwjaar ? ' · bouwjaar ' + p.bouwjaar : '') + (p.status ? ' · ' + p.status : '') + ' · ' + state.edges.length + ' gevels';
   tekenAlles();
+  laad3dbag(pand); // loopt op de achtergrond; kaart en gevels wachten er niet op
   if (HAS_L) {
     const b = L.latLngBounds(pand.ring.map(v => [v[1], v[0]]));
     kaart.fitBounds(b, { maxZoom: 20, padding: [60, 60] });
@@ -594,6 +684,8 @@ $('kopieer').addEventListener('click', async () => {
   const labels = state.vg === null ? null : assignLabels(state.edges, state.vg);
   const regels = ['Gevel\tLengte (m)\tGraden\tKijkt naar\tAanduiding'];
   state.edges.forEach((e, i) => regels.push([i + 1, e.len.toFixed(2).replace('.', ','), Math.round(e.az), compass(e.az), labels ? labels[i] : ''].join('\t')));
+  const h = state.hoogte;
+  if (h && boven(h.max, h) != null) regels.push('', 'Hoogste punt (3DBAG)\t' + nl(boven(h.max, h)) + ' m boven maaiveld\t' + nl(h.max) + ' m +NAP');
   try { await navigator.clipboard.writeText((state.adres ? state.adres.weergavenaam + '\n' : '') + regels.join('\n')); melding('Tabel gekopieerd.'); }
   catch (e) { melding('Kopiëren mislukt in deze browser.', true); }
 });
@@ -860,6 +952,11 @@ async function opslaanInProject() {
     if (!data.adres && state.adres) data.adres = state.adres.weergavenaam;
     const bj = state.pand && state.pand.f && state.pand.f.properties && state.pand.f.properties.bouwjaar;
     if (!data.bouwjaar && bj) data.bouwjaar = String(bj);
+    const h = state.hoogte;
+    if (h && boven(h.max, h) != null) {
+      data.hoogte3dbag = { hoogstePuntBovenMaaiveld: +boven(h.max, h).toFixed(2), hoogstePuntNAP: +h.max.toFixed(2), maaiveldNAP: +h.maaiveld.toFixed(2),
+        nokBovenMaaiveld: boven(h.nok, h) == null ? null : +boven(h.nok, h).toFixed(2), daktype: h.daktype, bron: h.bron, jaar: h.jaar, pandId: h.id, twijfel: h.twijfel };
+    }
 
     const p1 = await fetch(GRAPH + '/root:/' + gp(pad) + '/kaartje.png:/content', { method: 'PUT', headers: Object.assign({ 'Content-Type': 'image/png' }, H), body: png.blob });
     if (!p1.ok) throw new Error('kaartje opslaan mislukt (' + p1.status + ')');
