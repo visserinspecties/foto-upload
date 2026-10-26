@@ -92,6 +92,8 @@
     <label for="adres" style="margin-top:10px">Of: adres als tekst</label>
     <input type="text" id="adres" placeholder="Straatnaam 12 Plaats">
     <div class="rij"><button id="zoek">Bouw pand in 3D</button></div>
+    <div class="rij"><button class="licht" id="b-txt" type="button">📄 Projectgegevens (.txt) inlezen</button></div>
+    <input type="file" id="f-txt" accept=".txt,text/plain" style="display:none">
     <div id="kiesWrap" style="display:none; margin-top:8px;">
       <label for="kies">Meerdere adressen gevonden</label>
       <select id="kies"></select>
@@ -516,7 +518,7 @@ async function laadModel(pand, doc, opties) {
 
   // voorgevel: meegegeven hoek, anders via de straat
   let vgTekst = '';
-  if (opties.vgHoek != null && isFinite(opties.vgHoek)) { if (zetVgOpHoek(opties.vgHoek, opties.vgBron || 'oriëntatie tool')) vgTekst = ' Voorgevel overgenomen uit de oriëntatie tool.'; }
+  if (opties.vgHoek != null && isFinite(opties.vgHoek)) { if (zetVgOpHoek(opties.vgHoek, opties.vgBron || 'oriëntatie tool')) vgTekst = ' Voorgevel overgenomen uit ' + (opties.vgBron === 'projectbestand' ? 'het projectbestand (.txt).' : 'de oriëntatie tool.'); }
   if (M.vg == null && doc) { try { vgTekst = await autoVoorgevel(doc); } catch (_) { vgTekst = ' Voorgevel niet automatisch bepaald: kies 🎯 Voorgevel en klik op de gevel.'; } }
 
   toonPandInfo();
@@ -971,7 +973,8 @@ async function laadAdres(doc) {
   melding('Pand zoeken in 3DBAG…');
   const pand = await pandOpPunt(rd[0], rd[1]);
   if (!pand) throw new Error('Geen pand gevonden in 3DBAG bij dit adres (nieuwbouw staat er soms nog niet in).');
-  await laadModel(pand, doc, { naLaden: herstelUitProject });
+  const vgHoek = txtVgHoek; txtVgHoek = null;
+  await laadModel(pand, doc, { vgHoek, vgBron: 'projectbestand', naLaden: herstelUitProject });
 }
 async function zoek() {
   const Q = bouwQuery();
@@ -989,6 +992,23 @@ async function zoek() {
   $('zoek').disabled = false;
 }
 $('zoek').addEventListener('click', zoek);
+// Projectgegevens (.txt) van Nieuwe projectmap: adres eruit halen, en de voorgevelhoek als die erin staat.
+let txtVgHoek = null;
+$('b-txt').addEventListener('click', () => $('f-txt').click());
+$('f-txt').addEventListener('change', async () => {
+  const f = $('f-txt').files[0]; if (!f) return;
+  try {
+    const t = (await f.text()).replace(/^\uFEFF/, '');
+    const m = t.match(/^Adres:\s*(.+)$/m), adres = m ? m[1].trim() : '';
+    if (!adres || adres === '-') throw new Error('geen adres gevonden in het bestand.');
+    const h = t.match(/voorgevel\s+(\d{1,3})°/i);
+    txtVgHoek = h ? +h[1] : null;
+    ['postcode', 'huisnr', 'toev'].forEach(id => { $(id).value = ''; });
+    $('adres').value = adres;
+    await zoek();
+  } catch (e) { melding('Inlezen mislukt: ' + e.message, true); }
+  $('f-txt').value = '';
+});
 ['postcode', 'huisnr', 'toev', 'adres'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') zoek(); }));
 $('kies').addEventListener('change', async e => { try { await laadAdres(e.target._docs[+e.target.value]); } catch (err) { melding('Mislukt: ' + err.message, true); } });
 

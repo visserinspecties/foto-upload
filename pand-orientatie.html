@@ -81,6 +81,8 @@
       <label for="adres" style="margin-top:10px">Of: adres als tekst</label>
       <input type="text" id="adres" placeholder="Straatnaam 12 Plaats">
       <div class="rij"><button id="zoek">Zoek pand</button></div>
+      <div class="rij"><button class="licht" id="b-txt" type="button">📄 Projectgegevens (.txt) inlezen</button></div>
+      <input type="file" id="f-txt" accept=".txt,text/plain" style="display:none">
       <div id="kiesWrap" style="display:none; margin-top:8px;">
         <label for="kies">Meerdere adressen gevonden</label>
         <select id="kies"></select>
@@ -655,6 +657,20 @@ async function zoek() {
   $('zoek').disabled = false;
 }
 $('zoek').addEventListener('click', zoek);
+// Projectgegevens (.txt) van Nieuwe projectmap: adres eruit halen en zoeken.
+$('b-txt').addEventListener('click', () => $('f-txt').click());
+$('f-txt').addEventListener('change', async () => {
+  const f = $('f-txt').files[0]; if (!f) return;
+  try {
+    const t = (await f.text()).replace(/^\uFEFF/, '');
+    const m = t.match(/^Adres:\s*(.+)$/m), adres = m ? m[1].trim() : '';
+    if (!adres || adres === '-') throw new Error('geen adres gevonden in het bestand.');
+    ['postcode', 'huisnr', 'toev'].forEach(id => { $(id).value = ''; });
+    $('adres').value = adres;
+    await zoek();
+  } catch (e) { melding('Inlezen mislukt: ' + e.message, true); }
+  $('f-txt').value = '';
+});
 ['postcode', 'huisnr', 'toev', 'adres'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') zoek(); }));
 $('kies').addEventListener('change', async e => {
   try { await laadAdres(e.target._docs[+e.target.value]); } catch (err) { melding('Mislukt: ' + err.message, true); }
