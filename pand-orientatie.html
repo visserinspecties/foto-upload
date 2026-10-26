@@ -91,6 +91,7 @@
       <h2 id="adresTitel"></h2>
       <div id="pandInfo" class="klein" style="margin-top:0"></div>
       <div id="hoogteVak" class="hoogte-vak" style="display:none"></div>
+      <div class="rij"><button class="licht" id="naar3d">🧊 Bekijk dit pand in 3D</button></div>
       <h2>Kaartje</h2>
       <div class="rij"><select id="achtergrond"><option value="kaart">Achtergrond: kaart</option><option value="lucht">Achtergrond: luchtfoto</option><option value="geen">Zonder achtergrond</option></select><button id="png">Maak kaartje (PNG)</button></div>
       <img id="pngvoorbeeld" alt="Kaartje met gevelrichtingen" style="display:none;width:100%;margin-top:8px;border:1px solid var(--rand)">
@@ -659,6 +660,15 @@ $('kies').addEventListener('change', async e => {
   try { await laadAdres(e.target._docs[+e.target.value]); } catch (err) { melding('Mislukt: ' + err.message, true); }
 });
 $('print').addEventListener('click', () => window.print());
+// Naar de 3D-tool: pand-ID, voorgevelhoek en adres gaan mee in de link.
+$('naar3d').addEventListener('click', () => {
+  const pid = state.pand && state.pand.f.properties && state.pand.f.properties.identificatie;
+  if (!pid) { melding('Zoek eerst een pand.', true); return; }
+  const q = new URLSearchParams({ pand: String(pid) });
+  if (state.vg !== null) q.set('vg', String(Math.round(state.edges[state.vg].az)));
+  if (state.adres && state.adres.weergavenaam) q.set('adres', state.adres.weergavenaam);
+  location.href = 'pand-3d.html?' + q.toString();
+});
 // Maakt het kaartje als PNG-blob; lukt dat niet met achtergrond (tainted canvas), dan zonder.
 async function maakPngBlob() {
   const naarBlob = c => new Promise((ok, nok) => { try { c.toBlob(b => b ? ok(b) : nok(new Error('geen afbeelding')), 'image/png'); } catch (e) { nok(e); } });
