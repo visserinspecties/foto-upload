@@ -115,7 +115,7 @@ input[type=file]{display:none}
       </select>
       <input type="number" id="eigenPrijs" class="hidden" placeholder="Bedrag incl. btw" step="0.01" style="margin-top:6px">
     </div>
-    <label class="l">Eigen zin (optioneel, komt in PDF én mail)</label><textarea id="extra" placeholder="bijv. De sleutel ligt bij de buren op nummer 156."></textarea>
+    <label class="l">Eigen zin (optioneel; PDF: kader onder de afspraak, mail: net voor de groet)</label><textarea id="extra" placeholder="bijv. De sleutel ligt bij de buren op nummer 156."></textarea>
   </div>
   <div class="card">
     <h2><span class="stap">4</span>PDF</h2>
@@ -335,6 +335,18 @@ async function maakPdf(){
   }
   top+=bh+22;
 
+  // ── eigen zin: klein kader met sterretje, Enters blijven staan ──
+  const ex=$('extra').value.trim();
+  if(ex){
+    const fs=9,lh=13,pad=10,inX=L+pad+12,maxW=R-pad-inX;
+    const regels=ex.split(/\n/).map(a=>a.trim()).filter(Boolean).flatMap(a=>wrap(a,fR,fs,maxW));
+    const kh=pad*2+9+(regels.length-1)*lh+2;
+    page.drawSvgPath(rondPad(R-L,kh,6),{x:L,y:H-top,borderColor:PAARS,borderWidth:0.8});
+    tekst('*',L+pad,top+pad+11,13,fB,PAARS);
+    let y=top+pad+9;regels.forEach(r=>{tekst(r,inX,y,fs,fR,INKT);y+=lh});
+    top+=kh+24;
+  }
+
   // ── opdracht en prijs ──
   const pr=prijs();
   page.drawRectangle({x:L,y:H-(top+6),width:R-L,height:20,color:PAARS});
@@ -361,18 +373,27 @@ async function maakPdf(){
   const DOC_UIT='Heeft u niets? Geen probleem: u krijgt in alle gevallen een energielabel. Waar gegevens ontbreken, gebruik ik de standaardwaarden die horen bij het bouwjaar van de woning.';
   const BW=R-L-28,IN=16,LH=12.5;
   const dIn=wrap(DOC_IN,fR,8.8,BW),dLijst=DOC_LIJST.map(t=>wrap(t,fR,8.8,BW-IN)),dUit=wrap(DOC_UIT,fR,8.8,BW);
-  const nRegels=dIn.length+dLijst.reduce((n,r)=>n+r.length,0)+dUit.length;
-  const dh=34+nRegels*LH+8+8;
-  if(top+dh>MAX+20)nieuwePagina();
-  page.drawSvgPath(rondPad(R-L,dh,6),{x:L,y:H-top,color:TINT});
-  tekst('Documenten van uw woning',L+14,top+20,10.5,fB,PAARS);
-  let y=top+37;
-  dIn.forEach(t=>{tekst(t,L+14,y,8.8,fR,INKT);y+=LH});y+=3;
-  dLijst.forEach((rr,n)=>rr.forEach((t,i)=>{if(!i)tekst((n+1)+'.',L+14,y,8.8,fB,PAARS);tekst(t,L+14+IN,y,8.8,fR,INKT);y+=LH}));y+=5;
-  dUit.forEach(t=>{tekst(t,L+14,y,8.8,fR,INKT);y+=LH});
-  top+=dh+20;
+  // blokken: inleiding, elk opsommingspunt en de afsluiting blijven heel; het kader mag over twee pagina's lopen
+  const rijen=[];
+  rijen.push({h:dIn.length*LH+3,f:y=>dIn.forEach((t,i)=>tekst(t,L+14,y+i*LH,8.8,fR,INKT))});
+  dLijst.forEach((rr,n)=>rijen.push({h:rr.length*LH,f:y=>rr.forEach((t,i)=>{if(!i)tekst((n+1)+'.',L+14,y,8.8,fB,PAARS);tekst(t,L+14+IN,y+i*LH,8.8,fR,INKT)})}));
+  rijen[rijen.length-1].h+=5;
+  rijen.push({h:dUit.length*LH,f:y=>dUit.forEach((t,i)=>tekst(t,L+14,y+i*LH,8.8,fR,INKT))});
+  const ONDER=MAX-6;
+  let ri=0,eerste=true;
+  while(ri<rijen.length){
+    const kop=eerste?37:22;let j=ri,hh=0;
+    while(j<rijen.length&&top+kop+hh+rijen[j].h+5<=ONDER){hh+=rijen[j].h;j++}
+    if(j<rijen.length&&j-ri<3&&top>150){nieuwePagina();continue}
+    if(j===ri){hh=rijen[ri].h;j++}
+    const bh=kop+hh+5;
+    page.drawSvgPath(rondPad(R-L,bh,6),{x:L,y:H-top,color:TINT});
+    if(eerste)tekst('Documenten van uw woning',L+14,top+20,10.5,fB,PAARS);
+    let y=top+kop;for(let k=ri;k<j;k++){rijen[k].f(y);y+=rijen[k].h}
+    top+=bh+20;ri=j;eerste=false;
+    if(ri<rijen.length)nieuwePagina();
+  }
   alinea('Na de opname ontvangt u de factuur. Na betaling registreer ik het energielabel in EP-Online en ontvangt u het certificaat.');
-  const ex=$('extra').value.trim();if(ex)alinea(ex);
   alinea(`Klopt er iets niet of wilt u de afspraak verzetten? Laat het me gerust weten via ${bed.mail} of ${bed.tel}.`,{na:16});
   if(top>MAX-50)nieuwePagina();
   tekst('Met vriendelijke groet,',L,top,9,fR,INKT);top+=16;
@@ -403,8 +424,8 @@ function klantMail(){
   }
   h+=p_('In de bijlage vindt u de opdrachtbevestiging.');
   h+=p_('Heeft u bouwtekeningen of facturen van verbeteringen aan de woning (isolatie, glas, zonnepanelen, installaties)? Die ontvang ik graag vooraf per mail of tijdens de opname. Heeft u niets, dan is dat geen probleem.');
-  const ex=$('extra').value.trim();if(ex)h+=p_(esc(ex).replace(/\n/g,'<br>'));
   h+=p_('Klopt er iets niet of wilt u de afspraak verzetten? Laat het me gerust weten.');
+  const ex=$('extra').value.trim();if(ex)h+=p_(esc(ex).replace(/\n/g,'<br>'));
   h+=p_('Met vriendelijke groet,');
   return h;
 }
