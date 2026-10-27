@@ -128,10 +128,12 @@
 
       <h2>Opslaan</h2>
       <div class="rij"><button class="licht" id="png">Afbeelding (PNG)</button><button class="licht" id="aanzichtenPdf">Aanzichten 1:100 (PDF)</button></div>
+      <div class="rij"><button class="licht" id="deelHtml">🧊 Draaibaar 3D delen (HTML)</button></div>
+      <div class="klein" style="margin-top:4px">Draaibaar 3D: één HTML-bestand met het model zoals je het nu ziet (met schetsen en maten). Iemand anders opent het in een browser en kan zelf draaien en zoomen; wel internet nodig.</div>
       <div class="klein" style="margin-top:4px">Aanzichten: de vier gevels altijd op schaal 1:100, met maatlijnen tot de nok, dakhellingen en een tabel met breedte, diepte en hoogtes. Past het niet op één A3, dan komen er meer bladen; is één gevel groter dan A3, dan wordt het blad groter (A2 of A1). Afdrukken op ware grootte (100%). Wijs eerst de voorgevel goed aan.</div>
       <div class="vak">
         <button id="opslaan" style="width:100%">Opslaan in project</button>
-        <div class="klein" id="opslaanInfo">Zet 3d-model.png (huidig aanzicht met maten en schetsen), 3d-aanzichten.pdf (vier gevels op 1:100) en 3d-schets.json (de schetsen, om later verder te gaan) in 020 AANTEKENINGEN van het gekozen project.</div>
+        <div class="klein" id="opslaanInfo">Zet 3d-model.png (huidig aanzicht met maten en schetsen), 3d-aanzichten.pdf (vier gevels op 1:100), 3d-draaibaar.html (om te delen) en 3d-schets.json (de schetsen, om later verder te gaan) in 020 AANTEKENINGEN van het gekozen project.</div>
       </div>
     </div>
     <div class="klein">Bron: 3DBAG (3DGI / TU Delft, CC BY 4.0), gemaakt uit de AHN-hoogtemeting, en BAG via PDOK. Het model is een vorm-idee: geen ramen of deuren, kleine dakkapellen en overstekken ontbreken vaak, en het is zo oud als de AHN-meting. Maten van de contour zijn BAG-maten (bovenaanzicht, inclusief overstek).</div>
@@ -1347,6 +1349,180 @@ async function startUitUrl() {
   return true;
 }
 
+// ================= draaibaar 3D delen (één los HTML-bestand) =================
+// Alles wat nu zichtbaar is (pand, buren, maten, dakvlakken, schetsen, labels) gaat als gegevens mee in het bestand.
+// De ontvanger opent het in een browser en kan draaien en zoomen; three.js komt van internet (jsdelivr).
+const r3 = v => Math.round(v * 1000) / 1000;
+function bestandsnaam(voor, ext) {
+  return voor + ' ' + (((M.doc && M.doc.weergavenaam) || 'pand').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '_')) + '.' + ext;
+}
+function deelGegevens() {
+  rondLijnAf();
+  scene.updateMatrixWorld(true);
+  const objs = [], v = new V3();
+  GROEPEN.filter(n => n !== 'hulp' && groep[n].visible).forEach(n => groep[n].traverseVisible(o => {
+    const m = o.material, g = o.geometry;
+    if (!m || !g || Array.isArray(m)) return;
+    const mw = o.matrixWorld;
+    const pt = (x, y, z, uit) => { v.set(x, y, z).applyMatrix4(mw); uit.push(r3(v.x), r3(v.y), r3(v.z)); };
+    const kleur = m.color ? '#' + m.color.getHexString() : '#000000';
+    const op = m.transparent ? +m.opacity.toFixed(2) : 1;
+    if (o.isLine2 || o.isLineSegments2) {            // dikke lijnen (maten, schetsen)
+      const s = g.attributes.instanceStart, e = g.attributes.instanceEnd, seg = [];
+      if (!s || !e) return;
+      for (let i = 0; i < s.count; i++) { pt(s.getX(i), s.getY(i), s.getZ(i), seg); pt(e.getX(i), e.getY(i), e.getZ(i), seg); }
+      objs.push({ t: 'dl', seg, kleur, px: m.linewidth, op });
+    } else if (o.isLine) {                            // dunne lijnen en randen
+      const p = g.attributes.position, pts = [];
+      for (let i = 0; i < p.count; i++) pt(p.getX(i), p.getY(i), p.getZ(i), pts);
+      objs.push({ t: o.isLineSegments ? 'ls' : 'l', pts, kleur, op, streep: !!m.isLineDashedMaterial });
+    } else if (o.isMesh) {                            // vlakken
+      const gg = g.index ? g.toNonIndexed() : g, p = gg.attributes.position, c = gg.attributes.color, pts = [];
+      for (let i = 0; i < p.count; i++) pt(p.getX(i), p.getY(i), p.getZ(i), pts);
+      const cols = (c && m.vertexColors) ? Array.from(c.array, x => Math.round(x * 1000) / 1000) : null;
+      objs.push({ t: 'm', pts, cols, kleur, op, lambert: !!m.isMeshLambertMaterial, dw: m.depthWrite !== false, hoofd: o === M.mesh });
+      if (gg !== g) gg.dispose();
+    }
+  }));
+  const lbl = labels.filter(l => l.groep !== 'hulp' && groep[l.groep] && groep[l.groep].visible && (!l.obj || l.obj.visible !== false))
+    .map(l => ({ p: [r3(l.pos.x), r3(l.pos.y), r3(l.pos.z)], t: l.el.textContent, s: l.soort }));
+  const box = new THREE.Box3().setFromObject(groep.pand), r = Math.max(6, box.getSize(new V3()).length() / 2);
+  return {
+    objs, labels: lbl,
+    cam: { pos: camera.position.toArray().map(r3), doel: controls.target.toArray().map(r3) },
+    voor: M.vg != null ? M.edges[M.vg].n : [0, -1], hMax: r3(M.hMax), r: r3(r)
+  };
+}
+// De viewer van het gedeelde bestand. Wordt als tekst in het bestand gezet (deelViewer.toString()) en draait alleen dáár.
+function deelViewer() {
+  (async () => {
+    const T = await import('three');
+    const { OrbitControls: OC } = await import('three/addons/controls/OrbitControls.js');
+    const { LineSegments2: LS2 } = await import('three/addons/lines/LineSegments2.js');
+    const { LineSegmentsGeometry: LSG } = await import('three/addons/lines/LineSegmentsGeometry.js');
+    const { LineMaterial: LM } = await import('three/addons/lines/LineMaterial.js');
+    const D = JSON.parse(document.getElementById('data').textContent);
+    const h = document.getElementById('c3d');
+    const ren = new T.WebGLRenderer({ antialias: true, alpha: true });
+    ren.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); h.appendChild(ren.domElement);
+    const sc = new T.Scene();
+    const cam = new T.PerspectiveCamera(40, 1, 0.1, 5000); cam.up.set(0, 0, 1);
+    const ctl = new OC(cam, ren.domElement); ctl.enableDamping = true; ctl.dampingFactor = 0.12; ctl.maxPolarAngle = Math.PI * 0.495;
+    sc.add(new T.HemisphereLight(0xffffff, 0xb8c2cc, 2.3));
+    const z1 = new T.DirectionalLight(0xffffff, 1.9); z1.position.set(-40, -60, 90); sc.add(z1);
+    const z2 = new T.DirectionalLight(0xffffff, 0.9); z2.position.set(50, 40, 30); sc.add(z2);
+    const gr = new T.Mesh(new T.CircleGeometry(400, 64), new T.MeshBasicMaterial({ color: 0xe6eaee })); gr.position.z = -0.02; sc.add(gr);
+    const lmats = []; let hoofd = null;
+    const attr = a => new T.Float32BufferAttribute(a, 3);
+    D.objs.forEach(o => {
+      if (o.t === 'm') {
+        const g = new T.BufferGeometry(); g.setAttribute('position', attr(o.pts)); if (o.cols) g.setAttribute('color', attr(o.cols)); g.computeVertexNormals();
+        const opt = { color: o.kleur, vertexColors: !!o.cols, side: T.DoubleSide, transparent: o.op < 1, opacity: o.op, depthWrite: o.dw, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 };
+        const me = new T.Mesh(g, o.lambert ? new T.MeshLambertMaterial(opt) : new T.MeshBasicMaterial(opt));
+        sc.add(me); if (o.hoofd) hoofd = me;
+      } else if (o.t === 'dl') {
+        const g = new LSG(); g.setPositions(o.seg);
+        const m = new LM({ color: new T.Color(o.kleur).getHex(), linewidth: o.px, transparent: o.op < 1, opacity: o.op });
+        lmats.push(m); sc.add(new LS2(g, m));
+      } else {
+        const g = new T.BufferGeometry(); g.setAttribute('position', attr(o.pts));
+        const m = o.streep ? new T.LineDashedMaterial({ color: o.kleur, dashSize: 0.3, gapSize: 0.2 }) : new T.LineBasicMaterial({ color: o.kleur, transparent: o.op < 1, opacity: o.op });
+        const l = o.t === 'ls' ? new T.LineSegments(g, m) : new T.Line(g, m);
+        if (o.streep) l.computeLineDistances();
+        sc.add(l);
+      }
+    });
+    const lag = document.getElementById('labels');
+    const L = D.labels.map(l => { const el = document.createElement('div'); el.className = 'lbl ' + l.s; el.textContent = l.t; lag.appendChild(el); return { el, pos: new T.Vector3(l.p[0], l.p[1], l.p[2]) }; });
+    const scherm = p => { const q = p.clone().project(cam); if (q.z > 1 || q.z < -1) return null; return { x: (q.x + 1) / 2 * h.clientWidth, y: (1 - q.y) / 2 * h.clientHeight }; };
+    const maat = () => { const w = h.clientWidth, hh = h.clientHeight; if (!w || !hh) return; ren.setSize(w, hh); cam.aspect = w / hh; cam.updateProjectionMatrix(); lmats.forEach(m => m.resolution.set(w, hh)); };
+    new ResizeObserver(maat).observe(h); maat();
+    cam.position.fromArray(D.cam.pos); ctl.target.fromArray(D.cam.doel); ctl.update();
+    const ray = new T.Raycaster(), pijl = document.getElementById('noordpijl');
+    let laatst = 0, sleutel = '';
+    const lus = nu => {
+      requestAnimationFrame(lus); ctl.update(); ren.render(sc, cam);
+      const k = cam.position.toArray().map(x => x.toFixed(2)).join(',');
+      if (hoofd && k !== sleutel && nu - laatst > 120) {   // labels achter het pand doorzichtig
+        sleutel = k; laatst = nu;
+        L.forEach(l => { const r = l.pos.clone().sub(cam.position), a = r.length(); ray.set(cam.position, r.normalize()); ray.far = a - 0.4; l.el.classList.toggle('achter', ray.intersectObject(hoofd, false).length > 0); });
+      }
+      L.forEach(l => { const s = scherm(l.pos); if (!s) { l.el.style.display = 'none'; return; } l.el.style.display = ''; l.el.style.transform = 'translate(' + s.x.toFixed(1) + 'px,' + s.y.toFixed(1) + 'px) translate(-50%,-50%)'; });
+      const a = scherm(ctl.target.clone()), b = scherm(ctl.target.clone().add(new T.Vector3(0, 10, 0)));
+      if (a && b) pijl.style.transform = 'rotate(' + (Math.atan2(b.x - a.x, -(b.y - a.y)) * 180 / Math.PI).toFixed(1) + 'deg)';
+    };
+    requestAnimationFrame(lus);
+    const zet = soort => {
+      const doel = new T.Vector3(0, 0, D.hMax * 0.45), v = D.voor; let d;
+      if (soort === 'voor') d = new T.Vector3(v[0], v[1], 0.15);
+      else if (soort === 'achter') d = new T.Vector3(-v[0], -v[1], 0.15);
+      else if (soort === 'boven') d = new T.Vector3(v[0] * 0.02, v[1] * 0.02, 1);
+      else { const hk = 40 * Math.PI / 180, c = Math.cos(hk), s = Math.sin(hk); d = new T.Vector3(v[0] * c - v[1] * s, v[0] * s + v[1] * c, 0.75); }
+      cam.position.copy(doel.clone().add(d.normalize().multiplyScalar(D.r * 3.6))); ctl.target.copy(doel); ctl.update();
+    };
+    document.querySelectorAll('[data-aanzicht]').forEach(b => b.addEventListener('click', () => zet(b.dataset.aanzicht)));
+    document.getElementById('laden').remove();
+    window.__klaar = true;
+  })().catch(e => { document.getElementById('laden').textContent = 'Het 3D-model kon niet laden. Er is internet nodig om het te openen. (' + e.message + ')'; });
+}
+function maakDeelHtml() {
+  if (!M) throw new Error('Bouw eerst een pand.');
+  const D = deelGegevens();
+  const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const titel = (M.doc && M.doc.weergavenaam) || M.pand.id;
+  const rijen = [...$('pandTabel').rows].map(tr => '<tr>' + [...tr.cells].map(td => '<td>' + esc(td.textContent) + '</td>').join('') + '</tr>').join('');
+  const SL = '</' + 'script>';
+  const css = [
+    ':root{--blauw:#1f4e79;--rand:#cfd8e0;--oranje:#e07a10}', '*{box-sizing:border-box}', 'html,body{margin:0;height:100%}',
+    "body{font-family:'Merriweather',Georgia,serif;color:#1b2733;background:#f5f7fa;display:flex;flex-direction:column}",
+    'header{background:var(--blauw);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:12px}',
+    'header h1{margin:0;font-size:17px}', 'header .sub{font-size:11px;opacity:.85;margin-top:3px}', 'header .tekst{flex:1;min-width:0}',
+    'header .merk{text-align:right;font-weight:700;font-size:13px;white-space:nowrap}', 'header .merk span{display:block;font-weight:400;font-size:11px}',
+    '.beeld{flex:1;position:relative;overflow:hidden;background:linear-gradient(#eef3f8,#fdfdfd)}',
+    '#c3d,#labels{position:absolute;inset:0}', '#labels{pointer-events:none;overflow:hidden}', '#c3d canvas{display:block;touch-action:none}',
+    '#laden{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;color:#5b6670;font-size:13px}',
+    '.lbl{position:absolute;left:0;top:0;white-space:nowrap;font-size:11px;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,.92);border:1px solid #333;color:#1b2733}',
+    '.lbl.maat{border-color:#1b2733}', '.lbl.maat-vg{background:var(--blauw);color:#fff;border-color:var(--blauw)}', '.lbl.dak{border-color:#b5543c;color:#7a2e1d}',
+    '.lbl.hoogte{background:#1f4e79;color:#fff;border-color:#1f4e79}', '.lbl.vrij{background:#fff3e3;border-color:var(--oranje);color:#7a3d00}',
+    '.lbl.verdieping{background:#f3ecff;border-color:#7c3aed;color:#4b1d95}', '.lbl.notitie{background:#fff8c5;border-color:#a38600;color:#3d3200;white-space:pre}',
+    '.lbl.schetsmaat{background:#fff;font-weight:700}', '.lbl.achter{opacity:.3}',
+    '.balk{position:absolute;z-index:5;display:flex;flex-wrap:wrap;gap:4px;background:rgba(255,255,255,.94);border:1px solid var(--rand);border-radius:6px;padding:4px}',
+    '#aanzichten{bottom:8px;left:8px}', '.balk button{font:inherit;padding:5px 9px;font-size:12px;background:#fff;color:#1b2733;border:1px solid var(--rand);border-radius:4px;cursor:pointer}',
+    '.noordpijl{position:absolute;top:8px;right:8px;z-index:5;width:52px;height:52px;background:rgba(255,255,255,.94);border:1px solid var(--rand);border-radius:50%;display:flex;align-items:center;justify-content:center}',
+    '#noordpijl{transform-origin:50% 50%}',
+    '#info{position:absolute;top:8px;left:8px;z-index:5;background:rgba(255,255,255,.95);border:1px solid var(--rand);border-radius:6px;padding:6px 10px;font-size:12px;max-width:min(330px,calc(100% - 80px))}',
+    '#info summary{cursor:pointer;font-weight:700;color:var(--blauw)}', '#info table{border-collapse:collapse;width:100%;margin-top:6px}',
+    '#info td{padding:3px 4px;border-bottom:1px solid var(--rand)}', '#info td:last-child{text-align:right;white-space:nowrap}', '#info p{font-size:10.5px;color:#5b6670;line-height:1.5;margin:6px 0 0}',
+    '#tip{position:absolute;bottom:8px;right:8px;z-index:5;font-size:11px;color:#5b6670;background:rgba(255,255,255,.9);border-radius:4px;padding:3px 7px;max-width:50%;text-align:right}',
+    '@media (max-width:640px){#tip{display:none}header .merk span{display:none}}'
+  ].join('\n');
+  return '<!doctype html>\n<html lang="nl">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n' +
+    '<title>3D · ' + esc(titel) + '</title>\n' +
+    '<link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&display=swap" rel="stylesheet">\n' +
+    '<style>\n' + css + '\n</style>\n' +
+    '<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}' + SL + '\n' +
+    '</head>\n<body>\n' +
+    '<header><div class="tekst"><h1>' + esc(titel) + '</h1><div class="sub">Vormmodel uit 3DBAG · indicatief · ' + new Date().toLocaleDateString('nl-NL') + '</div></div>' +
+    '<div class="merk">Visser Inspecties<span>EnergiePrestatie-advies</span></div></header>\n' +
+    '<div class="beeld"><div id="laden">Model laden…</div><div id="c3d"></div><div id="labels"></div>\n' +
+    '<details id="info"><summary>Pandgegevens</summary><table>' + rijen + '</table>' +
+    '<p>Indicatief vormmodel uit 3DBAG (3DGI / TU Delft, CC BY 4.0), gemaakt uit de AHN-hoogtemeting, en BAG via PDOK. Geen ramen of deuren; kleine dakkapellen en overstekken ontbreken vaak.</p></details>\n' +
+    '<div class="noordpijl" title="Noord"><svg id="noordpijl" width="30" height="40" viewBox="0 0 30 40"><path d="M15 2 L26 32 L15 25 L4 32 Z" fill="#1f4e79"/><text x="15" y="39" font-size="9" text-anchor="middle" fill="#1f4e79" font-family="Merriweather">N</text></svg></div>\n' +
+    '<div class="balk" id="aanzichten"><button data-aanzicht="schuin">3D schuin</button><button data-aanzicht="voor">Voorgevel</button><button data-aanzicht="achter">Achtergevel</button><button data-aanzicht="boven">Bovenaanzicht</button></div>\n' +
+    '<div id="tip">Slepen = draaien · rechts slepen of twee vingers = schuiven · scrollen of knijpen = zoomen</div>\n</div>\n' +
+    '<script type="application/json" id="data">' + JSON.stringify(D).replace(/</g, '\\u003c') + SL + '\n' +
+    '<script type="module">(' + deelViewer.toString() + ')();\n' + SL + '\n</body>\n</html>\n';
+}
+$('deelHtml').addEventListener('click', () => {
+  try {
+    const html = maakDeelHtml();
+    const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+    const a = document.createElement('a'); a.href = url; a.download = bestandsnaam('3D', 'html'); document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    melding('Draaibaar 3D-bestand klaar (' + Math.round(html.length / 1024) + ' kB). Stuur het mee als bijlage; openen in een browser.');
+  } catch (e) { melding('Draaibaar bestand maken mislukt: ' + e.message, true); }
+});
+
 // ================= OneDrive: inloggen, project kiezen, opslaan =================
 // Zelfde Entra-app en dezelfde opslag (localStorage 'rt') als de andere tools. Het gekozen project wordt
 // gedeeld met de oriëntatie tool (zelfde sleutel), want beide schrijven in 020 AANTEKENINGEN.
@@ -1638,6 +1814,10 @@ async function opslaanInProject() {
         pdfTekst = p3.ok ? ', 3d-aanzichten.pdf (' + aanzichtenOmschrijving() + ')' : ' (aanzichten-PDF mislukt: ' + p3.status + ')';
       } catch (e) { pdfTekst = ' (aanzichten-PDF mislukt: ' + e.message + ')'; }
     }
+    try {
+      const p4 = await fetch(GRAPH + '/root:/' + gp(pad) + '/3d-draaibaar.html:/content', { method: 'PUT', headers: Object.assign({ 'Content-Type': 'text/html' }, H), body: maakDeelHtml() });
+      pdfTekst += p4.ok ? ', 3d-draaibaar.html' : ' (draaibaar HTML mislukt: ' + p4.status + ')';
+    } catch (e) { pdfTekst += ' (draaibaar HTML mislukt: ' + e.message + ')'; }
     const p2 = await fetch(GRAPH + '/root:/' + gp(pad) + '/3d-schets.json:/content', { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, H), body: JSON.stringify(data, null, 2) });
     if (!p2.ok) throw new Error('afbeelding staat er, maar 3d-schets.json niet (' + p2.status + ')');
     info.textContent = '✅ Opgeslagen in ' + gekozenProject.naam + ': 3d-model.png' + pdfTekst + ' en 3d-schets.json (' + M.schetsen.length + ' schetsen). Open je dit project later weer, dan komen de schetsen terug.';
