@@ -76,6 +76,7 @@
 <body>
 <header><h1>Pand in 3D</h1><a href="pand-orientatie.html">← Pand-oriëntatie</a></header>
 <div id="od-status">☁️ OneDrive: controleren…</div>
+<div id="pj-let" style="display:none; background:#fbe3dc; color:#8f2410; padding:6px 16px; font-size:13px; font-weight:700; border-bottom:1px solid #f0c2b5;"></div>
 <div id="pj-scherm"><div id="pj-doos">
   <h3>Bij welk project hoort dit pand?</h3>
   <input type="text" id="pj-zoek" placeholder="Zoek op adres of projectnaam" autocomplete="off">
@@ -126,11 +127,11 @@
       </div>
 
       <h2>Opslaan</h2>
-      <div class="rij"><button class="licht" id="png">Afbeelding (PNG)</button><button class="licht" id="aanzichtenPdf">Aanzichten A3 (PDF)</button></div>
-      <div class="klein" style="margin-top:4px">Aanzichten: de vier gevels op schaal met maatlijnen tot de nok, dakhellingen en een tabel met breedte, diepte en hoogtes. Wijs eerst de voorgevel goed aan.</div>
+      <div class="rij"><button class="licht" id="png">Afbeelding (PNG)</button><button class="licht" id="aanzichtenPdf">Aanzichten 1:100 (PDF)</button></div>
+      <div class="klein" style="margin-top:4px">Aanzichten: de vier gevels altijd op schaal 1:100, met maatlijnen tot de nok, dakhellingen en een tabel met breedte, diepte en hoogtes. Past het niet op één A3, dan komen er meer bladen; is één gevel groter dan A3, dan wordt het blad groter (A2 of A1). Afdrukken op ware grootte (100%). Wijs eerst de voorgevel goed aan.</div>
       <div class="vak">
         <button id="opslaan" style="width:100%">Opslaan in project</button>
-        <div class="klein" id="opslaanInfo">Zet 3d-model.png (huidig aanzicht met maten en schetsen), 3d-aanzichten.pdf (vier gevels op A3) en 3d-schets.json (de schetsen, om later verder te gaan) in 020 AANTEKENINGEN van het gekozen project.</div>
+        <div class="klein" id="opslaanInfo">Zet 3d-model.png (huidig aanzicht met maten en schetsen), 3d-aanzichten.pdf (vier gevels op 1:100) en 3d-schets.json (de schetsen, om later verder te gaan) in 020 AANTEKENINGEN van het gekozen project.</div>
       </div>
     </div>
     <div class="klein">Bron: 3DBAG (3DGI / TU Delft, CC BY 4.0), gemaakt uit de AHN-hoogtemeting, en BAG via PDOK. Het model is een vorm-idee: geen ramen of deuren, kleine dakkapellen en overstekken ontbreken vaak, en het is zo oud als de AHN-meting. Maten van de contour zijn BAG-maten (bovenaanzicht, inclusief overstek).</div>
@@ -969,8 +970,10 @@ $('png').addEventListener('click', async () => {
 // ================= aanzichten op A3 (vier gevels op schaal, met maten en tabel) =================
 // Elke gevel wordt loodrecht (orthografisch) getekend vanuit de 3D-scène, dus verborgen delen vallen vanzelf weg.
 // De maatlijnen en teksten tekenen we daarna zelf, uit de geometrie.
-const PXMM = 6, A3W = 420, A3H = 297;                    // 6 px per mm ≈ 150 dpi
-const SCHALEN = [50, 75, 100, 125, 150, 200, 250, 300, 400, 500, 750, 1000];
+let PXMM = 6;                                            // 6 px per mm ≈ 150 dpi (bij grote bladen iets minder, voor de iPad)
+const SCHAAL = 100;                                     // altijd 1:100
+const FORMATEN = [['A3', 420, 297], ['A2', 594, 420], ['A1', 841, 594], ['A0', 1189, 841]];   // liggend, in mm
+const TABEL_B = 87;                                     // breedte van de tabelkolom rechts op blad 1
 const JSPDF_URL = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
 const P = mm => mm * PXMM;
 const LETTER = 'Merriweather, Georgia, serif';
@@ -1135,8 +1138,8 @@ function tekenAanzicht(ctx, a, x0, y0, cel, marge, s) {
     kaderTekst(ctx, px, py, Math.round(helling) + '°', { rand: '#b5543c', kleur: '#7a2e1d' });
   });
 }
-function tekenBladTabel(ctx, A, R, N) {
-  const x = P(325), w = P(87);
+function tekenBladTabel(ctx, A, R, N, tx, fmt) {
+  const x = P(tx), w = P(TABEL_B);
   let y = P(30);
   const kop = t => { ctx.fillStyle = '#1f4e79'; ctx.font = '700 ' + P(3) + 'px ' + LETTER; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.fillText(t, x, y); y += P(1.6); ctx.strokeStyle = '#1f4e79'; ctx.lineWidth = P(0.25); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.stroke(); y += P(4); };
   const rij = (cellen, kolommen, opties) => {
@@ -1189,52 +1192,83 @@ function tekenBladTabel(ctx, A, R, N) {
   if (getal(at, 'b3_opp_grond') != null) rij(['Grondvlak', nl(getal(at, 'b3_opp_grond'), 1) + ' m²'], KP);
   if (getal(at, 'b3_volume_lod22') != null) rij(['Volume', nl(getal(at, 'b3_volume_lod22'), 0) + ' m³'], KP);
   if (at.b3_pw_bron) rij(['Hoogtemeting', String(at.b3_pw_bron).toUpperCase() + (at.b3_pw_datum ? ' (' + at.b3_pw_datum + ')' : '')], KP);
-  rij(['Schaal op A3', '1:' + N], KP);
+  rij(['Schaal', '1:' + N + ' op ' + fmt], KP);
   y += P(2);
   regel('Indicatief vormmodel uit 3DBAG (AHN-hoogtemeting). Geen ramen, deuren of overstekken; kleine dakkapellen kunnen ontbreken. Contourmaten zijn BAG-maten (bovenaanzicht, inclusief overstek). Niet gebruiken als vervanging van de opname.', 2.2);
 }
-async function maakAanzichtenCanvas() {
+// Altijd 1:100. Elke gevel krijgt een eigen vak op ware schaal; de vakken worden in rijen over één of meer bladen verdeeld.
+// Blad 1 heeft rechts de tabel. Past één gevel niet op A3, dan wordt het blad groter (A2, A1, A0) — de schaal blijft 1:100.
+let laatsteAanzichten = null;   // { bladen, formaat } voor de meldingen
+async function maakAanzichtenPaginas() {
   if (!M) throw new Error('Bouw eerst een pand.');
   if (M.vg == null) throw new Error('Wijs eerst de voorgevel aan met 🎯 Voorgevel.');
   rondLijnAf();
-  try { await Promise.all([document.fonts.load(P(3) + 'px Merriweather'), document.fonts.load('700 ' + P(3) + 'px Merriweather')]); } catch (_) {}
   const R = gevelRichtingen();
   const A = R.map(([k, naam, az]) => Object.assign({ k, naam, az }, aanzichtMaten(az)));
-  const cel = { w: 157, h: 130 }, marge = { l: 30, r: 30, t: 12, o: 16 };
-  const maxB = Math.max(...A.map(a => a.breed));
-  const mmPerM = Math.min((cel.w - marge.l - marge.r) / maxB, (cel.h - marge.t - marge.o) / (M.hMax + 0.3));
-  const N = SCHALEN.find(n => 1000 / n <= mmPerM) || 1000;
-  const s = 1000 / N * PXMM;   // pixels per meter
-  const c = document.createElement('canvas'); c.width = P(A3W); c.height = P(A3H);
-  const ctx = c.getContext('2d');
-  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
-  // kop
-  ctx.fillStyle = '#1f4e79'; ctx.fillRect(0, 0, c.width, P(20));
-  ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-  ctx.font = '700 ' + P(5.5) + 'px ' + LETTER; ctx.fillText((M.doc && M.doc.weergavenaam) || M.pand.id, P(8), P(9.5));
-  ctx.font = P(3) + 'px ' + LETTER; ctx.fillText('Aanzichten uit 3DBAG · indicatief vormmodel · schaal 1:' + N + ' op A3 · ' + new Date().toLocaleDateString('nl-NL'), P(8), P(16));
-  ctx.textAlign = 'right'; ctx.font = '700 ' + P(3.6) + 'px ' + LETTER; ctx.fillText('Visser Inspecties', P(A3W - 8), P(9.5));
-  ctx.font = P(2.6) + 'px ' + LETTER; ctx.fillText('EnergiePrestatie-advies', P(A3W - 8), P(16));
-  // vier aanzichten
-  const plek = [[6, 24], [6 + cel.w, 24], [6, 24 + cel.h], [6 + cel.w, 24 + cel.h]];
-  metTekenScene(() => A.forEach((a, i) => tekenAanzicht(ctx, a, plek[i][0], plek[i][1], cel, marge, s)));
-  tekenBladTabel(ctx, A, R, N);
-  // schaalstok onder de tabel
-  const sx = P(325), sy = P(A3H - 12), stap = Math.max(1, [1, 2, 5, 10].find(m => m * s >= P(8)) || 10);
-  for (let i = 0; i < 5; i++) { ctx.fillStyle = i % 2 ? '#fff' : '#1b2733'; ctx.fillRect(sx + i * stap * s, sy, stap * s, P(1.4)); }
-  ctx.strokeStyle = '#1b2733'; ctx.lineWidth = P(0.15); ctx.strokeRect(sx, sy, 5 * stap * s, P(1.4));
-  ctx.fillStyle = '#1b2733'; ctx.font = P(2.3) + 'px ' + LETTER; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-  ctx.fillText('0', sx, sy + P(2)); ctx.textAlign = 'right'; ctx.fillText(5 * stap + ' m', sx + 5 * stap * s, sy + P(2));
-  ctx.fillStyle = '#5b6670'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.font = P(2.2) + 'px ' + LETTER;
-  ctx.fillText('Bron: 3DBAG (3DGI / TU Delft, CC BY 4.0) en BAG via PDOK · gemaakt met Pand in 3D', P(6), P(A3H - 2.5));
-  return c;
+  const N = SCHAAL, mmPerM = 1000 / N;
+  const marge = { l: 30, r: 26, t: 12, o: 16 };
+  const KOP = 24, VOET = 8, L = 6;
+  const ch = Math.ceil(M.hMax * mmPerM + marge.t + marge.o + 2);
+  A.forEach(a => { a.cw = Math.max(90, Math.ceil(a.breed * mmPerM + marge.l + marge.r)); });
+  const breedste = Math.max(...A.map(a => a.cw));
+  const F = FORMATEN.map(([naam, w, h]) => ({ naam, w, h, w1: w - 2 * L - TABEL_B - 6, wN: w - 2 * L, hA: h - KOP - VOET }))
+    .find(f => breedste <= f.w1 && ch <= f.hA);
+  if (!F) throw new Error('Dit pand is op 1:100 groter dan A0 — te groot voor een aanzichtenblad.');
+  PXMM = Math.min(6, Math.floor(Math.sqrt(16e6 / (F.w * F.h))));   // onder ~16 megapixel per blad (grens van de iPad)
+  try { await Promise.all([document.fonts.load(P(3) + 'px Merriweather'), document.fonts.load('700 ' + P(3) + 'px Merriweather')]); } catch (_) {}
+  const s = mmPerM * PXMM;   // pixels per meter
+  // gevels verdelen: van links naar rechts, dan een rij lager, dan een nieuw blad
+  const bladen = [[]]; let x = L, y = KOP;
+  A.forEach(a => {
+    if (x + a.cw > L + (bladen.length === 1 ? F.w1 : F.wN)) { x = L; y += ch; }
+    if (y + ch > KOP + F.hA) { bladen.push([]); x = L; y = KOP; }
+    bladen[bladen.length - 1].push({ a, x, y }); x += a.cw;
+  });
+  const datum = new Date().toLocaleDateString('nl-NL'), titel = (M.doc && M.doc.weergavenaam) || M.pand.id;
+  const paginas = bladen.map((plekken, i) => {
+    const c = document.createElement('canvas'); c.width = P(F.w); c.height = P(F.h);
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+    // kop
+    ctx.fillStyle = '#1f4e79'; ctx.fillRect(0, 0, c.width, P(20));
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.font = '700 ' + P(5.5) + 'px ' + LETTER; ctx.fillText(titel, P(8), P(9.5));
+    ctx.font = P(3) + 'px ' + LETTER;
+    ctx.fillText('Aanzichten uit 3DBAG · indicatief vormmodel · schaal 1:' + N + ' op ' + F.naam + ' (afdrukken op 100%)' + (bladen.length > 1 ? ' · blad ' + (i + 1) + ' van ' + bladen.length : '') + ' · ' + datum, P(8), P(16));
+    ctx.textAlign = 'right'; ctx.font = '700 ' + P(3.6) + 'px ' + LETTER; ctx.fillText('Visser Inspecties', P(F.w - 8), P(9.5));
+    ctx.font = P(2.6) + 'px ' + LETTER; ctx.fillText('EnergiePrestatie-advies', P(F.w - 8), P(16));
+    // gevels
+    metTekenScene(() => plekken.forEach(({ a, x, y }) => tekenAanzicht(ctx, a, x, y, { w: a.cw, h: ch }, marge, s)));
+    // tabel (blad 1) en schaalstok rechtsonder
+    const tx = F.w - L - TABEL_B;
+    if (i === 0) tekenBladTabel(ctx, A, R, N, tx, F.naam);
+    const sx = P(tx), sy = P(F.h - 12), stap = [1, 2, 5, 10].find(m => m * s >= P(8)) || 10;
+    for (let j = 0; j < 5; j++) { ctx.fillStyle = j % 2 ? '#fff' : '#1b2733'; ctx.fillRect(sx + j * stap * s, sy, stap * s, P(1.4)); }
+    ctx.strokeStyle = '#1b2733'; ctx.lineWidth = P(0.15); ctx.strokeRect(sx, sy, 5 * stap * s, P(1.4));
+    ctx.fillStyle = '#1b2733'; ctx.font = P(2.3) + 'px ' + LETTER; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText('0', sx, sy + P(2)); ctx.textAlign = 'right'; ctx.fillText(5 * stap + ' m', sx + 5 * stap * s, sy + P(2));
+    ctx.textAlign = 'left'; ctx.fillText('schaal 1:' + N, sx + 5 * stap * s + P(4), sy - P(0.3));
+    ctx.fillStyle = '#5b6670'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.font = P(2.2) + 'px ' + LETTER;
+    ctx.fillText('Bron: 3DBAG (3DGI / TU Delft, CC BY 4.0) en BAG via PDOK · gemaakt met Pand in 3D', P(6), P(F.h - 2.5));
+    return c;
+  });
+  laatsteAanzichten = { bladen: paginas.length, formaat: F.naam };
+  return { paginas, F };
 }
 async function maakAanzichtenPdf() {
-  const c = await maakAanzichtenCanvas();
+  const { paginas, F } = await maakAanzichtenPaginas();
   await laadScript(JSPDF_URL);
-  const doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' });
-  doc.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, A3W, A3H);
+  const fmt = F.naam.toLowerCase();
+  const doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: fmt });
+  paginas.forEach((c, i) => {
+    if (i) doc.addPage(fmt, 'landscape');
+    doc.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, F.w, F.h);
+  });
   return doc.output('blob');
+}
+function aanzichtenOmschrijving() {
+  const a = laatsteAanzichten; if (!a) return '1:100';
+  return '1:100, ' + a.bladen + ' blad' + (a.bladen > 1 ? 'en' : '') + ' ' + a.formaat;
 }
 $('aanzichtenPdf').addEventListener('click', async () => {
   const knop = $('aanzichtenPdf'); knop.disabled = true; melding('Aanzichten tekenen…');
@@ -1242,7 +1276,7 @@ $('aanzichtenPdf').addEventListener('click', async () => {
     const blob = await maakAanzichtenPdf(), url = URL.createObjectURL(blob);
     const naam = 'Aanzichten ' + (((M.doc && M.doc.weergavenaam) || 'pand').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '_')) + '.pdf';
     const a = document.createElement('a'); a.href = url; a.download = naam; document.body.appendChild(a); a.click(); a.remove();
-    melding('Aanzichten klaar (A3, PDF).');
+    melding('Aanzichten klaar (' + aanzichtenOmschrijving() + ', PDF).');
   } catch (e) { melding('Aanzichten maken mislukt: ' + e.message, true); }
   knop.disabled = false;
 });
@@ -1513,12 +1547,41 @@ async function leesBestand(pad, naam, token) {
   if (!r.ok) throw new Error(naam + ' lezen mislukt (' + r.status + ')');
   try { return JSON.parse((await r.text()).replace(/^﻿/, '')); } catch (_) { throw new Error(naam + ' is onleesbaar'); }
 }
+// ---- hoort het gebouwde pand bij het gekozen project? ----
+// Vergelijkt eerst het pand-ID (als de oriëntatie tool dat in het project zette), anders de postcode
+// uit projectgegevens.json of de mapnaam met die van het gebouwde adres. 'ja', 'nee' of 'onbekend'.
+const postcodeUit = t => { const m = String(t || '').toUpperCase().match(/\b(\d{4})\s?([A-Z]{2})\b/); return m ? m[1] + m[2] : ''; };
+const pandNr = id => String(id || '').replace(/\D/g, '').replace(/^0+/, '');
+function pandPastBijProject(pg) {
+  if (!M || !gekozenProject) return 'onbekend';
+  const pid = pg && pg.hoogte3dbag && pg.hoogte3dbag.pandId;
+  if (pid && pandNr(pid) === pandNr(M.pand.id)) return 'ja';
+  const pcModel = postcodeUit(M.doc && M.doc.weergavenaam);
+  const pcProject = postcodeUit(pg && pg.adres) || postcodeUit(gekozenProject.naam);
+  if (pcModel && pcProject) return pcModel === pcProject ? 'ja' : 'nee';
+  if (pid) return 'nee';
+  return 'onbekend';
+}
+function toonProjectWaarschuwing(past, pg) {
+  const el = $('pj-let');
+  if (past !== 'nee') { el.style.display = 'none'; el.textContent = ''; return; }
+  const projectAdres = (pg && pg.adres) || gekozenProject.naam;
+  el.textContent = '⚠️ Let op: dit pand (' + ((M.doc && M.doc.weergavenaam) || M.pand.id) + ') is niet het adres van het gekozen project (' + projectAdres + '). Voorgevel en schetsen uit het project zijn niet overgenomen. ';
+  const b = document.createElement('button'); b.type = 'button'; b.textContent = 'Ander project kiezen'; b.style.marginLeft = '6px';
+  b.addEventListener('click', kiesProject); el.appendChild(b);
+  el.style.display = 'block';
+}
+
 // Na het bouwen: voorgevel uit projectgegevens.json en eerdere schetsen uit 3d-schets.json terugzetten (zelfde pand).
 async function herstelUitProject() {
+  toonProjectWaarschuwing('onbekend');
   if (!gekozenProject || !(await onedriveBeschikbaar())) return;
   try {
     const token = await graphRefreshToken();
     const [pg, sch] = await Promise.all([leesBestand(gekozenProject.pad, 'projectgegevens.json', token).catch(() => null), leesBestand(gekozenProject.pad, '3d-schets.json', token).catch(() => null)]);
+    const past = (sch && sch.pandId === M.pand.id) ? 'ja' : pandPastBijProject(pg);   // eerder voor dít pand opgeslagen = klopt
+    toonProjectWaarschuwing(past, pg);
+    if (past === 'nee') return;   // ander adres: niets uit dit project overnemen
     let tekst = '';
     if (sch && sch.pandId === M.pand.id) {
       if (sch.vg && isFinite(sch.vg.hoek)) zetVgOpHoek(sch.vg.hoek, sch.vg.bron || 'opgeslagen');
@@ -1551,6 +1614,10 @@ async function opslaanInProject() {
     if (map.status === 404) throw new Error('Projectmap bestaat niet in OneDrive: ' + pad + '. Niets opgeslagen.');
     if (!map.ok) throw new Error('OneDrive gaf fout ' + map.status + ' bij het controleren van de projectmap.');
     const oud = await leesBestand(pad, '3d-schets.json', token).catch(() => null);
+    const pg = await leesBestand(pad, 'projectgegevens.json', token).catch(() => null);
+    const past = (oud && oud.pandId === M.pand.id) ? 'ja' : pandPastBijProject(pg);
+    toonProjectWaarschuwing(past, pg);
+    if (past === 'nee' && !confirm('Dit pand (' + ((M.doc && M.doc.weergavenaam) || M.pand.id) + ') is niet het adres van project "' + gekozenProject.naam + '".\n\nToch in dit project opslaan?')) { info.textContent = 'Niet opgeslagen: kies eerst het juiste project.'; return; }
     if (oud && oud.pandId && oud.pandId !== M.pand.id && !confirm('In dit project staan schetsen van een ánder pand (' + oud.pandId.replace('NL.IMBAG.Pand.', '') + '). Overschrijven?')) { info.textContent = 'Niet opgeslagen.'; return; }
     const png = await maakPngBlob();
     const data = {
@@ -1568,7 +1635,7 @@ async function opslaanInProject() {
       try {
         const pdf = await maakAanzichtenPdf();
         const p3 = await fetch(GRAPH + '/root:/' + gp(pad) + '/3d-aanzichten.pdf:/content', { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/pdf' }, H), body: pdf });
-        pdfTekst = p3.ok ? ', 3d-aanzichten.pdf' : ' (aanzichten-PDF mislukt: ' + p3.status + ')';
+        pdfTekst = p3.ok ? ', 3d-aanzichten.pdf (' + aanzichtenOmschrijving() + ')' : ' (aanzichten-PDF mislukt: ' + p3.status + ')';
       } catch (e) { pdfTekst = ' (aanzichten-PDF mislukt: ' + e.message + ')'; }
     }
     const p2 = await fetch(GRAPH + '/root:/' + gp(pad) + '/3d-schets.json:/content', { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, H), body: JSON.stringify(data, null, 2) });
@@ -1576,7 +1643,7 @@ async function opslaanInProject() {
     info.textContent = '✅ Opgeslagen in ' + gekozenProject.naam + ': 3d-model.png' + pdfTekst + ' en 3d-schets.json (' + M.schetsen.length + ' schetsen). Open je dit project later weer, dan komen de schetsen terug.';
     melding('Opgeslagen in het project.');
   } catch (e) { fout((e && e.message ? e.message : e) + ' Gebruik zo nodig "Afbeelding (PNG)" als vangnet.'); }
-  knop.disabled = false;
+  finally { knop.disabled = false; }
 }
 $('opslaan').addEventListener('click', opslaanInProject);
 $('pj-sluit').addEventListener('click', () => { $('pj-scherm').style.display = 'none'; });
