@@ -295,6 +295,8 @@
     </div>
 
     <button class="btn btn-primary" id="btn-maak-map" onclick="maakProjectmap()" disabled>📁 Projectmap aanmaken</button>
+    <button class="btn btn-secondary" id="btn-opdrachtbevestiging" onclick="openOpdrachtbevestigingUitFormulier()" disabled>📄 Opdrachtbevestiging maken</button>
+    <p class="hint" style="margin:-4px 0 12px 4px;">Opent de opdrachtbevestiging met alle gegevens van dit formulier al ingevuld. Doe dit ná het aanmaken van de map, dan komt de PDF meteen in deze projectmap.</p>
     <button class="btn btn-secondary" onclick="formulierLeegmaken()">🧹 Formulier leegmaken (volgend project)</button>
 
     <!-- Wachtrij (voor als er geen internet is) -->
@@ -949,6 +951,7 @@ function updateMapnaamPreview() {
   const naam = berekenMapnaam();
   document.getElementById('mapnaam-preview').textContent = naam || 'Vul de velden in...';
   document.getElementById('btn-maak-map').disabled = !naam;
+  document.getElementById('btn-opdrachtbevestiging').disabled = !naam;
 }
 
 // ── Alle formuliergegevens in één keer vastleggen ─────────────
@@ -1628,10 +1631,12 @@ async function voerProjectmapUit(g) {
     taakMelding = ' · geen taak aangemaakt';
   }
 
+  laatsteProject = g;
   const melding = bestondAl
     ? `✅ Map bestond al — aangevuld met submappen/bestanden: "${naam}"`
     : `✅ Projectmap aangemaakt: "${naam}"`;
-  setStatus(`${melding} (${gekopieerd} bestanden gekopieerd${overgeslagen ? ', '+overgeslagen+' niet gevonden' : ''})${huismatenMelding}${opdrachtgeverMelding}${screenshotMelding}${taakMelding}`, 'success');
+  setStatus(`${melding} (${gekopieerd} bestanden gekopieerd${overgeslagen ? ', '+overgeslagen+' niet gevonden' : ''})${huismatenMelding}${opdrachtgeverMelding}${screenshotMelding}${taakMelding}` +
+    `<button class="btn btn-primary" style="margin:12px 0 0" onclick="openOpdrachtbevestiging(laatsteProject, true)">📄 Nu de opdrachtbevestiging maken →</button>`, 'success');
 }
 
 // ── Wachtrij verwerken (zodra er weer internet is) ───────────
@@ -1663,6 +1668,34 @@ async function verwerkWachtrij() {
   }
 }
 
+// ── Doorgeven aan de opdrachtbevestiging ─────────────────────
+// De gegevens gaan mee in het #-deel van de link (blijft in de browser, gaat niet naar een server).
+// Werkt daardoor ook in de app op iPad/iPhone. Geen telefoonnummer: dat staat niet in de bevestiging.
+let laatsteProject = null;   // gegevens van de map die in deze sessie het laatst is aangemaakt
+
+function openOpdrachtbevestiging(g, mapBestaat) {
+  if (!g || !g.mapnaam) return;
+  const d = {
+    versie: 1,
+    mapnaam: g.mapnaam,
+    projectPad: mapBestaat ? `${ROOT_PATH}/${g.mapnaam}` : '',
+    straat: g.straat, huisnummer: g.huisnummer, toevoeging: g.toevoeging,
+    postcode: g.postcode, plaats: g.plaats,
+    aanhef: g.aanhef, voornaam: g.voornaam, achternaam: g.achternaam, naam: naamRegelVan(g),
+    email: g.email,
+    afspraakDatum: g.afspraakDatum, afspraakTijd: g.afspraakTijd,
+    prijs: g.prijs, woningtype: g.woningtype
+  };
+  window.location.href = 'opdrachtbevestiging.html#project=' + encodeURIComponent(JSON.stringify(d));
+}
+
+function openOpdrachtbevestigingUitFormulier() {
+  const g = verzamelGegevens();
+  // Alleen het exacte pad meegeven als deze map net echt is aangemaakt; anders zoekt de opdrachtbevestiging zelf
+  const mapBestaat = !!(laatsteProject && laatsteProject.mapnaam === g.mapnaam);
+  openOpdrachtbevestiging(g, mapBestaat);
+}
+
 // ── Formulier leegmaken voor het volgende project ─────────────
 function formulierLeegmaken() {
   document.querySelectorAll('#app-screen input[type="text"], #app-screen input[type="number"], #app-screen input[type="date"], #app-screen input[type="time"]')
@@ -1671,6 +1704,7 @@ function formulierLeegmaken() {
   document.querySelectorAll('input[name="woningtype"]').forEach(r => r.checked = false);
   verwijderScreenshot();
   leegBagVelden();
+  laatsteProject = null;
   updateMapnaamPreview();
   setStatus('', '');
   window.scrollTo({ top: 0, behavior: 'smooth' });

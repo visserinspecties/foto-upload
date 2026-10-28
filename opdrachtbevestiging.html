@@ -78,7 +78,7 @@ input[type=file]{display:none}
     <h2><span class="stap">1</span>Project</h2>
     <button class="btn sec" id="b-txt" style="margin-bottom:8px">📄 Projectgegevens (.txt) inlezen</button>
     <input type="file" id="f-txt" accept=".txt,text/plain">
-    <div class="hint" style="margin:0 0 8px">Kies het .txt-bestand uit de projectmap (gemaakt door Nieuwe projectmap). Naam, e-mail, datum, prijs en soort opname worden dan ingevuld.</div>
+    <div class="hint" style="margin:0 0 8px">Kom je vanuit Nieuwe projectmap, dan staat alles al ingevuld. Anders: kies het .txt-bestand uit de projectmap; naam, e-mail, datum, prijs en soort opname worden dan ingevuld.</div>
     <select id="project"></select>
     <div id="eigenAdres" class="hidden">
       <label class="l">Straat en huisnummer</label><input type="text" id="straat" placeholder="bijv. Bergselaan 154B">
@@ -129,7 +129,7 @@ input[type=file]{display:none}
     <h2><span class="stap">5</span>Mail aan de klant</h2>
     <label class="l">E-mailadres klant</label><input type="email" id="mail" placeholder="naam@voorbeeld.nl" autocomplete="off">
     <label class="l">Onderwerp</label><input type="text" id="onderwerp">
-    <div class="toggle"><div><b>PDF ook opslaan in de projectmap</b><span>In 0_In Behandeling, map met deze postcode</span></div><label class="sw"><input type="checkbox" id="opslaan" checked><i></i></label></div>
+    <div class="toggle"><div><b>PDF ook opslaan in de projectmap</b><span id="opslagplek">In 0_In Behandeling, map met deze postcode</span></div><label class="sw"><input type="checkbox" id="opslaan" checked><i></i></label></div>
     <button class="btn" id="b-mail" style="margin-top:6px">✉️ Concept-mail maken met PDF</button>
     <div class="hint">Het concept komt in Outlook (Concepten). Voeg daar je handtekening toe en verstuur. Gebruikt dezelfde Microsoft-inlog als Factuur versturen.</div>
     <div id="resultaat" style="margin-top:12px"></div>
@@ -203,8 +203,40 @@ function renderAanhef(){
 }
 document.querySelectorAll('[data-groep]').forEach(g=>g.addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;A[g.dataset.groep]=c.dataset.v;render();plan()}));
 
-/* projectgegevens uit het .txt-bestand van Nieuwe projectmap */
+/* ══════════ Projectgegevens invullen: vanuit Nieuwe projectmap (direct) of uit het .txt-bestand ══════════ */
 const MAANDEN=['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december'];
+let projectPadBekend=null;   // exacte projectmap, als Nieuwe projectmap die heeft doorgegeven
+function soortUitWens(w){w=(w||'').toLowerCase();
+  if(/utiliteit|ep-u/.test(w))return 4;
+  if(/maatwerk/.test(w)&&/label/.test(w))return 2;
+  if(/maatwerk/.test(w))return 3;
+  if(/detail/.test(w))return 1;
+  return w?0:null}
+function prijsGetal(t){if(t===null||t===undefined||t==='')return null;let s=String(t).replace(/[€\s]/g,'').replace(/,-$/,'');
+  s=s.includes(',')?s.replace(/\./g,'').replace(',','.'):s;const v=parseFloat(s);return isNaN(v)?null:v}
+// v = {straat, pc, naam, mail, achternaam, aanhef, datum (jjjj-mm-dd), tijd (uu:mm), prijs (getal), soort (index)}
+function vulFormulier(v){
+  if(v.straat){
+    const pc=(v.pc||'').trim();
+    const i=PROJECTEN.findIndex(p=>p[0].toLowerCase()===v.straat.toLowerCase()&&p[1].replace(/\s/g,'').toLowerCase()===pc.replace(/\s/g,'').toLowerCase());
+    if(i>=0)sel.value=i;else{sel.value='anders';$('straat').value=v.straat;$('pcplaats').value=pc}
+  }
+  if(v.naam)$('adresnaam').value=v.naam;
+  if(v.mail)$('mail').value=v.mail;
+  if(v.achternaam)$('aanhefnaam').value=v.achternaam;
+  const ah=v.aanhef||'';
+  if(/familie/i.test(ah))A.titel='familie';else if(/mevrouw/i.test(ah))A.titel='mevrouw';else if(/heer/i.test(ah))A.titel='heer';
+  if(v.datum)$('datum').value=v.datum;
+  if(v.tijd){$('metTijd').checked=true;$('tijd').value=v.tijd}
+  if(v.prijs!==null&&v.prijs!==undefined){$('metPrijs').checked=true;
+    if(v.prijs===325||v.prijs===175)$('prijs').value=String(v.prijs);else{$('prijs').value='eigen';$('eigenPrijs').value=v.prijs}}
+  if(v.soort!==null&&v.soort!==undefined)$('soort').selectedIndex=v.soort;
+  $('onderwerp').dataset.auto='1';
+}
+function toonOpslagplek(){
+  $('opslagplek').textContent=projectPadBekend?'In de projectmap '+projectPadBekend.split('/').pop():'In 0_In Behandeling, map met deze postcode';
+}
+
 $('b-txt').onclick=()=>$('f-txt').click();
 $('f-txt').onchange=async()=>{
   const f=$('f-txt').files[0];if(!f)return;
@@ -215,38 +247,40 @@ $('f-txt').onchange=async()=>{
     const naam=veld(/^Naam:\s*(.+)$/m),mail=veld(/^E-mailadres:\s*(.+)$/m);
     const adres=veld(/^Adres:\s*(.+)$/m);
     const afspraak=veld(/^Afspraak opname:\s*(.+)$/m);
-    const prijs=veld(/^Afgesproken prijs:\s*(.+)$/m);
     const wil=veld(/^- Wil graag:\s*(.+)$/m);
     const achter=veld(/^- Achternaam:\s*(.+)$/m),aanhef=veld(/^- Aanhef:\s*(.+)$/m);
-    if(adres){
-      const m=adres.match(/^(.+?),\s*(\d{4})\s?([A-Z]{2})\s+(.+)$/);
-      if(m){
-        const straat=m[1].trim(),pc=`${m[2]} ${m[3]} ${m[4].trim()}`;
-        const i=PROJECTEN.findIndex(p=>p[0].toLowerCase()===straat.toLowerCase()&&p[1].replace(/\s/g,'').toLowerCase()===pc.replace(/\s/g,'').toLowerCase());
-        if(i>=0)sel.value=i;else{sel.value='anders';$('straat').value=straat;$('pcplaats').value=pc}
-      }
-    }
-    if(!leeg(naam))$('adresnaam').value=naam;
-    if(!leeg(mail))$('mail').value=mail;
-    if(!leeg(achter))$('aanhefnaam').value=achter;
-    if(/familie/i.test(aanhef))A.titel='familie';else if(/mevrouw/i.test(aanhef))A.titel='mevrouw';else if(/heer/i.test(aanhef))A.titel='heer';
+    const v={naam:leeg(naam)?'':naam,mail:leeg(mail)?'':mail,achternaam:leeg(achter)?'':achter,aanhef,soort:soortUitWens(wil)};
+    const m=adres.match(/^(.+?),\s*(\d{4})\s?([A-Z]{2})\s+(.+)$/);
+    if(m){v.straat=m[1].trim();v.pc=`${m[2]} ${m[3]} ${m[4].trim()}`}
     const d=afspraak.toLowerCase().match(/(\d{1,2})\s+([a-z]+)\s+(\d{4})/);
-    if(d&&MAANDEN.includes(d[2]))$('datum').value=`${d[3]}-${String(MAANDEN.indexOf(d[2])+1).padStart(2,'0')}-${d[1].padStart(2,'0')}`;
-    const tm=afspraak.match(/(\d{1,2})[:.](\d{2})/);if(tm){$('metTijd').checked=true;$('tijd').value=tm[1].padStart(2,'0')+':'+tm[2]}
-    const pm=prijs.match(/(\d[\d.]*)(?:,(\d{2}))?/);
-    if(pm){const v=parseFloat(pm[1].replace(/\./g,'')+'.'+(pm[2]||'00'));$('metPrijs').checked=true;
-      if(v===325||v===175)$('prijs').value=String(v);else{$('prijs').value='eigen';$('eigenPrijs').value=v}}
-    const w=wil.toLowerCase();
-    if(/utiliteit|ep-u/.test(w))$('soort').selectedIndex=4;
-    else if(/maatwerk/.test(w)&&/label/.test(w))$('soort').selectedIndex=2;
-    else if(/maatwerk/.test(w))$('soort').selectedIndex=3;
-    else if(/detail/.test(w))$('soort').selectedIndex=1;
-    else if(w)$('soort').selectedIndex=0;
-    $('onderwerp').dataset.auto='1';
+    if(d&&MAANDEN.includes(d[2]))v.datum=`${d[3]}-${String(MAANDEN.indexOf(d[2])+1).padStart(2,'0')}-${d[1].padStart(2,'0')}`;
+    const tm=afspraak.match(/(\d{1,2})[:.](\d{2})/);if(tm)v.tijd=tm[1].padStart(2,'0')+':'+tm[2];
+    const pm=veld(/^Afgesproken prijs:\s*(.+)$/m).match(/\d[\d.,]*/);v.prijs=pm?prijsGetal(pm[0]):null;
+    projectPadBekend=null;vulFormulier(v);toonOpslagplek();
     render();voorbeeld();say('ok','✓ Projectgegevens ingelezen. Controleer de aanhef'+(tm?'':' en vul de tijd in')+'.');
   }catch(e){say('err','Inlezen mislukt: '+esc(e.message))}
   $('f-txt').value='';
 };
+
+/* Doorgegeven door Nieuwe projectmap: opdrachtbevestiging.html#project=<gegevens> */
+function leesOverdracht(){
+  const m=location.hash.match(/^#project=(.+)$/);if(!m)return false;
+  history.replaceState(null,'',location.pathname+location.search);   // gegevens niet in de adresbalk laten staan
+  let g;try{g=JSON.parse(decodeURIComponent(m[1]))}catch(e){say('err','De gegevens uit Nieuwe projectmap konden niet worden gelezen.');return false}
+  const pc=(g.postcode||'').replace(/\s/g,'').toUpperCase();
+  const nr=g.huisnummer?g.huisnummer+(g.toevoeging||''):'';
+  vulFormulier({
+    straat:[g.straat,nr].filter(Boolean).join(' '),
+    pc:[/^\d{4}[A-Z]{2}$/.test(pc)?pc.slice(0,4)+' '+pc.slice(4):pc,g.plaats].filter(Boolean).join(' '),
+    naam:g.naam||'',mail:g.email||'',achternaam:g.achternaam||'',aanhef:g.aanhef||'',
+    datum:g.afspraakDatum||'',tijd:g.afspraakTijd||'',prijs:prijsGetal(g.prijs),
+    soort:0   // Nieuwe projectmap = energielabel basismethodiek
+  });
+  projectPadBekend=g.projectPad||null;toonOpslagplek();
+  const mist=[!g.achternaam&&'de naam',!g.afspraakTijd&&'de tijd',!g.email&&'het e-mailadres'].filter(Boolean);
+  say('ok','✓ Projectgegevens overgenomen uit Nieuwe projectmap.'+(mist.length?' Nog aanvullen: '+mist.join(', ')+'.':' Controleer de aanhef.'));
+  return true;
+}
 
 function adres(){return sel.value==='anders'?[$('straat').value.trim()||'…',$('pcplaats').value.trim()]:PROJECTEN[sel.value]}
 const datumLang=d=>new Intl.DateTimeFormat('nl-NL',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(d);
@@ -448,7 +482,7 @@ $('b-mail').onclick=async()=>{
     let opgeslagen=null,mapMelding='';
     if($('opslaan').checked){
       res.innerHTML='<div class="msg info"><span class="spin"></span>Projectmap zoeken…</div>';
-      const map=await zoekProjectmap();
+      const map=projectPadBekend||await zoekProjectmap();
       if(map){
         const r=await graph(`me/drive/root:/${ENC(map+'/'+bestandsnaam())}:/content?@microsoft.graph.conflictBehavior=replace`,{method:'PUT',headers:{'Content-Type':'application/pdf'},body:pdf});
         opgeslagen=await r.json().catch(()=>({}));if(!r.ok)throw new Error('Opslaan in OneDrive mislukt');
@@ -497,7 +531,8 @@ $('b-pdf').onclick=async()=>{
   catch(e){say('err','PDF maken mislukt: '+esc(e.message))}
   b.disabled=false;
 };
-render();say('info','<span class="spin"></span>Briefpapier en lettertypes laden…');voorbeeld();
+if(!leesOverdracht())say('info','<span class="spin"></span>Briefpapier en lettertypes laden…');
+render();voorbeeld();
 </script>
 </body>
 </html>
