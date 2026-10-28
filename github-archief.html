@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#432d6a">
+<title>GitHub archief · Visser Inspecties</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --brand:#432d6a; --lila:#8e81a6; --lila-soft:#e8e6ed;
+  --bg:#f4f2f6; --card:#fff; --ink:#1d1833; --muted:#6b6584; --line:#d9d5e1;
+  --ok:#1f7a45; --warn:#b05a00; --err:#b3261e; --r:14px;
+  --serif:'Merriweather',Georgia,'Times New Roman',serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--serif);background:var(--bg);color:var(--ink);font-size:14.5px;line-height:1.5;min-height:100vh}
+.band{background:var(--brand);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:20}
+.band::after{content:"";position:absolute;left:0;right:0;bottom:-5px;height:5px;background:linear-gradient(90deg,#019541 0 16.6%,#54ae32 0 33.3%,#c6d500 0 50%,#ffee02 0 66.6%,#faba00 0 83.3%,#ec670a 0)}
+.band .titel{font-weight:700;font-size:15px}
+.band a{margin-left:auto;color:#fff;text-decoration:none;background:rgba(255,255,255,.14);border-radius:10px;padding:8px 12px;font-size:13px}
+main{max-width:720px;margin:0 auto;padding:24px 16px 48px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-bottom:12px}
+.card h2{font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+p.uitleg{color:var(--muted);font-size:13px;margin-bottom:12px}
+code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;background:var(--bg);padding:1px 5px;border-radius:5px}
+.btn{border:0;border-radius:12px;min-height:46px;padding:0 16px;font-weight:700;font-size:14.5px;cursor:pointer;background:var(--brand);color:#fff;width:100%;font-family:inherit}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.repo{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.repo:first-child{border-top:0}
+.repo input{width:18px;height:18px;flex:none}
+.repo .naam{font-weight:700}
+.repo .info{font-size:12px;color:var(--muted)}
+.repo .tekst{flex:1;min-width:0}
+.balk{height:6px;background:var(--lila-soft);border-radius:3px;margin-top:6px;overflow:hidden}
+.balk i{display:block;height:100%;width:0;background:var(--ok);transition:width .2s}
+.status{font-size:12px;margin-top:4px;color:var(--muted)}
+.status.ok{color:var(--ok)}.status.err{color:var(--err)}
+.msg{border-radius:10px;padding:10px 12px;font-size:13.5px;margin-bottom:12px}
+.msg.err{background:#f6e3e2;color:var(--err)}
+.msg.ok{background:#e1f0e7;color:var(--ok)}
+.msg.info{background:var(--lila-soft)}
+.msg a{color:inherit;font-weight:700}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="band"><span class="titel">GitHub archief</span><a href="index.html" aria-label="Terug naar het dashboard">⌂</a></div>
+<main>
+  <div id="melding"></div>
+  <div class="card">
+    <h2>Wat doet dit</h2>
+    <p class="uitleg">Zet een kopie van je GitHub-repo's in OneDrive, in <code>Scripts/GitHub archief/&lt;naam repo&gt;</code>, met dezelfde mappen en bestanden als op GitHub. Klik je later opnieuw, dan worden alleen gewijzigde en nieuwe bestanden bijgewerkt. Bestanden die op GitHub zijn verwijderd blijven in het archief staan.</p>
+  </div>
+  <div class="card">
+    <h2>Repo's</h2>
+    <div id="repos"><span class="spin"></span>Repo's ophalen bij GitHub…</div>
+  </div>
+  <button class="btn" id="start" disabled>📦 Archief bijwerken in OneDrive</button>
+</main>
+<script>
+const GH_EIGENAAR = 'visserinspecties';
+const DOEL = 'Scripts/GitHub archief';
+const INFO_BESTAND = '_archief-info.json';   // per repo: datum, commit en welke versie van elk bestand er staat
+const TEGELIJK = 4;                          // zoveel bestanden tegelijk
+
+/* ══════════ Microsoft-inlog: hergebruikt de inlog van Nieuwe projectmap of Factuur versturen ══════════ */
+const CLIENT_ID = 'fdf237c9-bf46-47fa-ab3d-a8834a73e284';
+const TENANT_ID = '984fd1fb-3d68-4c94-aff2-47f699fb5dae';
+const SCOPE = 'https://graph.microsoft.com/Files.ReadWrite offline_access';
+const RT_KEYS = ['rt', 'rt_factuur'];
+const LS = { get(k){ try { return localStorage.getItem(k); } catch(e) { return null; } }, set(k,v){ try { localStorage.setItem(k,v); } catch(e) {} } };
+let token = null;
+async function vernieuw() {
+  for (const k of RT_KEYS) {
+    const rt = LS.get(k); if (!rt) continue;
+    try {
+      const r = await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`, { method:'POST',
+        headers:{ 'Content-Type':'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ client_id:CLIENT_ID, scope:SCOPE, grant_type:'refresh_token', refresh_token:rt }) });
+      const d = await r.json();
+      if (d.access_token) { token = d.access_token; if (d.refresh_token) LS.set(k, d.refresh_token); return; }
+    } catch(e) {}
+  }
+  throw new Error('NIET_INGELOGD');
+}
+const G = 'https://graph.microsoft.com/v1.0/';
+const ENC = p => p.split('/').map(encodeURIComponent).join('/');
+async function graph(url, opts = {}, opnieuw = true) {
+  if (!token) await vernieuw();
+  const r = await fetch(url.startsWith('http') ? url : G + url, { ...opts, headers:{ ...(opts.headers || {}), Authorization:'Bearer ' + token } });
+  if (r.status === 401 && opnieuw) { token = null; await vernieuw(); return graph(url, opts, false); }
+  if (r.status === 429 || r.status === 503) {               // OneDrive vraagt om even te wachten
+    const wacht = (parseInt(r.headers.get('Retry-After')) || 5) * 1000;
+    await new Promise(ok => setTimeout(ok, wacht)); return graph(url, opts, opnieuw);
+  }
+  return r;
+}
+
+/* mappen in OneDrive: elke map één keer aanmaken (bestaat hij al, prima) */
+const mapKlaar = new Map();
+function zorgVoorMap(pad) {
+  if (mapKlaar.has(pad)) return mapKlaar.get(pad);
+  const p = (async () => {
+    const delen = pad.split('/'); const naam = delen.pop(); const ouder = delen.join('/');
+    if (ouder) await zorgVoorMap(ouder);
+    const url = ouder ? `me/drive/root:/${ENC(ouder)}:/children` : 'me/drive/root/children';
+    const r = await graph(url, { method:'POST', headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ name:naam, folder:{}, '@microsoft.graph.conflictBehavior':'fail' }) });
+    if (!r.ok && r.status !== 409) throw new Error(`Map "${pad}" aanmaken mislukt (${r.status})`);
+  })();
+  mapKlaar.set(pad, p); p.catch(() => mapKlaar.delete(pad));
+  return p;
+}
+
+/* bestand naar OneDrive: tot 4 MB in één keer, groter in stukken */
+async function upload(pad, blob) {
+  const delen = pad.split('/'); delen.pop(); await zorgVoorMap(delen.join('/'));
+  if (blob.size <= 4 * 1024 * 1024) {
+    const r = await graph(`me/drive/root:/${ENC(pad)}:/content?@microsoft.graph.conflictBehavior=replace`, { method:'PUT', body:blob });
+    if (!r.ok) throw new Error(`${pad.split('/').pop()}: opslaan mislukt (${r.status})`);
+    return;
+  }
+  const s = await graph(`me/drive/root:/${ENC(pad)}:/createUploadSession`, { method:'POST', headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({ item:{ '@microsoft.graph.conflictBehavior':'replace' } }) });
+  const sessie = await s.json(); if (!sessie.uploadUrl) throw new Error(`${pad}: groot bestand niet gestart`);
+  const STUK = 320 * 1024 * 10;   // 3,2 MB, moet een veelvoud van 320 KB zijn
+  for (let van = 0; van < blob.size; van += STUK) {
+    const tot = Math.min(van + STUK, blob.size);
+    const r = await fetch(sessie.uploadUrl, { method:'PUT', headers:{ 'Content-Range':`bytes ${van}-${tot - 1}/${blob.size}` }, body: blob.slice(van, tot) });
+    if (!r.ok) throw new Error(`${pad}: stuk ${van}-${tot} mislukt (${r.status})`);
+  }
+}
+async function leesJson(pad) {
+  const r = await graph(`me/drive/root:/${ENC(pad)}:/content`);
+  if (!r.ok) return null; try { return await r.json(); } catch(e) { return null; }
+}
+
+/* ══════════ GitHub (openbare repo's, geen inlog nodig) ══════════ */
+async function gh(url) {
+  const r = await fetch('https://api.github.com/' + url, { headers:{ Accept:'application/vnd.github+json' } });
+  if (r.status === 403 && r.headers.get('X-RateLimit-Remaining') === '0') throw new Error('GitHub laat even geen verzoeken meer toe (limiet per uur). Probeer het over een uur opnieuw.');
+  if (!r.ok) throw new Error('GitHub antwoordt niet (' + r.status + ')');
+  return r.json();
+}
+const RAW = (repo, ref, pad) => `https://raw.githubusercontent.com/${GH_EIGENAAR}/${repo}/${ref}/${ENC(pad)}`;
+
+/* ══════════ scherm ══════════ */
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+function melding(type, html) { $('melding').innerHTML = html ? `<div class="msg ${type}">${html}</div>` : ''; }
+let REPOS = [];
+
+async function laadRepos() {
+  try {
+    REPOS = (await gh(`users/${GH_EIGENAAR}/repos?per_page=100&sort=pushed`)).filter(r => !r.archived);
+    if (!REPOS.length) { $('repos').textContent = 'Geen openbare repo\'s gevonden.'; return; }
+    $('repos').innerHTML = REPOS.map((r, i) => `
+      <label class="repo">
+        <input type="checkbox" data-i="${i}" checked>
+        <div class="tekst">
+          <div class="naam">${esc(r.name)}</div>
+          <div class="info">Laatst gewijzigd op GitHub: ${new Date(r.pushed_at).toLocaleString('nl-NL', { dateStyle:'medium', timeStyle:'short' })}</div>
+          <div class="balk"><i id="b${i}"></i></div>
+          <div class="status" id="s${i}"></div>
+        </div>
+      </label>`).join('');
+    $('start').disabled = false;
+  } catch(e) { $('repos').innerHTML = `<div class="msg err">${esc(e.message)}</div>`; }
+}
+
+async function archiveer(i) {
+  const repo = REPOS[i], st = $('s' + i), balk = $('b' + i);
+  const zet = (t, cls) => { st.textContent = t; st.className = 'status' + (cls ? ' ' + cls : ''); };
+  zet('Bestandenlijst ophalen…');
+  const tak = repo.default_branch;
+  const commit = await gh(`repos/${GH_EIGENAAR}/${repo.name}/commits/${encodeURIComponent(tak)}`);
+  const boom = await gh(`repos/${GH_EIGENAAR}/${repo.name}/git/trees/${commit.sha}?recursive=1`);
+  const bestanden = (boom.tree || []).filter(t => t.type === 'blob');
+  const map = `${DOEL}/${repo.name}`;
+  const vorige = (await leesJson(`${map}/${INFO_BESTAND}`))?.bestanden || {};
+  const teDoen = bestanden.filter(b => vorige[b.path] !== b.sha);
+  if (!teDoen.length) { balk.style.width = '100%'; zet('✓ Al bijgewerkt, niets veranderd', 'ok'); return { nieuw:0, totaal:bestanden.length }; }
+
+  let klaar = 0, fouten = [];
+  const nu = { ...vorige };
+  const wachtrij = [...teDoen];
+  async function werker() {
+    while (wachtrij.length) {
+      const b = wachtrij.shift();
+      try {
+        const r = await fetch(RAW(repo.name, commit.sha, b.path));
+        if (!r.ok) throw new Error(`${b.path}: downloaden mislukt (${r.status})`);
+        await upload(`${map}/${b.path}`, await r.blob());
+        nu[b.path] = b.sha;
+      } catch(e) { fouten.push(e.message); }
+      klaar++; balk.style.width = Math.round(klaar / teDoen.length * 100) + '%';
+      zet(`${klaar} van ${teDoen.length} bestanden…`);
+    }
+  }
+  await Promise.all(Array.from({ length:TEGELIJK }, werker));
+
+  const info = { repo:repo.name, github:repo.html_url, tak, commit:commit.sha, commitBericht:commit.commit?.message?.split('\n')[0] || '',
+    bijgewerkt:new Date().toISOString(), bestanden:nu };
+  await upload(`${map}/${INFO_BESTAND}`, new Blob([JSON.stringify(info, null, 2)], { type:'application/json' }));
+  if (fouten.length) { zet(`⚠️ ${teDoen.length - fouten.length} bijgewerkt, ${fouten.length} mislukt: ${fouten.slice(0, 2).join('; ')}`, 'err'); }
+  else zet(`✓ ${teDoen.length} bestand(en) bijgewerkt (van ${bestanden.length})`, 'ok');
+  return { nieuw:teDoen.length - fouten.length, fouten:fouten.length, totaal:bestanden.length };
+}
+
+$('start').onclick = async () => {
+  const gekozen = [...document.querySelectorAll('#repos input:checked')].map(x => +x.dataset.i);
+  if (!gekozen.length) return;
+  $('start').disabled = true;
+  melding('info', '<span class="spin"></span>Bezig… laat deze pagina open tot alles klaar is.');
+  try {
+    await vernieuw();
+    let fouten = 0;
+    for (const i of gekozen) {
+      try { const r = await archiveer(i); fouten += r.fouten || 0; }
+      catch(e) { fouten++; $('s' + i).textContent = '⚠️ ' + e.message; $('s' + i).className = 'status err'; }
+    }
+    const link = await graph(`me/drive/root:/${ENC(DOEL)}?$select=webUrl`).then(r => r.ok ? r.json() : {}).catch(() => ({}));
+    melding(fouten ? 'err' : 'ok', (fouten ? '⚠️ Klaar, maar niet alles is gelukt (zie hieronder).' : '✓ Archief bijgewerkt.') +
+      (link.webUrl ? ` <a href="${esc(link.webUrl)}" target="_blank">Map openen in OneDrive</a>` : ''));
+  } catch(e) {
+    melding('err', e.message === 'NIET_INGELOGD'
+      ? 'Je bent nog niet ingelogd. Open <a href="nieuwe-projectmap.html">Nieuwe projectmap</a>, log in met Microsoft en kom daarna hier terug.'
+      : 'Mislukt: ' + esc(e.message));
+  }
+  $('start').disabled = false;
+};
+
+laadRepos();
+</script>
+</body>
+</html>
