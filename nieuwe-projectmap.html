@@ -267,6 +267,7 @@
           <input type="time" id="inp-afspraak-tijd" step="300">
         </div>
       </div>
+      <p class="hint">Datum én tijd ingevuld? Dan zet de tool bij het aanmaken van de map ook een afspraak van 1 uur in je agenda, met het label Werk.</p>
     </div>
 
     <!-- EP-Sys -->
@@ -328,7 +329,9 @@ const CLIENT_ID  = 'fdf237c9-bf46-47fa-ab3d-a8834a73e284';
 const TENANT_ID  = '984fd1fb-3d68-4c94-aff2-47f699fb5dae';
 const REDIRECT   = 'https://visserinspecties.github.io/foto-upload/nieuwe-projectmap.html';
 const ROOT_PATH  = '0_In Behandeling';
-const SCOPE      = 'https://graph.microsoft.com/Files.ReadWrite https://graph.microsoft.com/Tasks.ReadWrite offline_access';
+const SCOPE      = 'https://graph.microsoft.com/Files.ReadWrite https://graph.microsoft.com/Tasks.ReadWrite https://graph.microsoft.com/Calendars.ReadWrite offline_access';
+const AGENDA_CATEGORIE = 'Werk';   // bestaand label in de Outlook-agenda
+const AFSPRAAK_DUUR_MIN = 60;
 const TAAK_CATEGORIE = 'Opvolgen';
 
 // Vaste submappen, identiek aan het oorspronkelijke PowerShell-script
@@ -1158,6 +1161,66 @@ async function maakKaartPng() {
   return await new Promise(res => c.toBlob(res, 'image/png'));
 }
 
+// ── Agenda: afspraak opname in de hoofdagenda (label Werk) ──
+// Alleen als datum én tijd zijn ingevuld. Opbouw zoals John het zelf doet:
+// titel en locatie = adres, in de notitie naam, e-mail en telefoon.
+function plusMinuten(datum, tijd, min) {
+  const [j, m, d] = datum.split('-').map(Number), [u, mi] = tijd.split(':').map(Number);
+  const t = new Date(Date.UTC(j, m - 1, d, u, mi + min));
+  const z = n => String(n).padStart(2, '0');
+  return `${t.getUTCFullYear()}-${z(t.getUTCMonth() + 1)}-${z(t.getUTCDate())}T${z(t.getUTCHours())}:${z(t.getUTCMinutes())}:00`;
+}
+
+async function maakAgendaAfspraak(projectPad, g) {
+  if (!g.afspraakDatum || !g.afspraakTijd) return null;
+  const token = await getToken();
+  const adres = adresRegelVan(g) || g.mapnaam;
+
+  // Link naar de projectmap in de notitie (lukt dat niet, dan zonder link)
+  let mapUrl = '';
+  try {
+    const r = await fetch(`https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(projectPad)}?$select=webUrl`, { headers: { Authorization: 'Bearer ' + token } });
+    if (r.ok) mapUrl = (await r.json()).webUrl || '';
+  } catch(e) {}
+
+  const e = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+  const regels = [
+    naamRegelVan(g),
+    g.email ? `<a href="mailto:${e(g.email)}">${e(g.email)}</a>` : '',
+    g.telefoon ? `<a href="tel:${e(g.telefoon.replace(/\s/g, ''))}">${e(g.telefoon)}</a>` : '',
+    '',
+    [woningtypeLabel(g.woningtype), g.bouwjaar ? 'bouwjaar ' + g.bouwjaar : '', g.oppervlakte ? g.oppervlakte + ' m²' : ''].filter(Boolean).join(' · '),
+    g.prijs ? `Afgesproken prijs: ${formatPrijs(g.prijs)} incl. btw` : '',
+    mapUrl ? `<a href="${e(mapUrl)}">Projectmap openen</a>` : ''
+  ].map(r => r === '' ? r : (r.startsWith('<a') ? r : e(r)));
+  const html = regels.filter((r, i, a) => r || (i > 0 && a[i - 1])).join('<br>');
+
+  // Vaste transactionId per map + moment: nogmaals aanmaken (wachtrij, map bestond al) geeft geen dubbele afspraak
+  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${g.mapnaam}|${g.afspraakDatum}|${g.afspraakTijd}`));
+  const transactionId = [...new Uint8Array(hash)].slice(0, 16).map(b => b.toString(16).padStart(2, '0')).join('');
+
+  const resp = await fetch('https://graph.microsoft.com/v1.0/me/events', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      subject: adres,
+      location: { displayName: adres },
+      start: { dateTime: `${g.afspraakDatum}T${g.afspraakTijd}:00`, timeZone: 'W. Europe Standard Time' },
+      end:   { dateTime: plusMinuten(g.afspraakDatum, g.afspraakTijd, AFSPRAAK_DUUR_MIN), timeZone: 'W. Europe Standard Time' },
+      body: { contentType: 'HTML', content: html },
+      categories: [AGENDA_CATEGORIE],
+      showAs: 'busy',
+      transactionId
+    })
+  });
+  if (resp.status === 409) return { bestondAl: true };
+  if (!resp.ok) {
+    const fout = await resp.json().catch(() => ({}));
+    throw new Error(fout.error?.message || ('HTTP ' + resp.status));
+  }
+  return await resp.json();
+}
+
 // ── Klembord: losse velden en alles-in-één-keer kopiëren ────
 async function kopieerNaarKlembord(tekst, knopId) {
   try {
@@ -1611,6 +1674,20 @@ async function voerProjectmapUit(g) {
     }
   }
 
+  let agendaMelding = '';
+  if (g.afspraakDatum && g.afspraakTijd) {
+    setStatus(`<span class="spinner"></span> Afspraak in agenda zetten: ${naam}...`, 'loading');
+    try {
+      const a = await maakAgendaAfspraak(projectPad, g);
+      agendaMelding = a?.bestondAl ? ' · afspraak stond al in de agenda'
+        : ` · afspraak in agenda gezet (${formatAfspraak(g.afspraakDatum, g.afspraakTijd)}, label ${AGENDA_CATEGORIE})`;
+    } catch(e) {
+      agendaMelding = ` · ⚠️ afspraak in agenda mislukt: ${e.message}`;
+    }
+  } else if (g.afspraakDatum) {
+    agendaMelding = ' · geen agenda-afspraak (tijd ontbreekt)';
+  }
+
   const keuze = await vraagTaakKeuze(naam);
   let taakMelding = '';
   if (keuze === 'ja') {
@@ -1635,7 +1712,7 @@ async function voerProjectmapUit(g) {
   const melding = bestondAl
     ? `✅ Map bestond al — aangevuld met submappen/bestanden: "${naam}"`
     : `✅ Projectmap aangemaakt: "${naam}"`;
-  setStatus(`${melding} (${gekopieerd} bestanden gekopieerd${overgeslagen ? ', '+overgeslagen+' niet gevonden' : ''})${huismatenMelding}${opdrachtgeverMelding}${screenshotMelding}${taakMelding}` +
+  setStatus(`${melding} (${gekopieerd} bestanden gekopieerd${overgeslagen ? ', '+overgeslagen+' niet gevonden' : ''})${huismatenMelding}${opdrachtgeverMelding}${screenshotMelding}${agendaMelding}${taakMelding}` +
     `<button class="btn btn-primary" style="margin:12px 0 0" onclick="openOpdrachtbevestiging(laatsteProject, true)">📄 Nu de opdrachtbevestiging maken →</button>`, 'success');
 }
 
