@@ -237,6 +237,16 @@ details.helper[open] summary::before{content:"–"}
 .od-item:last-child{border-bottom:none}
 .od-leeg{padding:12px;color:var(--muted);font-size:14px}
 .od-knoppen{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.vmeta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.vmeta:empty{display:none}
+.chip{display:inline-flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:5px 11px;font-weight:600;font-size:15px;line-height:1.3}
+.chip small,.erow small,.sidesoort small{font-family:var(--f-mono);font-size:11px;font-weight:500;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.verdict mark{background:var(--surface);color:var(--ink);padding:1px 6px;border-radius:4px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.ebox{border-left:5px solid;border-radius:8px;padding:10px 14px;margin:8px 0 6px;display:grid;gap:6px}
+.erow{display:flex;flex-direction:column}
+.erow b{font-size:15.5px;display:flex;gap:8px;align-items:center}
+.entry details summary{cursor:pointer;font-size:13.5px;color:var(--accent);padding:6px 0}
+.sidesoort{margin:0 0 8px;display:flex;flex-direction:column;font-size:14px}
 .foot{margin-top:28px;font-size:12.5px;color:var(--muted);max-width:80ch}
 @media (prefers-reduced-motion:no-preference){ .card{animation:fade .18s ease-out} @keyframes fade{from{opacity:.4}to{opacity:1}} }
 </style>
@@ -651,7 +661,7 @@ const clone = o => JSON.parse(JSON.stringify(o));
 const today = () => { const d=new Date(); return d.toLocaleDateString('nl-NL',{day:'numeric',month:'long',year:'numeric'}); };
 const isoDate = () => { const d=new Date(), p=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); };
 
-const STORE='visser-beslisschemas-h6-v2';
+const STORE=window.GAST?'beslisschemas-gast-v1':'visser-beslisschemas-h6-v2';
 function load(){ try{ const s=JSON.parse(localStorage.getItem(STORE)); if(s && s.run && s.saved) return s; }catch(e){} return null; }
 function save(){ try{ localStorage.setItem(STORE, JSON.stringify(S)); }catch(e){} }
 
@@ -857,28 +867,43 @@ function runLines(run){
 }
 function hKeyFor(run, ref, key){ const st=run.steps, f=flowOf(ref); let s=0; for(let i=st.length-1;i>=0;i--){ if(st[i].kind==='flow'&&st[i].flow===f&&!st[i].ret){ s=i; break; } } return s+':'+f+':'+key; }
 
+const SOORT_PER_FLOW={garage:'Garage', kelder:'Kelder / souterrain', overig:'Overige ruimte', aangrenzend:'Aangrenzende ruimte', opgang:'Opgang / trappenhuis', klimaat:'Thermische zone (klimatisering)', rc:'Constructie (Rc)', infil:'Woning / gebouw (infiltratie)'};
+function soortRuimte(run){
+  const st=run.steps.find(s=>s.kind==='q' && s.ref==='route.r1'); if(st) return st.label;
+  const f=run.steps.find(s=>s.kind==='flow'); return f ? (SOORT_PER_FLOW[f.flow]||'') : '';
+}
+function entryText(e,i){
+  return [(i!=null?(i+1)+'. ':'')+e.ruimte, '   SOORT RUIMTE: '+(e.soort||'–'), '   UITKOMST:     '+e.title, '   Route:', ...e.lines.map(l=>'   '+l), ''].join('\n');
+}
+function maakEntry(run){ const n=node(run.cur); return {ruimte:run.ruimte||'(ruimte zonder naam)', soort:soortRuimte(run), datum:today(), verdict:n.verdict, title:n.title, lines:runLines(run)}; }
+function kopTekst(){ return ['Beslisschema’s ISSO 82.1 (7e druk)','Project: '+(S.project||'–'),'Datum: '+today(), MAKER, ''].join('\n'); }
 function addToReport(){
   const r=S.run, n=node(r.cur); if(n.type!=='end') return;
-  S.saved.push({ruimte:r.ruimte||'(ruimte zonder naam)', datum:today(), verdict:n.verdict, title:n.title, lines:runLines(r)});
+  S.saved.push(maakEntry(r));
   r.savedAt=Date.now(); save(); render(); toast('Toegevoegd aan verslag');
 }
 function reportText(){
-  const head=['Beslisschema’s ISSO 82.1 (7e druk)','Project: '+(S.project||'–'),'Datum: '+today(),'Visser Inspecties · EnergiePrestatie-advies',''];
-  const body=S.saved.map((e,i)=>[(i+1)+'. '+e.ruimte+'  —  '+e.title, ...e.lines, ''].join('\n'));
-  return head.join('\n')+'\n'+body.join('\n')+'\nBron: ISSO-publicatie 82.1, 7e druk.\n';
+  return kopTekst()+'\n'+S.saved.map((e,i)=>entryText(e,i)).join('\n')+'\nBron: ISSO-publicatie 82.1, 7e druk.\n';
 }
 async function copyReport(){
   const t=reportText();
   try{ await navigator.clipboard.writeText(t); toast('Verslag gekopieerd'); }
   catch(e){ const pre=$('#reportPre'); if(pre){ const sel=window.getSelection(), rg=document.createRange(); rg.selectNodeContents(pre); sel.removeAllRanges(); sel.addRange(rg); } toast('Kopiëren lukte niet — tekst is geselecteerd'); }
 }
-async function saveFile(){
-  const name=bestandsnaam();
-  const blob=new Blob([reportText()],{type:'text/plain;charset=utf-8'});
+async function saveFile(text, name){
+  text = text || reportText(); name = name || bestandsnaam();
+  const blob=new Blob([text],{type:'text/plain;charset=utf-8'});
   try{ const file=new File([blob],name,{type:'text/plain'}); if(navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file], title:name}); return; } }catch(e){ if(e && e.name==='AbortError') return; }
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},500);
 }
+function saveRun(){
+  const r=S.run; if(node(r.cur).type!=='end') return;
+  const e=maakEntry(r); const pr=(S.project||'').trim(), rm=(r.ruimte||'').trim();
+  const name=("Beslisschema's ISSO 82.1"+(pr?' - '+pr:'')+(rm?' - '+rm:'')+' - '+isoDate()).replace(/[\\/:*?"<>|]/g,'').slice(0,150)+'.txt';
+  saveFile(kopTekst()+'\n'+entryText(e)+'\nBron: ISSO-publicatie 82.1, 7e druk.\n', name);
+}
 function bestandsnaam(){ const pr=(S.project||'').trim().replace(/[\\/:*?"<>|]/g,'').slice(0,80); return "Beslisschema's ISSO 82.1"+(pr?' - '+pr:'')+' - '+isoDate()+'.txt'; }
+let MAKER='Visser Inspecties · EnergiePrestatie-advies';
 const inFrame = (()=>{ try{ return window.self!==window.top; }catch(e){ return true; } })();
 
 /* ============================================================
@@ -891,7 +916,7 @@ const GRAPH_SCOPE = 'https://graph.microsoft.com/Files.ReadWrite offline_access'
 const VASTE_ORIGIN = 'https://visserinspecties.github.io';
 const PROJECTEN_ROOT = '0_In Behandeling';
 const SUBMAP = '020 AANTEKENINGEN';
-const OD = !inFrame && location.origin === VASTE_ORIGIN;
+const OD = !inFrame && !window.GAST && location.origin === VASTE_ORIGIN;
 let project = null;   // {naam, pad} — pad eindigt op 020 AANTEKENINGEN
 let melding = null;
 
@@ -1113,7 +1138,8 @@ function renderWork(){
     }
     h+=renderHelper(ref,n)+renderNote(n);
   } else {
-    h+='<div class="verdict v-'+n.verdict+'"><div class="vlab">'+esc(VERDICT_LABEL[n.verdict]||'')+'</div><h2>'+esc(n.title)+'</h2>'+(n.text?'<p>'+n.text+'</p>':'')+(n.bullets?'<ul>'+n.bullets.map(b=>'<li>'+b+'</li>').join('')+'</ul>':'')+(n.dyn==='combis'?combisTable():'')+(n.html?'<div class="tbl endhtml">'+n.html+'</div>':'')+'</div>';
+    const sr=soortRuimte(r);
+    h+='<div class="verdict v-'+n.verdict+'"><div class="vmeta">'+(sr?'<span class="chip"><small>Soort ruimte</small>'+esc(sr)+'</span>':'')+(r.ruimte?'<span class="chip"><small>Ruimte</small>'+esc(r.ruimte)+'</span>':'')+'</div><div class="vlab">Uitkomst · '+esc(VERDICT_LABEL[n.verdict]||'')+'</div><h2><mark>'+esc(n.title)+'</mark></h2>'+(n.text?'<p>'+n.text+'</p>':'')+(n.bullets?'<ul>'+n.bullets.map(b=>'<li>'+b+'</li>').join('')+'</ul>':'')+(n.dyn==='combis'?combisTable():'')+(n.html?'<div class="tbl endhtml">'+n.html+'</div>':'')+'</div>';
   }
 
   h+='<div class="navrow">';
@@ -1127,6 +1153,7 @@ function renderWork(){
     } else {
       if(n.cont) h+='<button class="btn primary" data-act="cont">'+esc(n.cont.label)+' →</button>';
       h+= r.savedAt ? '<button class="btn" disabled>✓ In verslag</button>' : '<button class="btn'+(n.cont?'':' primary')+'" data-act="addreport">Toevoegen aan verslag</button>';
+      if(!inFrame) h+='<button class="btn" data-act="saverun">Opslaan als bestand</button>';
       h+='<button class="btn" data-act="nextroom">Volgende ruimte</button>';
     }
   }
@@ -1164,7 +1191,7 @@ function renderSide(){
   });
   const cn=node(r.cur); if(cn.type==='end') tr+='<li><span class="te"><span class="dot d-'+cn.verdict+'"></span>'+esc(cn.title)+'</span></li>';
   s.innerHTML='<div class="panel"><h3>'+esc(F.afb)+' · overzicht</h3><ul class="ov">'+ov+'</ul></div>'+
-    '<div class="panel"><h3>Gekozen route</h3>'+(r.steps.some(x=>x.kind!=='flow')?'<ul class="trail">'+tr+'</ul>':'<p class="empty">Nog geen antwoorden. Tik op een eerder antwoord om terug te gaan.</p>')+'</div>';
+    '<div class="panel"><h3>Gekozen route</h3>'+(soortRuimte(r)?'<p class="sidesoort"><small>Soort ruimte</small><b>'+esc(soortRuimte(r))+'</b></p>':'')+(r.steps.some(x=>x.kind!=='flow')?'<ul class="trail">'+tr+'</ul>':'<p class="empty">Nog geen antwoorden. Tik op een eerder antwoord om terug te gaan.</p>')+'</div>';
 }
 function shortAns(a){ if(!a) return ''; if(a==='Ja'||a==='Nee') return a; return a.length>6 ? a.slice(0,5)+'…' : a; }
 
@@ -1172,10 +1199,13 @@ function renderReport(){
   let h='<div class="card"><div class="crumb"><span class="pill">Verslag</span><span>'+esc(S.project||'geen project ingevuld')+'</span></div>';
   if(!S.saved.length){ h+='<h2 class="q">Nog geen ruimten in het verslag</h2><p class="sub">Doorloop een schema en kies bij de uitkomst “Toevoegen aan verslag”.</p></div>'; return h; }
   h+='<h2 class="q">'+S.saved.length+' beoordeelde ruimte'+(S.saved.length>1?'n':'')+'</h2>';
-  h+='<div class="navrow" style="border-top:none;margin-top:6px;padding-top:0">'+(OD?'<button class="btn primary" data-act="odsave">Opslaan in projectmap ('+SUBMAP+')</button>':'')+'<button class="btn'+(OD?'':' primary')+'" data-act="copy">Kopieer verslag</button>'+(inFrame?'':'<button class="btn" data-act="file">Download .txt</button>')+'<button class="btn" data-act="clearask">Verslag leegmaken</button></div>';
+  h+='<div class="navrow" style="border-top:none;margin-top:6px;padding-top:0">'+(OD?'<button class="btn primary" data-act="odsave">Opslaan in projectmap ('+SUBMAP+')</button>':'')+'<button class="btn'+(OD?'':' primary')+'" data-act="copy">Kopieer verslag</button>'+(inFrame?'':'<button class="btn" data-act="file">Opslaan als bestand</button>')+'<button class="btn" data-act="clearask">Verslag leegmaken</button></div>';
   if(melding) h+='<div class="melding '+melding.soort+'">'+esc(melding.tekst)+'</div>';
   if(S.clearAsk) h+='<div class="confirm"><span>Alle '+S.saved.length+' ruimten uit het verslag verwijderen?</span><button class="btn" data-act="clearno">Annuleren</button><button class="btn primary" data-act="clearyes">Ja, leegmaken</button></div>';
-  S.saved.forEach((e,i)=>{ h+='<div class="entry"><h3><span class="dot d-'+e.verdict+'"></span>'+esc(e.ruimte)+'</h3><div class="meta">'+esc(e.title)+' · '+esc(e.datum)+' · <button class="x" style="font-size:13px" data-act="del" data-i="'+i+'">verwijderen</button></div><pre>'+esc(e.lines.join('\n'))+'</pre></div>'; });
+  S.saved.forEach((e,i)=>{ h+='<div class="entry"><h3>'+esc(e.ruimte)+'</h3>'+
+    '<div class="ebox v-'+e.verdict+'"><div class="erow"><small>Soort ruimte</small><b>'+esc(e.soort||'–')+'</b></div><div class="erow"><small>Uitkomst</small><b><span class="dot d-'+e.verdict+'"></span> '+esc(e.title)+'</b></div></div>'+
+    '<div class="meta">'+esc(e.datum)+' · <button class="x" style="font-size:13px" data-act="del" data-i="'+i+'">verwijderen</button></div>'+
+    '<details><summary>Route en antwoorden</summary><pre>'+esc(e.lines.join('\n'))+'</pre></details></div>'; });
   h+='<pre id="reportPre" class="mono" style="position:absolute;left:-9999px;white-space:pre">'+esc(reportText())+'</pre></div>';
   return h;
 }
@@ -1201,6 +1231,7 @@ document.addEventListener('click', e=>{
   else if(a==='copy') copyReport();
   else if(a==='file') saveFile();
   else if(a==='odsave') opslaanInProject();
+  else if(a==='saverun') saveRun();
   else if(a==='clearask'){ S.clearAsk=true; render(); }
   else if(a==='clearno'){ S.clearAsk=false; render(); }
   else if(a==='clearyes'){ S.saved=[]; S.clearAsk=false; save(); render(); toast('Verslag leeggemaakt'); }
@@ -1236,7 +1267,8 @@ document.addEventListener('keydown', e=>{
   if(e.key==='Backspace'){ e.preventDefault(); backOne(); }
 });
 
-if(!inFrame) $('#backlink').hidden=false;
+if(!inFrame && location.origin==='https://visserinspecties.github.io' && !window.GAST) $('#backlink').hidden=false;
+if(window.GAST) MAKER='Gemaakt met de beslisschema-tool van Visser Inspecties';
 if(OD){
   const p=leesProject();
   if(S.logKey===undefined){ project=p; S.logKey=projectSleutel(); if(!S.saved.length){ const oud=importOud(S.logKey); if(oud) S.saved=oud; } save(); }

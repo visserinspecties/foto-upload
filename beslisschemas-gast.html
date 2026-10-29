@@ -1,0 +1,1288 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Beslisschema's ISSO 82.1 (gast)</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: werkkolom met één vraag tegelijk + zijkolom met schema-overzicht en gekozen route.
+   Kleuren van de uitkomsten volgen een thermogram: warm = binnen de thermische zone, koud = erbuiten. */
+:root{
+  --bg:#F2F4F3; --surface:#FFFFFF; --ink:#18232A; --muted:#5A6870; --line:#D5DCDE; --soft:#E9EEEE;
+  --accent:#5B2D86; --accent-ink:#FFFFFF; --accent-soft:#EFE8F6;
+  --warm:#B83E0F; --warm-bg:#FBE9DD;
+  --amber:#946000; --amber-bg:#FAF0D8;
+  --violet:#56636D; --violet-bg:#E7ECEF;
+  --cold:#1B5A9E; --cold-bg:#E2EDF9;
+  --ice:#0F6F86; --ice-bg:#DDF1F5;
+  --note-bg:#EEF3F1; --focus:#E08A00;
+  --f-display:"Merriweather", Georgia, "Times New Roman", serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#10171A; --surface:#172126; --ink:#E5ECEE; --muted:#9CAAB0; --line:#2B383E; --soft:#1E2A2F;
+  --accent:#C3A4EA; --accent-ink:#1A1026; --accent-soft:#2C2339;
+  --warm:#F28C5A; --warm-bg:#3A2117;
+  --amber:#E3B14E; --amber-bg:#342910;
+  --violet:#AEBAC3; --violet-bg:#222C32;
+  --cold:#82B5F2; --cold-bg:#162940;
+  --ice:#6CCFE3; --ice-bg:#12313A;
+  --note-bg:#1B262A; --focus:#F0A830; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#10171A; --surface:#172126; --ink:#E5ECEE; --muted:#9CAAB0; --line:#2B383E; --soft:#1E2A2F;
+  --accent:#C3A4EA; --accent-ink:#1A1026; --accent-soft:#2C2339;
+  --warm:#F28C5A; --warm-bg:#3A2117;
+  --amber:#E3B14E; --amber-bg:#342910;
+  --violet:#AEBAC3; --violet-bg:#222C32;
+  --cold:#82B5F2; --cold-bg:#162940;
+  --ice:#6CCFE3; --ice-bg:#12313A;
+  --note-bg:#1B262A; --focus:#F0A830; color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;margin:0}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:20px 48px}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+
+/* header */
+.top{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(22px,3.2vw,30px);line-height:1.2;margin:4px 0 0;text-wrap:balance}
+.proj{display:flex;flex-direction:column;gap:4px;min-width:0;flex:0 1 320px}
+.proj label{font-size:12px;color:var(--muted);font-weight:500}
+input[type=text],input[type=number],input:not([type]),select{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:8px 10px;width:100%;min-width:0}
+input:focus{border-color:var(--accent)}
+.thermo{height:4px;border-radius:2px;margin:16px 0 0;background:linear-gradient(90deg,var(--cold),var(--ice) 30%,var(--violet) 52%,var(--amber) 74%,var(--warm))}
+.legend{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:6px;font-size:12px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:9px;height:9px;border-radius:50%;display:inline-block}
+
+/* tabs */
+.tabs{display:flex;flex-wrap:wrap;gap:6px;margin:18px 0 18px}
+.tab{background:transparent;border:1px solid var(--line);border-radius:999px;padding:6px 13px;cursor:pointer;font-size:14px;color:var(--ink);display:inline-flex;gap:7px;align-items:baseline}
+.tab b{font-family:var(--f-mono);font-weight:500;font-size:12px;color:var(--muted)}
+.tab:hover{border-color:var(--accent)}
+.tab[aria-current="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.tab[aria-current="true"] b{color:var(--accent-ink);opacity:.8}
+.count{font-family:var(--f-mono);font-size:12px;background:var(--soft);border-radius:999px;padding:0 7px}
+.tab[aria-current="true"] .count{background:rgba(255,255,255,.2)}
+
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:20px;align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}}
+
+/* card */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:22px 24px}
+@media (max-width:520px){.card{padding:18px 16px}}
+.crumb{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-family:var(--f-mono);font-size:12px;color:var(--muted);letter-spacing:.03em}
+.crumb .pill{background:var(--accent-soft);color:var(--accent);border-radius:4px;padding:1px 7px;font-weight:500}
+.ruimte{display:flex;gap:10px;align-items:center;margin:14px 0 4px;flex-wrap:wrap}
+.ruimte label{font-size:13px;color:var(--muted);font-weight:500}
+.ruimte input{flex:1 1 220px;max-width:420px}
+.intro{font-size:14px;color:var(--muted);margin:10px 0 0;max-width:68ch}
+.subbanner{margin-top:12px;background:var(--amber-bg);color:var(--ink);border-radius:6px;padding:9px 12px;font-size:14px;border-left:3px solid var(--amber)}
+h2.q{font-family:var(--f-display);font-weight:700;font-size:clamp(19px,2.4vw,23px);line-height:1.35;margin:18px 0 8px;max-width:40ch;text-wrap:balance}
+.sub{margin:0 0 4px;max-width:66ch}
+.opts{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 6px}
+.opt{flex:1 1 150px;max-width:260px;min-height:52px;border:1.5px solid var(--line);background:var(--surface);border-radius:8px;cursor:pointer;font-weight:600;font-size:16px;padding:10px 14px;text-align:left;display:flex;flex-direction:column;justify-content:center;gap:2px}
+.opt:hover{border-color:var(--accent);background:var(--accent-soft)}
+.opt.wide{max-width:none;flex-basis:100%}
+.opt small{font-weight:400;font-size:12.5px;color:var(--muted)}
+.opt .sugg{font-family:var(--f-mono);font-size:11px;font-weight:500;color:var(--accent);letter-spacing:.03em;text-transform:uppercase}
+.opt.suggested{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.opt kbd{font-family:var(--f-mono);font-size:11px;color:var(--muted);font-weight:400}
+.group{margin-top:20px}
+.group h3{font-size:12px;font-family:var(--f-mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 8px;font-weight:500;display:flex;align-items:center;gap:8px}
+.group h3 i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.glist{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+.glist .opt{max-width:none;font-size:14.5px;min-height:0;padding:9px 12px}
+
+/* note & tips */
+.note{background:var(--note-bg);border-radius:8px;padding:12px 14px;margin-top:16px;font-size:14px}
+.note h4{margin:0 0 4px;font-size:12px;font-family:var(--f-mono);font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--accent)}
+.note p{margin:0 0 6px;max-width:70ch}
+.note p:last-child{margin-bottom:0}
+.note ul{margin:4px 0 0;padding-left:18px}
+.tips{margin-top:12px;font-size:14px}
+.tips h4{margin:0 0 4px;font-size:12px;font-family:var(--f-mono);font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--amber)}
+.tips ul{margin:0;padding-left:18px}
+.tips li{margin-bottom:3px;max-width:70ch}
+.tips.gb{background:var(--cold-bg);border-radius:8px;padding:10px 14px}
+.tips.gb h4{color:var(--cold)}
+.tag{font-family:var(--f-mono);font-size:11px;border:1px solid var(--line);border-radius:4px;padding:0 5px;color:var(--muted)}
+
+/* helper */
+details.helper{margin-top:14px;border:1px dashed var(--accent);border-radius:8px;background:var(--surface)}
+details.helper summary{cursor:pointer;padding:10px 14px;font-weight:600;font-size:14px;color:var(--accent);list-style:none;display:flex;gap:8px;align-items:center}
+details.helper summary::-webkit-details-marker{display:none}
+details.helper summary::before{content:"+";font-family:var(--f-mono);width:14px}
+details.helper[open] summary::before{content:"–"}
+.hbody{padding:0 14px 14px}
+.hbody p.hint{font-size:13px;color:var(--muted);margin:0 0 10px}
+.tbl{overflow-x:auto}
+.tbl table{border-collapse:collapse;width:100%;min-width:420px;font-size:14px}
+.tbl th{font-size:12px;font-weight:500;color:var(--muted);text-align:left;padding:4px 6px}
+.tbl td{padding:3px 4px}
+.tbl td input,.tbl td select{padding:6px 8px}
+.tbl td.num input{font-family:var(--f-mono);text-align:right}
+.x{background:none;border:none;cursor:pointer;color:var(--muted);font-size:18px;line-height:1;padding:4px 8px}
+.x:hover{color:var(--warm)}
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.fields label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+.fields input{font-family:var(--f-mono)}
+.chk{display:flex;gap:8px;align-items:center;font-size:14px;margin-top:10px}
+.small-btn{background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;margin-top:8px}
+.small-btn:hover{border-color:var(--accent)}
+.hres{margin-top:12px;font-size:14px;background:var(--accent-soft);border-radius:6px;padding:9px 12px}
+.hres:empty{display:none}
+.hres b{font-family:var(--f-mono);font-weight:500}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.sketch{max-width:420px;margin:4px 0 10px}
+.sketch svg{width:100%;height:auto;display:block}
+
+/* nav row */
+.navrow{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px;padding-top:14px;border-top:1px solid var(--line)}
+.btn{background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:8px 14px;cursor:pointer;font-weight:500;font-size:14px}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn:disabled{opacity:.5;cursor:default}
+
+/* verdict */
+.verdict{border-radius:10px;padding:16px 18px;margin-top:16px;border-left:5px solid}
+.verdict .vlab{font-family:var(--f-mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:500}
+.verdict h2{font-family:var(--f-display);font-size:clamp(20px,2.6vw,25px);margin:4px 0 6px;line-height:1.3;text-wrap:balance}
+.verdict p{margin:0 0 6px;max-width:68ch}
+.verdict ul{margin:6px 0 0;padding-left:18px}
+.verdict li{margin-bottom:3px;max-width:68ch}
+.v-tz{background:var(--warm-bg);border-color:var(--warm)} .v-tz .vlab{color:var(--warm)}
+.v-avr{background:var(--amber-bg);border-color:var(--amber)} .v-avr .vlab{color:var(--amber)}
+.v-overig{background:var(--violet-bg);border-color:var(--violet)} .v-overig .vlab{color:var(--violet)}
+.v-niet,.v-aor{background:var(--cold-bg);border-color:var(--cold)} .v-niet .vlab,.v-aor .vlab{color:var(--cold)}
+.v-sv,.v-aos{background:var(--ice-bg);border-color:var(--ice)} .v-sv .vlab,.v-aos .vlab{color:var(--ice)}
+.v-zone,.v-res{background:var(--accent-soft);border-color:var(--accent)} .v-zone .vlab,.v-res .vlab{color:var(--accent)}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
+.d-tz{background:var(--warm)} .d-avr{background:var(--amber)} .d-overig{background:var(--violet)} .d-niet,.d-aor{background:var(--cold)} .d-sv,.d-aos{background:var(--ice)} .d-zone,.d-res{background:var(--accent)}
+.zones{margin-top:8px;border-collapse:collapse;font-size:14px;width:100%}
+.zones td,.zones th{padding:5px 8px;border-bottom:1px solid var(--line);text-align:left}
+.zones td.num{text-align:right;font-family:var(--f-mono)}
+
+/* side */
+.side{display:flex;flex-direction:column;gap:16px;min-width:0}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.panel h3{margin:0 0 8px;font-size:12px;font-family:var(--f-mono);font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.ov{list-style:none;margin:0;padding:0;font-size:13.5px}
+.ov li{display:flex;gap:8px;padding:5px 0;border-bottom:1px solid var(--soft);align-items:flex-start}
+.ov li:last-child{border-bottom:none}
+.ov .st{font-family:var(--f-mono);font-size:11px;min-width:34px;text-align:center;border-radius:4px;padding:1px 4px;margin-top:2px;flex:none}
+.ov .st.done{background:var(--soft);color:var(--ink)}
+.ov .st.now{background:var(--accent);color:var(--accent-ink)}
+.ov .st.todo{color:var(--muted);border:1px dashed var(--line)}
+.ov li.sec{font-family:var(--f-mono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.05em;padding-top:10px;border-bottom:none}
+.ov .lbl{min-width:0}
+.ov li.dim .lbl{color:var(--muted)}
+.trail{list-style:none;margin:0;padding:0;font-size:13.5px;counter-reset:t}
+.trail li{padding:5px 0;border-bottom:1px solid var(--soft)}
+.trail li:last-child{border-bottom:none}
+.trail li.fl{font-family:var(--f-mono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.05em;padding-top:10px;border-bottom:none}
+.trail button{background:none;border:none;padding:0;text-align:left;cursor:pointer;color:inherit;width:100%}
+.trail button:hover .tq{text-decoration:underline}
+.trail .ta{font-weight:600}
+.trail .tq{color:var(--muted)}
+.trail .der{font-size:12px;color:var(--muted);font-style:italic}
+.trail .te{display:flex;gap:7px;align-items:baseline;font-weight:600}
+.empty{color:var(--muted);font-size:13.5px;margin:0}
+
+/* confirm bar */
+.confirm{background:var(--amber-bg);border:1px solid var(--amber);border-radius:8px;padding:10px 14px;margin-bottom:14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:14px}
+.confirm span{flex:1 1 240px}
+
+/* verslag */
+.entry{border-top:1px solid var(--line);padding:14px 0}
+.entry:first-of-type{border-top:none}
+.entry h3{margin:0;font-family:var(--f-display);font-size:17px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.entry pre{white-space:pre-wrap;font-family:var(--f-mono);font-size:12.5px;background:var(--note-bg);border-radius:6px;padding:10px 12px;margin:8px 0 0;overflow-x:auto}
+.entry .meta{font-size:12.5px;color:var(--muted)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom, 0px));background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:14px;z-index:20}
+.voor{margin-top:10px;font-size:14px}
+.voor details{border-top:1px solid var(--line);padding:4px 0}
+.voor summary{cursor:pointer;color:var(--accent);font-weight:600;padding:6px 0}
+.voor ul,.voor ol{margin:4px 0 8px;padding-left:20px}
+.voor table,.endhtml table{border-collapse:collapse;font-size:13.5px;margin:6px 0}
+.voor th,.voor td,.endhtml th,.endhtml td{border:1px solid var(--line);padding:4px 8px;text-align:left;vertical-align:top}
+.voor th,.endhtml th{background:var(--soft)}
+.klein{font-size:12.5px;color:var(--muted)}
+.back{display:inline-block;font-size:13px;color:var(--accent);text-decoration:none;margin-bottom:6px}
+.odbalk{font-size:13.5px;font-weight:500;padding:9px 12px;border-radius:8px;margin:14px 0 0;display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--accent-soft);color:var(--accent)}
+.odbalk.ok{background:var(--note-bg);color:var(--ink)}
+.odbalk.fout{background:var(--warm-bg);color:var(--warm)}
+.odbalk.let{background:var(--amber-bg);color:var(--amber)}
+.odbalk button{font-size:12.5px;font-weight:600;padding:4px 11px;border:1px solid currentColor;background:var(--surface);color:inherit;border-radius:6px;cursor:pointer}
+.melding{font-size:14px;margin-top:12px;padding:9px 12px;border-radius:8px}
+.melding.ok{background:var(--note-bg)}
+.melding.fout{background:var(--warm-bg);color:var(--warm)}
+.od-overlay{position:fixed;inset:0;background:rgba(15,12,25,.5);z-index:30;display:flex;align-items:center;justify-content:center;padding:16px}
+.od-venster{background:var(--surface);border:1px solid var(--line);border-radius:12px;width:100%;max-width:480px;padding:18px}
+.od-venster h2{font-family:var(--f-display);font-size:18px;margin:0 0 10px}
+.od-pad{font-size:12px;color:var(--muted);background:var(--bg);border-radius:6px;padding:6px 8px;margin-bottom:8px;word-break:break-all;font-family:var(--f-mono)}
+.od-lijst{border:1px solid var(--line);border-radius:8px;background:var(--bg);max-height:300px;overflow-y:auto;margin-bottom:12px}
+.od-item{padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer;font-size:14px}
+.od-item:hover{background:var(--accent-soft)}
+.od-item:last-child{border-bottom:none}
+.od-leeg{padding:12px;color:var(--muted);font-size:14px}
+.od-knoppen{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.vmeta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.vmeta:empty{display:none}
+.chip{display:inline-flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:5px 11px;font-weight:600;font-size:15px;line-height:1.3}
+.chip small,.erow small,.sidesoort small{font-family:var(--f-mono);font-size:11px;font-weight:500;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.verdict mark{background:var(--surface);color:var(--ink);padding:1px 6px;border-radius:4px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.ebox{border-left:5px solid;border-radius:8px;padding:10px 14px;margin:8px 0 6px;display:grid;gap:6px}
+.erow{display:flex;flex-direction:column}
+.erow b{font-size:15.5px;display:flex;gap:8px;align-items:center}
+.entry details summary{cursor:pointer;font-size:13.5px;color:var(--accent);padding:6px 0}
+.sidesoort{margin:0 0 8px;display:flex;flex-direction:column;font-size:14px}
+.foot{margin-top:28px;font-size:12.5px;color:var(--muted);max-width:80ch}
+@media (prefers-reduced-motion:no-preference){ .card{animation:fade .18s ease-out} @keyframes fade{from{opacity:.4}to{opacity:1}} }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="index.html" id="backlink" hidden>‹ Tools</a>
+  <header class="top">
+    <div>
+      <div class="eyebrow">ISSO-publicatie 82.1 · 7e druk</div>
+      <h1>Beslisschema's ISSO 82.1</h1>
+    </div>
+    <div class="proj">
+      <label for="project">Project / adres</label>
+      <input id="project" type="text" placeholder="bijv. EE26-121 · Lippe-Biesterfeldweg 7" autocomplete="off">
+    </div>
+  </header>
+  <div class="thermo" aria-hidden="true"></div>
+  <div class="legend" aria-label="Kleurlegenda uitkomsten">
+    <span><i class="d-tz"></i>binnen thermische zone</span>
+    <span><i class="d-avr"></i>aangrenzend verwarmd (AVR)</span>
+    <span><i class="d-overig"></i>overige ruimte (nog bepalen)</span>
+    <span><i class="d-niet"></i>buiten zone / AOR</span>
+    <span><i class="d-sv"></i>sterk geventileerd / serre</span>
+  </div>
+
+  <div class="odbalk" id="od-status" hidden></div>
+  <nav class="tabs" id="tabs" aria-label="Beslisschema's"></nav>
+  <div id="confirm"></div>
+
+  <div class="grid">
+    <section id="work" aria-live="polite"></section>
+    <aside class="side" id="side"></aside>
+  </div>
+
+  <p class="foot">Bron: ISSO-publicatie 82.1 <i>Energieprestatie woningen en woongebouwen</i>, 7e druk: §6.3 en §6.4 (afb. 6.1 t/m 6.5), afb. 7.3 en afb. 8.14. De toelichtingen bij hoofdstuk 6 zijn in eigen woorden samengevat met de exacte grenswaarden; bij twijfel geldt de tekst van de publicatie. Visser Inspecties · EnergiePrestatie-advies.</p>
+</div>
+<div id="toast" class="toast" hidden></div>
+<div class="od-overlay" id="od-overlay" hidden><div class="od-venster" role="dialog" aria-labelledby="od-titel">
+  <h2 id="od-titel">Kies het project</h2>
+  <div class="od-pad" id="od-pad">OneDrive</div>
+  <div class="od-lijst" id="od-lijst"></div>
+  <div class="od-knoppen"><button class="btn" id="od-terug">↑ Terug</button><button class="btn" id="od-annuleer">Annuleren</button><button class="btn primary" id="od-ok">Dit project gebruiken</button></div>
+</div></div>
+
+<script>window.GAST=true;</script>
+<script>
+(function(){
+"use strict";
+
+/* ============================================================
+   INHOUD — beslisschema's
+   ============================================================ */
+const YN = (ja, nee) => [{k:'ja', label:'Ja', to:ja, key:'j'}, {k:'nee', label:'Nee', to:nee, key:'n'}];
+
+const FLOWS = {
+
+/* ---------- Route-kiezer §6.3.1 – 6.3.3 ---------- */
+route: {
+  tab:'Start', num:'', afb:'§ 6.3.1 – 6.3.3', title:'Route-kiezer',
+  intro:'Kies wat voor ruimte je beoordeelt. De tool stuurt je dan naar de regel of het beslisschema dat erbij hoort. Beoordeel het werkelijke gebruik op het moment van de opname.',
+  start:'r1', order:['r1','r_zolder','r_knie','r_kast'],
+  nodes:{
+    r1:{ type:'q', short:'Soort ruimte', q:'Wat voor ruimte beoordeel je?',
+      sub:'Een ruimte die niet in de lijst staat? Kies de groep die het best past, of begin bij “Overige ruimte”.',
+      options:[
+        {g:'tz', k:'verblijf', label:'Verblijfsruimte', hint:'woonkamer, keuken, slaapkamer, werkkamer', to:'e_tz'},
+        {g:'tz', k:'sanitair', label:'Toilet of badkamer', to:'e_tz'},
+        {g:'tz', k:'verkeer', label:'Eigen gang, hal, overloop of trap', hint:'ook als die naar een ruimte buiten de zone leidt; ook de opgang achter de voordeur van een bovenwoning', to:'e_tz'},
+        {g:'tz', k:'meterkast', label:'Inpandige meterkast', to:'e_tz'},
+        {g:'tz', k:'zwembad', label:'Privé zwembad in de woning', to:'e_tz'},
+        {g:'check', k:'zolder', label:'Zolder', hint:'met of zonder vaste trap', to:'r_zolder'},
+        {g:'check', k:'kast', label:'Kast onder de trap / kelderkast', to:'r_kast'},
+        {g:'check', k:'kelder', label:'Kelder of souterrain', hint:'kelderdefinitie, afb. 6.2', to:'kelder.k1'},
+        {g:'check', k:'garage', label:'Garage of stalling voor auto/motor', hint:'eerst afb. 6.1', to:'garage.g1'},
+        {g:'check', k:'opgang', label:'Opgang of trappenhuis', hint:'eigen opgang bovenwoning of gemeenschappelijk', to:'opgang.q1'},
+        {g:'overig', k:'berging', label:'Berging', hint:'inpandig of aangebouwd; toegang van binnen of buiten maakt niet uit', to:'e_overig'},
+        {g:'overig', k:'stalling', label:'Eigen stalling, niet voor motorvoertuigen', hint:'bijv. fietsenberging', to:'e_overig'},
+        {g:'overig', k:'tech', label:'Technische ruimte of stookruimte', hint:'in de woning, of met kleine installaties voor ≤ 500 m² Ag', to:'e_overig'},
+        {g:'overig', k:'vliering', label:'Vliering of zolder zonder vaste trap', to:'e_overig'},
+        {g:'overig', k:'serre', label:'Serre, loggia of balkonafdichting', to:'e_overig'},
+        {g:'overig', k:'meterbuiten', label:'Meterkast die alleen van buiten bereikbaar is', to:'e_overig'},
+        {g:'overig', k:'lift', label:'Liftschacht in een woongebouw', hint:'is een overige ruimte, géén sterk geventileerde ruimte', to:'e_overig'},
+        {g:'overig', k:'algverkeer', label:'Algemene verkeersruimte woongebouw', hint:'[DETAIL] alleen bij een rapport voor het hele woongebouw', to:'e_overig'},
+        {g:'niet', k:'sterk', label:'Sterk geventileerde ruimte', hint:'niet-afsluitbare openingen naar buiten van samen ≥ 0,2 m²', to:'e_sv'},
+        {g:'niet', k:'industrie', label:'Ruimte met een industriefunctie', to:'e_buiten'},
+        {g:'niet', k:'groepberg', label:'Groep bergingen met toegangsgangen', hint:'in een woongebouw of combinatiegebouw — daarna AVR of AOR bepalen', to:'e_groepberg'},
+        {g:'niet', k:'grotetech', label:'Grote technische ruimte', hint:'installaties voor > 500 m² Ag; niet: meterkast of verdeelruimte per verdieping', to:'e_buiten'},
+        {g:'niet', k:'gemeensch', label:'Gemeenschappelijke ruimte van het complex', hint:'bij een label voor één appartement', to:'e_buiten'},
+        {g:'niet', k:'los', label:'Ruimte die niet direct aan de woning grenst', hint:'tuinhuis, vrijstaande schuur — ook als die verwarmd is', to:'e_buiten'},
+        {g:'niet', k:'zorgunit', label:'Tijdelijke mobiele zorgunit', to:'e_buiten'}
+      ],
+      groups:{
+        tz:{t:'Hoort altijd bij de thermische zone · §6.3.1', c:'d-tz'},
+        check:{t:'Eerst een korte check', c:'d-zone'},
+        overig:{t:'Overige ruimte → beslisschema’s 6.3a–c · §6.3.3', c:'d-overig'},
+        niet:{t:'Hoort nooit bij de thermische zone · §6.3.2', c:'d-niet'}
+      },
+      tips:[
+        'Het werkelijke gebruik tijdens de opname telt. Een voormalige garage die compleet met klimaatinstallaties tot slaapkamer is omgebouwd, is een slaapkamer. Staat er alleen een bed in, dan blijft het een garage.',
+        'Appartement: je beoordeelt alleen de ruimten van die ene woning. Gemeenschappelijke ruimten horen nooit bij de rekenzone van een afzonderlijke woning.',
+        'De thermische zone van één woonfunctie ligt in één gebouw. Wordt de woning door een gemeenschappelijke gang in tweeën gedeeld, dan neem je het andere deel ook mee.'
+      ]},
+    r_zolder:{ type:'q', short:'Zolder met vaste trap', q:'Is de zolder beloopbaar, minstens 1,5 m hoog én bereikbaar met een vaste trap?',
+      sub:'Alle drie moeten kloppen.',
+      options: YN('r_knie','e_overig_zolder'),
+      note:{h:'§6.3.1 · zolder', p:['Een beloopbare zolder van minimaal 1,5 m hoog die je vanuit het gebouw met een vaste trap bereikt, hoort per definitie bij de thermische zone.','Een vlizotrap geldt <b>niet</b> als vaste trap.']}},
+    r_knie:{ type:'q', short:'Knieschotten', q:'Zijn de knieschotten én de vloer achter de knieschotten geïsoleerd, met een hogere warmteweerstand dan het dak of de gevel daarachter?',
+      sub:'Geen knieschotten? Kies dan “Nee”.',
+      options:[{k:'ja', label:'Ja', to:'e_knie', key:'j'},{k:'nee', label:'Nee / geen knieschotten', to:'e_tz_zolder', key:'n'}],
+      note:{h:'§6.3.3 · ruimte achter het knieschot', p:['Alleen als de knieschotten <b>en</b> de vloer erachter geïsoleerd zijn en samen beter isoleren dan het dak/de gevel erachter, is de ruimte achter het knieschot een aparte, aangrenzende onverwarmde ruimte.','In alle andere gevallen hoort de hele zolder, inclusief de ruimte achter de knieschotten, bij de thermische zone.']}},
+    r_kast:{ type:'q', short:'Kelderkast', q:'Bereik je de kast vanuit de woning, is hij maximaal 4 m² en ligt de vloer maximaal 150 cm lager dan de woningvloer ernaast?',
+      options: YN('e_tz_kast','kelder.k1'),
+      note:{h:'§6.3.1 · kelderkast', p:['Een kelderkast is een kast die je vanuit de woning bereikt (bijv. onder de trap), van maximaal 4 m², waarbij het hoogteverschil tussen de bovenkant van de woningvloer ernaast en de bovenkant van de afgewerkte kastvloer maximaal 150 cm is. Een kelderkast hoort altijd bij de thermische zone.']}},
+    e_tz:{ type:'end', verdict:'tz', title:'Hoort altijd bij de thermische zone', text:'Volgens §6.3.1 hoort deze ruimte bij de thermische zone, ook als hij niet of maar matig verwarmd wordt.', bullets:['Beoordeel daarna de ruimten die hieraan grenzen.']},
+    e_tz_kast:{ type:'end', verdict:'tz', title:'Kelderkast — hoort bij de thermische zone', text:'Een kelderkast volgens §6.3.1 hoort altijd bij de thermische zone.'},
+    e_tz_zolder:{ type:'end', verdict:'tz', title:'De hele zolder hoort bij de thermische zone', text:'Ook de ruimte achter de knieschotten hoort erbij; die beschouw je niet als aparte onverwarmde ruimte.'},
+    e_knie:{ type:'end', verdict:'tz', title:'Zolder binnen de zone, ruimte achter de knieschotten erbuiten', text:'De zolder zelf hoort bij de thermische zone.', bullets:['De ruimte achter de knieschotten is een aangrenzende onverwarmde ruimte (AOR).','De knieschotten en de vloer erachter vormen hier de thermische schil.']},
+    e_overig:{ type:'end', verdict:'overig', title:'Overige ruimte', text:'Bepaal met de beslisschema’s 6.3a–c of deze ruimte bij de thermische zone hoort.', cont:{flow:'overig', label:'Verder met beslisschema 6.3a'}},
+    e_overig_zolder:{ type:'end', verdict:'overig', title:'Zolder zonder vaste trap — overige ruimte', text:'Bepaal met de beslisschema’s 6.3a–c of de zolder bij de thermische zone hoort.', bullets:['Hoort de zolder erbij, bepaal de gebruiksoppervlakte dan volgens §7.2.1.'], cont:{flow:'overig', label:'Verder met beslisschema 6.3a'}},
+    e_buiten:{ type:'end', verdict:'niet', title:'Valt buiten de thermische zone', text:'Deze ruimte hoort volgens §6.3.2 of §6.3 nooit bij de thermische zone.', bullets:['Grenst de ruimte aan de woning, bepaal dan welk type aangrenzende ruimte het is (afb. 6.4).'], cont:{flow:'aangrenzend', label:'Type aangrenzende ruimte bepalen (6.4)'}},
+    e_groepberg:{ type:'end', verdict:'niet', title:'Groep bergingen — buiten de thermische zone van de woning', text:'Volgens §6.3.2 punt 5 hoort een groep bergingen (inclusief de toegangsgangen) in een woongebouw nooit bij de thermische zone. Daarmee is het een <b>aangrenzende ruimte</b>. Of die verwarmd (AVR) of onverwarmd (AOR) is, bepaal je met afb. 6.4, en daarin vraag 3 met de beslisschema\u2019s 6.3a–c.',
+      bullets:['De isolatie maakt hier het verschil. Is de buitenschil van de bergingen geïsoleerd zoals de gebouwschil en de scheiding met de woning niet, dan komt 6.3b uit op “hoort bij de zone” en is de groep bergingen een <b>AVR</b>.','Isoleer je de scheiding (bijv. het plafond van de bergingen = vloer van de woning erboven) beter dan de buitenschil, dan wordt het via 6.3c een <b>AOR</b>. De vloer gaat dan bij de thermische schil horen en het label van die woning kan daardoor <b>dalen</b>, ondanks de extra isolatie.','Stichting KEGO heeft deze redenering bevestigd (vraag van John Visser over een jaren-80-appartementengebouw: AVR wordt AOR na isolatie van het bergingsplafond). Neem de vraag, het antwoord en de tekening op in het projectdossier.'],
+      cont:{flow:'aangrenzend', label:'AVR of AOR bepalen (6.4)'}},
+    e_sv:{ type:'end', verdict:'sv', title:'Sterk geventileerde ruimte — buiten de thermische zone', text:'Een ruimte met niet-afsluitbare openingen naar buiten van samen minstens 0,2 m² hoort nooit bij de thermische zone.', bullets:['Basisopname: de scheidingsconstructie naar deze ruimte reken je als grenzend aan buitenlucht.','Let op: ramen en deuren in die constructie krijgen dan géén (noemenswaardige) zoninstraling, anders dan bij echte buitenlucht.']}
+  }
+},
+
+/* ---------- Afb. 6.1 Garages ---------- */
+garage: {
+  tab:'Garage', num:'6.1', afb:'Afb. 6.1', title:'Beslisschema garages',
+  intro:'Een garage is een sterk geventileerde ruimte (buiten de thermische zone) óf een ‘overige ruimte’. Met dit schema bepaal je welke van de twee. Is het een overige ruimte, dan beslissen de schema’s 6.3a–c verder.',
+  start:'g1', order:['g1','g2','g3','g4'],
+  nodes:{
+    g1:{ type:'q', short:'Grote ventilatieopening', q:'Zit er in de garage een grote ventilatieopening?',
+      sub:'Eén of meer openingen die <b>niet af te sluiten</b> zijn en in verbinding staan met de buitenlucht, samen minstens <b>0,2 m²</b>.',
+      options: YN('e_sv','g2'),
+      helper:{type:'openingen', key:'g1'},
+      note:{h:'Toelichting 1', p:['Een grote ventilatieopening: één of meerdere niet-afsluitbare openingen in de ruimte, samen minimaal 0,2 m², in verbinding met de buitenlucht.']},
+      tips:['0,2 m² = 2.000 cm², bijvoorbeeld 45 × 45 cm, of een strook van 10 cm hoog over 2 m breed.','Een rooster met schuif of klep is afsluitbaar en telt dus niet mee.']},
+    g2:{ type:'q', short:'Grote toegangsdeur', q:'Heeft de garage een grote toegangsdeur?',
+      sub:'Een enkele of dubbele deur van minstens <b>1,50 m breed</b> én minstens <b>1,75 m hoog</b>.',
+      options: YN('g3','e_overig'),
+      helper:{type:'deur', key:'g2'},
+      note:{h:'Toelichting 2', p:['Een grote toegangsdeur is een enkele of dubbele deur van minimaal 1,50 m breed en minimaal 1,75 m hoog.']}},
+    g3:{ type:'q', short:'Deur luchtdoorlatend', q:'Laat die grote deur lucht door?',
+      sub:'Ja bij een <b>stalen kanteldeur</b>, of bij een deur met openingen van samen minstens <b>0,2 m²</b>.',
+      options: YN('e_sv','g4'),
+      helper:{type:'openingen', key:'g3', kantel:true},
+      note:{h:'Toelichting 3', p:['De grote toegangsdeur is luchtdoorlatend als het een stalen kanteldeur is, of als de deur openingen heeft van in totaal minimaal 0,2 m².']},
+      tips:['Een sectionaaldeur, roldeur of houten kanteldeur telt alleen als luchtdoorlatend als de openingen samen minstens 0,2 m² zijn.']},
+    g4:{ type:'q', short:'Buitenschil slechter dan scheiding', q:'Isoleert de buitenschil van de garage slechter dan de scheiding met de woning?',
+      sub:'Alleen “Ja” als aan <b>beide</b> voorwaarden is voldaan: (1) meer dan 70% van de dichte buitenschil is geïsoleerd, én (2) de gemiddelde R van die buitenschil is <b>kleiner</b> dan de gemiddelde R van de constructies tussen garage en woning.',
+      options: YN('e_sv','e_overig'),
+      helper:{type:'rvergelijk', key:'g4', mode:'kleiner'},
+      note:{h:'Toelichting 4', p:['Voorwaarde 1: meer dan 70% van het totale oppervlak van de dichte uitwendige scheidingsconstructies (wanden, vloeren, panelen en daken) is geïsoleerd.','Voorwaarde 2: de oppervlakte-gewogen gemiddelde thermische weerstand van die dichte buitenschil is kleiner dan de oppervlakte-gewogen gemiddelde thermische weerstand van de constructies tussen de garage en de rekenzone.','Ramen en deuren, in de buitenschil én in de scheiding met de woning, laat je buiten beschouwing. Uitwendig = grenzend aan buitenlucht, kruipruimte, grond, water of een sterk geventileerde ruimte.']},
+      tips:['Is de garage-schil niet voor meer dan 70% geïsoleerd, dan is het antwoord volgens de toelichting “Nee” en wordt de garage een overige ruimte. Schema 6.3a–c bepaalt dan verder.','Gebruik voor R de Rc-waarden die je volgens hoofdstuk 8 voor deze constructies bepaalt.']},
+    e_sv:{ type:'end', verdict:'sv', title:'Sterk geventileerde ruimte — buiten de thermische zone', text:'De garage hoort niet bij de thermische zone.', bullets:['Basisopname: de constructies tussen woning en garage reken je als grenzend aan buitenlucht.','Ramen en deuren in die constructies krijgen géén (noemenswaardige) zoninstraling.']},
+    e_overig:{ type:'end', verdict:'overig', title:'Garage is een ‘overige ruimte’', text:'Bepaal nu met de beslisschema’s 6.3a–c of de garage alsnog bij de thermische zone hoort.', cont:{flow:'overig', label:'Verder met beslisschema 6.3a'}}
+  }
+},
+
+/* ---------- Afb. 6.2 Kelder ---------- */
+kelder: {
+  tab:'Kelder', num:'6.2', afb:'Afb. 6.2', title:'Is het een kelder?',
+  intro:'Kelders zijn overige ruimten (§6.3.3). Met de definitie bij afbeelding 6.2 stel je vast of de ruimte echt een kelder is, of bijvoorbeeld een kelderkast (altijd binnen de zone) of een souterrain.',
+  start:'k1', order:['k1','k_kast','k2','k3','k4'],
+  nodes:{
+    k1:{ type:'q', short:'h1 > 150 cm', q:'Ligt de keldervloer meer dan 150 cm lager dan de woningvloer ernaast (h1 > 150 cm)?',
+      sub:'h1 = hoogteverschil tussen de bovenkant van de aangrenzende vloer van de thermische zone en de bovenkant van de afgewerkte keldervloer.',
+      options: YN('k2','k_kast'), helper:{type:'kelder', key:'kelder', part:'h1'}, sketch:true},
+    k_kast:{ type:'q', short:'Kelderkast?', q:'Bereik je de ruimte vanuit de woning en is hij maximaal 4 m²?',
+      sub:'Dan is het een kelderkast (h1 is al ≤ 150 cm).',
+      options: YN('e_kast','e_geen'),
+      note:{h:'§6.3.1 · kelderkast', p:['Kelderkast: vanuit de woning bereikbaar, maximaal 4 m², hoogteverschil met de woningvloer ernaast maximaal 150 cm. Hoort altijd bij de thermische zone.']}},
+    k2:{ type:'q', short:'Vloer onder maaiveld', q:'Ligt de keldervloer onder het maaiveld?',
+      options: YN('k3','e_geen')},
+    k3:{ type:'q', short:'Bovenliggende vloer onder maaiveld', q:'Ligt de bovenkant van de vloer bóven de kelder ook onder het maaiveld?',
+      sub:'Meestal is dat de begane-grondvloer.',
+      options: YN('e_ja','k4')},
+    k4:{ type:'q', short:'h2 ≤ ½ h1', q:'Steekt die bovenliggende vloer hooguit de helft van h1 boven het maaiveld uit (h2 ≤ ½ × h1)?',
+      sub:'h2 = hoogte van de bovenkant van de bovenliggende vloer boven het maaiveld.',
+      options: YN('e_ja','e_geen'), helper:{type:'kelder', key:'kelder', part:'h2'}, sketch:true,
+      tips:['Loopt het maaiveld af, neem dan de gemiddelde hoogte van de vloer boven het maaiveld.']},
+    e_ja:{ type:'end', verdict:'overig', title:'Kelder — overige ruimte', text:'De ruimte voldoet aan de kelderdefinitie. Bepaal met 6.3a–c of de kelder bij de thermische zone hoort.', cont:{flow:'overig', label:'Verder met beslisschema 6.3a'}},
+    e_kast:{ type:'end', verdict:'tz', title:'Kelderkast — hoort bij de thermische zone', text:'Een kelderkast volgens §6.3.1 hoort altijd bij de thermische zone.'},
+    e_geen:{ type:'end', verdict:'overig', title:'Geen kelder volgens de definitie', text:'Wordt de ruimte als verblijfsruimte gebruikt (bijv. een woonkamer in het souterrain), dan hoort hij altijd bij de thermische zone. Anders behandel je hem als overige ruimte, bijvoorbeeld een souterrain.', cont:{flow:'overig', label:'Verder met beslisschema 6.3a'}}
+  }
+},
+
+/* ---------- Afb. 6.3a–c Overige ruimte ---------- */
+overig: {
+  tab:'Overige ruimte', num:'6.3', afb:'Afb. 6.3a–c', title:'Thermische zone en ‘overige ruimte’',
+  intro:'Begin altijd bij een ruimte die grenst aan een ruimte die al bij de thermische zone hoort, en werk zo naar buiten. Zodra een schema uitsluitsel geeft, sla je de rest over.',
+  start:'a1', order:['a1','a2','a3','b1','b2','b3','b4','c1','c2','c3'],
+  sections:{a1:'Beslisschema 1 · afb. 6.3a', b1:'Beslisschema 2 · afb. 6.3b', c1:'Beslisschema 3 · afb. 6.3c'},
+  nodes:{
+    a1:{ type:'q', sec:'Schema 1 · afb. 6.3a', short:'Grenst aan thermische zone', q:'Grenst de ruimte direct aan een ruimte die al bij de thermische zone hoort?',
+      sub:'Naast, boven of onder. Hoort deze ruimte straks bij de zone, dan kan een ruimte daarachter op zijn beurt in aanmerking komen.',
+      options: YN('a2','e_niet'),
+      tips:['Ruimten die niet direct aan de woning grenzen vallen in principe buiten de thermische zone, ook als ze verwarmd zijn (bijv. een tuinhuis).']},
+    a2:{ type:'q', sec:'Schema 1 · afb. 6.3a', short:'Verwarmd voor verblijf', q:'Wordt de ruimte verwarmd of gekoeld zodat er mensen langdurig kunnen verblijven?',
+      options: YN('e_tz','a3'),
+      note:{h:'Toelichting 1', p:['Het telt alleen als er ook echt mensen langdurig in de ruimte (kunnen) verblijven. Verkeersruimten worden bijvoorbeeld niet verwarmd voor verblijf.','Mobiele verwarming of koeling, zoals een elektrisch kacheltje of een verrijdbare airco, telt niet.']}},
+    a3:{ type:'q', sec:'Schema 1 · afb. 6.3a', short:'Open verbinding', q:'Is er een open verbinding met een ruimte van de thermische zone?',
+      sub:'Een opening die je niet met de aanwezige harde elementen (deur, luik) kunt afsluiten.',
+      options: YN('e_tz','b1'),
+      helper:{type:'kier', key:'a3'},
+      note:{h:'Toelichting 2', ul:['Alleen een gordijn in de opening: geldt als open verbinding.','Deur of luik dat in gesloten stand meer dan 10% van de opening openlaat: geldt als open verbinding.','Deur uit het kozijn gehaald: alleen een open verbinding als ook de scharnieren/bevestiging uit het kozijn zijn verwijderd.']}},
+    b1:{ type:'q', sec:'Schema 2 · afb. 6.3b', short:'Omsloten door isolatie/spouw of glas', q:'Is de ruimte rondom geïsoleerd of heeft hij spouwmuren — of bestaat de buitenschil alleen uit glas?',
+      sub:'“Geïsoleerd of spouw”: meer dan 70% van de dichte buitenschil heeft minimaal 1 cm isolatie of een spouw.',
+      options:[
+        {k:'iso', label:'Ja, isolatie of spouw', hint:'> 70% van de dichte buitenschil', to:'b2', key:'j'},
+        {k:'glas', label:'Ja, alleen raam/glas', hint:'bijv. een volledig beglaasde loggia', to:'b2', key:'g'},
+        {k:'nee', label:'Nee', to:'c1', key:'n'}],
+      helper:{type:'pct70', key:'b1', yes:'iso'},
+      note:{h:'Toelichting 3a en 3b', p:['3a: Er is sprake van isolatie of spouw als meer dan 70% van het netto oppervlak van de dichte uitwendige scheidingsconstructies (wanden, vloeren, panelen en daken) minimaal 1 cm isolatie of een spouw bevat. Ramen en deuren tellen niet mee. Uitwendig = grenzend aan buitenlucht, kruipruimte, grond of water.','NTA 8800 vraagt hiervoor R ≥ 0,36 m²·K/W; dat komt overeen met een spouw of 1 cm isolatie.','3b: “Alleen raam of glas” is bijvoorbeeld een loggia die volledig met ramen/glas is dichtgezet.']}},
+    b2:{ type:'q', sec:'Schema 2 · afb. 6.3b', short:'>10% raam en >30% enkel glas', q:'Zit er veel enkel glas in? Meer dan 10% raamoppervlak in gevel(s) of dak, én is daarvan meer dan 30% enkel glas?',
+      sub:'Beide moeten kloppen voor “Ja”.',
+      options: YN('c1','b3'),
+      helper:{type:'glas', key:'b2'},
+      note:{h:'Toelichting 4', p:['Het gaat om de ramen en deuren in de buitenschil van deze ruimte met een U-waarde (kozijn + glas/deur) van 4,5 W/m²·K of hoger: in de praktijk enkel glas.','Deuren (geïsoleerd of niet) en dubbel glas in een kozijn zitten altijd onder 4,5 W/m²·K en tellen dus niet als enkel glas. Heeft een raam of deur toch een U-waarde boven 4,5, houd dan 4,5 W/m²·K als grens aan.']}},
+    b3:{ type:'q', sec:'Schema 2 · afb. 6.3b', short:'Scheiding geïsoleerd/spouw', q:'Is de scheiding tussen deze ruimte en de thermische zone geïsoleerd of een spouwconstructie?',
+      sub:'Zelfde maatstaf als hiervoor: meer dan 70% van het dichte oppervlak met minimaal 1 cm isolatie of een spouw.',
+      options: YN('b4','e_tz'),
+      helper:{type:'pct70', key:'b3', yes:'ja', label:'Dichte delen van de scheiding met de thermische zone'},
+      note:{h:'Toelichting 3a', p:['Isolatie of spouw: meer dan 70% van het netto dichte oppervlak heeft minimaal 1 cm isolatie of een spouw (R ≥ 0,36 m²·K/W). Ramen en deuren tellen niet mee.']},
+      tips:['Is de scheiding niet geïsoleerd, dan hoort een rondom geïsoleerde ruimte bij de thermische zone: de isolatie ligt dan in de buitenschil van die ruimte.'],
+      gb:['Welke scheiding toets je? Voor het label van één appartement: de constructie tussen de bergingen en dát appartement (bijv. alleen de vloer van de woning erboven). Zo is het in de KEGO-vraag beoordeeld.','Afb. 6.4 vraag 3 spreekt over “het hele gebouw”. Lees je het zo, dan horen ook de wanden naar de woningen ernaast bij de scheiding, en die kunnen de 70% omlaag trekken. Kies één lezing, pas die op alle woningen toe en leg hem vast.','Huidige situatie, plafond bergingen ongeïsoleerd → Nee → AVR. Plafond nageïsoleerd → Ja → door naar vraag 4.']},
+    b4:{ type:'q', sec:'Schema 2 · afb. 6.3b', short:'R scheiding < R buitenschil', q:'Isoleert de buitenschil van de ruimte béter dan de scheiding met de thermische zone?',
+      sub:'In ISSO-termen: is de warmteweerstand van de scheiding <b>kleiner</b> dan die van de buitenschil (omhulling)? Alleen “Ja” als ook meer dan 70% van de buitenschil geïsoleerd is.',
+      options: YN('e_tz','c1'),
+      helper:{type:'rvergelijk', key:'b4', mode:'groter'},
+      gb:['Na-isolatie van het bergingsplafond met een hogere R dan de buitenschil van de bergingen: antwoord Nee → schema 3 → AOR.'],
+      note:{h:'Toelichting 5', p:['Voorwaarde 1: meer dan 70% van het totale oppervlak van de dichte uitwendige scheidingsconstructies (wanden, vloeren, panelen en daken) is geïsoleerd.','Voorwaarde 2: de oppervlakte-gewogen gemiddelde R van die dichte buitenschil is groter dan de oppervlakte-gewogen gemiddelde R van de constructies tussen de ruimte en de rekenzone.','Ramen en deuren laat je in beide buiten beschouwing; het gaat om netto oppervlak. Uitwendig = grenzend aan buitenlucht, kruipruimte, grond, water of een sterk geventileerde ruimte.']}},
+    c1:{ type:'q', sec:'Schema 3 · afb. 6.3c', short:'Omsloten door isolatie/spouw', q:'Is de ruimte rondom geïsoleerd of heeft hij spouwmuren?',
+      sub:'Meer dan 70% van de dichte buitenschil met minimaal 1 cm isolatie of een spouw. Alleen glas telt hier <b>niet</b>.',
+      options: YN('e_niet','c2'),
+      derive:{from:'b1', map:{iso:'ja', glas:'nee', nee:'nee'}},
+      helper:{type:'pct70', key:'b1', yes:'ja'},
+      note:{h:'Toelichting 3a', p:['Zie schema 2: meer dan 70% van het netto dichte buitenoppervlak met minimaal 1 cm isolatie of spouw.']},
+      tips:['Kom je hier met “Ja”, dan is de ruimte in schema 2 afgevallen door veel enkel glas, of omdat de scheiding beter isoleert dan de buitenschil. De ruimte valt dan buiten de zone.']},
+    c2:{ type:'q', sec:'Schema 3 · afb. 6.3c', short:'Scheiding geïsoleerd/spouw', q:'Is de scheiding tussen deze ruimte en de thermische zone geïsoleerd of een spouwconstructie?',
+      options: YN('e_niet','c3'),
+      derive:{from:'b3', map:{ja:'ja', nee:'nee'}},
+      helper:{type:'pct70', key:'b3', yes:'ja', label:'Dichte delen van de scheiding met de thermische zone'},
+      note:{h:'Toelichting 3a', p:['Meer dan 70% van het netto dichte oppervlak met minimaal 1 cm isolatie of een spouw.']}},
+    c3:{ type:'q', sec:'Schema 3 · afb. 6.3c', short:'Vast afgiftesysteem', q:'Zit er in de ruimte een vast verwarmingselement, zoals een radiator, convector of vloerverwarming?',
+      sub:'In ISSO-termen: een gebouwgebonden warmteafgiftesysteem.',
+      options: YN('e_tz','e_niet'),
+      note:{h:'Toelichting 6 en 7', ul:['Een radiator die alleen voor vorstbeveiliging dient, telt niet.','Mobiele verwarming, zoals een elektrisch kacheltje, telt niet.','Een warmteopwekker (cv-ketel, warmtepomp) is géén afgiftesysteem. Een berging met alleen de cv-ketel erin is dus niet verwarmd.']}},
+    e_tz:{ type:'end', verdict:'tz', title:'Ruimte hoort bij de thermische zone', text:'Neem de ruimte op in de thermische zone.', bullets:['Ga verder met de volgende ruimte die hieraan grenst.','Gaat het om een zolder, bepaal de gebruiksoppervlakte dan volgens §7.2.1.']},
+    e_niet:{ type:'end', verdict:'niet', title:'Ruimte hoort niet bij de thermische zone', text:'De constructie tussen deze ruimte en de thermische zone hoort bij de thermische schil.', bullets:['Bepaal nu welk type aangrenzende ruimte het is (afb. 6.4).'], cont:{flow:'aangrenzend', label:'Type aangrenzende ruimte bepalen (6.4)'}}
+  }
+},
+
+/* ---------- §6.3.4 + Afb. 6.4 Aangrenzende ruimte ---------- */
+aangrenzend: {
+  tab:'Aangrenzend', num:'6.4', afb:'§ 6.3.4 · afb. 6.4', title:'Onverwarmde of verwarmde aangrenzende ruimte',
+  intro:'Elke ruimte buiten de thermische zone is een aangrenzende ruimte: AVR (verwarmd), AOR (onverwarmd), AOS (onverwarmde serre) of sterk geventileerd. Eerst de vaste regels uit §6.3.4; geven die geen uitsluitsel, dan het schema van afbeelding 6.4.',
+  start:'v0', order:['v0','v_bezoek','v_omsl','d1','d2','d3','d_serre'],
+  sections:{v0:'Vooraf · §6.3.4', d1:'Beslisschema · afb. 6.4', d_serre:'Aanvulling · §6.3.4'},
+  nodes:{
+    v0:{ type:'q', sec:'Vooraf · §6.3.4', short:'Eigen perceel of buren', q:'Ligt de aangrenzende ruimte op hetzelfde bouwperceel, of in een naastgelegen gebouw?',
+      sub:'Boven, onder of naast de woning; bij een appartement ook de buurwoningen in hetzelfde complex.',
+      options:[{k:'eigen', label:'Hetzelfde gebouw / perceel', to:'v_omsl', key:'e'},{k:'buren', label:'Naastgelegen gebouw', hint:'ander bouwperceel', to:'v_bezoek', key:'b'}]},
+    v_bezoek:{ type:'q', sec:'Vooraf · §6.3.4', short:'Kun je de ruimte bezoeken', q:'Kun je de ruimte in het naastgelegen gebouw bezoeken en beoordelen?',
+      sub:'Bijvoorbeeld een publiek toegankelijk gebouw, of een gebouw van dezelfde eigenaar, gebruiker of opdrachtgever.',
+      options: YN('v_omsl','e_avr_buren')},
+    v_omsl:{ type:'q', sec:'Vooraf · §6.3.4', short:'Volledig omsloten door verwarmd', q:'Heeft de ruimte geen verwarmingselement en wordt hij helemaal omsloten door verwarmde ruimten?',
+      sub:'Bijvoorbeeld een volledig inpandige gang tussen verwarmde ruimten.',
+      options: YN('e_avr_omsl','d1'),
+      gb:['Grenzen de bergingen aan buitenlucht, grond of kruipruimte (zoals meestal op de begane grond), dan is het antwoord Nee.'],
+      note:{h:'§6.3.4 · aandachtspunt', p:['Een aangrenzende ruimte zonder afgiftesysteem die volledig door verwarmde ruimten wordt omsloten, beoordeel je als aangrenzende verwarmde ruimte (AVR).']}},
+    d1:{ type:'q', sec:'Afb. 6.4', short:'Sterk geventileerd', q:'Is de aangrenzende ruimte sterk geventileerd?',
+      sub:'Niet-afsluitbare openingen naar buiten van samen minstens <b>0,2 m²</b>, of een garage die volgens afb. 6.1 sterk geventileerd is.',
+      options:[
+        {k:'ja', label:'Ja', to:'e_sv', key:'j'},
+        {k:'nee', label:'Nee', to:'d2', key:'n'},
+        {k:'sub', label:'Het is een garage: bepaal met afb. 6.1', hint:'de uitkomst komt hier terug', wide:true, sub:{flow:'garage', map:{sv:'ja', overig:'nee'}}}],
+      helper:{type:'openingen', key:'d1'},
+      gb:['Een groep bergingen met dichte deuren en hooguit gewone ventilatieroosters is in de regel niet sterk geventileerd. Tel alleen niet-afsluitbare openingen naar buiten.'],
+      tips:['Een liftschacht in een woongebouw is géén sterk geventileerde ruimte.']},
+    d2:{ type:'q', sec:'Afb. 6.4', short:'Jaarrond ≥ 15 °C', q:'Is het in die ruimte het hele jaar door continu minimaal 15 °C?',
+      sub:'Ook als de ruimte niet voor mensen verwarmd wordt, bijvoorbeeld door een productieproces.',
+      options: YN('e_avr15','d3'),
+      note:{h:'§6.3.4 · aandachtspunt', p:['Ruimten met een gebouwgebonden warmteafgiftesysteem vallen niet onder deze regel; die beoordeel je met de volgende vraag.','Merk je de ruimte op grond van de 15 °C als AVR aan, leg dan in het gebouwdossier vast waarom.']}},
+    d3:{ type:'q', sec:'Afb. 6.4', short:'TZ als hele gebouw berekend', q:'Zou de ruimte bij de thermische zone horen als je de energieprestatie van het hele gebouw bepaalt?',
+      sub:'Bepaal dat met de beslisschema’s 6.3a–c, gezien vanuit het gebouw waar de ruimte bij hoort.',
+      options:[
+        {k:'ja', label:'Ja', hint:'→ als verwarmd beschouwen', to:'e_avr', key:'j'},
+        {k:'nee', label:'Nee', hint:'→ als onverwarmd beschouwen', to:'d_serre', key:'n'},
+        {k:'sub', label:'Nog niet bepaald: doorloop 6.3a–c', hint:'de uitkomst komt hier terug', wide:true, sub:{flow:'overig', map:{tz:'ja', niet:'nee'}}}],
+      gb:['Doorloop voor de groep bergingen 6.3a–c, ook al hoort hij volgens §6.3.2 niet bij de zone van de woning. Zo bevestigd door Stichting KEGO.','Het resultaat van 6.3b vraag 3 en 4 hangt af van welke scheiding je toetst (zie de tip daar). Leg je keuze vast.'],
+      tips:['Dit geldt voor elke aangrenzende ruimte, ook voor ruimten uit §6.3.2 zoals een groep bergingen. Stichting KEGO heeft dat bevestigd.'],
+      note:{h:'Toelichting 1', ul:['Hoort de aangrenzende ruimte bij de thermische zone van dat gebouw: beschouw hem als verwarmd. De constructie tussen beide ruimten hoort dan <b>niet</b> bij de thermische schil.','Hoort hij er niet bij: beschouw hem als onverwarmd. De constructie ertussen hoort dan <b>wel</b> bij de thermische schil.']}},
+    d_serre:{ type:'q', sec:'Aanvulling · §6.3.4', short:'Serre?', q:'Is de onverwarmde aangrenzende ruimte een serre?',
+      options: YN('e_aos','e_aor')},
+    e_sv:{ type:'end', verdict:'sv', title:'Sterk geventileerd — als buitenlucht beschouwen', text:'De constructie naar deze ruimte hoort bij de thermische schil.', bullets:['Basisopname: het warmteverlies reken je als bij een constructie grenzend aan buitenlucht.','Ramen en deuren in die constructie krijgen géén (noemenswaardige) zoninstraling.']},
+    e_avr:{ type:'end', verdict:'avr', title:'Aangrenzende verwarmde ruimte (AVR)', text:'De constructie tussen de twee ruimten hoort niet bij de thermische schil.'},
+    e_avr15:{ type:'end', verdict:'avr', title:'Aangrenzende verwarmde ruimte (AVR) — jaarrond ≥ 15 °C', text:'De constructie tussen de twee ruimten hoort niet bij de thermische schil.', bullets:['Leg in het gebouwdossier vast waarom deze onverwarmde ruimte als AVR geldt (bijv. productieproces, gemeten temperatuur).']},
+    e_avr_omsl:{ type:'end', verdict:'avr', title:'Aangrenzende verwarmde ruimte (AVR) — omsloten door verwarmde ruimten', text:'De constructie tussen de twee ruimten hoort niet bij de thermische schil.'},
+    e_avr_buren:{ type:'end', verdict:'avr', title:'Niet te bezoeken: ga uit van een AVR', text:'Voor een ruimte in een naastgelegen gebouw die je niet kunt bezoeken, ga je uit van een aangrenzende verwarmde ruimte.'},
+    e_aor:{ type:'end', verdict:'aor', title:'Aangrenzende onverwarmde ruimte (AOR)', text:'De constructie tussen de twee ruimten hoort bij de thermische schil.', bullets:['[DETAIL] Het warmteverlies naar de AOR kun je berekenen met NTA 8800 §8.4.1. Dan moet je ook de thermische schil van de AOR zelf bepalen, net als bij het energieprestatieplichtige deel.']},
+    e_aos:{ type:'end', verdict:'aos', title:'Aangrenzende onverwarmde serre (AOS)', text:'Basisopname: de constructie grenzend aan de AOS beschouw je als grenzend aan buiten.', bullets:['[DETAIL] Je mag de constructie als grenzend aan buitenlucht beschouwen, of de AOS meenemen voor de zonnewarmtewinst. Dan geef je op: de inpandige dichte oppervlakken (vloer van de serre en de constructie tussen AOS en rekenzone), Aw (raamoppervlak in de buitenschil van de AOS), de g-waarde van dat glas, de kozijnfractie (forfaitair 0,25) en Ac;aos (dichte buitenschil van de AOS). Zie NTA 8800 §7.6.4.']}
+  }
+},
+
+
+/* ---------- Gezamenlijke opgang (afgeleid, uit vorige versie) ---------- */
+opgang: {
+  tab:'Opgang', num:'', afb:'§ 6.3 · afgeleid', title:'Gezamenlijke opgang / trappenhuis',
+  intro:"Let op: dit is geen schema uit de ISSO. De ISSO heeft hier geen beslisschema voor, alleen losse regels in hoofdstuk 6. Dit schema is door mij samengesteld uit die regels (zie toelichting) en dient als route naar de officiële schema’s 6.3a–c en 6.4. Controleer bij twijfel de tekst in de ISSO.",
+  voor:"<details><summary>Welke regels zijn gebruikt?</summary><ul>\n  <li><b>§6.3.1</b> – Altijd thermische zone: “Opgang (niet-gemeenschappelijk) achter de voordeur van de betreffende bovenwoning” en niet-gemeenschappelijke verkeersroutes die bij de woning horen (gangen, hallen, overlopen).</li>\n  <li><b>§6.3.2</b> – Voor een woning in een appartementencomplex behoren gemeenschappelijke ruimten in het complex nooit tot de rekenzone van de afzonderlijke woning.</li>\n  <li><b>§6.3.3 [DETAIL]</b> – Bij een energieprestatierapport voor een woongebouw als geheel gelden de beslisschema’s voor overige ruimten ook voor de algemene verkeersruimten.</li>\n  <li><b>§6.3.4</b> – Alle ruimten buiten de thermische zone beschouw je als aangrenzende ruimten (AVR, AOR, AOS, sterk geventileerd); een aangrenzende ruimte zonder afgiftesysteem die volledig door verwarmde ruimten wordt omsloten (bijvoorbeeld een volledig inpandige gang) is AVR.</li>\n  <li><b>§7.1.1.1</b> – Meerdere woningen in stapelvorm met een gedeelde verkeersroute tussen straat en woningentrees: woongebouw of woning in een woongebouw. Beneden-/bovenwoningen (BeBo) zijn ook woningen in een woongebouw.</li>\n  <li><b>§7.1.1</b> – Een kleine vloeroppervlakte van de opgang van een bovenwoning telt niet als significante vloer.</li>\n  <li><b>§7.2.2</b> – Bij een bovenwoning behoort de opgang achter de voordeur tot de rekenzone en telt als aparte bouwlaag.</li></ul></details>",
+  start:'q1', order:['q1','q2','q3'],
+  nodes:{
+    q1:{ type:'q', short:'Eigen opgang bovenwoning', q:"Ligt de opgang achter de eigen voordeur van de bovenwoning, en wordt hij alleen door deze woning gebruikt (niet-gemeenschappelijk)?", options: YN('e_tz','q2')},
+    q2:{ type:'q', short:'Gemeenschappelijke opgang', q:"Is de opgang of het trappenhuis een gemeenschappelijke verkeersruimte, gedeeld door meerdere woningen?", options: YN('q3','e_geen')},
+    q3:{ type:'q', short:'Rapport hele woongebouw', q:"Stel je het energieprestatierapport op voor het woongebouw als geheel?", options: YN('e_gebouw','e_woning')},
+    e_tz:{ type:'end', verdict:'tz', title:"Opgang behoort tot de thermische zone van de bovenwoning", text:"Je beschouwt de opgang als aparte bouwlaag (§7.2.2). Een kleine vloeroppervlakte van de opgang telt niet als significante vloer (§7.1.1)."},
+    e_geen:{ type:'end', verdict:'overig', title:"Geen gemeenschappelijke opgang", text:"Bepaal de ruimte met het thermische-zone-schema (overige ruimte).", cont:{flow:'overig', label:'Verder met beslisschema 6.3a'}},
+    e_gebouw:{ type:'end', verdict:'overig', title:"Algemene verkeersruimte van het woongebouw: bepaal met de schema’s voor overige ruimten of deze tot de thermische zone van het woongebouw behoort", text:"Geldt specifiek voor een energieprestatierapport voor het woongebouw als geheel (§6.3.3 [DETAIL]).", cont:{flow:'overig', label:'Verder met beslisschema 6.3a'}},
+    e_woning:{ type:'end', verdict:'niet', title:"Gemeenschappelijke opgang behoort nooit tot de rekenzone van de woning: beschouw hem als aangrenzende ruimte", text:"Bepaal met het schema voor aangrenzende ruimten of de opgang als verwarmd (AVR), onverwarmd (AOR) of sterk geventileerd moet worden beschouwd. Een opgang die volledig door verwarmde ruimten wordt omsloten, is AVR (§6.3.4).", cont:{flow:'aangrenzend', label:'AVR of AOR bepalen (6.4)'}}
+  }
+},
+
+/* ---------- Afb. 8.14 Rc bij renovatie / aanbouw (uit vorige versie) ---------- */
+rc: {
+  tab:'Rc renovatie', num:'8.14', afb:'§ 8.7.2.1 · afb. 8.14', title:'Rc bij renovatie of later aangebouwd deel',
+  intro:"Gebruik dit schema als het gebouw of een deel van het gebouw is gerenoveerd, of als er een aanbouw is geplaatst en de Rc-waarde via de bouwjaarklasse bepaald moet worden. Het bouwjaar van het gebouw is het oorspronkelijke bouwjaar; het jaar van renovatie of aanbouw gebruik je alleen volgens dit schema.",
+  voor:"<details><summary>Volgorde bij het bepalen van de Rc-waarde (§8.7.2)</summary><ol>\n  <li>Ter plekke bij de betreffende constructie de isolatiedikte meten.</li>\n  <li>Isolatiedikte bepalen uit tekeningen, rekeningen of ander bewijsmateriaal dat bij het gebouw hoort (met adres). Ter plekke controleren of de aangegeven dikte aannemelijk is.</li>\n  <li>Rc-waarde bepalen op basis van de bouwjaarklasse.</li></ol>\n  <p>Aantoonbaar nageïsoleerd in de spouw, maar spouwdikte niet vast te stellen? Ga uit van tabel 8.26:</p>\n  <table><tr><th>Bouwjaar</th><th>Dikte van de spouw</th></tr><tr><td>1930 tot 1970</td><td>40 mm</td></tr><tr><td>1970 tot en met 1985</td><td>70 mm</td></tr><tr><td>Na 1985</td><td>100 mm</td></tr></table>\n  <p class=\"klein\">Dikte uit tekeningen alleen gebruiken als die gemaatvoerd of op schaal zijn én ander bewijs bevestigt dat de dikte is toegepast. Een Rc-waarde op een rekening of tekening mag je niet gebruiken, tenzij een gecontroleerde verklaring bevestigt dat die klopt.</p></details>\n  <details><summary>Hoofdgebouw en later aangebouwd deel</summary><p>Het hoofdgebouw is het oorspronkelijke bouwdeel (zonder aanbouwen), voor zover dit ook het grootste deel van het te beoordelen gebouw betreft. Is een later aangebouwd deel groter, dan kan het zijn dat het oorspronkelijke bouwdeel niet meer het hoofdgebouw is.</p></details>",
+  start:'q1', order:['q1','q2','q3','q4'],
+  nodes:{
+    q1:{ type:'q', short:'Isolatie vast te stellen', q:"Is isolatie vast te stellen?", options: YN('q2','e1')},
+    q2:{ type:'q', short:'Dikte vast te stellen', q:"Is de dikte van de isolatie vast te stellen?", options: YN('e2','q3')},
+    q3:{ type:'q', short:'Jaar renovatie/aanbouw bekend', q:"Is het jaar van renovatie of aanbouw bekend?", options: YN('q4','e3')},
+    q4:{ type:'q', short:'Geïsoleerd volgens eis dat jaar', q:"Is geïsoleerd volgens de eis van de bouwregelgeving in het betreffende jaar?", options: YN('e4','e5'), note:{h:'Toelichting 1', p:["Bewijs dat tijdens de renovatie of aanbouw is geïsoleerd conform de eisen die toen golden, moet je in het projectdossier opnemen."]}, tips:["Voorbeeld: een gebouw is in 1995 volledig gerenoveerd, de isolatiedikte van de gevel is niet te bepalen en er is geen bewijs dat de Rc-waarde van de gevel voldoet aan het Bouwbesluit van 1995. Voor de gevel houd je dan bouwjaarklasse ‘van 1988 tot 1992’ aan. De hoogst aan te houden bouwjaarklasse in deze situatie is ‘van 1992 tot 2014’ (Rc = 2,5 m²·K/W)."]},
+    e1:{ type:'end', verdict:'res', title:"Bouwjaarklasse is gelijk aan het bouwjaar van het gebouw"},
+    e2:{ type:'end', verdict:'res', title:"Rond de isolatiedikte af op hele cm’s en bepaal de Rc-waarde met tabel 8.11 + formule 8.4"},
+    e3:{ type:'end', verdict:'res', title:"Neem de bouwjaarklasse volgend op de klasse van het bouwjaar van het gebouw", text:"Uitzondering: gebouwen met bouwjaar vóór 1965 – gebruik daarvoor de kolom ‘(na)geïsoleerd’ uit tabel 8.9.", html:"<table><tr><th>Constructie</th><th>Spouw</th><th>Rc isolatie onbekend of afwezig</th><th>Rc (na)geïsoleerd</th></tr>\n<tr><td rowspan=\"2\">Gevels</td><td>Spouw</td><td>0,35</td><td>0,85</td></tr><tr><td>Geen spouw of onbekend</td><td>0,19</td><td>0,69</td></tr>\n<tr><td rowspan=\"2\">Vloer boven kruipruimte of direct op ondergrond; onder maaiveld gelegen uitwendige scheidingsconstructies die de verwarmde binnenruimte scheiden van de grond of een AOR</td><td>Spouw</td><td>0,33</td><td>0,83</td></tr><tr><td>Geen spouw of onbekend</td><td>0,15</td><td>0,65</td></tr>\n<tr><td rowspan=\"2\">Daken en vloeren grenzend aan de buitenlucht</td><td>Spouw</td><td>0,35</td><td>0,85</td></tr><tr><td>Geen spouw of onbekend</td><td>0,22</td><td>0,72</td></tr></table>\n<p class=\"klein\">Tabel 8.9 – forfaitaire Rc-waarden (m²·K/W), bouwjaar vóór 1965 met niet te bepalen isolatiedikte of zonder isolatie.</p>"},
+    e4:{ type:'end', verdict:'res', title:"Bouwjaarklasse is gelijk aan het jaar van renovatie of de aanbouw", text:"Neem het bewijs op in het projectdossier."},
+    e5:{ type:'end', verdict:'res', title:"Neem de bouwjaarklasse voorafgaand aan de klasse van het jaar van renovatie of aanbouw", text:"Hoogst aan te houden klasse: ‘van 1992 tot 2014’ (Rc = 2,5 m²·K/W). Voorbeeld: volledig gerenoveerd in 1995, geen bewijs → gevel: klasse ‘van 1988 tot 1992’."}
+  }
+},
+
+/* ---------- Afb. 7.3 Renovatiejaar bij infiltratie (uit vorige versie) ---------- */
+infil: {
+  tab:'Infiltratie', num:'7.3', afb:'§ 7.1.4 / 7.1.5 · afb. 7.3', title:'Renovatiejaar bij infiltratie',
+  intro:"Bepalen of het renovatiejaar gebruikt mag worden voor de bepaling van de infiltratie.",
+  start:'q1', order:['q1','q2','q3','q4','q5','q6'],
+  nodes:{
+    q1:{ type:'q', short:'qv;10 gemeten', q:"Is van het betreffende gebouw de luchtdichtheid (qv;10-waarde) gemeten?", options: YN('q2','q3')},
+    q2:{ type:'q', short:'Meting volgens §7.1.5', q:"Voldoet de meting aan de eisen uit paragraaf 7.1.5?", options: YN('e_meting','q3')},
+    q3:{ type:'q', short:'≥ 90% schil nageïsoleerd', q:"Is minimaal 90% van het oppervlak van de schil (grenzend aan buiten) na het bouwjaar naïsoleerd?", options: YN('q4','e_nee'), note:{h:'Toelichting 1 en 2', p:["Als in de thermische schil van de woning geen dak aanwezig is, dan telt het dak van het woongebouw niet mee. Verder geldt dat als het een gebouw is met een doorlopende (balkon)vloer die niet in de renovatie meegenomen kan worden, het oppervlak van de doorsnede van de vloer niet meetelt in de 90%-regel.","Als niet het dak, maar de zoldervloer is geïsoleerd (zolder behoort dan niet tot de rekenzone), volstaat ook de isolatie van de zoldervloer."]}},
+    q4:{ type:'q', short:'≥ 90% isolerend glas + kierdichting', q:"Is bij minimaal 90% van het raamoppervlak het glas vervangen door isolerend glas én is er kierdichting aangebracht bij de te openen ramen?", options: YN('q5','e_nee')},
+    q5:{ type:'q', short:'≥ 90% nieuwe kozijnen', q:"Zijn bij minimaal 90% van het raamoppervlak de kozijnen vervangen door nieuwe kozijnen?", options: YN('e_ja','q6')},
+    q6:{ type:'q', short:'≥ 90% kierdicht muur–kozijn', q:"Is bij minimaal 90% van het raamoppervlak kierdichting tussen muur en kozijn aangebracht, of is de aansluiting tussen muur en kozijn kierdicht als gevolg van naïsolatie van de gevel?", options: YN('e_ja','e_nee'), note:{h:'Toelichting 3', p:["Kierdichting tussen muur en kozijn moet een flexibele en uitzettende afdichting zijn, zoals uitzetband. Uitsluitend afkitten volstaat niet. In geval van naïsolatie van de gevel volstaat spouwmuurisolatie of geïsoleerde voorzetwanden. Bij voorzetwanden moeten ook de dagkant van de wandopening zijn naïsoleerd en/of afgewerkt met plaatmateriaal, en de afwerking van de dagkanten moet naadloos aansluiten op de kozijnen. Er mogen dus geen openstaande naden zichtbaar zijn."]}},
+    e_meting:{ type:'end', verdict:'res', title:"Gebruik de qv;10-waarde voor de infiltratie"},
+    e_ja:{ type:'end', verdict:'res', title:"Renovatiejaar is van toepassing", text:"<b>Renovatiejaar onbekend?</b> Hou dan het eerste jaar uit de volgende hogere jaarklasse (één klasse hoger dan die van het oorspronkelijke bouwjaar) aan. Voorbeeld: bouwjaar 1965, er is energiebesparend gerenoveerd maar het jaar is niet te achterhalen → hou 1970 aan. Jaarklassen: J&lt;1970; 1970≤J&lt;1980; 1980≤J&lt;1990; 1990≤J&lt;2000; 2000≤J&lt;2010; J≥2010.<br><b>Dak en gevel in verschillende perioden geïsoleerd?</b> Dan is het jaar dat leidend is het jaar van het dak (voorbeeld: gevels 1984, dak 1992 → 1992). Bij een woning zonder dak (tussenwoning in appartementsgebouw) is de gevel maatgevend. Zijn maatregelen aan kozijnen en de rest van de gevel in verschillende jaren uitgevoerd, hou dan het oudste jaar aan."},
+    e_nee:{ type:'end', verdict:'res', title:"Renovatiejaar is niet van toepassing"}
+  }
+},
+
+/* ---------- §6.4 + Afb. 6.5 Klimatiseringszones ---------- */
+klimaat: {
+  tab:'Klimatisering', num:'6.5', afb:'§ 6.4 · afb. 6.5', title:'Indelen in klimatiseringszones',
+  intro:'Je splitst de thermische zone alleen in meerdere klimatiseringszones als er verschillende typen klimaatinstallaties voorkomen (verwarming, koeling, ventilatie). Warm tapwater speelt geen rol.',
+  start:'z1', order:['z1','z2','z3','z4','z5'],
+  nodes:{
+    z1:{ type:'q', short:'Eén verwarmingssysteem', q:'Heeft de hele thermische zone één verwarmingssysteem?',
+      sub:'Verschillende systemen = <b>fysiek gescheiden</b> systemen, elk met hun eigen opwekker(s).',
+      options: YN('z2','z2'),
+      note:{h:'Toelichting · verwarming', ul:['Afgifte- en distributiesystemen op dezelfde opwekker(s) zijn één systeem: radiatoren én vloerverwarming op dezelfde ketel = één verwarmingssysteem.','Voorbeeld twee systemen: een deel van het gebouw op een HR-ketel en een fysiek gescheiden deel op een warmtepomp.','Verblijfsruimten zonder verwarmingssysteem neem je op als ruimten met (lokale) elektrische verwarming.','Andere ruimten zonder verwarming (badkamer, toilet, overloop, hal, trapkast) wijs je toe aan de aangrenzende klimatiseringszone: eerst een zone zonder koeling op dezelfde verdieping.']}},
+    z2:{ type:'q', short:'Koeling', q:'Hoe zit het met koeling?',
+      options:[
+        {k:'geen', label:'Nergens koeling', to:'z3', key:'g'},
+        {k:'een', label:'Overal hetzelfde koelsysteem', to:'z3', key:'e'},
+        {k:'deels', label:'Deels gekoeld, of meerdere koelsystemen', to:'z3', key:'d'}],
+      note:{h:'Toelichting · koeling', ul:['Gekoelde en niet-gekoelde ruimten vormen elk een eigen initiële klimatiseringszone.','Afgiftesystemen op dezelfde koudeopwekker zijn één koelsysteem: vloerkoeling én fancoils op dezelfde machine = één systeem.','Voorbeeld twee systemen: een compressiekoelmachine in het ene deel en een WKO in een ander deel.']}},
+    z3:{ type:'q', short:'Eén ventilatiesysteem', q:'Wordt minstens 80% van de gebruiksoppervlakte (Ag) door één en hetzelfde type ventilatiesysteem geventileerd?',
+      options: YN('z4','z4'),
+      note:{h:'Toelichting · ventilatie', ul:['Typen: A natuurlijke toe- en afvoer · B mechanische toevoer, natuurlijke afvoer · C natuurlijke toevoer, mechanische afvoer · D mechanische toe- en afvoer · E gecombineerd.','Verschillende WTW-units met een ander rendement gelden ook als verschillende ventilatiesystemen.','[DETAIL] Bij een woongebouw als geheel mag je een afwijkend systeem van gemeenschappelijke ruimten binnen de thermische zone negeren; die krijgen het systeem van de rest van het gebouw.']}},
+    z4:{ type:'q', short:'Alle drie één systeem', q:'Zijn verwarming, koeling en ventilatie elk één systeem voor de hele thermische zone?',
+      options: YN('e_een','z5'),
+      deriveFn:'klimaatAll'},
+    z5:{ type:'q', short:'Initiële combinaties', q:'Welke initiële combinaties zijn er, en hoe groot is hun gebruiksoppervlakte?',
+      sub:'Een initiële combinatie is een deel van het gebouw met hooguit één verwarmingssysteem, hooguit één koelsysteem, en waarvan minstens 80% van de Ag door één type ventilatiesysteem wordt geventileerd.',
+      options:[{k:'ok', label:'Indeling bepalen', to:'e_combi', wide:true, key:'j'}],
+      helper:{type:'combis', key:'z5', open:true},
+      tips:['Leg de gemaakte keuzes duidelijk en reproduceerbaar vast in het gebouwdossier.']},
+    e_een:{ type:'end', verdict:'zone', title:'De woning bestaat uit één klimatiseringszone', text:'Verwarming, koeling en ventilatie zijn elk één systeem.'},
+    e_combi:{ type:'end', verdict:'zone', title:'Indeling in klimatiseringszones', text:'Elke initiële combinatie is een klimatiseringszone. Een combinatie kleiner dan 10% van de Ag van de grootste mag je bij die grootste voegen.', dyn:'combis'}
+  }
+}
+};
+
+const TAB_ORDER = ['route','garage','kelder','overig','aangrenzend','opgang','klimaat','rc','infil'];
+const VERDICT_LABEL = {tz:'Binnen thermische zone', niet:'Buiten thermische zone', overig:'Overige ruimte', sv:'Sterk geventileerd', avr:'AVR', aor:'AOR', aos:'AOS', zone:'Klimatiseringszones', res:'Uitkomst'};
+
+/* ============================================================
+   HULPFUNCTIES
+   ============================================================ */
+const $ = s => document.querySelector(s);
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const strip = s => String(s||'').replace(/<[^>]+>/g,'');
+const num = v => { if(v==null) return NaN; const t=String(v).trim().replace(',', '.'); return t===''?NaN:Number(t); };
+const fmt = (n,d=2) => isFinite(n) ? n.toLocaleString('nl-NL',{minimumFractionDigits:0, maximumFractionDigits:d}) : '–';
+const node = ref => { const [f,n]=ref.split('.'); return FLOWS[f].nodes[n]; };
+const flowOf = ref => ref.split('.')[0];
+const resolve = (ref,to) => to.includes('.') ? to : flowOf(ref)+'.'+to;
+const clone = o => JSON.parse(JSON.stringify(o));
+const today = () => { const d=new Date(); return d.toLocaleDateString('nl-NL',{day:'numeric',month:'long',year:'numeric'}); };
+const isoDate = () => { const d=new Date(), p=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); };
+
+const STORE=window.GAST?'beslisschemas-gast-v1':'visser-beslisschemas-h6-v2';
+function load(){ try{ const s=JSON.parse(localStorage.getItem(STORE)); if(s && s.run && s.saved) return s; }catch(e){} return null; }
+function save(){ try{ localStorage.setItem(STORE, JSON.stringify(S)); }catch(e){} }
+
+function newRun(flow){ return {ruimte:'', steps:[{kind:'flow', flow}], cur:flow+'.'+FLOWS[flow].start, stack:[], helpers:{}, savedAt:null, tab:flow}; }
+let S = load() || {project:'', saved:[], run:newRun('route'), view:'run', pending:null};
+S.view = S.view || 'run';
+
+/* Segment = deel van de run sinds de laatste start van deze flow (voor overnemen van antwoorden en rekenhulp) */
+function segStart(flow){ const st=S.run.steps; for(let i=st.length-1;i>=0;i--){ if(st[i].kind==='flow' && st[i].flow===flow && !st[i].ret) return i; } return 0; }
+function segAnswers(flow){ const a={}; const st=S.run.steps; for(let i=segStart(flow)+1;i<st.length;i++){ const s=st[i]; if(s.kind==='flow' && s.flow===flow && !s.ret) break; if(s.kind==='q' && flowOf(s.ref)===flow) a[s.ref.split('.')[1]]=s.k; } return a; }
+function hKey(ref, key){ return segStart(flowOf(ref))+':'+flowOf(ref)+':'+key; }
+function hData(ref, h){ const k=hKey(ref,h.key); if(!S.run.helpers[k]) S.run.helpers[k]=HELPERS[h.type].init(h); return S.run.helpers[k]; }
+
+/* ============================================================
+   REKENHULPEN
+   ============================================================ */
+function rowsTable(path, rows, cols){
+  let h='<div class="tbl"><table><thead><tr>'+cols.map(c=>'<th>'+c.t+'</th>').join('')+'<th></th></tr></thead><tbody>';
+  rows.forEach((r,i)=>{
+    h+='<tr>'+cols.map(c=>{
+      const p=path+'.'+i+'.'+c.k;
+      if(c.sel) return '<td><select data-h="'+p+'">'+c.sel.map(o=>'<option value="'+o[0]+'"'+(r[c.k]===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select></td>';
+      return '<td class="'+(c.num?'num':'')+'"><input '+(c.num?'inputmode="decimal" ':'')+'data-h="'+p+'" value="'+esc(r[c.k])+'" placeholder="'+(c.ph||'')+'" aria-label="'+esc(c.t)+'"></td>';
+    }).join('')+'<td><button class="x" data-act="delrow" data-p="'+path+'" data-i="'+i+'" aria-label="Rij verwijderen">×</button></td></tr>';
+  });
+  return h+'</tbody></table></div><button class="small-btn" data-act="addrow" data-p="'+path+'">+ rij toevoegen</button>';
+}
+const ok = b => b ? '✓' : '✗';
+
+const HELPERS = {
+  openingen:{
+    title:'Rekenhulp: openingen optellen',
+    init:h=>({rows:[{oms:'',b:'',h:'',m2:''}], kantel:false}),
+    render:(d,h)=>'<p class="hint">Vul per opening breedte × hoogte in cm in, of direct het oppervlak in m². Alleen niet-afsluitbare openingen.</p>'+
+      rowsTable('rows', d.rows, [{k:'oms',t:'Opening',ph:'bijv. open stootvoegen'},{k:'b',t:'b (cm)',num:true},{k:'h',t:'h (cm)',num:true},{k:'m2',t:'of m²',num:true}])+
+      (h.kantel?'<label class="chk"><input type="checkbox" data-h="kantel"'+(d.kantel?' checked':'')+'> Het is een stalen kanteldeur</label>':''),
+    compute:(d,h)=>{ let s=0, any=false; d.rows.forEach(r=>{ const m=num(r.m2), b=num(r.b), hh=num(r.h); if(m>0){s+=m;any=true;} else if(b>0&&hh>0){s+=b*hh/10000;any=true;} });
+      if(h.kantel && d.kantel) return {k:'ja', text:'Stalen kanteldeur → luchtdoorlatend.', sum:'stalen kanteldeur'};
+      if(!any) return null; const ja=s>=0.2;
+      return {k:ja?'ja':'nee', text:'Openingen samen <b>'+fmt(s,3)+' m²</b> ('+(ja?'≥':'<')+' 0,2 m²).', sum:'openingen samen '+fmt(s,3)+' m² ('+(ja?'≥':'<')+' 0,2 m²)'}; }
+  },
+  deur:{
+    title:'Rekenhulp: deurmaat toetsen',
+    init:()=>({b:'',h:''}),
+    render:d=>'<div class="fields"><label>Breedte deur (m)<input inputmode="decimal" data-h="b" value="'+esc(d.b)+'" placeholder="bijv. 2,40"></label><label>Hoogte deur (m)<input inputmode="decimal" data-h="h" value="'+esc(d.h)+'" placeholder="bijv. 2,10"></label></div>',
+    compute:d=>{ const b=num(d.b), h=num(d.h); if(!(b>0&&h>0)) return null; const ja=b>=1.5&&h>=1.75;
+      return {k:ja?'ja':'nee', text:'Breedte '+fmt(b)+' m '+ok(b>=1.5)+' (≥ 1,50) · hoogte '+fmt(h)+' m '+ok(h>=1.75)+' (≥ 1,75) → <b>'+(ja?'grote toegangsdeur':'geen grote toegangsdeur')+'</b>.', sum:'deur '+fmt(b)+' × '+fmt(h)+' m'}; }
+  },
+  kier:{
+    title:'Rekenhulp: blijft er meer dan 10% open?',
+    init:()=>({ao:'',ak:''}),
+    render:d=>'<div class="fields"><label>Oppervlak hele opening (m²)<input inputmode="decimal" data-h="ao" value="'+esc(d.ao)+'"></label><label>Open bij gesloten deur/luik (m²)<input inputmode="decimal" data-h="ak" value="'+esc(d.ak)+'"></label></div>',
+    compute:d=>{ const a=num(d.ao), k=num(d.ak); if(!(a>0) || !(k>=0)) return null; const p=k/a*100, ja=p>10;
+      return {k:ja?'ja':'nee', text:'Open bij gesloten stand: <b>'+fmt(p,1)+'%</b> van de opening ('+(ja?'>':'≤')+' 10%).', sum:fmt(p,1)+'% blijft open'}; }
+  },
+  pct70:{
+    title:'Rekenhulp: aandeel geïsoleerd of spouw',
+    init:()=>({rows:[{oms:'',a:'',iso:'ja'},{oms:'',a:'',iso:'nee'}]}),
+    render:(d,h)=>'<p class="hint">'+(h.label||'Dichte delen van de buitenschil (wanden, vloer, dak, panelen)')+' — netto, zonder ramen en deuren. Geïsoleerd = minimaal 1 cm isolatie of een spouw.</p>'+
+      rowsTable('rows', d.rows, [{k:'oms',t:'Constructie',ph:'bijv. gevel noord'},{k:'a',t:'A (m²)',num:true},{k:'iso',t:'Isolatie/spouw',sel:[['ja','ja'],['nee','nee']]}]),
+    compute:(d,h)=>{ let t=0,i=0; d.rows.forEach(r=>{ const a=num(r.a); if(a>0){ t+=a; if(r.iso==='ja') i+=a; } }); if(!(t>0)) return null; const p=i/t*100, ja=p>70;
+      return {k:ja?h.yes:'nee', text:'Geïsoleerd of spouw: <b>'+fmt(i)+' van '+fmt(t)+' m² = '+fmt(p,1)+'%</b> ('+(ja?'>':'≤')+' 70%).', sum:fmt(p,1)+'% geïsoleerd/spouw van '+fmt(t)+' m²'}; }
+  },
+  glas:{
+    title:'Rekenhulp: raamaandeel en enkel glas',
+    init:()=>({ag:'',ar:'',ae:''}),
+    render:d=>'<p class="hint">Raamaandeel = raamoppervlak / totaal oppervlak van gevel(s) en dak van deze ruimte (inclusief ramen). Enkel glas = U ≥ 4,5 W/m²·K inclusief kozijn.</p><div class="fields">'+
+      '<label>Gevel(s) + dak totaal (m²)<input inputmode="decimal" data-h="ag" value="'+esc(d.ag)+'"></label>'+
+      '<label>Ramen totaal (m²)<input inputmode="decimal" data-h="ar" value="'+esc(d.ar)+'"></label>'+
+      '<label>Waarvan enkel glas (m²)<input inputmode="decimal" data-h="ae" value="'+esc(d.ae)+'"></label></div>',
+    compute:d=>{ const g=num(d.ag), r=num(d.ar), e=num(d.ae); if(!(g>0) || !(r>=0) || !(e>=0)) return null;
+      const pr=r/g*100, pe=r>0?e/r*100:0, c1=pr>10, c2=pe>30, ja=c1&&c2;
+      return {k:ja?'ja':'nee', text:'Raamaandeel <b>'+fmt(pr,1)+'%</b> '+ok(c1)+' (> 10%) · enkel glas <b>'+fmt(pe,1)+'%</b> van het raamoppervlak '+ok(c2)+' (> 30%).', sum:'raamaandeel '+fmt(pr,1)+'%, enkel glas '+fmt(pe,1)+'%'}; }
+  },
+  rvergelijk:{
+    title:'Rekenhulp: gewogen R buitenschil vs. scheiding',
+    init:()=>({omh:[{oms:'',a:'',r:''},{oms:'',a:'',r:''}], tus:[{oms:'',a:'',r:''}]}),
+    render:(d,h)=>'<p class="hint">Alleen dichte delen, netto oppervlak; ramen en deuren weglaten. Een constructie telt als geïsoleerd bij R ≥ 0,36 m²·K/W (1 cm isolatie of spouw).</p>'+
+      '<p class="hint"><b>Buitenschil</b> — grenst aan buitenlucht, kruipruimte, grond, water of sterk geventileerde ruimte</p>'+
+      rowsTable('omh', d.omh, [{k:'oms',t:'Constructie',ph:'bijv. dak'},{k:'a',t:'A (m²)',num:true},{k:'r',t:'R (m²·K/W)',num:true}])+
+      '<p class="hint" style="margin-top:14px"><b>Scheiding met de woning / thermische zone</b></p>'+
+      rowsTable('tus', d.tus, [{k:'oms',t:'Constructie',ph:'bijv. wand naar hal'},{k:'a',t:'A (m²)',num:true},{k:'r',t:'R (m²·K/W)',num:true}]),
+    compute:(d,h)=>{
+      const agg=rows=>{ let A=0,AR=0,Ai=0; rows.forEach(x=>{ const a=num(x.a), r=num(x.r); if(a>0&&r>=0){ A+=a; AR+=a*r; if(r>=0.36) Ai+=a; } }); return {A, R:A>0?AR/A:NaN, p:A>0?Ai/A*100:NaN}; };
+      const o=agg(d.omh), t=agg(d.tus); if(!(o.A>0) || !(t.A>0)) return null;
+      const c1=o.p>70; let c2, txt2;
+      if(h.mode==='kleiner'){ c2=o.R<t.R; txt2='R buitenschil '+(c2?'<':'≥')+' R scheiding'; }
+      else { c2=o.R>t.R; txt2='R scheiding '+(c2?'<':'≥')+' R buitenschil'; }
+      const ja=c1&&c2;
+      return {k:ja?'ja':'nee',
+        text:'Buitenschil: '+fmt(o.p,1)+'% geïsoleerd '+ok(c1)+' (> 70%) · gemiddelde R <b>'+fmt(o.R)+'</b><br>Scheiding: gemiddelde R <b>'+fmt(t.R)+'</b> → '+txt2+' '+ok(c2),
+        sum:'buitenschil '+fmt(o.p,1)+'% geïsoleerd, R gem. '+fmt(o.R)+'; scheiding R gem. '+fmt(t.R)};
+    }
+  },
+  kelder:{
+    title:'Rekenhulp: h1 en h2',
+    init:()=>({h1:'',h2:''}),
+    render:(d,h)=>'<div class="fields"><label>h1 — woningvloer tot keldervloer (cm)<input inputmode="decimal" data-h="h1" value="'+esc(d.h1)+'" placeholder="bijv. 220"></label>'+
+      (h.part==='h2'?'<label>h2 — bovenliggende vloer boven maaiveld (cm)<input inputmode="decimal" data-h="h2" value="'+esc(d.h2)+'" placeholder="bijv. 60"></label>':'')+'</div>',
+    compute:(d,h)=>{ const h1=num(d.h1), h2=num(d.h2);
+      if(h.part==='h1'){ if(!(h1>=0)) return null; const ja=h1>150; return {k:ja?'ja':'nee', text:'h1 = <b>'+fmt(h1,0)+' cm</b> ('+(ja?'>':'≤')+' 150 cm).', sum:'h1 = '+fmt(h1,0)+' cm'}; }
+      if(!(h1>0) || !(h2>=0)) return null; const ja=h2<=h1/2;
+      return {k:ja?'ja':'nee', text:'h2 = <b>'+fmt(h2,0)+' cm</b>, ½ × h1 = <b>'+fmt(h1/2,0)+' cm</b> → h2 '+(ja?'≤':'>')+' ½ h1.', sum:'h1 = '+fmt(h1,0)+' cm, h2 = '+fmt(h2,0)+' cm'}; }
+  },
+  combis:{
+    title:'Initiële combinaties en hun Ag',
+    init:()=>({rows:[{naam:'Woning (radiatoren, ventilatie C)',ag:''},{naam:'',ag:''}]}),
+    render:d=>'<p class="hint">Eén rij per initiële combinatie.</p>'+rowsTable('rows', d.rows, [{k:'naam',t:'Combinatie',ph:'bijv. aanbouw met warmtepomp'},{k:'ag',t:'Ag (m²)',num:true}]),
+    compute:d=>{ const rows=d.rows.map(r=>({naam:r.naam||'(naamloos)', ag:num(r.ag)})).filter(r=>r.ag>0); if(!rows.length) return null;
+      const max=rows.reduce((m,r)=>r.ag>m.ag?r:m, rows[0]); const lim=max.ag*0.1;
+      const out=rows.map(r=>({...r, max:r===max, klein: r!==max && r.ag<lim}));
+      const nz=out.filter(r=>!r.klein).length, nk=out.length-nz;
+      return {k:'ok', rows:out, max, lim, text:'Grootste: <b>'+esc(max.naam)+'</b> ('+fmt(max.ag,1)+' m²) · 10%-grens <b>'+fmt(lim,1)+' m²</b> · '+nz+' zone(s)'+(nk?', '+nk+' combinatie(s) mag/mogen bij de grootste':''),
+        sum:out.map(r=>r.naam+' '+fmt(r.ag,1)+' m²'+(r.klein?' (< 10%, mag bij '+max.naam+')':'')).join('; ')}; }
+  }
+};
+
+/* ============================================================
+   ENGINE
+   ============================================================ */
+function snap(){ return {cur:S.run.cur, stack:clone(S.run.stack)}; }
+
+function deriveFor(ref){
+  const n=node(ref), f=flowOf(ref), ans=segAnswers(f);
+  if(n.derive){ const v=ans[n.derive.from]; if(v!=null && n.derive.map[v]) return {k:n.derive.map[v], from:n.derive.from}; return null; }
+  if(n.deriveFn==='klimaatAll'){ if(ans.z1==null||ans.z2==null||ans.z3==null) return null;
+    const all = ans.z1==='ja' && (ans.z2==='geen'||ans.z2==='een') && ans.z3==='ja'; return {k:all?'ja':'nee', from:'z1–z3'}; }
+  return null;
+}
+
+function go(ref, newFlow){
+  const r=S.run;
+  if(newFlow) r.steps.push({kind:'flow', flow:flowOf(ref), sub:r.stack.length>0});
+  r.cur=ref;
+  let guard=0;
+  while(guard++<20){
+    const n=node(r.cur); if(n.type!=='q') break;
+    const d=deriveFor(r.cur); if(!d) break;
+    const o=n.options.find(o=>o.k===d.k);
+    r.steps.push({kind:'q', ref:r.cur, k:d.k, label:o.label, derived:true, from:d.from, before:snap()});
+    r.cur=resolve(r.cur,o.to);
+  }
+}
+
+function answer(key){
+  const r=S.run, ref=r.cur, n=node(ref); const o=n.options.find(o=>o.k===key); if(!o) return;
+  const before=snap(); let hs='';
+  if(n.helper){ const res=HELPERS[n.helper.type].compute(hData(ref,n.helper), n.helper); if(res) hs=res.sum; }
+  r.steps.push({kind:'q', ref, k:key, label:o.label, hs, before, sub:!!o.sub});
+  if(o.sub){ r.stack.push({ref, map:o.sub.map}); go(o.sub.flow+'.'+FLOWS[o.sub.flow].start, true); }
+  else go(resolve(ref,o.to), flowOf(resolve(ref,o.to))!==flowOf(ref));
+  r.savedAt=null; save(); render();
+}
+
+function continueFlow(){
+  const r=S.run, n=node(r.cur); if(!n.cont) return;
+  r.steps.push({kind:'end', ref:r.cur, before:snap()});
+  go(n.cont.flow+'.'+FLOWS[n.cont.flow].start, true);
+  r.savedAt=null; save(); render();
+}
+
+function returnSub(){
+  const r=S.run; const before=snap(); const endRef=r.cur; const v=node(endRef).verdict;
+  const fr=r.stack.pop(); const k=fr.map[v]; const pn=node(fr.ref); const o=pn.options.find(o=>o.k===k);
+  r.steps.push({kind:'end', ref:endRef, before});
+  r.steps.push({kind:'q', ref:fr.ref, k, label:o.label, viaSub:true, before});
+  r.steps.push({kind:'flow', flow:flowOf(fr.ref), ret:true});
+  go(resolve(fr.ref,o.to), false);
+  r.savedAt=null; save(); render();
+}
+
+function backTo(i){
+  const r=S.run, st=r.steps[i]; if(!st || !st.before) return;
+  r.cur=st.before.cur; r.stack=clone(st.before.stack); r.steps=r.steps.slice(0,i); r.savedAt=null; save(); render();
+}
+function backOne(){
+  const st=S.run.steps; for(let i=st.length-1;i>=0;i--){ const s=st[i]; if((s.kind==='q'||s.kind==='end') && !s.derived && !s.viaSub && s.before){ backTo(i); return; } }
+}
+function hasProgress(){ return S.run.steps.some(s=>s.kind==='q'); }
+
+function startFlow(flow, force){
+  if(!force && hasProgress() && !S.run.savedAt){ S.pending=flow; renderConfirm(); return; }
+  S.pending=null; S.run=newRun(flow); S.view='run'; save(); render(); window.scrollTo({top:0});
+}
+
+/* ============================================================
+   VERSLAG
+   ============================================================ */
+function runLines(run){
+  const L=[]; const st=run.steps;
+  st.forEach(s=>{
+    if(s.kind==='flow'){ if(s.ret) { L.push('  (terug in '+FLOWS[s.flow].afb+')'); return; } const F=FLOWS[s.flow]; L.push((s.sub?'  ↳ ':'')+F.afb+' — '+F.title); return; }
+    const n=node(s.ref);
+    if(s.kind==='q'){ L.push('   • '+strip(n.q)+' → '+s.label+(s.derived?' (overgenomen uit eerder antwoord)':'')+(s.viaSub?' (uitkomst van het doorlopen schema)':'')+(s.hs?'  ['+s.hs+']':'')); }
+    if(s.kind==='end'){ L.push('   ⇒ '+n.title); }
+  });
+  const cn=node(run.cur);
+  if(cn.type==='end'){
+    L.push('   ⇒ '+cn.title);
+    if(cn.dyn==='combis'){ const z=node('klimaat.z5'); const d=run.helpers[hKeyFor(run,'klimaat.z5',z.helper.key)]; const res=d?HELPERS.combis.compute(d):null; if(res) res.rows.forEach(x=>L.push('      - '+x.naam+': '+fmt(x.ag,1)+' m²'+(x.klein?' → < 10% van de grootste, mag bij “'+res.max.naam+'”':' → eigen klimatiseringszone'))); }
+  }
+  return L;
+}
+function hKeyFor(run, ref, key){ const st=run.steps, f=flowOf(ref); let s=0; for(let i=st.length-1;i>=0;i--){ if(st[i].kind==='flow'&&st[i].flow===f&&!st[i].ret){ s=i; break; } } return s+':'+f+':'+key; }
+
+const SOORT_PER_FLOW={garage:'Garage', kelder:'Kelder / souterrain', overig:'Overige ruimte', aangrenzend:'Aangrenzende ruimte', opgang:'Opgang / trappenhuis', klimaat:'Thermische zone (klimatisering)', rc:'Constructie (Rc)', infil:'Woning / gebouw (infiltratie)'};
+function soortRuimte(run){
+  const st=run.steps.find(s=>s.kind==='q' && s.ref==='route.r1'); if(st) return st.label;
+  const f=run.steps.find(s=>s.kind==='flow'); return f ? (SOORT_PER_FLOW[f.flow]||'') : '';
+}
+function entryText(e,i){
+  return [(i!=null?(i+1)+'. ':'')+e.ruimte, '   SOORT RUIMTE: '+(e.soort||'–'), '   UITKOMST:     '+e.title, '   Route:', ...e.lines.map(l=>'   '+l), ''].join('\n');
+}
+function maakEntry(run){ const n=node(run.cur); return {ruimte:run.ruimte||'(ruimte zonder naam)', soort:soortRuimte(run), datum:today(), verdict:n.verdict, title:n.title, lines:runLines(run)}; }
+function kopTekst(){ return ['Beslisschema’s ISSO 82.1 (7e druk)','Project: '+(S.project||'–'),'Datum: '+today(), MAKER, ''].join('\n'); }
+function addToReport(){
+  const r=S.run, n=node(r.cur); if(n.type!=='end') return;
+  S.saved.push(maakEntry(r));
+  r.savedAt=Date.now(); save(); render(); toast('Toegevoegd aan verslag');
+}
+function reportText(){
+  return kopTekst()+'\n'+S.saved.map((e,i)=>entryText(e,i)).join('\n')+'\nBron: ISSO-publicatie 82.1, 7e druk.\n';
+}
+async function copyReport(){
+  const t=reportText();
+  try{ await navigator.clipboard.writeText(t); toast('Verslag gekopieerd'); }
+  catch(e){ const pre=$('#reportPre'); if(pre){ const sel=window.getSelection(), rg=document.createRange(); rg.selectNodeContents(pre); sel.removeAllRanges(); sel.addRange(rg); } toast('Kopiëren lukte niet — tekst is geselecteerd'); }
+}
+async function saveFile(text, name){
+  text = text || reportText(); name = name || bestandsnaam();
+  const blob=new Blob([text],{type:'text/plain;charset=utf-8'});
+  try{ const file=new File([blob],name,{type:'text/plain'}); if(navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file], title:name}); return; } }catch(e){ if(e && e.name==='AbortError') return; }
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},500);
+}
+function saveRun(){
+  const r=S.run; if(node(r.cur).type!=='end') return;
+  const e=maakEntry(r); const pr=(S.project||'').trim(), rm=(r.ruimte||'').trim();
+  const name=("Beslisschema's ISSO 82.1"+(pr?' - '+pr:'')+(rm?' - '+rm:'')+' - '+isoDate()).replace(/[\\/:*?"<>|]/g,'').slice(0,150)+'.txt';
+  saveFile(kopTekst()+'\n'+entryText(e)+'\nBron: ISSO-publicatie 82.1, 7e druk.\n', name);
+}
+function bestandsnaam(){ const pr=(S.project||'').trim().replace(/[\\/:*?"<>|]/g,'').slice(0,80); return "Beslisschema's ISSO 82.1"+(pr?' - '+pr:'')+' - '+isoDate()+'.txt'; }
+let MAKER='Visser Inspecties · EnergiePrestatie-advies';
+const inFrame = (()=>{ try{ return window.self!==window.top; }catch(e){ return true; } })();
+
+/* ============================================================
+   ONEDRIVE — zelfde inlog als Huismaten en de Projectmap-app
+   (staan op visserinspecties.github.io en delen dezelfde browseropslag)
+   ============================================================ */
+const GRAPH_CLIENT_ID = 'fdf237c9-bf46-47fa-ab3d-a8834a73e284';
+const GRAPH_TENANT_ID = '984fd1fb-3d68-4c94-aff2-47f699fb5dae';
+const GRAPH_SCOPE = 'https://graph.microsoft.com/Files.ReadWrite offline_access';
+const VASTE_ORIGIN = 'https://visserinspecties.github.io';
+const PROJECTEN_ROOT = '0_In Behandeling';
+const SUBMAP = '020 AANTEKENINGEN';
+const OD = !inFrame && !window.GAST && location.origin === VASTE_ORIGIN;
+let project = null;   // {naam, pad} — pad eindigt op 020 AANTEKENINGEN
+let melding = null;
+
+function leesProject(){
+  for(const sleutel of ['bs_gekozen_project','huismaten_project']){
+    try{ const p=JSON.parse(localStorage.getItem(sleutel)||'null'); if(p && p.naam && p.pad && p.naam!==SUBMAP) return p; }catch(e){}
+  }
+  return null;
+}
+async function graphRefreshToken(){
+  let rt=null; try{ rt=localStorage.getItem('rt'); }catch(e){}
+  if(!rt){ const e=new Error('Niet ingelogd bij OneDrive.'); e.code='geen-login'; throw e; }
+  let resp;
+  try{ resp=await fetch('https://login.microsoftonline.com/'+GRAPH_TENANT_ID+'/oauth2/v2.0/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:GRAPH_CLIENT_ID,grant_type:'refresh_token',refresh_token:rt,scope:GRAPH_SCOPE})}); }
+  catch(err){ const e=new Error('Geen verbinding met Microsoft.'); e.code='netwerk'; throw e; }
+  const data=await resp.json().catch(()=>({}));
+  if(!data.access_token){ if(data.error==='invalid_grant'||data.error==='interaction_required'){ try{ localStorage.removeItem('rt'); }catch(e){} } const e=new Error('Inlog verlopen.'); e.code='verlopen'; throw e; }
+  if(data.refresh_token){ try{ localStorage.setItem('rt',data.refresh_token); }catch(e){} }
+  return data.access_token;
+}
+function zetBalk(soort, tekst, knoppen){
+  const el=$('#od-status'); el.hidden=false; el.className='odbalk '+(soort||''); el.textContent=tekst;
+  (knoppen||[]).forEach(([label,actie])=>{ const b=document.createElement('button'); b.type='button'; b.textContent=label; b.onclick=actie; el.appendChild(b); });
+}
+let controleLoopt=false;
+async function controleerOneDrive(){
+  if(!OD){ $('#od-status').hidden=true; return; }
+  if(controleLoopt) return; controleLoopt=true;
+  try{
+    zetBalk('','☁️ OneDrive: controleren…');
+    const opnieuw=['Controleer',controleerOneDrive], kies=['Kies project',kiesProject];
+    if(!navigator.onLine){ zetBalk('let','📵 Geen internet — kopieer of download het verslag, of probeer later opnieuw.',[opnieuw]); return; }
+    let token;
+    try{ token=await graphRefreshToken(); }
+    catch(e){ if(e.code==='netwerk') zetBalk('let','⚠️ Microsoft is nu niet bereikbaar.',[opnieuw]); else zetBalk('fout','Niet ingelogd bij OneDrive. Open Huismaten of de Projectmap-app, tik daar op “Inloggen” en kom dan hier terug.',[opnieuw]); return; }
+    if(!project){ zetBalk('let','☁️ OneDrive verbonden — nog geen project gekozen.',[kies,opnieuw]); return; }
+    let resp;
+    try{ resp=await fetch('https://graph.microsoft.com/v1.0/me/drive/root:/'+encodeURIComponent(project.pad),{headers:{Authorization:'Bearer '+token}}); }
+    catch(_){ zetBalk('let','⚠️ OneDrive verbonden, maar de projectmap kon niet gecontroleerd worden.',[opnieuw]); return; }
+    if(resp.ok) zetBalk('ok','✅ OneDrive verbonden · project: '+project.naam,[['Wijzig project',kiesProject],opnieuw]);
+    else if(resp.status===404) zetBalk('fout','❌ Projectmap niet gevonden in OneDrive: '+project.pad,[kies,opnieuw]);
+    else zetBalk('fout','❌ OneDrive gaf een fout ('+resp.status+').',[opnieuw]);
+  } finally { controleLoopt=false; }
+}
+async function odHaalItems(mapId){
+  const token=await graphRefreshToken();
+  const url=mapId?'https://graph.microsoft.com/v1.0/me/drive/items/'+mapId+'/children?$top=200':'https://graph.microsoft.com/v1.0/me/drive/root/children?$top=200';
+  const resp=await fetch(url,{headers:{Authorization:'Bearer '+token}});
+  if(!resp.ok) throw new Error('mappen ophalen mislukt ('+resp.status+')');
+  return (await resp.json()).value||[];
+}
+async function odMapIdViaPad(pad){
+  const token=await graphRefreshToken();
+  const resp=await fetch('https://graph.microsoft.com/v1.0/me/drive/root:/'+encodeURIComponent(pad),{headers:{Authorization:'Bearer '+token}});
+  if(!resp.ok) throw new Error('map niet gevonden');
+  return (await resp.json()).id;
+}
+function kiesOnedriveMap(){
+  return new Promise(resolve=>{
+    const overlay=$('#od-overlay'), lijst=$('#od-lijst'), padEl=$('#od-pad'), ok=$('#od-ok'), terug=$('#od-terug'), ann=$('#od-annuleer');
+    const stapel=[];
+    const huidigId=()=>stapel.length?stapel[stapel.length-1].id:null;
+    const huidigPad=()=>'OneDrive'+stapel.map(x=>' / '+x.naam).join('');
+    async function toon(){
+      padEl.textContent=huidigPad(); terug.disabled=stapel.length===0; ok.disabled=true;
+      lijst.innerHTML='<div class="od-leeg">Mappen laden…</div>';
+      try{
+        const mappen=(await odHaalItems(huidigId())).filter(i=>i.folder);
+        ok.disabled=false; lijst.innerHTML='';
+        mappen.forEach(m=>{ const el=document.createElement('div'); el.className='od-item'; el.textContent='📁 '+m.name; el.onclick=()=>{ stapel.push({id:m.id,naam:m.name}); toon(); }; lijst.appendChild(el); });
+        if(!lijst.children.length) lijst.innerHTML='<div class="od-leeg">Geen submappen hier.</div>';
+      }catch(err){ lijst.innerHTML='<div class="od-leeg">⚠️ '+esc(err.message||err)+'</div>'; ok.disabled=true; }
+    }
+    function sluit(r){ overlay.hidden=true; ok.onclick=terug.onclick=ann.onclick=null; resolve(r); }
+    terug.onclick=()=>{ stapel.pop(); toon(); };
+    ann.onclick=()=>sluit(null);
+    ok.onclick=()=>sluit({delen:stapel.map(x=>x.naam)});
+    overlay.hidden=false;
+    (async()=>{ lijst.innerHTML='<div class="od-leeg">Mappen laden…</div>'; try{ stapel.push({id:await odMapIdViaPad(PROJECTEN_ROOT),naam:PROJECTEN_ROOT}); }catch(_){} toon(); })();
+  });
+}
+/* Verslag per project bewaren, net als in de vorige versie */
+const projectSleutel=()=>project?project.pad:'';
+function importOud(sleutel){
+  try{ const oud=JSON.parse(localStorage.getItem('bs_log:'+sleutel)||'null'); if(!Array.isArray(oud)||!oud.length) return null;
+    return oud.map(l=>({ruimte:l.oms||'(geen omschrijving)', datum:l.tijd?new Date(l.tijd).toLocaleDateString('nl-NL',{day:'numeric',month:'long',year:'numeric'}):'', verdict:'res', title:l.uitkomst||'', lines:[(l.schema||'')+(l.ref?' ('+l.ref+')':'')].concat((l.route||[]).map(r=>'   • '+r[0]+' → '+r[1])).concat(['   ⇒ '+(l.uitkomst||'')])}));
+  }catch(e){ return null; }
+}
+function wisselProject(nieuw){
+  S.logs=S.logs||{}; S.logs[S.logKey||'']=S.saved;
+  project=nieuw; S.logKey=projectSleutel();
+  S.saved=S.logs[S.logKey]||importOud(S.logKey)||[];
+  save();
+}
+async function kiesProject(){
+  try{ await graphRefreshToken(); }
+  catch(e){ toast('Niet ingelogd bij OneDrive — log in via Huismaten of de Projectmap-app'); return; }
+  const keuze=await kiesOnedriveMap(); if(!keuze) return;
+  const delen=keuze.delen;
+  if(!delen.length){ toast('Kies een projectmap, niet de hoofdmap van OneDrive'); return; }
+  let naam, doel;
+  if(delen[delen.length-1]===SUBMAP && delen.length>=2){ naam=delen[delen.length-2]; doel=delen; }
+  else { naam=delen[delen.length-1]; doel=[...delen,SUBMAP]; }
+  const nieuw={naam, pad:doel.join('/')};
+  try{ localStorage.setItem('bs_gekozen_project',JSON.stringify(nieuw)); }catch(e){}
+  wisselProject(nieuw); melding=null;
+  await laadProjectGegevens(); render(); controleerOneDrive();
+}
+// adres uit projectgegevens.json (door de Projectmap-app geschreven) als projectnaam gebruiken
+async function laadProjectGegevens(){
+  if(!project) return;
+  S.project=project.naam;
+  try{
+    const token=await graphRefreshToken();
+    const r=await fetch('https://graph.microsoft.com/v1.0/me/drive/root:/'+encodeURIComponent(project.pad)+'/projectgegevens.json:/content',{headers:{Authorization:'Bearer '+token}});
+    if(r.ok){ const pg=JSON.parse(await r.text()); if(pg && pg.adres) S.project=pg.adres; }
+  }catch(_){}
+  save(); $('#project').value=S.project;
+}
+async function opslaanInProject(){
+  if(!S.saved.length){ melding={soort:'fout',tekst:'Er staat nog niets in het verslag.'}; render(); return; }
+  if(!project){ await kiesProject(); if(!project) return; }
+  try{
+    const token=await graphRefreshToken();
+    const bestaat=await fetch('https://graph.microsoft.com/v1.0/me/drive/root:/'+encodeURIComponent(project.pad),{headers:{Authorization:'Bearer '+token}});
+    if(bestaat.status===404) throw new Error('projectmap bestaat niet in OneDrive: '+project.pad+'. Kies het project opnieuw.');
+    const naam=bestandsnaam();
+    const resp=await fetch('https://graph.microsoft.com/v1.0/me/drive/root:/'+encodeURIComponent(project.pad)+'/'+encodeURIComponent(naam)+':/content?@microsoft.graph.conflictBehavior=rename',{method:'PUT',headers:{Authorization:'Bearer '+token},body:new Blob([reportText()],{type:'text/plain;charset=utf-8'})});
+    if(!resp.ok){ let m=resp.statusText; try{ m=(await resp.json()).error.message||m; }catch(_){} throw new Error(m); }
+    const res=await resp.json();
+    melding={soort:'ok', tekst:'Opgeslagen in '+project.naam+' / '+SUBMAP+' als “'+(res.name||naam)+'”.'};
+  }catch(e){
+    melding={soort:'fout', tekst:'Niet opgeslagen in OneDrive: '+(e.message||e)+' Het verslag staat nog hier; download het als vangnet.'};
+    controleerOneDrive();
+  }
+  render();
+}
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+function toast(t){ const el=$('#toast'); el.textContent=t; el.hidden=false; clearTimeout(toast._t); toast._t=setTimeout(()=>el.hidden=true, 2200); }
+
+function renderTabs(){
+  const cur = S.view==='verslag' ? 'verslag' : flowOf(S.run.cur);
+  const active = S.view==='verslag' ? 'verslag' : flowOf(S.run.cur);
+  $('#tabs').innerHTML = TAB_ORDER.map(f=>{ const F=FLOWS[f]; return '<button class="tab" data-tab="'+f+'" aria-current="'+(active===f && S.view!=='verslag')+'">'+(F.num?'<b>'+F.num+'</b>':'')+esc(F.tab)+'</button>'; }).join('')+
+    '<button class="tab" data-tab="verslag" aria-current="'+(S.view==='verslag')+'">Verslag <span class="count">'+S.saved.length+'</span></button>';
+}
+function renderConfirm(){
+  const el=$('#confirm');
+  if(!S.pending){ el.innerHTML=''; return; }
+  el.innerHTML='<div class="confirm"><span>De huidige beoordeling'+(S.run.ruimte?' van <b>'+esc(S.run.ruimte)+'</b>':'')+' staat nog niet in het verslag. Toch een nieuw schema beginnen?</span><button class="btn" data-act="cancelnew">Annuleren</button><button class="btn primary" data-act="forcenew">Ja, nieuw beginnen</button></div>';
+}
+
+function sketchSVG(){
+  return '<div class="sketch" aria-label="Doorsnede kelder met h1 en h2"><svg viewBox="0 0 420 210" role="img">'+
+  '<rect x="60" y="62" width="250" height="10" style="fill:var(--muted)"/>'+
+  '<rect x="60" y="72" width="10" height="110" style="fill:var(--muted)"/><rect x="300" y="72" width="10" height="110" style="fill:var(--muted)"/>'+
+  '<rect x="60" y="182" width="250" height="8" style="fill:var(--muted)"/>'+
+  '<path d="M10 90 H60 M310 90 H410" style="stroke:var(--accent);stroke-width:2;fill:none"/>'+
+  '<path d="M14 90 l8 8 M28 90 l8 8 M42 90 l8 8 M320 90 l8 8 M334 90 l8 8 M348 90 l8 8 M362 90 l8 8 M376 90 l8 8 M390 90 l8 8" style="stroke:var(--accent);stroke-width:1.2;fill:none"/>'+
+  '<text x="335" y="84" font-size="12" style="fill:var(--accent)" font-family="IBM Plex Mono, monospace">maaiveld</text>'+
+  '<text x="120" y="54" font-size="12" style="fill:var(--ink)" font-family="IBM Plex Sans, sans-serif">begane grond (thermische zone)</text>'+
+  '<text x="160" y="140" font-size="13" style="fill:var(--ink)" font-family="IBM Plex Sans, sans-serif">kelder</text>'+
+  '<path d="M240 62 V182" style="stroke:var(--warm);stroke-width:1.5;fill:none"/><path d="M234 62 H246 M234 182 H246" style="stroke:var(--warm);stroke-width:1.5;fill:none"/>'+
+  '<text x="250" y="128" font-size="13" style="fill:var(--warm)" font-family="IBM Plex Mono, monospace">h1</text>'+
+  '<path d="M30 62 V90" style="stroke:var(--cold);stroke-width:1.5;fill:none"/><path d="M24 62 H36" style="stroke:var(--cold);stroke-width:1.5;fill:none"/>'+
+  '<path d="M36 62 H60" style="stroke:var(--cold);stroke-width:1;stroke-dasharray:3 3;fill:none"/>'+
+  '<text x="10" y="80" font-size="13" style="fill:var(--cold)" font-family="IBM Plex Mono, monospace">h2</text>'+
+  '<text x="60" y="206" font-size="11" style="fill:var(--muted)" font-family="IBM Plex Sans, sans-serif">h1: woningvloer → keldervloer · h2: vloer boven maaiveld</text>'+
+  '</svg></div>';
+}
+
+function viaGroepBergingen(){ return S.run.steps.some(s=>s.kind==='q' && s.ref==='route.r1' && s.k==='groepberg'); }
+function renderNote(n){
+  let h='';
+  if(n.gb && viaGroepBergingen()){ h+='<div class="tips gb"><h4>Groep bergingen</h4><ul>'+n.gb.map(t=>'<li>'+t+'</li>').join('')+'</ul></div>'; }
+  if(n.note){ h+='<div class="note"><h4>'+esc(n.note.h)+'</h4>'+(n.note.p||[]).map(p=>'<p>'+p+'</p>').join('')+(n.note.ul?'<ul>'+n.note.ul.map(x=>'<li>'+x+'</li>').join('')+'</ul>':'')+'</div>'; }
+  if(n.tips&&n.tips.length){ h+='<div class="tips"><h4>Let op</h4><ul>'+n.tips.map(t=>'<li>'+t+'</li>').join('')+'</ul></div>'; }
+  return h;
+}
+
+function renderHelper(ref, n){
+  if(!n.helper) return '';
+  const H=HELPERS[n.helper.type], d=hData(ref,n.helper), res=H.compute(d,n.helper);
+  const open = n.helper.open || hasData(d);
+  return '<details class="helper" id="helper"'+(open?' open':'')+'><summary>'+H.title+'</summary><div class="hbody">'+H.render(d,n.helper)+'<div class="hres" id="hres">'+(res?res.text+suggText(n,res):'')+'</div></div></details>';
+}
+function hasData(d){ return JSON.stringify(d).replace(/"(oms|iso|naam)":"[^"]*"/g,'').match(/"[^"]+":"[^"]+"/) || d.kantel; }
+function suggText(n,res){ const o=n.options.find(o=>o.k===res.k); return (o && n.options.length>1)?'<br>Volgens de rekenhulp: <b>'+esc(o.label)+'</b>':''; }
+
+function crumb(ref){
+  const f=flowOf(ref), F=FLOWS[f], n=node(ref), nid=ref.split('.')[1];
+  const qs=F.order.filter(id=>F.nodes[id] && F.nodes[id].type==='q'); const idx=qs.indexOf(nid);
+  return '<div class="crumb"><span class="pill">'+esc(F.afb)+'</span><span>'+esc(n.sec||F.title)+'</span>'+(n.type==='q' && idx>=0?'<span>vraag '+(idx+1)+' van max. '+qs.length+'</span>':'')+'</div>';
+}
+
+function renderWork(){
+  const w=$('#work');
+  if(S.view==='verslag'){ w.innerHTML=renderReport(); return; }
+  const r=S.run, ref=r.cur, n=node(ref), f=flowOf(ref), F=FLOWS[f];
+  let h='<div class="card">'+crumb(ref);
+  h+='<div class="ruimte"><label for="ruimte">Ruimte / constructie</label><input id="ruimte" type="text" value="'+esc(r.ruimte)+'" placeholder="bijv. garage links, berging achter, zolder" autocomplete="off"></div>';
+  const firstOfFlow = r.steps.length && r.steps[r.steps.length-1].kind==='flow';
+  if(firstOfFlow && F.intro) h+='<p class="intro">'+F.intro+'</p>';
+  if(firstOfFlow && F.voor) h+='<div class="voor">'+F.voor+'</div>';
+  if(r.stack.length){ const p=node(r.stack[r.stack.length-1].ref); h+='<div class="subbanner">Je doorloopt dit schema voor de vraag in 6.4: <i>'+esc(strip(p.q))+'</i>'+(f==='overig'?' Beoordeel de ruimte vanuit het gebouw waar hij bij hoort.':'')+' De uitkomst gaat terug naar die vraag.</div>'; }
+
+  if(n.type==='q'){
+    h+='<h2 class="q">'+esc(n.q)+'</h2>'+(n.sub?'<p class="sub">'+n.sub+'</p>':'');
+    if(n.sketch) h+=sketchSVG();
+    const res = n.helper ? HELPERS[n.helper.type].compute(hData(ref,n.helper), n.helper) : null;
+    if(n.groups){
+      Object.keys(n.groups).forEach(g=>{ const G=n.groups[g];
+        h+='<div class="group"><h3><i class="'+G.c+'"></i>'+esc(G.t)+'</h3><div class="glist">'+n.options.filter(o=>o.g===g).map(o=>'<button class="opt" data-k="'+o.k+'">'+esc(o.label)+(o.hint?'<small>'+esc(o.hint)+'</small>':'')+'</button>').join('')+'</div></div>'; });
+    } else {
+      h+='<div class="opts" id="opts">'+n.options.map(o=>'<button class="opt'+(o.wide?' wide':'')+(res&&res.k===o.k&&n.options.length>1?' suggested':'')+'" data-k="'+o.k+'">'+(res&&res.k===o.k&&n.options.length>1?'<span class="sugg">volgens rekenhulp</span>':'')+'<span>'+esc(o.label)+(o.key?' <kbd>'+o.key.toUpperCase()+'</kbd>':'')+'</span>'+(o.hint?'<small>'+esc(o.hint)+'</small>':'')+'</button>').join('')+'</div>';
+    }
+    h+=renderHelper(ref,n)+renderNote(n);
+  } else {
+    const sr=soortRuimte(r);
+    h+='<div class="verdict v-'+n.verdict+'"><div class="vmeta">'+(sr?'<span class="chip"><small>Soort ruimte</small>'+esc(sr)+'</span>':'')+(r.ruimte?'<span class="chip"><small>Ruimte</small>'+esc(r.ruimte)+'</span>':'')+'</div><div class="vlab">Uitkomst · '+esc(VERDICT_LABEL[n.verdict]||'')+'</div><h2><mark>'+esc(n.title)+'</mark></h2>'+(n.text?'<p>'+n.text+'</p>':'')+(n.bullets?'<ul>'+n.bullets.map(b=>'<li>'+b+'</li>').join('')+'</ul>':'')+(n.dyn==='combis'?combisTable():'')+(n.html?'<div class="tbl endhtml">'+n.html+'</div>':'')+'</div>';
+  }
+
+  h+='<div class="navrow">';
+  const canBack = r.steps.some(s=>(s.kind==='q'||s.kind==='end') && !s.derived && !s.viaSub && s.before);
+  h+='<button class="btn" data-act="back"'+(canBack?'':' disabled')+'>← Vorige</button>';
+  if(n.type==='end'){
+    const subActive=r.stack.length>0;
+    if(subActive){ const fr=r.stack[r.stack.length-1]; const k=fr.map[n.verdict]; const o=node(fr.ref).options.find(o=>o.k===k);
+      if(o) h+='<button class="btn primary" data-act="return">Terug naar 6.4 met antwoord “'+esc(o.label)+'”</button>';
+      else h+='<span class="sub">Deze uitkomst geeft geen antwoord op de vraag in 6.4; ga terug en kies Ja of Nee.</span>';
+    } else {
+      if(n.cont) h+='<button class="btn primary" data-act="cont">'+esc(n.cont.label)+' →</button>';
+      h+= r.savedAt ? '<button class="btn" disabled>✓ In verslag</button>' : '<button class="btn'+(n.cont?'':' primary')+'" data-act="addreport">Toevoegen aan verslag</button>';
+      if(!inFrame) h+='<button class="btn" data-act="saverun">Opslaan als bestand</button>';
+      h+='<button class="btn" data-act="nextroom">Volgende ruimte</button>';
+    }
+  }
+  h+='</div></div>';
+  w.innerHTML=h;
+}
+
+function combisTable(){
+  const z=node('klimaat.z5'); const d=S.run.helpers[hKey('klimaat.z5', z.helper.key)]; const res=d?HELPERS.combis.compute(d):null;
+  if(!res) return '<p>Vul eerst de combinaties in (vorige stap).</p>';
+  return '<div class="tbl"><table class="zones"><thead><tr><th>Combinatie</th><th style="text-align:right">Ag (m²)</th><th>Uitkomst</th></tr></thead><tbody>'+
+    res.rows.map(x=>'<tr><td>'+esc(x.naam)+'</td><td class="num">'+fmt(x.ag,1)+'</td><td>'+(x.max?'grootste — eigen klimatiseringszone':x.klein?'< 10% ('+fmt(res.lim,1)+' m²): mag bij de grootste':'eigen klimatiseringszone')+'</td></tr>').join('')+'</tbody></table></div>';
+}
+
+function renderSide(){
+  const s=$('#side');
+  if(S.view==='verslag'){ s.innerHTML='<div class="panel"><h3>Zo werkt het verslag</h3><p class="empty">Elke afgeronde beoordeling voeg je toe met “Toevoegen aan verslag”. Het verslag bevat per ruimte alle vragen, antwoorden en berekeningen, zodat je de keuzes in het gebouwdossier kunt vastleggen.</p></div>'; return; }
+  const r=S.run, f=flowOf(r.cur), F=FLOWS[f], ans=segAnswers(f), curId=r.cur.split('.')[1];
+  // bereikte vragen in dit segment
+  let ov='';
+  F.order.forEach(id=>{ const n=F.nodes[id]; if(!n||n.type!=='q') return;
+    if(F.sections && F.sections[id]) ov+='<li class="sec">'+esc(F.sections[id])+'</li>';
+    const st = id===curId ? 'now' : (ans[id]!=null ? 'done' : 'todo');
+    const a = ans[id]!=null ? (n.options.find(o=>o.k===ans[id])||{}).label : '';
+    ov+='<li class="'+(st==='todo'?'dim':'')+'"><span class="st '+st+'">'+(st==='now'?'nu':st==='done'?esc(shortAns(a)):'–')+'</span><span class="lbl">'+esc(n.short||strip(n.q))+'</span></li>';
+  });
+  let tr='';
+  r.steps.forEach((x,i)=>{
+    if(x.kind==='flow'){ if(!x.ret) tr+='<li class="fl">'+(x.sub?'↳ ':'')+esc(FLOWS[x.flow].afb)+'</li>'; return; }
+    const n=node(x.ref);
+    if(x.kind==='q'){
+      const inner='<span class="tq">'+esc(n.short||strip(n.q))+'</span> · <span class="ta">'+esc(x.label)+'</span>'+(x.hs?'<div class="der">'+esc(x.hs)+'</div>':'')+(x.derived?'<div class="der">overgenomen uit eerder antwoord</div>':'')+(x.viaSub?'<div class="der">uitkomst van het doorlopen schema</div>':'');
+      tr+='<li>'+((x.derived||x.viaSub)?inner:'<button data-back="'+i+'" title="Terug naar deze vraag">'+inner+'</button>')+'</li>';
+    } else if(x.kind==='end'){ tr+='<li><button data-back="'+i+'"><span class="te"><span class="dot d-'+n.verdict+'"></span>'+esc(n.title)+'</span></button></li>'; }
+  });
+  const cn=node(r.cur); if(cn.type==='end') tr+='<li><span class="te"><span class="dot d-'+cn.verdict+'"></span>'+esc(cn.title)+'</span></li>';
+  s.innerHTML='<div class="panel"><h3>'+esc(F.afb)+' · overzicht</h3><ul class="ov">'+ov+'</ul></div>'+
+    '<div class="panel"><h3>Gekozen route</h3>'+(soortRuimte(r)?'<p class="sidesoort"><small>Soort ruimte</small><b>'+esc(soortRuimte(r))+'</b></p>':'')+(r.steps.some(x=>x.kind!=='flow')?'<ul class="trail">'+tr+'</ul>':'<p class="empty">Nog geen antwoorden. Tik op een eerder antwoord om terug te gaan.</p>')+'</div>';
+}
+function shortAns(a){ if(!a) return ''; if(a==='Ja'||a==='Nee') return a; return a.length>6 ? a.slice(0,5)+'…' : a; }
+
+function renderReport(){
+  let h='<div class="card"><div class="crumb"><span class="pill">Verslag</span><span>'+esc(S.project||'geen project ingevuld')+'</span></div>';
+  if(!S.saved.length){ h+='<h2 class="q">Nog geen ruimten in het verslag</h2><p class="sub">Doorloop een schema en kies bij de uitkomst “Toevoegen aan verslag”.</p></div>'; return h; }
+  h+='<h2 class="q">'+S.saved.length+' beoordeelde ruimte'+(S.saved.length>1?'n':'')+'</h2>';
+  h+='<div class="navrow" style="border-top:none;margin-top:6px;padding-top:0">'+(OD?'<button class="btn primary" data-act="odsave">Opslaan in projectmap ('+SUBMAP+')</button>':'')+'<button class="btn'+(OD?'':' primary')+'" data-act="copy">Kopieer verslag</button>'+(inFrame?'':'<button class="btn" data-act="file">Opslaan als bestand</button>')+'<button class="btn" data-act="clearask">Verslag leegmaken</button></div>';
+  if(melding) h+='<div class="melding '+melding.soort+'">'+esc(melding.tekst)+'</div>';
+  if(S.clearAsk) h+='<div class="confirm"><span>Alle '+S.saved.length+' ruimten uit het verslag verwijderen?</span><button class="btn" data-act="clearno">Annuleren</button><button class="btn primary" data-act="clearyes">Ja, leegmaken</button></div>';
+  S.saved.forEach((e,i)=>{ h+='<div class="entry"><h3>'+esc(e.ruimte)+'</h3>'+
+    '<div class="ebox v-'+e.verdict+'"><div class="erow"><small>Soort ruimte</small><b>'+esc(e.soort||'–')+'</b></div><div class="erow"><small>Uitkomst</small><b><span class="dot d-'+e.verdict+'"></span> '+esc(e.title)+'</b></div></div>'+
+    '<div class="meta">'+esc(e.datum)+' · <button class="x" style="font-size:13px" data-act="del" data-i="'+i+'">verwijderen</button></div>'+
+    '<details><summary>Route en antwoorden</summary><pre>'+esc(e.lines.join('\n'))+'</pre></details></div>'; });
+  h+='<pre id="reportPre" class="mono" style="position:absolute;left:-9999px;white-space:pre">'+esc(reportText())+'</pre></div>';
+  return h;
+}
+
+function render(){ renderTabs(); renderConfirm(); renderWork(); renderSide(); $('#project').value=S.project||''; }
+
+/* ============================================================
+   EVENTS
+   ============================================================ */
+document.addEventListener('click', e=>{
+  const t=e.target.closest('button'); if(!t) return;
+  if(t.dataset.tab){ const f=t.dataset.tab; if(f==='verslag'){ S.view='verslag'; S.pending=null; save(); render(); return; } if(S.view==='verslag' && flowOf(S.run.cur)===f){ S.view='run'; save(); render(); return; } startFlow(f); return; }
+  if(t.dataset.k){ answer(t.dataset.k); window.scrollTo({top:Math.min(window.scrollY, $('#work').offsetTop-10)}); return; }
+  if(t.dataset.back!=null){ backTo(+t.dataset.back); return; }
+  const a=t.dataset.act; if(!a) return;
+  if(a==='back') backOne();
+  else if(a==='cont') continueFlow();
+  else if(a==='return') returnSub();
+  else if(a==='addreport') addToReport();
+  else if(a==='nextroom') startFlow('route', !!S.run.savedAt);
+  else if(a==='cancelnew'){ S.pending=null; renderConfirm(); }
+  else if(a==='forcenew'){ startFlow(S.pending, true); }
+  else if(a==='copy') copyReport();
+  else if(a==='file') saveFile();
+  else if(a==='odsave') opslaanInProject();
+  else if(a==='saverun') saveRun();
+  else if(a==='clearask'){ S.clearAsk=true; render(); }
+  else if(a==='clearno'){ S.clearAsk=false; render(); }
+  else if(a==='clearyes'){ S.saved=[]; S.clearAsk=false; save(); render(); toast('Verslag leeggemaakt'); }
+  else if(a==='del'){ S.saved.splice(+t.dataset.i,1); save(); render(); }
+  else if(a==='addrow' || a==='delrow'){
+    const n=node(S.run.cur); const d=hData(S.run.cur,n.helper); const arr=d[t.dataset.p];
+    if(a==='addrow') arr.push(Object.fromEntries(Object.keys(arr[0]||{oms:''}).map(k=>[k, k==='iso'?'ja':'']))); else if(arr.length>1) arr.splice(+t.dataset.i,1); else Object.keys(arr[0]).forEach(k=>arr[0][k]= k==='iso'?'ja':'');
+    save(); renderWork(); const det=$('#helper'); if(det) det.open=true;
+  }
+});
+
+function onHelperInput(el){
+  const n=node(S.run.cur); if(!n.helper) return; const d=hData(S.run.cur,n.helper);
+  const path=el.dataset.h.split('.'); let o=d; for(let i=0;i<path.length-1;i++) o=o[path[i]];
+  o[path[path.length-1]] = el.type==='checkbox' ? el.checked : el.value;
+  const res=HELPERS[n.helper.type].compute(d,n.helper);
+  $('#hres').innerHTML = res ? res.text+suggText(n,res) : '';
+  document.querySelectorAll('#opts .opt').forEach(b=>{ const on=res&&res.k===b.dataset.k&&n.options.length>1; b.classList.toggle('suggested', !!on); const sg=b.querySelector('.sugg'); if(on && !sg) b.insertAdjacentHTML('afterbegin','<span class="sugg">volgens rekenhulp</span>'); if(!on && sg) sg.remove(); });
+  save();
+}
+document.addEventListener('input', e=>{
+  const el=e.target;
+  if(el.id==='project'){ S.project=el.value; save(); return; }
+  if(el.id==='ruimte'){ S.run.ruimte=el.value; save(); return; }
+  if(el.dataset && el.dataset.h) onHelperInput(el);
+});
+document.addEventListener('change', e=>{ const el=e.target; if(el.dataset && el.dataset.h && (el.tagName==='SELECT'||el.type==='checkbox')) onHelperInput(el); });
+
+document.addEventListener('keydown', e=>{
+  if(S.view!=='run') return; const tag=(e.target.tagName||'').toLowerCase(); if(tag==='input'||tag==='select'||tag==='textarea'||e.metaKey||e.ctrlKey||e.altKey) return;
+  const n=node(S.run.cur); if(n.type!=='q'||n.groups) return;
+  const o=n.options.find(o=>o.key && o.key===e.key.toLowerCase()); if(o){ e.preventDefault(); answer(o.k); }
+  if(e.key==='Backspace'){ e.preventDefault(); backOne(); }
+});
+
+if(!inFrame && location.origin==='https://visserinspecties.github.io' && !window.GAST) $('#backlink').hidden=false;
+if(window.GAST) MAKER='Gemaakt met de beslisschema-tool van Visser Inspecties';
+if(OD){
+  const p=leesProject();
+  if(S.logKey===undefined){ project=p; S.logKey=projectSleutel(); if(!S.saved.length){ const oud=importOud(S.logKey); if(oud) S.saved=oud; } save(); }
+  else if((p?p.pad:'')!==S.logKey){ project={naam:'',pad:S.logKey}; wisselProject(p); }
+  else project=p;
+  if(project) laadProjectGegevens();
+  controleerOneDrive();
+  window.addEventListener('online', controleerOneDrive);
+  document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) controleerOneDrive(); });
+}
+render();
+})();
+</script>
+
+</body>
+</html>
