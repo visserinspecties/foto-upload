@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Genummerde mappen</title>
+<link rel="icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --brand:#432d6a; --lila:#8e81a6; --lila-soft:#e8e6ed;
+  --bg:#f4f2f6; --card:#fff; --ink:#1d1833; --muted:#6b6584; --line:#d9d5e1;
+  --ok:#1f7a45; --warn:#b05a00; --err:#b3261e;
+  --r:14px; --shadow:0 1px 3px rgba(67,45,106,.10);
+  --serif:'Merriweather',Georgia,'Times New Roman',serif;
+}
+*{box-sizing:border-box;margin:0}
+body{font-family:var(--serif);background:var(--bg);color:var(--ink);font-size:14.5px;line-height:1.45;min-height:100vh}
+.band{background:var(--brand);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:20}
+.band::after{content:"";position:absolute;left:0;right:0;bottom:-5px;height:5px;background:linear-gradient(90deg,#019541 0 16.6%,#54ae32 0 33.3%,#c6d500 0 50%,#ffee02 0 66.6%,#faba00 0 83.3%,#ec670a 0)}
+.band .titel{font-weight:700;font-size:15px}
+.band .who{margin-left:auto;text-align:right;font-size:11.5px;color:#cfc8e6}
+.band a{color:#fff;text-decoration:none;background:rgba(255,255,255,.14);border-radius:10px;padding:8px 12px;font-size:13px}
+main{max-width:640px;margin:0 auto;padding:22px 14px 40px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:12px;box-shadow:var(--shadow)}
+.card h2{font-weight:700;font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+.stap{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--brand);color:#fff;font-size:11px;margin-right:6px;letter-spacing:0}
+label.l{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px}
+input[type=number]{width:100%;min-height:40px;padding:8px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);font-size:15px;font-family:inherit}
+.rij{display:flex;gap:10px}.rij>div{flex:1}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--bg);border-radius:99px;padding:6px 14px;font-size:13px;cursor:pointer;min-height:34px;font-family:inherit;color:var(--ink)}
+.chip.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.btn{border:0;border-radius:12px;min-height:46px;padding:0 16px;font-weight:700;font-size:14.5px;cursor:pointer;background:var(--brand);color:#fff;display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;font-family:inherit}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.sec{background:var(--lila-soft);color:var(--brand)}
+.pad{display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:13px;margin-bottom:8px}
+.pad button{border:0;background:none;color:var(--brand);font:inherit;cursor:pointer;padding:2px 4px;border-radius:6px;text-decoration:underline}
+.pad button:last-child{text-decoration:none;font-weight:700;color:var(--ink);cursor:default}
+.pad span{color:var(--muted)}
+.mappen{border:1px solid var(--line);border-radius:10px;max-height:260px;overflow:auto;background:var(--bg)}
+.mappen button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:none;padding:9px 11px;font:inherit;font-size:14px;cursor:pointer;color:var(--ink)}
+.mappen button:last-child{border-bottom:0}
+.mappen button:hover{background:var(--lila-soft)}
+.mappen .leeg{padding:10px 11px;color:var(--muted);font-size:13px}
+.doel{margin-top:10px;padding:9px 12px;border-radius:10px;background:var(--lila-soft);font-size:13.5px}
+.doel b{word-break:break-word}
+.voorbeeld{margin-top:10px;font-size:13.5px;color:var(--muted)}
+.voorbeeld b{color:var(--ink)}
+.msg{padding:10px 12px;border-radius:10px;font-size:13.5px;margin-top:10px}
+.msg.ok{background:#e3f3e9;color:var(--ok)}.msg.err{background:#fbe6e4;color:var(--err)}.msg.warn{background:#fdf0e1;color:var(--warn)}
+.voortgang{height:8px;background:var(--line);border-radius:8px;overflow:hidden;margin-top:10px;display:none}
+.voortgang i{display:block;height:100%;width:0;background:var(--ok);transition:width .15s}
+#login-screen{display:none;max-width:420px;margin:60px auto;padding:0 14px;text-align:center}
+#login-screen p{margin:10px 0 18px;color:var(--muted)}
+#app-screen{display:none}
+</style>
+<script src="assets/home-knop.js" defer></script>
+</head>
+<body>
+<div class="band">
+  <span class="titel">Genummerde mappen</span>
+  <div class="who" id="who">Visser Inspecties</div>
+  <a href="index.html" aria-label="Terug naar het dashboard">⌂</a>
+</div>
+
+<div id="login-screen">
+  <h2 style="font-size:18px">Inloggen</h2>
+  <p>Log in met je Microsoft-account van Visser Inspecties om mappen in OneDrive aan te maken.</p>
+  <button class="btn" id="b-login">Inloggen met Microsoft</button>
+  <div id="login-status"></div>
+</div>
+
+<main id="app-screen">
+  <div class="card">
+    <h2><span class="stap">1</span>Waar moeten de mappen komen?</h2>
+    <div class="pad" id="pad"></div>
+    <div class="mappen" id="mappen"><div class="leeg">Laden…</div></div>
+    <div class="doel">Mappen komen in: <b id="doel-tekst">–</b></div>
+  </div>
+
+  <div class="card">
+    <h2><span class="stap">2</span>Welke nummers?</h2>
+    <div class="rij">
+      <div><label class="l" for="van">Beginnummer</label><input type="number" id="van" inputmode="numeric" min="0" step="1"></div>
+      <div><label class="l" for="tot">Eindnummer</label><input type="number" id="tot" inputmode="numeric" min="0" step="1"></div>
+    </div>
+    <label class="l">Welke huisnummers</label>
+    <div class="chips" id="pariteit">
+      <button class="chip on" data-v="alles">Alles</button>
+      <button class="chip" data-v="even">Even</button>
+      <button class="chip" data-v="oneven">Oneven</button>
+    </div>
+    <div class="voorbeeld" id="voorbeeld">Vul begin- en eindnummer in.</div>
+  </div>
+
+  <div class="card">
+    <h2><span class="stap">3</span>Aanmaken</h2>
+    <button class="btn" id="b-maak" disabled>Mappen aanmaken</button>
+    <div class="voortgang" id="voortgang"><i></i></div>
+    <div id="status"></div>
+  </div>
+</main>
+
+<script>
+/* Zelfde app-registratie en login als de andere tools (Nieuwe projectmap e.d.).
+   De refresh-token ('rt') wordt gedeeld: wie al in een andere tool is ingelogd, hoeft hier niet opnieuw. */
+const CLIENT_ID = 'fdf237c9-bf46-47fa-ab3d-a8834a73e284';
+const TENANT_ID = '984fd1fb-3d68-4c94-aff2-47f699fb5dae';
+const REDIRECT  = location.origin + location.pathname;
+const SCOPE     = 'https://graph.microsoft.com/Files.ReadWrite offline_access';
+const START_PAD = '0_In Behandeling';
+const MAX_MAPPEN = 500;
+const G = 'https://graph.microsoft.com/v1.0';
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ── inloggen (PKCE) ── */
+let accessToken = null;
+const b64url = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+async function login() {
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+  try { localStorage.setItem('pkce_v', verifier); } catch(e) {}
+  try { sessionStorage.setItem('pkce_v', verifier); } catch(e) {}
+  const p = new URLSearchParams({ client_id: CLIENT_ID, response_type: 'code', redirect_uri: REDIRECT,
+    scope: SCOPE, code_challenge: challenge, code_challenge_method: 'S256', prompt: 'select_account' });
+  location.href = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize?${p}`;
+}
+async function tokenAanvraag(body) {
+  const r = await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`, {
+    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ client_id: CLIENT_ID, scope: SCOPE, ...body }) });
+  const d = await r.json();
+  if (!d.access_token) throw new Error(d.error_description || 'Inloggen mislukt');
+  accessToken = d.access_token;
+  if (d.refresh_token) try { localStorage.setItem('rt', d.refresh_token); } catch(e) {}
+}
+async function tokenViaCode(code) {
+  let v = null;
+  try { v = localStorage.getItem('pkce_v') || sessionStorage.getItem('pkce_v'); } catch(e) {}
+  if (!v) throw new Error('Inloggen onderbroken — probeer het opnieuw.');
+  await tokenAanvraag({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT, code_verifier: v });
+  try { localStorage.removeItem('pkce_v'); sessionStorage.removeItem('pkce_v'); } catch(e) {}
+  history.replaceState({}, '', REDIRECT);
+}
+async function refresh() {
+  let rt = null; try { rt = localStorage.getItem('rt'); } catch(e) {}
+  if (!rt) throw new Error('Niet ingelogd');
+  await tokenAanvraag({ grant_type: 'refresh_token', refresh_token: rt });
+}
+async function graph(url, opts = {}, opnieuw = true) {
+  if (!accessToken) await refresh();
+  const r = await fetch(url.startsWith('http') ? url : G + url,
+    { ...opts, headers: { ...(opts.headers || {}), Authorization: 'Bearer ' + accessToken } });
+  if (r.status === 401 && opnieuw) { accessToken = null; return graph(url, opts, false); }
+  return r;
+}
+
+/* ── map kiezen ── */
+let huidigPad = START_PAD;
+const encPad = p => p.split('/').map(encodeURIComponent).join('/');
+async function toonMap(pad) {
+  huidigPad = pad;
+  const delen = pad.split('/');
+  $('pad').innerHTML = delen.map((d, i) =>
+    `<button data-i="${i}">${esc(d)}</button>`).join('<span>›</span>');
+  $('pad').querySelectorAll('button').forEach(b => b.onclick = () =>
+    toonMap(delen.slice(0, +b.dataset.i + 1).join('/')));
+  $('doel-tekst').textContent = pad;
+  $('mappen').innerHTML = '<div class="leeg">Laden…</div>';
+  try {
+    let url = `/me/drive/root:/${encPad(pad)}:/children?$select=name,folder&$top=200`;
+    const mappen = [];
+    while (url) {
+      const r = await graph(url);
+      if (!r.ok) throw new Error((await r.json()).error?.message || r.statusText);
+      const d = await r.json();
+      d.value.filter(x => x.folder).forEach(x => mappen.push(x.name));
+      url = d['@odata.nextLink'] || null;
+    }
+    mappen.sort((a, b) => a.localeCompare(b, 'nl', { numeric: true }));
+    $('mappen').innerHTML = mappen.length
+      ? mappen.map(n => `<button data-n="${esc(n)}">📁 ${esc(n)}</button>`).join('')
+      : '<div class="leeg">Geen submappen. De genummerde mappen komen direct in deze map.</div>';
+    $('mappen').querySelectorAll('button').forEach(b => b.onclick = () => toonMap(pad + '/' + b.dataset.n));
+  } catch (e) {
+    $('mappen').innerHTML = `<div class="leeg" style="color:var(--err)">Kon map niet openen: ${esc(e.message)}</div>`;
+  }
+  werkVoorbeeldBij();
+}
+
+/* ── nummers ── */
+let pariteit = 'alles';
+$('pariteit').querySelectorAll('.chip').forEach(c => c.onclick = () => {
+  $('pariteit').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c));
+  pariteit = c.dataset.v; werkVoorbeeldBij();
+});
+function nummers() {
+  let a = parseInt($('van').value, 10), b = parseInt($('tot').value, 10);
+  if (isNaN(a) || isNaN(b)) return null;
+  if (a > b) [a, b] = [b, a];
+  const lijst = [];
+  for (let n = a; n <= b; n++) {
+    if (pariteit === 'even' && n % 2 !== 0) continue;
+    if (pariteit === 'oneven' && n % 2 === 0) continue;
+    lijst.push(n);
+    if (lijst.length > MAX_MAPPEN) break;
+  }
+  return lijst;
+}
+function werkVoorbeeldBij() {
+  const l = nummers();
+  const knop = $('b-maak');
+  if (!l) { $('voorbeeld').textContent = 'Vul begin- en eindnummer in.'; knop.disabled = true; return; }
+  if (!l.length) { $('voorbeeld').textContent = 'Geen nummers in dit bereik.'; knop.disabled = true; return; }
+  if (l.length > MAX_MAPPEN) {
+    $('voorbeeld').innerHTML = `<span style="color:var(--err)">Meer dan ${MAX_MAPPEN} mappen — maak het bereik kleiner.</span>`;
+    knop.disabled = true; return;
+  }
+  const toon = l.length <= 8 ? l.join(', ') : `${l.slice(0, 4).join(', ')} … ${l.slice(-2).join(', ')}`;
+  $('voorbeeld').innerHTML = `<b>${l.length} ${l.length === 1 ? 'map' : 'mappen'}</b>: ${esc(toon)}`;
+  knop.disabled = false;
+  knop.textContent = `${l.length} ${l.length === 1 ? 'map' : 'mappen'} aanmaken`;
+}
+['van', 'tot'].forEach(id => $(id).addEventListener('input', werkVoorbeeldBij));
+
+/* ── aanmaken ── */
+async function maakMap(pad, naam) {
+  const r = await graph(`/me/drive/root:/${encPad(pad)}:/children`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: naam, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' }) });
+  if (r.status === 409) return 'bestond';
+  if (r.status === 429 || r.status === 503) {                       // even rustig aan
+    const wacht = (parseInt(r.headers.get('Retry-After'), 10) || 2) * 1000;
+    await new Promise(res => setTimeout(res, wacht));
+    return maakMap(pad, naam);
+  }
+  if (!r.ok) throw new Error((await r.json()).error?.message || r.statusText);
+  return 'nieuw';
+}
+$('b-maak').onclick = async () => {
+  const l = nummers(); if (!l || !l.length) return;
+  const pad = huidigPad, knop = $('b-maak'), bar = $('voortgang'), st = $('status');
+  if (l.length > 50 && !confirm(`${l.length} mappen aanmaken in\n${pad}?`)) return;
+  knop.disabled = true; bar.style.display = 'block'; st.innerHTML = '';
+  let nieuw = 0, bestond = 0; const fouten = [];
+  for (let i = 0; i < l.length; i++) {
+    try { (await maakMap(pad, String(l[i]))) === 'nieuw' ? nieuw++ : bestond++; }
+    catch (e) { fouten.push(`${l[i]}: ${e.message}`); }
+    bar.firstElementChild.style.width = Math.round((i + 1) / l.length * 100) + '%';
+  }
+  let h = `<div class="msg ${fouten.length ? 'warn' : 'ok'}">Klaar in <b>${esc(pad)}</b>: ${nieuw} nieuw aangemaakt` +
+    (bestond ? `, ${bestond} bestonden al` : '') + '.</div>';
+  if (fouten.length) h += `<div class="msg err">Niet gelukt (${fouten.length}): ${esc(fouten.slice(0, 5).join(' · '))}${fouten.length > 5 ? ' …' : ''}</div>`;
+  st.innerHTML = h;
+  knop.disabled = false; werkVoorbeeldBij();
+  toonMap(pad);
+};
+
+/* ── start ── */
+$('b-login').onclick = login;
+(async function init() {
+  const code = new URLSearchParams(location.search).get('code');
+  try {
+    if (code) await tokenViaCode(code); else await refresh();
+    const me = await graph('/me?$select=displayName');
+    if (me.ok) $('who').textContent = (await me.json()).displayName || 'Visser Inspecties';
+    $('app-screen').style.display = 'block';
+    toonMap(START_PAD);
+  } catch (e) {
+    $('login-screen').style.display = 'block';
+    if (code || e.message !== 'Niet ingelogd') $('login-status').innerHTML = `<div class="msg err">${esc(e.message)}</div>`;
+  }
+})();
+</script>
+</body>
+</html>
