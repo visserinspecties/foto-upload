@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inloggen</title>
+<link rel="icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--brand:#432d6a;--lila-soft:#e8e6ed;--bg:#f4f2f6;--card:#fff;--ink:#1d1833;--muted:#6b6584;--line:#d9d5e1;--ok:#1f7a45;--err:#b3261e;
+  --serif:'Merriweather',Georgia,'Times New Roman',serif}
+*{box-sizing:border-box;margin:0}
+body{font-family:var(--serif);background:var(--bg);color:var(--ink);font-size:14.5px;line-height:1.5;min-height:100vh}
+.band{background:var(--brand);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:12px;position:relative}
+.band::after{content:"";position:absolute;left:0;right:0;bottom:-5px;height:5px;background:linear-gradient(90deg,#019541 0 16.6%,#54ae32 0 33.3%,#c6d500 0 50%,#ffee02 0 66.6%,#faba00 0 83.3%,#ec670a 0)}
+.band .titel{font-weight:700;font-size:15px}
+.band a{margin-left:auto;color:#fff;text-decoration:none;background:rgba(255,255,255,.14);border-radius:10px;padding:8px 12px;font-size:13px}
+main{max-width:440px;margin:48px auto;padding:0 14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px 18px;text-align:center;box-shadow:0 1px 3px rgba(67,45,106,.10)}
+h1{font-size:18px;margin-bottom:6px}
+p{color:var(--muted);margin-bottom:16px}
+.btn{border:0;border-radius:12px;min-height:46px;padding:0 16px;font-weight:700;font-size:14.5px;cursor:pointer;background:var(--brand);color:#fff;width:100%;font-family:inherit;display:block;text-decoration:none;line-height:46px}
+.btn.sec{background:var(--lila-soft);color:var(--brand);margin-top:8px}
+.msg{padding:10px 12px;border-radius:10px;font-size:13.5px;margin-top:14px;text-align:left}
+.msg.err{background:#fbe6e4;color:var(--err)}.msg.ok{background:#e3f3e9;color:var(--ok)}
+.spin{display:inline-block;width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-3px;margin-right:8px}
+@keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="band"><span class="titel">Inloggen</span><a href="index.html" aria-label="Terug naar het dashboard">⌂</a></div>
+<main><div class="card" id="kaart"><p><span class="spin"></span>Even geduld…</p></div></main>
+
+<script>
+/* Centrale inlog voor alle Visser Inspecties-tools.
+   Dit is het enige terugkeeradres dat in Entra hoeft te staan:
+   https://visserinspecties.github.io/foto-upload/inloggen.html  (type: single-page application)
+   Na het inloggen staat de refresh-token in localStorage 'rt' en gaat de gebruiker terug naar ?terug=… */
+const CLIENT_ID = 'fdf237c9-bf46-47fa-ab3d-a8834a73e284';
+const TENANT_ID = '984fd1fb-3d68-4c94-aff2-47f699fb5dae';
+const REDIRECT  = location.origin + location.pathname;
+// alle rechten die de tools samen gebruiken; elke tool vraagt daarna zelf zijn eigen deel op
+const SCOPE = ['Files.ReadWrite','Mail.ReadWrite','Tasks.ReadWrite','Calendars.ReadWrite','User.Read']
+  .map(s => 'https://graph.microsoft.com/' + s).join(' ') + ' offline_access';
+const AUTH = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0`;
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const LS = { get: k => { try { return localStorage.getItem(k); } catch(e) { return null; } },
+             set: (k, v) => { try { localStorage.setItem(k, v); } catch(e) {} },
+             del: k => { try { localStorage.removeItem(k); } catch(e) {} } };
+
+// alleen terug naar een eigen pagina in deze map (geen externe adressen)
+function veiligTerug(t) {
+  if (!t) return null;
+  return /^[A-Za-z0-9_\-]+\.html([?#][^\s]*)?$/.test(t) ? t : null;
+}
+const b64url = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+
+async function startLogin(terug) {
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+  LS.set('vi_pkce', verifier);
+  try { sessionStorage.setItem('vi_pkce', verifier); } catch(e) {}
+  const p = new URLSearchParams({ client_id: CLIENT_ID, response_type: 'code', redirect_uri: REDIRECT, scope: SCOPE,
+    code_challenge: challenge, code_challenge_method: 'S256', prompt: 'select_account', state: terug || '' });
+  location.href = `${AUTH}/authorize?${p}`;
+}
+
+async function codeInwisselen(code) {
+  let v = LS.get('vi_pkce'); if (!v) try { v = sessionStorage.getItem('vi_pkce'); } catch(e) {}
+  if (!v) throw new Error('Het inloggen is onderbroken. Probeer het nog een keer.');
+  const r = await fetch(`${AUTH}/token`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ client_id: CLIENT_ID, grant_type: 'authorization_code', code, redirect_uri: REDIRECT,
+      code_verifier: v, scope: SCOPE }) });
+  const d = await r.json();
+  if (!d.access_token) throw new Error(d.error_description || 'Inloggen mislukt.');
+  LS.del('vi_pkce'); try { sessionStorage.removeItem('vi_pkce'); } catch(e) {}
+  if (d.refresh_token) LS.set('rt', d.refresh_token);
+  try {
+    const me = await fetch('https://graph.microsoft.com/v1.0/me?$select=displayName,mail',
+      { headers: { Authorization: 'Bearer ' + d.access_token } });
+    if (me.ok) { const j = await me.json(); LS.set('vi_naam', j.displayName || ''); LS.set('vi_mail', j.mail || ''); }
+  } catch(e) {}
+}
+
+function toonStatus(melding) {
+  const naam = LS.get('vi_naam'), ingelogd = !!LS.get('rt');
+  $('kaart').innerHTML = ingelogd
+    ? `<h1>Ingelogd</h1><p>${naam ? 'Als <b>' + esc(naam) + '</b>. ' : ''}Alle tools gebruiken deze inlog.</p>
+       <a class="btn" href="index.html">Naar het dashboard</a>
+       <button class="btn sec" id="b-anders">Met een ander account inloggen</button>
+       <button class="btn sec" id="b-uit">Uitloggen</button>${melding || ''}`
+    : `<h1>Inloggen</h1><p>Log in met je Microsoft-account van Visser Inspecties. Daarna werken alle tools.</p>
+       <button class="btn" id="b-in">Inloggen met Microsoft</button>${melding || ''}`;
+  const t = veiligTerug(new URLSearchParams(location.search).get('terug'));
+  if ($('b-in')) $('b-in').onclick = () => startLogin(t);
+  if ($('b-anders')) $('b-anders').onclick = () => startLogin(t);
+  if ($('b-uit')) $('b-uit').onclick = () => { ['rt','vi_naam','vi_mail'].forEach(LS.del);
+    toonStatus('<div class="msg ok">Je bent uitgelogd.</div>'); };
+}
+
+(async function start() {
+  const q = new URLSearchParams(location.search);
+  if (q.get('error')) {
+    history.replaceState({}, '', REDIRECT);
+    toonStatus(`<div class="msg err">Microsoft meldt: ${esc(q.get('error_description') || q.get('error'))}</div>`);
+    return;
+  }
+  if (q.get('code')) {
+    const terug = veiligTerug(q.get('state'));
+    try {
+      await codeInwisselen(q.get('code'));
+      history.replaceState({}, '', REDIRECT);
+      if (terug) { $('kaart').innerHTML = '<p><span class="spin"></span>Ingelogd — terug naar de tool…</p>'; location.replace(terug); return; }
+      toonStatus('<div class="msg ok">Gelukt, je bent ingelogd.</div>');
+    } catch(e) {
+      history.replaceState({}, '', REDIRECT);
+      toonStatus(`<div class="msg err">${esc(e.message)}</div>`);
+    }
+    return;
+  }
+  // vanuit een tool gestuurd? dan meteen door naar Microsoft
+  const terug = veiligTerug(q.get('terug'));
+  if (terug) { startLogin(terug); return; }
+  toonStatus();
+})();
+</script>
+</body>
+</html>

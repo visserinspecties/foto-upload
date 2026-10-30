@@ -252,6 +252,7 @@ details.helper[open] summary::before{content:"–"}
 </style>
 
 <script src="assets/home-knop.js" defer></script>
+<script src="assets/login.js"></script>
 </head>
 <body>
 <div class="wrap">
@@ -952,7 +953,7 @@ async function controleerOneDrive(){
     if(!navigator.onLine){ zetBalk('let','📵 Geen internet — kopieer of download het verslag, of probeer later opnieuw.',[opnieuw]); return; }
     let token;
     try{ token=await graphRefreshToken(); }
-    catch(e){ if(e.code==='netwerk') zetBalk('let','⚠️ Microsoft is nu niet bereikbaar.',[opnieuw]); else zetBalk('fout','Niet ingelogd bij OneDrive. Open Huismaten of de Projectmap-app, tik daar op “Inloggen” en kom dan hier terug.',[opnieuw]); return; }
+    catch(e){ if(e.code==='netwerk') zetBalk('let','⚠️ Microsoft is nu niet bereikbaar.',[opnieuw]); else zetBalk('fout','Niet ingelogd bij OneDrive.',[['Inloggen',()=>VILogin.naarInlog()],opnieuw]); return; }
     if(!project){ zetBalk('let','☁️ OneDrive verbonden — nog geen project gekozen.',[kies,opnieuw]); return; }
     let resp;
     try{ resp=await fetch('https://graph.microsoft.com/v1.0/me/drive/root:/'+encodeURIComponent(project.pad),{headers:{Authorization:'Bearer '+token}}); }
@@ -1014,7 +1015,7 @@ function wisselProject(nieuw){
 }
 async function kiesProject(){
   try{ await graphRefreshToken(); }
-  catch(e){ toast('Niet ingelogd bij OneDrive — log in via Huismaten of de Projectmap-app'); return; }
+  catch(e){ if(confirm('Niet ingelogd bij OneDrive. Nu inloggen?')) VILogin.naarInlog(); return; }
   const keuze=await kiesOnedriveMap(); if(!keuze) return;
   const delen=keuze.delen;
   if(!delen.length){ toast('Kies een projectmap, niet de hoofdmap van OneDrive'); return; }

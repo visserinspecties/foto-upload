@@ -100,6 +100,7 @@ table.r .sub{color:var(--muted);font-size:12px}
 #login p{color:var(--muted);margin-bottom:22px;max-width:340px}
 .sticky{position:sticky;bottom:0;background:var(--bg);padding:10px 0 calc(env(safe-area-inset-bottom) + 6px);border-top:1px solid var(--line)}
 </style>
+<script src="assets/login.js"></script>
 </head>
 <body>
 <div class="band">
@@ -112,7 +113,7 @@ table.r .sub{color:var(--muted);font-size:12px}
 <section id="login" class="hidden">
   <h1>Factuur versturen</h1>
   <p>Log in met je Microsoft-account. De tool leest de EP-Sys-factuur uit OneDrive, maakt de factuur in huisstijl en zet de mails als concept klaar in Outlook.</p>
-  <button class="btn" onclick="login()">🔐 Inloggen met Microsoft</button>
+  <button class="btn" onclick="VILogin.naarInlog()">🔐 Inloggen met Microsoft</button>
   <div id="login-status" style="margin-top:14px"></div>
 </section>
 

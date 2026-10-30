@@ -57,6 +57,7 @@ input[type=number]{width:100%;min-height:40px;padding:8px 11px;border:1px solid 
 #app-screen{display:none}
 </style>
 <script src="assets/home-knop.js" defer></script>
+<script src="assets/login.js"></script>
 </head>
 <body>
 <div class="band">
@@ -260,7 +261,7 @@ $('b-maak').onclick = async () => {
 };
 
 /* ── start ── */
-$('b-login').onclick = login;
+$('b-login').onclick = () => VILogin.naarInlog();
 (async function init() {
   const code = new URLSearchParams(location.search).get('code');
   try {

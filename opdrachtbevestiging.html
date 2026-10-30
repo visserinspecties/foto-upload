@@ -64,6 +64,7 @@ label.l{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px}
 @keyframes sp{to{transform:rotate(360deg)}}
 input[type=file]{display:none}
 </style>
+<script src="assets/login.js"></script>
 </head>
 <body>
 <div class="band">
@@ -499,7 +500,7 @@ $('b-mail').onclick=async()=>{
   }catch(e){
     console.error(e);
     res.innerHTML=e.message==='NIET_INGELOGD'
-      ?`<div class="msg warn">Je bent nog niet ingelogd. Open <a href="factuur.html">Factuur versturen</a>, log in met Microsoft en kom daarna hier terug. Daarna werkt het hier vanzelf.</div>`
+      ?`<div class="msg warn">Je bent nog niet ingelogd. ${VILogin.inlogLink('Log hier in met Microsoft')} — daarna kom je vanzelf hier terug.</div>`
       :`<div class="msg err">Mislukt: ${esc(e.message)}</div>`;
   }
   b.disabled=false;

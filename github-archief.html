@@ -46,6 +46,7 @@ code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;backgrou
 .spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px;margin-right:6px}
 @keyframes sp{to{transform:rotate(360deg)}}
 </style>
+<script src="assets/login.js"></script>
 </head>
 <body>
 <div class="band"><span class="titel">GitHub archief</span><a href="index.html" aria-label="Terug naar het dashboard">⌂</a></div>
@@ -228,7 +229,7 @@ $('start').onclick = async () => {
       (link.webUrl ? ` <a href="${esc(link.webUrl)}" target="_blank">Map openen in OneDrive</a>` : ''));
   } catch(e) {
     melding('err', e.message === 'NIET_INGELOGD'
-      ? 'Je bent nog niet ingelogd. Open <a href="nieuwe-projectmap.html">Nieuwe projectmap</a>, log in met Microsoft en kom daarna hier terug.'
+      ? 'Je bent nog niet ingelogd. '+VILogin.inlogLink('Log hier in met Microsoft')+' — daarna kom je vanzelf hier terug.'
       : 'Mislukt: ' + esc(e.message));
   }
   $('start').disabled = false;

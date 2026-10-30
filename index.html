@@ -47,6 +47,20 @@ footer svg{position:absolute;right:-28px;bottom:-30px;width:150px;opacity:.6}
 @media (prefers-color-scheme:dark){footer svg{opacity:.18}}
 footer div{position:relative}
 .labelstreep{height:5px;background:linear-gradient(90deg,#019541 0 16.6%,#54ae32 0 33.3%,#c6d500 0 50%,#ffee02 0 66.6%,#faba00 0 83.3%,#ec670a 0)}
+
+/* inlogstatus bovenaan */
+.inlog{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin:0 0 18px;font-size:13px;color:var(--muted)}
+.inlog .stip{flex:none;width:9px;height:9px;border-radius:50%;background:var(--line)}
+.inlog.ok .stip{background:#1f7a45}.inlog.uit .stip{background:#b3261e}.inlog.onbekend .stip{background:#faba00}
+.inlog b{color:var(--ink)}
+.inlog a{margin-left:auto;flex:none;color:var(--accent);font-weight:700;text-decoration:none;border:1px solid var(--line);border-radius:99px;padding:5px 12px}
+.inlog.uit a{background:var(--brand);border-color:var(--brand);color:#fff}
+/* twee kolommen op een breed scherm */
+@media (min-width:900px){
+  main,footer{max-width:1060px}
+  .kolommen{display:grid;grid-template-columns:1fr 1fr;gap:0 22px;align-items:start}
+  .kolommen section:first-child{grid-row:1 / span 2}   /* Op locatie links; Kantoor en Klanten rechts */
+}
 </style>
 </head>
 <body>
@@ -58,6 +72,9 @@ footer div{position:relative}
 <div class="labelstreep"></div>
 
 <main>
+  <div class="inlog" id="inlog"><span class="stip"></span><span id="inlog-tekst">Inlog controleren…</span></div>
+  <div class="kolommen">
+  <section>
   <h2>Op locatie</h2>
   <div class="lijst">
     <a class="tool" href="foto-upload.html">
@@ -91,7 +108,8 @@ footer div{position:relative}
       <div class="pijl">›</div>
     </a>
   </div>
-
+  </section>
+  <section>
   <h2>Kantoor</h2>
   <div class="lijst">
     <a class="tool" href="nieuwe-projectmap.html">
@@ -129,7 +147,8 @@ footer div{position:relative}
       <div class="pijl">›</div>
     </a>
   </div>
-
+  </section>
+  <section>
   <h2>Klanten</h2>
   <div class="lijst">
     <a class="tool" href="gids-delen.html">
@@ -138,6 +157,8 @@ footer div{position:relative}
       <div class="pijl">›</div>
     </a>
   </div>
+  </section>
+  </div>
 </main>
 
 <footer>
@@ -145,5 +166,24 @@ footer div{position:relative}
   <div><b>John Visser</b>06 5160 47 35<br><a href="mailto:info@visserinspecties.nl">info@visserinspecties.nl</a><br><a href="https://www.visserinspecties.nl">www.visserinspecties.nl</a></div>
 </footer>
 
+<script src="assets/login.js"></script>
+<script>
+(function(){
+  var box=document.getElementById('inlog'), t=document.getElementById('inlog-tekst');
+  var esc=function(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})};
+  VILogin.controleer().then(function(r){
+    box.className='inlog '+r.status;
+    var link=document.createElement('a');
+    if(r.status==='uit'){
+      t.textContent='Niet ingelogd bij Microsoft — OneDrive en Outlook werken pas na inloggen.';
+      link.href=VILogin.inlogUrl(); link.textContent='Inloggen';
+    } else {
+      t.innerHTML=(r.status==='ok'?'Ingelogd':'Ingelogd (Microsoft nu niet bereikbaar)')+(r.naam?' als <b>'+esc(r.naam)+'</b>':'');
+      link.href='inloggen.html'; link.textContent='Account';
+    }
+    box.appendChild(link);
+  });
+})();
+</script>
 </body>
 </html>
