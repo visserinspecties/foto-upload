@@ -472,10 +472,12 @@ function vulGegevens(){
   renderAanhef();
   $('m-onderwerp').dataset.auto='1';$('o-map').textContent=doelMap||'OneDrive';$('o-naam').textContent=bestandsnaam();
 }
+/* subregel die alleen een huisnummer is: "39", "4C", "4 C", "12-1", "7/2", "130 A" */
+const isHuisnr=s=>/^\d{1,5}\s*[a-zA-Z]{0,2}(\s*[-\/]\s*[a-zA-Z0-9]{1,4})?$/.test(String(s).trim());
 function renderRegels(){
   const w=controleer(F);const incl=F.modus==='incl';
   let h=`<table class="r"><tr><th>Aantal</th><th>Omschrijving</th><th style="text-align:right">Prijs p/st ${incl?'incl.':'excl.'}</th><th style="text-align:right">Totaal excl.</th><th style="text-align:right">Btw</th></tr>`;
-  F.regels.forEach(r=>{h+=`<tr><td>${r.aantal}</td><td>${esc(r.oms)}${r.sub.map(s=>`<div class="sub">– ${esc(s)}</div>`).join('')}</td><td class="g">${euro(r.prijs)}</td><td class="g">${euro(r.totaal)}</td><td class="g">${r.btw}%</td></tr>`});
+  F.regels.forEach(r=>{h+=`<tr><td>${r.aantal}</td><td>${esc(r.oms)}${r.sub.map(s=>`<div class="sub"${isHuisnr(s)?' style="font-weight:700;color:inherit"':''}>– ${esc(s)}</div>`).join('')}</td><td class="g">${euro(r.prijs)}</td><td class="g">${euro(r.totaal)}</td><td class="g">${r.btw}%</td></tr>`});
   h+=`<tr><td></td><td style="text-align:right">Totaal excl. btw</td><td></td><td class="g">${euro(F.excl)}</td><td></td></tr>`;
   F.btwRegels.forEach(b=>{h+=`<tr><td></td><td style="text-align:right">Btw ${b.pct}%</td><td></td><td class="g">${euro(b.bedrag)}</td><td></td></tr>`});
   h+=`<tr><td></td><td style="text-align:right"><b>Totaal incl. btw</b></td><td></td><td class="g"><b>${euro(F.incl)}</b></td><td></td></tr></table>`;
@@ -691,7 +693,9 @@ async function maakFactuurPdf(){
     tekst('€ '+fmt(r.prijs),kP,top,9,fR,INKT,'r');
     tekst('€ '+fmt(incl?r.aantal*r.prijs:r.totaal),kB,top,9,fR,INKT,'r');
     top+=13*regels.length+2;
-    r.sub.forEach(s=>{wrap(s,fL,8.5,omsBreed).forEach((t,i)=>{tekst((i?'    ':'–  ')+t,L+18,top,8.5,fL,GRIJS);top+=13})});
+    // huisnummer-subregels (bv. "39", "4C", "12-1") altijd vet en in inktkleur
+    r.sub.forEach(s=>{const nr=isHuisnr(s),f=nr?fB:fL,k=nr?INKT:GRIJS;
+      wrap(s,f,8.5,omsBreed).forEach((t,i)=>{tekst((i?'    ':'–  ')+t,L+18,top,8.5,f,k);top+=13})});
     top+=6;page.drawLine({start:{x:L,y:H-top},end:{x:R,y:H-top},thickness:0.6,color:LIJN});top+=4;
   });
   // totalen
