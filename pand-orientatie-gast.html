@@ -1,0 +1,1032 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gastversie · Pand-oriëntatie via BAG</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  /* Achtergrond: vergrootglas. Vervang de url(...) hieronder door het echte logo (bijv. url('vergrootglas.png') of een data-URI). */
+  :root { --blauw:#1f4e79; --blauw-licht:#e8f0f8; --grijs:#5b6670; --rand:#cfd8e0;
+    --vergrootglas: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Cg fill='none' stroke='%231f4e79' stroke-opacity='0.13' stroke-linecap='round'%3E%3Ccircle cx='80' cy='80' r='54' stroke-width='14'/%3E%3Cpath d='M121 121 L182 182' stroke-width='24'/%3E%3C/g%3E%3C/svg%3E"); }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:'Merriweather', Georgia, serif; font-size:14px; color:#1b2733; background:#f5f7fa var(--vergrootglas) no-repeat right -70px bottom -70px / min(560px, 90vw); background-attachment:fixed; }
+  header { background:var(--blauw); color:#fff; padding:10px 16px; }
+  header h1 { margin:0; font-size:17px; font-weight:700; }
+  .wrap { display:flex; gap:12px; padding:12px; height:calc(100vh - 52px); }
+  .zijkant { width:380px; flex:none; overflow:auto; background:rgba(255,255,255,.9); border:1px solid var(--rand); border-radius:6px; padding:12px; }
+  .kaartvak { flex:1; position:relative; border:1px solid var(--rand); border-radius:6px; overflow:hidden; background:#fff; }
+  #kaart { position:absolute; inset:0; }
+  label { display:block; font-size:12px; color:var(--grijs); margin-bottom:4px; }
+  input[type=text], select { width:100%; padding:8px; border:1px solid var(--rand); border-radius:4px; font:inherit; }
+  button { font:inherit; padding:8px 12px; border:0; border-radius:4px; background:var(--blauw); color:#fff; cursor:pointer; }
+  button.licht { background:var(--blauw-licht); color:var(--blauw); }
+  button:disabled { opacity:.5; cursor:default; }
+  .rij { display:flex; gap:8px; margin-top:8px; }
+  .rij3 { display:flex; gap:8px; }
+  .rij3 > div:nth-child(1) { flex:2; } .rij3 > div:nth-child(2) { flex:1.3; } .rij3 > div:nth-child(3) { flex:1; }
+  .rij > * { flex:1; }
+  #status { margin-top:10px; font-size:12px; color:var(--grijs); min-height:16px; }
+  #status.fout { color:#b00020; }
+  h2 { font-size:13px; margin:16px 0 6px; color:var(--blauw); }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  th, td { padding:5px 4px; border-bottom:1px solid var(--rand); text-align:left; }
+  th { color:var(--grijs); font-weight:400; }
+  tr.sel { background:var(--blauw-licht); }
+  tr.kies { cursor:pointer; }
+  .tag { display:inline-block; min-width:26px; padding:1px 5px; border-radius:3px; background:var(--blauw); color:#fff; text-align:center; font-size:11px; }
+  .tag.leeg { background:#cfd8e0; color:#1b2733; }
+  .noordpijl { position:absolute; top:12px; right:12px; z-index:1000; background:rgba(255,255,255,.9); border:1px solid var(--rand); border-radius:6px; padding:4px 8px; text-align:center; font-size:12px; font-weight:700; }
+  .gevellabel { background:rgba(255,255,255,.92); border:1px solid #333; border-radius:3px; padding:1px 4px; font-size:11px; font-family:'Merriweather',serif; white-space:nowrap; transform:translate(-50%,-50%); }
+  .klein { font-size:11px; color:var(--grijs); margin-top:10px; line-height:1.5; }
+  #od-status { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:7px 16px; font-size:12px; background:#efece3; color:#6b6555; }
+  #od-status button { padding:4px 12px; font-size:12px; font-weight:700; border:1px solid currentColor; background:#fff; color:inherit; border-radius:5px; }
+  .hoogte-vak { margin-top:10px; padding:10px; border:1px solid var(--rand); border-radius:6px; background:#fff; }
+  .hoogte-vak .groot { font-size:20px; font-weight:700; color:var(--blauw); margin:2px 0 6px; }
+  .hoogte-vak table td:last-child { text-align:right; white-space:nowrap; }
+  .hoogte-vak .waarschuwing { color:#9a5b00; font-size:11px; margin-top:6px; }
+  .hoogte-vak details { margin-top:8px; font-size:12px; }
+  .hoogte-vak summary { cursor:pointer; color:var(--blauw); }
+  .opslaan-vak { margin-top:8px; padding:10px; border:1px solid var(--rand); border-radius:6px; background:var(--blauw-licht); }
+  .opslaan-vak .klein { margin-top:6px; }
+  #pj-scherm { position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; padding:12px; }
+  #pj-doos { background:#fff; border-radius:8px; width:min(520px,100%); max-height:85vh; display:flex; flex-direction:column; padding:14px; gap:8px; }
+  #pj-doos h3 { margin:0; font-size:15px; color:var(--blauw); }
+  #pj-lijst { overflow:auto; border:1px solid var(--rand); border-radius:4px; flex:1; min-height:120px; }
+  #pj-lijst button { display:block; width:100%; text-align:left; background:#fff; color:#1b2733; border-bottom:1px solid var(--rand); border-radius:0; padding:10px; }
+  #pj-lijst button:hover { background:var(--blauw-licht); }
+  @media (max-width: 800px) { .wrap { flex-direction:column; height:auto; } .zijkant { width:auto; } .kaartvak { height:70vh; } }
+  @media print { header, #od-status, #pj-scherm, .opslaan-vak, .zijkant .invoer, button { display:none !important; } .wrap { display:block; height:auto; } .zijkant { width:auto; border:0; } .kaartvak { height:480px; } }
+</style>
+<script>
+/* GASTVERSIE: geen inlog/OneDrive, eigen opslag (los van de gewone tool). */
+var GASTVERSIE = true;
+(function(){
+  var P = 'gast_', S = Storage.prototype, g = S.getItem, z = S.setItem, r = S.removeItem;
+  S.getItem = function(k){ return g.call(this, P + k); };
+  S.setItem = function(k, v){ return z.call(this, P + k, v); };
+  S.removeItem = function(k){ return r.call(this, P + k); };
+})();
+</script>
+<style>
+#od-status,#pj-scherm,#pj-let,#b-txt,.opslaan-vak,.vak:has(> #opslaan){display:none!important}
+.gast-sub{font-size:12px;font-weight:400;opacity:.85;margin-top:2px}
+header > div{flex:1}
+@media (min-width: 801px){ .wrap{height:calc(100vh - 70px)!important} }
+</style>
+</head>
+<body>
+<header><div><h1>Pand-oriëntatie via BAG</h1><div class="gast-sub">Gastversie van Visser Inspecties — werkt zonder inloggen; bestanden komen op je eigen apparaat</div></div></header>
+<div id="od-status">☁️ OneDrive: controleren…</div>
+<div id="pj-scherm"><div id="pj-doos">
+  <h3>Bij welk project hoort dit pand?</h3>
+  <input type="text" id="pj-zoek" placeholder="Zoek op adres of projectnaam" autocomplete="off">
+  <div id="pj-lijst"></div>
+  <div class="rij"><button class="licht" id="pj-sluit">Annuleren</button></div>
+</div></div>
+<div class="wrap">
+  <div class="zijkant">
+    <div class="invoer">
+      <div class="rij3">
+        <div><label for="postcode">Postcode</label><input type="text" id="postcode" placeholder="2552 AB" autocomplete="postal-code"></div>
+        <div><label for="huisnr">Huisnummer</label><input type="text" id="huisnr" placeholder="255" inputmode="numeric"></div>
+        <div><label for="toev">Toev.</label><input type="text" id="toev" placeholder="A"></div>
+      </div>
+      <label for="adres" style="margin-top:10px">Of: adres als tekst</label>
+      <input type="text" id="adres" placeholder="Straatnaam 12 Plaats">
+      <div class="rij"><button id="zoek">Zoek pand</button></div>
+      <div class="rij"><button class="licht" id="b-txt" type="button">📄 Projectgegevens (.txt) inlezen</button></div>
+      <input type="file" id="f-txt" accept=".txt,text/plain" style="display:none">
+      <div id="kiesWrap" style="display:none; margin-top:8px;">
+        <label for="kies">Meerdere adressen gevonden</label>
+        <select id="kies"></select>
+      </div>
+    </div>
+    <div id="status"></div>
+    <div id="resultaat" style="display:none;">
+      <h2 id="adresTitel"></h2>
+      <div id="pandInfo" class="klein" style="margin-top:0"></div>
+      <div id="hoogteVak" class="hoogte-vak" style="display:none"></div>
+      <div class="rij"><button class="licht" id="naar3d">🧊 Bekijk dit pand in 3D</button></div>
+      <h2>Kaartje</h2>
+      <div class="rij"><select id="achtergrond"><option value="kaart">Achtergrond: kaart</option><option value="lucht">Achtergrond: luchtfoto</option><option value="geen">Zonder achtergrond</option></select><button id="png">Maak kaartje (PNG)</button></div>
+      <img id="pngvoorbeeld" alt="Kaartje met gevelrichtingen" style="display:none;width:100%;margin-top:8px;border:1px solid var(--rand)">
+      <h2>Gevels</h2>
+      <div class="klein" style="margin:0 0 6px">Klik een gevel in de tabel of op de kaart om die als voorgevel (VG) aan te wijzen. AG, LG en RG volgen daaruit.</div>
+      <table>
+        <thead><tr><th>#</th><th>Lengte</th><th>Kijkt naar</th><th>Gevel</th></tr></thead>
+        <tbody id="tabel"></tbody>
+      </table>
+      <h2>Totaal per gevel</h2>
+      <table><tbody id="totaal"></tbody></table>
+      <div class="rij"><button class="licht" id="kopieer">Kopieer tabel</button><button class="licht" id="print">Print / PDF</button></div>
+      <div class="opslaan-vak">
+        <button id="opslaan" style="width:100%">Opslaan in project (voor de A3)</button>
+        <div class="klein" id="opslaanInfo">Zet het kaartje en de gevelrichtingen in de map 020 AANTEKENINGEN van het gekozen project. Huismaten neemt ze daar over in de A3.</div>
+      </div>
+    </div>
+    <div class="klein">Bron: BAG (Kadaster) via PDOK; hoogte uit 3DBAG (3DGI / TU Delft, CC BY 4.0), opgehaald in je eigen browser. De BAG-contour is indicatief en geen vervanging van opmeten. "Kijkt naar" is de richting waarop de gevel uitkijkt, dus de normaal van de gevel naar buiten.</div>
+  </div>
+  <div class="kaartvak">
+    <div id="kaart"></div>
+    <div class="noordpijl"><svg width="22" height="30" viewBox="0 0 22 30"><path d="M11 1 L20 27 L11 21 L2 27 Z" fill="#1f4e79"/></svg><div>N</div></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ==GEO==
+const R_LAT = 110540, R_LON = 111320;
+
+function toLocal(ring) {
+  const lat0 = ring[0][1], k = Math.cos(lat0 * Math.PI / 180);
+  return ring.map(([lon, lat]) => [(lon - ring[0][0]) * R_LON * k, (lat - ring[0][1]) * R_LAT]);
+}
+function signedArea(p) {
+  let a = 0;
+  for (let i = 0; i < p.length; i++) {
+    const [x1, y1] = p[i], [x2, y2] = p[(i + 1) % p.length];
+    a += x1 * y2 - x2 * y1;
+  }
+  return a / 2;
+}
+function azimuth(nx, ny) { return (Math.atan2(nx, ny) * 180 / Math.PI + 360) % 360; }
+function compass(az) { return ['N', 'NO', 'O', 'ZO', 'Z', 'ZW', 'W', 'NW'][Math.round(az / 45) % 8]; }
+function angDiff(a, b) { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; }
+
+function buildEdges(ringLonLat) {
+  const ring = ringLonLat.map(p => [p[0], p[1]]);
+  const f = ring[0], l = ring[ring.length - 1];
+  if (f[0] === l[0] && f[1] === l[1]) ring.pop();
+  let loc = toLocal(ring);
+  if (signedArea(loc) < 0) { ring.reverse(); loc = toLocal(ring); }   // maak ring tegen de klok in
+  let edges = [];
+  for (let i = 0; i < ring.length; i++) {
+    const j = (i + 1) % ring.length;
+    const dx = loc[j][0] - loc[i][0], dy = loc[j][1] - loc[i][1];
+    const len = Math.hypot(dx, dy);
+    if (len < 0.05) continue;
+    edges.push({ a: ring[i], b: ring[j], la: loc[i], lb: loc[j], len, az: azimuth(dy, -dx) });
+  }
+  const samen = (e1, e2) => {
+    const dx = e2.lb[0] - e1.la[0], dy = e2.lb[1] - e1.la[1];
+    return { a: e1.a, b: e2.b, la: e1.la, lb: e2.lb, len: Math.hypot(dx, dy), az: azimuth(dy, -dx) };
+  };
+  let veranderd = true;
+  while (veranderd && edges.length > 3) {
+    veranderd = false;
+    for (let i = 0; i < edges.length; i++) {
+      const j = (i + 1) % edges.length;
+      if (i === j) continue;
+      if (angDiff(edges[i].az, edges[j].az) < 4) {
+        const m = samen(edges[i], edges[j]);
+        if (j === 0) { edges[i] = m; edges.splice(0, 1); } else { edges.splice(i, 2, m); }
+        veranderd = true;
+        break;
+      }
+    }
+  }
+  return edges;
+}
+
+// Staande voor de voorgevel, kijkend naar het huis: links = LG, rechts = RG.
+function assignLabels(edges, vgIndex) {
+  const av = edges[vgIndex].az;
+  const doelen = { VG: av, LG: (av + 90) % 360, AG: (av + 180) % 360, RG: (av + 270) % 360 };
+  return edges.map(e => {
+    let best = null, bd = 1e9;
+    for (const k in doelen) { const d = angDiff(e.az, doelen[k]); if (d < bd) { bd = d; best = k; } }
+    return best;
+  });
+}
+
+function pointInRing(pt, ring) {
+  let bin = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+    if (((yi > pt[1]) !== (yj > pt[1])) && (pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi)) bin = !bin;
+  }
+  return bin;
+}
+// ==/GEO==
+
+// ---------- kaart ----------
+const HAS_L = typeof L !== 'undefined';
+let kaart = null, laag = null;
+if (HAS_L) {
+const brt = L.tileLayer('https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/{z}/{x}/{y}.png', { maxZoom: 21, maxNativeZoom: 19, attribution: 'Kaartgegevens © Kadaster / PDOK' });
+const lucht = L.tileLayer('https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_orthoHR/EPSG:3857/{z}/{x}/{y}.jpeg', { maxZoom: 21, maxNativeZoom: 19, attribution: 'Luchtfoto © PDOK' });
+kaart = L.map('kaart', { zoomSnap: 0.5 }).setView([52.07, 4.3], 8);
+brt.addTo(kaart);
+L.control.layers({ 'Kaart': brt, 'Luchtfoto': lucht }).addTo(kaart);
+L.control.scale({ imperial: false }).addTo(kaart);
+laag = L.layerGroup().addTo(kaart);
+}
+
+const KLEUR = { N: '#1d4ed8', NO: '#0891b2', O: '#059669', ZO: '#ca8a04', Z: '#dc2626', ZW: '#c2410c', W: '#7c3aed', NW: '#4f46e5' };
+
+// ---------- state ----------
+let state = { adres: null, edges: [], vg: null, vgBron: '', pand: null };
+const $ = id => document.getElementById(id);
+function melding(t, fout) { const s = $('status'); s.textContent = t; s.className = fout ? 'fout' : ''; }
+
+// ---------- data ----------
+async function zoekAdressen(q) {
+  const url = 'https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?q=' + encodeURIComponent(q) + '&fq=type:adres&rows=20&fl=id,weergavenaam,straatnaam,centroide_ll,centroide_rd,openbareruimte_id';
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('Locatieserver gaf HTTP ' + r.status);
+  const j = await r.json();
+  return (j.response && j.response.docs) || [];
+}
+async function haalPanden(lon, lat) {
+  const dx = 0.0006, dy = 0.0004;
+  const bbox = [lon - dx, lat - dy, lon + dx, lat + dy].join(',');
+  const bases = [
+    'https://api.pdok.nl/kadaster/bag/ogc/v2/collections/pand/items',
+    'https://api.pdok.nl/lv/bag/ogc/v1/collections/pand/items',
+    'https://api.pdok.nl/lv/bag/ogc/v1_0/collections/pand/items'
+  ];
+  const fouten = [];
+  for (const b of bases) {
+    try {
+      const r = await fetch(b + '?bbox=' + bbox + '&limit=50&f=json');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const j = await r.json();
+      return j.features || [];
+    } catch (e) { fouten.push(b.split('/').slice(3, 7).join('/') + ': ' + e.message); }
+  }
+  throw new Error('BAG niet bereikbaar (' + fouten.join('; ') + ')');
+}
+function kiesPand(features, lon, lat) {
+  const kand = [];
+  for (const f of features) {
+    const st = (f.properties && f.properties.status) || '';
+    if (/gesloopt|ingetrokken|niet gerealiseerd/i.test(st)) continue;
+    const g = f.geometry; if (!g) continue;
+    const polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : [];
+    for (const p of polys) kand.push({ f, ring: p[0] });
+  }
+  if (!kand.length) return null;
+  const pt = [lon, lat];
+  const binnen = kand.filter(k => pointInRing(pt, k.ring));
+  if (binnen.length) return binnen.sort((a, b) => Math.abs(signedArea(toLocal(a.ring))) - Math.abs(signedArea(toLocal(b.ring))))[0];
+  let best = null, bd = 1e9;
+  for (const k of kand) for (const v of k.ring) { const d = Math.hypot(v[0] - lon, v[1] - lat); if (d < bd) { bd = d; best = k; } }
+  return best;
+}
+
+// ---------- pijlen en kaartje ----------
+const PIJLROOD = '#d00000';
+const TILE_BRT = 'https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/{z}/{x}/{y}.png';
+const TILE_LUCHT = 'https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_orthoHR/EPSG:3857/{z}/{x}/{y}.jpeg';
+
+function pandGrootte() {
+  const xs = [], ys = [];
+  state.edges.forEach(e => { xs.push(e.la[0], e.lb[0]); ys.push(e.la[1], e.lb[1]); });
+  return { minx: Math.min(...xs), maxx: Math.max(...xs), miny: Math.min(...ys), maxy: Math.max(...ys) };
+}
+function pijlLen() { const g = pandGrootte(); return Math.max(2.5, Math.max(g.maxx - g.minx, g.maxy - g.miny) * 0.16); }
+function lokaalNaarLL(x, y) {
+  const e0 = state.edges[0], k = Math.cos(e0.a[1] * Math.PI / 180);
+  return [e0.a[0] + (x - e0.la[0]) / (R_LON * k), e0.a[1] + (y - e0.la[1]) / R_LAT];
+}
+// Pijl in lokale meters: vanaf het midden van de gevel naar buiten.
+function pijlLokaal(e) {
+  const rad = e.az * Math.PI / 180, nx = Math.sin(rad), ny = Math.cos(rad), L = pijlLen(), H = L * 0.32;
+  const mx = (e.la[0] + e.lb[0]) / 2, my = (e.la[1] + e.lb[1]) / 2;
+  const tip = [mx + nx * L, my + ny * L], base = [tip[0] - nx * H, tip[1] - ny * H];
+  return { start: [mx, my], tip, base,
+    links: [base[0] - ny * H * 0.6, base[1] + nx * H * 0.6],
+    rechts: [base[0] + ny * H * 0.6, base[1] - nx * H * 0.6] };
+}
+
+async function maakKaartje(achtergrond) {
+  const S = 1200, TOP = 96, g = pandGrootte(), pl = pijlLen();
+  const [clon, clat] = lokaalNaarLL((g.minx + g.maxx) / 2, (g.miny + g.maxy) / 2);
+  const zichtM = Math.max(g.maxx - g.minx, g.maxy - g.miny) + 2 * pl + 10;
+  const ppm = S / (zichtM * 1.1);
+  const zv = Math.min(22, Math.log2(ppm * 156543.03392 * Math.cos(clat * Math.PI / 180)));
+  const sch = 256 * Math.pow(2, zv);
+  const wx = lon => (lon + 180) / 360 * sch;
+  const wy = lat => { const s = Math.sin(lat * Math.PI / 180); return (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * sch; };
+  const ox = wx(clon) - S / 2, oy = wy(clat) - S / 2;
+  const P = (px, py) => { const r = lokaalNaarLL(px, py); return [wx(r[0]) - ox, wy(r[1]) - oy + TOP]; };
+  const c = document.createElement('canvas'); c.width = S; c.height = S + TOP;
+  const x = c.getContext('2d');
+  x.fillStyle = '#fff'; x.fillRect(0, 0, S, S + TOP);
+
+  let achterOK = false;
+  if (achtergrond !== 'geen') {
+    const sjabloon = achtergrond === 'lucht' ? TILE_LUCHT : TILE_BRT;
+    const zt = Math.max(0, Math.min(19, Math.floor(zv)));
+    const tp = 256 * Math.pow(2, zv - zt);
+    const tx0 = Math.floor(ox / tp), tx1 = Math.floor((ox + S) / tp), ty0 = Math.floor(oy / tp), ty1 = Math.floor((oy + S) / tp);
+    const jobs = [];
+    for (let tx = tx0; tx <= tx1; tx++) for (let ty = ty0; ty <= ty1; ty++) {
+      jobs.push(new Promise(res => {
+        const im = new Image(); im.crossOrigin = 'anonymous';
+        im.onload = () => res({ im, tx, ty }); im.onerror = () => res(null);
+        im.src = sjabloon.replace('{z}', zt).replace('{x}', tx).replace('{y}', ty);
+      }));
+    }
+    const tegels = (await Promise.all(jobs)).filter(Boolean);
+    x.save(); x.beginPath(); x.rect(0, TOP, S, S); x.clip();
+    tegels.forEach(r => x.drawImage(r.im, r.tx * tp - ox, r.ty * tp - oy + TOP, tp + 1, tp + 1));
+    x.restore();
+    achterOK = tegels.length > 0;
+  }
+
+  const labels = state.vg === null ? null : assignLabels(state.edges, state.vg);
+  x.save(); x.beginPath(); x.rect(0, TOP, S, S); x.clip();
+  x.beginPath();
+  state.edges.forEach((e, i) => { const q = P(e.la[0], e.la[1]); if (i) x.lineTo(q[0], q[1]); else x.moveTo(q[0], q[1]); });
+  x.closePath(); x.fillStyle = 'rgba(31,78,121,.18)'; x.fill();
+  const lw = Math.max(5, S / 220), fs = Math.round(S / 40);
+  state.edges.forEach(e => {
+    const a = P(e.la[0], e.la[1]), b = P(e.lb[0], e.lb[1]);
+    x.beginPath(); x.moveTo(a[0], a[1]); x.lineTo(b[0], b[1]);
+    x.strokeStyle = KLEUR[compass(e.az)]; x.lineWidth = lw; x.lineCap = 'round'; x.stroke();
+  });
+  state.edges.forEach((e, i) => {
+    if (e.len < 1.0) return;
+    const pj = pijlLokaal(e), s0 = P(...pj.start), b0 = P(...pj.base), t0 = P(...pj.tip), l0 = P(...pj.links), r0 = P(...pj.rechts);
+    x.strokeStyle = PIJLROOD; x.lineWidth = lw * 0.9; x.lineCap = 'butt';
+    x.beginPath(); x.moveTo(s0[0], s0[1]); x.lineTo(b0[0], b0[1]); x.stroke();
+    x.fillStyle = PIJLROOD; x.beginPath(); x.moveTo(t0[0], t0[1]); x.lineTo(l0[0], l0[1]); x.lineTo(r0[0], r0[1]); x.closePath(); x.fill();
+    const rad = e.az * Math.PI / 180;
+    const lp = P(pj.tip[0] + Math.sin(rad) * 1.6, pj.tip[1] + Math.cos(rad) * 1.6);
+    const tekst = (i + 1) + ' · ' + compass(e.az) + (labels ? ' · ' + labels[i] : '');
+    x.font = '700 ' + fs + 'px Merriweather, Georgia, serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.lineJoin = 'round'; x.lineWidth = fs / 3.5; x.strokeStyle = '#fff'; x.strokeText(tekst, lp[0], lp[1]);
+    x.fillStyle = '#8a0000'; x.fillText(tekst, lp[0], lp[1]);
+  });
+
+  // noordpijl
+  const nx0 = S - 70, ny0 = TOP + 120;
+  x.fillStyle = 'rgba(255,255,255,.9)'; x.beginPath(); x.arc(nx0, ny0 - 25, 62, 0, 7); x.fill();
+  x.fillStyle = '#111'; x.beginPath(); x.moveTo(nx0, ny0 - 85); x.lineTo(nx0 + 24, ny0 + 5); x.lineTo(nx0, ny0 - 14); x.lineTo(nx0 - 24, ny0 + 5); x.closePath(); x.fill();
+  x.font = '700 30px Merriweather, Georgia, serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = '#111';
+  x.fillText('N', nx0, ny0 + 28);
+  // schaalbalk
+  const keuze = [2, 5, 10, 20, 50, 100].filter(m => m * ppm <= S * 0.25).pop() || 2;
+  const sx = 36, sy = TOP + S - 44, sl = keuze * ppm;
+  x.fillStyle = 'rgba(255,255,255,.85)'; x.fillRect(sx - 14, sy - 34, sl + 28, 62);
+  x.strokeStyle = '#111'; x.lineWidth = 5; x.lineCap = 'butt';
+  x.beginPath(); x.moveTo(sx, sy - 10); x.lineTo(sx, sy + 6); x.lineTo(sx + sl, sy + 6); x.lineTo(sx + sl, sy - 10); x.stroke();
+  x.font = '600 24px Merriweather, Georgia, serif'; x.textAlign = 'left'; x.fillStyle = '#111'; x.fillText(keuze + ' m', sx + 4, sy - 16);
+  // bron
+  x.font = '18px Merriweather, Georgia, serif'; x.textAlign = 'right'; x.textBaseline = 'alphabetic';
+  x.fillStyle = 'rgba(255,255,255,.85)'; x.fillRect(S - 470, TOP + S - 30, 470, 30);
+  x.fillStyle = '#333'; x.fillText('Bron: BAG / PDOK (Kadaster)' + (achterOK ? ' · achtergrond PDOK' : ''), S - 10, TOP + S - 9);
+  x.restore();
+
+  // kop
+  x.fillStyle = '#1f4e79'; x.fillRect(0, 0, S, TOP);
+  x.fillStyle = '#fff'; x.textBaseline = 'alphabetic'; x.textAlign = 'left';
+  x.font = '700 34px Merriweather, Georgia, serif';
+  x.fillText((state.adres && state.adres.weergavenaam) || 'Pand', 24, 42);
+  x.font = '20px Merriweather, Georgia, serif';
+  x.fillText('Rode pijl = richting waarop de gevel uitkijkt · Noord boven' + (labels ? ' · Voorgevel kijkt naar ' + compass(state.edges[state.vg].az) + ' (' + Math.round(state.edges[state.vg].az) + '°)' : ''), 24, 78);
+  x.textAlign = 'right'; x.fillText(new Date().toLocaleDateString('nl-NL'), S - 24, 42);
+  return { canvas: c, achterOK };
+}
+
+// ---------- tekenen ----------
+function tekenSvg(labels) {
+  const E = state.edges, el = $('kaart');
+  const xs = [], ys = [];
+  E.forEach(e => { xs.push(e.la[0], e.lb[0]); ys.push(e.la[1], e.lb[1]); });
+  const minx = Math.min(...xs), maxx = Math.max(...xs), miny = Math.min(...ys), maxy = Math.max(...ys);
+  const grootte = Math.max(maxx - minx, maxy - miny);
+  const pad = grootte * 0.3 + pijlLen() + 3;
+  const W = maxx - minx + 2 * pad, H = maxy - miny + 2 * pad, M = Math.max(W, H);
+  const X = x => (x - minx + pad), Y = y => (maxy - y + pad);
+  const fs = M / 34;
+  let s = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:100%;background:#fff" preserveAspectRatio="xMidYMid meet">';
+  s += '<polygon points="' + E.map(e => X(e.la[0]) + ',' + Y(e.la[1])).join(' ') + '" fill="#1f4e79" fill-opacity=".12"/>';
+  E.forEach((e, i) => {
+    const kl = KLEUR[compass(e.az)];
+    const l = 'x1="' + X(e.la[0]) + '" y1="' + Y(e.la[1]) + '" x2="' + X(e.lb[0]) + '" y2="' + Y(e.lb[1]) + '"';
+    s += '<line ' + l + ' stroke="' + kl + '" stroke-width="' + (M / (i === state.vg ? 55 : 95)) + '" stroke-linecap="round"/>';
+    s += '<line data-i="' + i + '" ' + l + ' stroke="transparent" stroke-width="' + (M / 25) + '" style="cursor:pointer"/>';
+    if (e.len >= 1.0) {
+      const pj = pijlLokaal(e), rad = e.az * Math.PI / 180, pt = q => X(q[0]) + ',' + Y(q[1]);
+      s += '<line x1="' + X(pj.start[0]) + '" y1="' + Y(pj.start[1]) + '" x2="' + X(pj.base[0]) + '" y2="' + Y(pj.base[1]) + '" stroke="' + PIJLROOD + '" stroke-width="' + (M / 120) + '"/>';
+      s += '<polygon points="' + pt(pj.tip) + ' ' + pt(pj.links) + ' ' + pt(pj.rechts) + '" fill="' + PIJLROOD + '"/>';
+      const mx = pj.tip[0] + Math.sin(rad) * fs * 0.9, my = pj.tip[1] + Math.cos(rad) * fs * 0.9;
+      const tekst = (i + 1) + ' · ' + compass(e.az) + (labels ? ' · ' + labels[i] : '');
+      s += '<text x="' + X(mx) + '" y="' + Y(my) + '" font-size="' + fs + '" text-anchor="middle" dominant-baseline="middle" fill="' + kl + '" font-family="Merriweather,serif" font-weight="700" stroke="#fff" stroke-width="' + (fs / 5) + '" paint-order="stroke">' + tekst + '</text>';
+    }
+  });
+  const sx = pad * 0.3, sy = H - pad * 0.3;
+  s += '<line x1="' + sx + '" y1="' + sy + '" x2="' + (sx + 10) + '" y2="' + sy + '" stroke="#333" stroke-width="' + (M / 200) + '"/><text x="' + sx + '" y="' + (sy - fs * 0.5) + '" font-size="' + (fs * 0.8) + '" fill="#333">10 m</text>';
+  s += '<text x="' + (W / 2) + '" y="' + (fs * 1.2) + '" font-size="' + (fs * 0.7) + '" fill="#5b6670" text-anchor="middle">Noord boven · geen achtergrondkaart</text>';
+  s += '</svg>';
+  el.innerHTML = s;
+  el.querySelectorAll('[data-i]').forEach(n => n.addEventListener('click', () => kiesVoorgevel(+n.dataset.i)));
+}
+function tekenAlles() {
+  const edges = state.edges;
+  const labels = state.vg === null ? null : assignLabels(edges, state.vg);
+  if (!HAS_L) { tekenSvg(labels); tekenTabel(labels); return; }
+  laag.clearLayers();
+  const allePunten = [];
+  edges.forEach((e, i) => {
+    const kl = KLEUR[compass(e.az)];
+    const lijn = L.polyline([[e.a[1], e.a[0]], [e.b[1], e.b[0]]], { color: kl, weight: i === state.vg ? 8 : 5, opacity: .95 }).addTo(laag);
+    lijn.on('click', () => kiesVoorgevel(i));
+    allePunten.push([e.a[1], e.a[0]]);
+    if (e.len >= 1.0) {
+      const pj = pijlLokaal(e), ll = q => { const r = lokaalNaarLL(q[0], q[1]); return [r[1], r[0]]; };
+      L.polyline([ll(pj.start), ll(pj.base)], { color: PIJLROOD, weight: 4 }).addTo(laag);
+      L.polygon([ll(pj.tip), ll(pj.links), ll(pj.rechts)], { color: PIJLROOD, weight: 1, fillColor: PIJLROOD, fillOpacity: 1 }).addTo(laag);
+      const rad = e.az * Math.PI / 180;
+      const lp = ll([pj.tip[0] + Math.sin(rad) * 1.6, pj.tip[1] + Math.cos(rad) * 1.6]);
+      const tekst = (i + 1) + ' · ' + compass(e.az) + (labels ? ' · ' + labels[i] : '');
+      L.marker(lp, { interactive: false, icon: L.divIcon({ className: '', html: '<div class="gevellabel" style="border-color:' + kl + '">' + tekst + '</div>' }) }).addTo(laag);
+    }
+  });
+  L.polygon(allePunten, { stroke: false, fillColor: '#1f4e79', fillOpacity: .12 }).addTo(laag);
+  tekenTabel(labels);
+}
+function tekenTabel(labels) {
+  const tb = $('tabel'); tb.innerHTML = '';
+  const tot = {};
+  state.edges.forEach((e, i) => {
+    const lab = labels ? labels[i] : null;
+    if (lab) tot[lab] = (tot[lab] || 0) + e.len;
+    const tr = document.createElement('tr');
+    tr.className = 'kies' + (i === state.vg ? ' sel' : '');
+    tr.innerHTML = '<td>' + (i + 1) + '</td><td>' + e.len.toFixed(2).replace('.', ',') + ' m</td><td>' + Math.round(e.az) + '° (' + compass(e.az) + ')</td><td><span class="tag' + (lab ? '' : ' leeg') + '">' + (lab || '–') + '</span></td>';
+    tr.addEventListener('click', () => kiesVoorgevel(i));
+    tb.appendChild(tr);
+  });
+  const tt = $('totaal'); tt.innerHTML = '';
+  if (!labels) { tt.innerHTML = '<tr><td class="klein">Wijs eerst een voorgevel aan.</td></tr>'; return; }
+  ['VG', 'AG', 'LG', 'RG'].forEach(k => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td><span class="tag">' + k + '</span></td><td>' + ((tot[k] || 0).toFixed(2).replace('.', ',')) + ' m</td>';
+    tt.appendChild(tr);
+  });
+}
+
+// ---------- voorgevel: de gevel die naar de straat van het adres kijkt ----------
+function parseRdPunt(wkt) { const m = /POINT\(([\d.\-]+) ([\d.\-]+)\)/.exec(wkt || ''); return m ? [parseFloat(m[1]), parseFloat(m[2])] : null; }
+function parseRdLijnen(wkt) {
+  const lijnen = [];
+  for (const g of (wkt || '').match(/\(([^()]+)\)/g) || []) {
+    const pts = g.replace(/[()]/g, '').split(',').map(t => t.trim().split(/\s+/).map(Number));
+    if (pts.length >= 2) lijnen.push(pts);
+  }
+  return lijnen;
+}
+function opSegment(p, a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy;
+  const t = l2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2)) : 0;
+  return [a[0] + t * dx, a[1] + t * dy];
+}
+function dichtstbijOpLijnen(p, lijnen) {
+  let best = null, bd = Infinity;
+  for (const l of lijnen) for (let i = 0; i < l.length - 1; i++) {
+    const q = opSegment(p, l[i], l[i + 1]), d = Math.hypot(q[0] - p[0], q[1] - p[1]);
+    if (d < bd) { bd = d; best = q; }
+  }
+  return best ? { punt: best, afstand: bd } : null;
+}
+// De pandcontour staat in lengte/breedte, de straat-as in RD (meters). Beide naar dezelfde lokale meters:
+// de straat wordt verschoven met het adrespunt als ankerpunt (op deze afstand is RD gelijk aan lokaal, op ~1° na).
+async function autoVoorgevel(doc) {
+  const m = /POINT\(([-\d.]+) ([-\d.]+)\)/.exec(doc.centroide_ll || '');
+  const adresRd = parseRdPunt(doc.centroide_rd);
+  if (!m || !adresRd || !doc.openbareruimte_id) return ' Voorgevel niet automatisch bepaald (geen straatgegevens): wijs hem zelf aan.';
+  const r = await fetch('https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?fq=type:weg&fq=openbareruimte_id:' + encodeURIComponent(doc.openbareruimte_id) + '&rows=1&fl=id,geometrie_rd');
+  if (!r.ok) throw new Error('straat ophalen: HTTP ' + r.status);
+  const weg = (((await r.json()).response || {}).docs || [])[0];
+  if (!weg || !weg.geometrie_rd) return ' Voorgevel niet automatisch bepaald (straat niet gevonden): wijs hem zelf aan.';
+  const e0 = state.edges[0], k = Math.cos(e0.a[1] * Math.PI / 180);
+  const adresLokaal = [(parseFloat(m[1]) - e0.a[0]) * R_LON * k + e0.la[0], (parseFloat(m[2]) - e0.a[1]) * R_LAT + e0.la[1]];
+  const straat = parseRdLijnen(weg.geometrie_rd).map(l => l.map(q => [q[0] - adresRd[0] + adresLokaal[0], q[1] - adresRd[1] + adresLokaal[1]]));
+  const dichtbij = dichtstbijOpLijnen(adresLokaal, straat);
+  if (!dichtbij) return ' Voorgevel niet automatisch bepaald (straat zonder lijn): wijs hem zelf aan.';
+  const richting = azimuth(dichtbij.punt[0] - adresLokaal[0], dichtbij.punt[1] - adresLokaal[1]);
+  let beste = null, bestScore = Infinity, ruim = false;
+  for (const grens of [50, 181]) {
+    state.edges.forEach((e, i) => {
+      if (e.len < 2) return;
+      const verschil = angDiff(e.az, richting); if (verschil > grens) return;
+      const mid = [(e.la[0] + e.lb[0]) / 2, (e.la[1] + e.lb[1]) / 2];
+      const score = dichtstbijOpLijnen(mid, straat).afstand + verschil * 0.05 - Math.min(e.len, 10) * 0.2;
+      if (score < bestScore) { bestScore = score; beste = i; }
+    });
+    if (beste !== null) { ruim = grens > 50; break; }
+  }
+  if (beste === null) return ' Voorgevel niet automatisch bepaald: wijs hem zelf aan.';
+  state.vg = beste; state.vgBron = 'automatisch';
+  return ' Voorgevel automatisch gekozen: gevel ' + (beste + 1) + ' kijkt naar ' + (doc.straatnaam || 'de straat') + (ruim ? ' (bij benadering)' : '') + '. Klopt het niet? Klik een andere gevel aan.';
+}
+function kiesVoorgevel(i) { state.vg = i; state.vgBron = 'handmatig'; tekenAlles(); }
+
+// ---------- 3DBAG: hoogste punt van het pand ----------
+// 3DBAG = 3D-model van elk BAG-pand, gemaakt uit de AHN-puntenwolk. Hoogtes staan in meters t.o.v. NAP;
+// "boven maaiveld" rekenen we zelf uit (dakhoogte min maaiveldhoogte).
+const BAG3D_API = 'https://api.3dbag.nl/collections/pand/items/';
+const DAKTYPE = { 'slanted': 'hellend', 'horizontal': 'plat', 'multiple horizontal': 'meerdere platte delen', 'unknown': 'onbekend', 'no points': 'geen meetpunten', 'no planes': 'geen dakvlakken herkend' };
+function getal(a, ...namen) { for (const n of namen) { const v = a[n]; if (typeof v === 'number' && isFinite(v)) return v; } return null; }
+const nl = (v, d = 2) => v.toFixed(d).replace('.', ',');
+async function haal3dbag(pandId) {
+  const id = 'NL.IMBAG.Pand.' + String(pandId).replace(/^NL\.IMBAG\.Pand\./, '').padStart(16, '0');
+  const ctrl = new AbortController(), klok = setTimeout(() => ctrl.abort(), 15000);
+  let r;
+  try { r = await fetch(BAG3D_API + encodeURIComponent(id), { signal: ctrl.signal, headers: { Accept: 'application/json' } }); }
+  catch (e) { throw new Error(e.name === 'AbortError' ? '3DBAG reageert niet' : '3DBAG niet bereikbaar'); }
+  finally { clearTimeout(klok); }
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error('3DBAG gaf HTTP ' + r.status);
+  const j = await r.json();
+  const co = ((j.feature || j).CityObjects) || {};
+  const gebouw = co[id] || Object.values(co).find(o => o.type === 'Building');
+  if (!gebouw || !gebouw.attributes) return null;
+  const a = gebouw.attributes;
+  // Veldnamen verschillen per 3DBAG-versie (b3_h_dak_max / b3_h_max): beide proberen.
+  return {
+    id,
+    maaiveld: getal(a, 'b3_h_maaiveld'),
+    max: getal(a, 'b3_h_dak_max', 'b3_h_max'),
+    nok: getal(a, 'b3_h_nok'),
+    min: getal(a, 'b3_h_dak_min', 'b3_h_min'),
+    daktype: a.b3_dak_type || '',
+    bouwlagen: getal(a, 'b3_bouwlagen'),
+    bron: a.b3_pw_bron || '', jaar: a.b3_pw_datum || '',
+    twijfel: a.b3_kwaliteitsindicator === false || a.b3_pw_onvoldoende === true,
+    schil: {
+      grond: getal(a, 'b3_opp_grond'), buitenmuur: getal(a, 'b3_opp_buitenmuur'), scheidingsmuur: getal(a, 'b3_opp_scheidingsmuur'),
+      dakPlat: getal(a, 'b3_opp_dak_plat'), dakSchuin: getal(a, 'b3_opp_dak_schuin'), volume: getal(a, 'b3_volume_lod22')
+    }
+  };
+}
+function boven(v, h) { return (v == null || h.maaiveld == null) ? null : v - h.maaiveld; }
+function toonHoogte() {
+  const vak = $('hoogteVak'), h = state.hoogte;
+  vak.style.display = 'block';
+  if (state.hoogteFout) { vak.innerHTML = '<div class="klein" style="margin:0">Hoogte (3DBAG): ' + state.hoogteFout + ' Zie <a href="https://3dbag.nl/" target="_blank" rel="noopener">3dbag.nl</a>.</div>'; return; }
+  if (!h) { vak.innerHTML = '<div class="klein" style="margin:0">Hoogte ophalen uit 3DBAG…</div>'; return; }
+  const top = boven(h.max, h);
+  const rij = (k, v) => v == null ? '' : '<tr><td>' + k + '</td><td>' + v + '</td></tr>';
+  let s = '<h2 style="margin:0">Hoogste punt (3DBAG)</h2>';
+  s += '<div class="groot">' + (top == null ? 'onbekend' : nl(top) + ' m boven maaiveld') + '</div>';
+  s += '<table><tbody>'
+    + rij('Hoogste dakpunt', h.max == null ? null : nl(h.max) + ' m +NAP')
+    + rij('Maaiveld', h.maaiveld == null ? null : nl(h.maaiveld) + ' m +NAP')
+    + rij('Nok boven maaiveld', boven(h.nok, h) == null ? null : nl(boven(h.nok, h)) + ' m')
+    + rij('Laagste dakpunt boven maaiveld', boven(h.min, h) == null ? null : nl(boven(h.min, h)) + ' m')
+    + rij('Daktype', h.daktype ? (DAKTYPE[h.daktype] || h.daktype) : null)
+    + rij('Bouwlagen (schatting)', h.bouwlagen)
+    + rij('Puntenwolk', h.bron ? h.bron.toUpperCase() + (h.jaar ? ' (' + h.jaar + ')' : '') : null)
+    + '</tbody></table>';
+  if (h.twijfel) s += '<div class="waarschuwing">⚠ 3DBAG meldt dat dit model mogelijk niet klopt (te weinig of afwijkende meetpunten). Controleer ter plaatse.</div>';
+  const c = h.schil, m = v => v == null ? null : nl(v, 1) + ' m²';
+  s += '<details><summary>Schil-indicatie uit 3DBAG (controle, niet voor de EPA-invoer)</summary><table><tbody>'
+    + rij('Grondvlak', m(c.grond)) + rij('Buitenmuur (incl. ramen)', m(c.buitenmuur)) + rij('Scheidingsmuur', m(c.scheidingsmuur))
+    + rij('Plat dak', m(c.dakPlat)) + rij('Hellend dak', m(c.dakSchuin)) + rij('Volume', c.volume == null ? null : nl(c.volume, 0) + ' m³')
+    + '</tbody></table><div class="klein">Geldt voor het héle BAG-pand (bij appartementen dus het hele gebouw). Gemeten op de buitenkant; het model kent geen ramen, overstekken of kleine dakkapellen.</div></details>';
+  vak.innerHTML = s;
+}
+async function laad3dbag(pand) {
+  state.hoogte = null; state.hoogteFout = '';
+  toonHoogte();
+  const pid = pand.f.properties && pand.f.properties.identificatie;
+  try {
+    if (!pid) throw new Error('geen pand-ID bekend.');
+    const h = await haal3dbag(pid);
+    if (state.pand !== pand) return; // intussen een ander adres gekozen
+    if (!h) state.hoogteFout = 'dit pand staat (nog) niet in 3DBAG.';
+    else state.hoogte = h;
+  } catch (e) {
+    if (state.pand !== pand) return;
+    state.hoogteFout = e.message + '.';
+  }
+  toonHoogte();
+}
+
+// ---------- flow ----------
+async function laadAdres(doc) {
+  melding('Pand ophalen uit BAG…');
+  const m = /POINT\(([-\d.]+) ([-\d.]+)\)/.exec(doc.centroide_ll || '');
+  if (!m) throw new Error('Geen coördinaten bij dit adres.');
+  const lon = parseFloat(m[1]), lat = parseFloat(m[2]);
+  const panden = await haalPanden(lon, lat);
+  const pand = kiesPand(panden, lon, lat);
+  if (!pand) throw new Error('Geen pand gevonden bij dit adres.');
+  state.adres = doc; state.pand = pand; state.vg = null; state.vgBron = '';
+  state.edges = buildEdges(pand.ring);
+  let autoTekst = '';
+  try { autoTekst = await autoVoorgevel(doc); }
+  catch (e) { autoTekst = ' Voorgevel kon niet automatisch bepaald worden (' + e.message + '): wijs hem zelf aan.'; }
+  $('resultaat').style.display = 'block';
+  $('adresTitel').textContent = doc.weergavenaam;
+  const p = pand.f.properties || {};
+  $('pandInfo').textContent = 'Pand-ID ' + (p.identificatie || '?') + (p.bouwjaar ? ' · bouwjaar ' + p.bouwjaar : '') + (p.status ? ' · ' + p.status : '') + ' · ' + state.edges.length + ' gevels';
+  tekenAlles();
+  laad3dbag(pand); // loopt op de achtergrond; kaart en gevels wachten er niet op
+  if (HAS_L) {
+    const b = L.latLngBounds(pand.ring.map(v => [v[1], v[0]]));
+    kaart.fitBounds(b, { maxZoom: 20, padding: [60, 60] });
+  }
+  melding((HAS_L ? '' : 'Kaartbibliotheek niet geladen, contour getoond zonder achtergrondkaart. ') + (panden.length > 1 ? 'Pand gevonden (' + panden.length + ' panden in de buurt, dichtstbijzijnde bij het adrespunt gekozen).' : 'Pand gevonden.') + autoTekst);
+}
+function bouwQuery() {
+  const pc = $('postcode').value.replace(/\s+/g, '').toUpperCase();
+  const nr = $('huisnr').value.trim(), tv = $('toev').value.trim().toLowerCase().replace(/[\s-]/g, '');
+  const tekst = $('adres').value.trim();
+  if (pc || nr) {
+    if (!pc || !nr) return { fout: 'Vul zowel postcode als huisnummer in.' };
+    if (!/^[1-9][0-9]{3}[A-Z]{2}$/.test(pc)) return { fout: 'Postcode klopt niet: vier cijfers en twee letters, bijvoorbeeld 2552 AB.' };
+    return { q: pc + ' ' + nr, nr, tv };
+  }
+  return tekst ? { q: tekst, nr: '', tv: '' } : { fout: 'Vul postcode en huisnummer in, of een adres als tekst.' };
+}
+function sorteerDocs(docs, nr, tv) {
+  if (!nr) return docs;
+  const score = d => {
+    const s = (d.weergavenaam || '').split(',')[0].toLowerCase().replace(/[\s-]/g, '');
+    if (s.endsWith(nr + tv)) return 0;
+    if (tv) return s.includes(nr) ? 1 : 2;
+    return s.endsWith(nr) ? 0 : (s.includes(nr) ? 1 : 2);
+  };
+  return docs.map((d, i) => [score(d), i, d]).sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(x => x[2]);
+}
+async function zoek() {
+  const Q = bouwQuery();
+  if (Q.fout) { melding(Q.fout, true); return; }
+  $('zoek').disabled = true; melding('Adres zoeken…');
+  try {
+    const docs = sorteerDocs(await zoekAdressen(Q.q), Q.nr, Q.tv);
+    if (!docs.length) throw new Error('Adres niet gevonden.');
+    const sel = $('kies'); sel.innerHTML = '';
+    docs.forEach((d, i) => { const o = document.createElement('option'); o.value = i; o.textContent = d.weergavenaam; sel.appendChild(o); });
+    $('kiesWrap').style.display = docs.length > 1 ? 'block' : 'none';
+    sel._docs = docs;
+    await laadAdres(docs[0]);
+  } catch (e) { melding('Mislukt: ' + e.message + ' (staat de internetverbinding aan?)', true); }
+  $('zoek').disabled = false;
+}
+$('zoek').addEventListener('click', zoek);
+// Projectgegevens (.txt) van Nieuwe projectmap: adres eruit halen en zoeken.
+$('b-txt').addEventListener('click', () => $('f-txt').click());
+$('f-txt').addEventListener('change', async () => {
+  const f = $('f-txt').files[0]; if (!f) return;
+  try {
+    const t = (await f.text()).replace(/^\uFEFF/, '');
+    const m = t.match(/^Adres:\s*(.+)$/m), adres = m ? m[1].trim() : '';
+    if (!adres || adres === '-') throw new Error('geen adres gevonden in het bestand.');
+    ['postcode', 'huisnr', 'toev'].forEach(id => { $(id).value = ''; });
+    $('adres').value = adres;
+    await zoek();
+  } catch (e) { melding('Inlezen mislukt: ' + e.message, true); }
+  $('f-txt').value = '';
+});
+['postcode', 'huisnr', 'toev', 'adres'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') zoek(); }));
+$('kies').addEventListener('change', async e => {
+  try { await laadAdres(e.target._docs[+e.target.value]); } catch (err) { melding('Mislukt: ' + err.message, true); }
+});
+$('print').addEventListener('click', () => window.print());
+// Naar de 3D-tool: pand-ID, voorgevelhoek en adres gaan mee in de link.
+$('naar3d').addEventListener('click', () => {
+  const pid = state.pand && state.pand.f.properties && state.pand.f.properties.identificatie;
+  if (!pid) { melding('Zoek eerst een pand.', true); return; }
+  const q = new URLSearchParams({ pand: String(pid) });
+  if (state.vg !== null) q.set('vg', String(Math.round(state.edges[state.vg].az)));
+  if (state.adres && state.adres.weergavenaam) q.set('adres', state.adres.weergavenaam);
+  location.href = 'pand-3d-gast.html?' + q.toString();
+});
+// Maakt het kaartje als PNG-blob; lukt dat niet met achtergrond (tainted canvas), dan zonder.
+async function maakPngBlob() {
+  const naarBlob = c => new Promise((ok, nok) => { try { c.toBlob(b => b ? ok(b) : nok(new Error('geen afbeelding')), 'image/png'); } catch (e) { nok(e); } });
+  let r = await maakKaartje($('achtergrond').value), blob;
+  try { blob = await naarBlob(r.canvas); }
+  catch (e) { r = await maakKaartje('geen'); blob = await naarBlob(r.canvas); r.achterOK = false; }
+  return { blob, achterOK: r.achterOK };
+}
+$('png').addEventListener('click', async () => {
+  if (!state.edges.length) return;
+  $('png').disabled = true; melding('Kaartje maken…');
+  try {
+    const r = await maakPngBlob(), blob = r.blob;
+    const url = URL.createObjectURL(blob);
+    const img = $('pngvoorbeeld'); img.src = url; img.style.display = 'block';
+    const naam = 'Orientatie ' + (((state.adres && state.adres.weergavenaam) || 'pand').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '_')) + '.png';
+    const a = document.createElement('a'); a.href = url; a.download = naam; document.body.appendChild(a); a.click(); a.remove();
+    melding($('achtergrond').value !== 'geen' && !r.achterOK ? 'Kaartje klaar, maar zonder achtergrond (kaartlaag niet beschikbaar). Houd je vinger op de afbeelding om op te slaan.' : 'Kaartje klaar. Houd je vinger op de afbeelding om op te slaan als het niet vanzelf downloadt.');
+  } catch (e) { melding('Kaartje maken mislukt: ' + e.message, true); }
+  $('png').disabled = false;
+});
+$('kopieer').addEventListener('click', async () => {
+  const labels = state.vg === null ? null : assignLabels(state.edges, state.vg);
+  const regels = ['Gevel\tLengte (m)\tGraden\tKijkt naar\tAanduiding'];
+  state.edges.forEach((e, i) => regels.push([i + 1, e.len.toFixed(2).replace('.', ','), Math.round(e.az), compass(e.az), labels ? labels[i] : ''].join('\t')));
+  const h = state.hoogte;
+  if (h && boven(h.max, h) != null) regels.push('', 'Hoogste punt (3DBAG)\t' + nl(boven(h.max, h)) + ' m boven maaiveld\t' + nl(h.max) + ' m +NAP');
+  try { await navigator.clipboard.writeText((state.adres ? state.adres.weergavenaam + '\n' : '') + regels.join('\n')); melding('Tabel gekopieerd.'); }
+  catch (e) { melding('Kopiëren mislukt in deze browser.', true); }
+});
+
+// ================= OneDrive: inloggen, project kiezen, opslaan =================
+// Zelfde Entra-app en dezelfde opslag (localStorage 'rt') als Huismaten, Foto-upload en de Projectmap-app:
+// ben je daar ingelogd, dan ben je het hier ook. Het adres van déze pagina moet in Entra staan als
+// redirect-URI (platform "Single-page application").
+const GRAPH_CLIENT_ID = 'fdf237c9-bf46-47fa-ab3d-a8834a73e284';
+const GRAPH_TENANT_ID = '984fd1fb-3d68-4c94-aff2-47f699fb5dae';
+const GRAPH_SCOPE = 'https://graph.microsoft.com/Files.ReadWrite offline_access';
+const LOGIN_SCOPE = 'https://graph.microsoft.com/Files.ReadWrite https://graph.microsoft.com/Tasks.ReadWrite offline_access';
+const LOGIN_VASTE_ORIGIN = 'https://visserinspecties.github.io';
+const PROJECTEN_ROOT = '0_In Behandeling';
+const SUBMAP = '020 AANTEKENINGEN';
+const PROJECT_SLEUTEL = 'orientatie_project';
+const LOGIN_PKCE = 'orientatie_pkce_v', LOGIN_KLAAR = 'orientatie_login_klaar', LOGIN_MODUS = 'orientatie_login_modus';
+const GRAPH = 'https://graph.microsoft.com/v1.0/me/drive';
+let gekozenProject = null; // { naam, pad }
+
+const gp = pad => pad.split('/').map(encodeURIComponent).join('/');
+function laadProject() {
+  try { const p = JSON.parse(localStorage.getItem(PROJECT_SLEUTEL) || 'null'); return (p && p.naam && p.pad) ? p : null; } catch (_) { return null; }
+}
+function bewaarProject() { try { localStorage.setItem(PROJECT_SLEUTEL, JSON.stringify(gekozenProject)); } catch (_) {} }
+
+// Foutcodes (e.code): 'geen-login' | 'verlopen' | 'netwerk'
+async function graphRefreshToken() {
+  const rt = localStorage.getItem('rt');
+  if (!rt) { const e = new Error('Niet ingelogd bij OneDrive — klik bovenaan op "Inloggen".'); e.code = 'geen-login'; throw e; }
+  let resp;
+  try {
+    resp = await fetch('https://login.microsoftonline.com/' + GRAPH_TENANT_ID + '/oauth2/v2.0/token', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ client_id: GRAPH_CLIENT_ID, grant_type: 'refresh_token', refresh_token: rt, scope: GRAPH_SCOPE })
+    });
+  } catch (err) { const e = new Error('Geen verbinding met Microsoft.'); e.code = 'netwerk'; throw e; }
+  const data = await resp.json().catch(() => ({}));
+  if (!data.access_token) {
+    if (data.error === 'invalid_grant' || data.error === 'interaction_required') { try { localStorage.removeItem('rt'); } catch (_) {} }
+    const e = new Error('Inlog verlopen — klik bovenaan op "Inloggen".'); e.code = 'verlopen'; throw e;
+  }
+  if (data.refresh_token) localStorage.setItem('rt', data.refresh_token);
+  return data.access_token;
+}
+async function onedriveBeschikbaar() {
+  if (!navigator.onLine) return false;
+  try { if (!localStorage.getItem('rt')) return false; await graphRefreshToken(); return true; } catch (_) { return false; }
+}
+
+// ---- inloggen (PKCE, in een pop-up zodat je zoekresultaat blijft staan) ----
+function loginRedirectUri() { return location.origin + location.pathname; }
+function loginMogelijk() { return location.origin === LOGIN_VASTE_ORIGIN; }
+function b64url(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, ''); }
+async function loginBouwUrl() {
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+  localStorage.setItem(LOGIN_PKCE, verifier);
+  const params = new URLSearchParams({
+    client_id: GRAPH_CLIENT_ID, response_type: 'code', redirect_uri: loginRedirectUri(),
+    scope: LOGIN_SCOPE, code_challenge: b64url(digest), code_challenge_method: 'S256',
+    state: 'orientatie', domain_hint: 'organizations'
+  });
+  return 'https://login.microsoftonline.com/' + GRAPH_TENANT_ID + '/oauth2/v2.0/authorize?' + params;
+}
+async function startLogin() {
+  if (!loginMogelijk()) {
+    alert('Inloggen kan alleen via het vaste adres:\n' + LOGIN_VASTE_ORIGIN + '/foto-upload/pand-orientatie.html\n\nOpen de tool via dat adres in Edge of Safari.');
+    return;
+  }
+  const popup = window.open('', 'orientatie_login', 'width=520,height=720');
+  try {
+    const url = await loginBouwUrl();
+    try { localStorage.removeItem(LOGIN_KLAAR); } catch (_) {}
+    if (popup && !popup.closed) {
+      localStorage.setItem(LOGIN_MODUS, 'popup:' + Date.now());
+      popup.location.href = url;
+      wachtOpLogin(popup);
+    } else {
+      if (!confirm('De pop-up is geblokkeerd. Inloggen in dit venster? Het zoekresultaat gaat dan verloren.')) return;
+      localStorage.setItem(LOGIN_MODUS, 'pagina');
+      location.href = url;
+    }
+  } catch (e) {
+    try { if (popup) popup.close(); } catch (_) {}
+    alert('Inloggen starten mislukt: ' + (e && e.message ? e.message : e));
+  }
+}
+function wachtOpLogin(popup) {
+  const start = Date.now();
+  const timer = setInterval(async () => {
+    let klaar = null; try { klaar = localStorage.getItem(LOGIN_KLAAR); } catch (_) {}
+    if (klaar || popup.closed || Date.now() - start > 5 * 60 * 1000) {
+      clearInterval(timer);
+      try { localStorage.removeItem(LOGIN_KLAAR); } catch (_) {}
+      try { popup.close(); } catch (_) {}
+      controleerOneDrive();
+    }
+  }, 800);
+}
+// Komt deze pagina terug van Microsoft (?code=…), dan wordt de inlog hier afgerond.
+async function verwerkLoginCallback() {
+  if (GASTVERSIE) return false;
+  const p = new URLSearchParams(location.search);
+  if (p.get('state') !== 'orientatie' || !(p.get('code') || p.get('error'))) return false;
+  const popupModus = (localStorage.getItem(LOGIN_MODUS) || '').startsWith('popup');
+  const scherm = document.createElement('div');
+  scherm.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#fff;color:#1b2733;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font:700 18px Merriweather,Georgia,serif;padding:24px;gap:16px;';
+  scherm.textContent = 'Inloggen afronden…';
+  document.body.appendChild(scherm);
+  try {
+    if (p.get('error')) throw new Error(p.get('error_description') || p.get('error'));
+    const verifier = localStorage.getItem(LOGIN_PKCE);
+    if (!verifier) throw new Error('inlogpoging niet gevonden — probeer opnieuw');
+    const resp = await fetch('https://login.microsoftonline.com/' + GRAPH_TENANT_ID + '/oauth2/v2.0/token', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ client_id: GRAPH_CLIENT_ID, grant_type: 'authorization_code', code: p.get('code'),
+        redirect_uri: loginRedirectUri(), code_verifier: verifier, scope: LOGIN_SCOPE })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!data.refresh_token) throw new Error(data.error_description || 'token ophalen mislukt');
+    localStorage.setItem('rt', data.refresh_token);
+    localStorage.setItem('rt_login_ts', String(Date.now()));
+    localStorage.removeItem(LOGIN_PKCE);
+    localStorage.setItem(LOGIN_KLAAR, String(Date.now()));
+    history.replaceState({}, '', location.pathname);
+    if (popupModus) {
+      scherm.textContent = '✅ Ingelogd. Dit venster sluit vanzelf — lukt dat niet, ga dan terug naar de tab met de tool.';
+      setTimeout(() => { try { window.close(); } catch (_) {} }, 400);
+    } else { scherm.remove(); }
+  } catch (e) {
+    history.replaceState({}, '', location.pathname);
+    scherm.textContent = '❌ Inloggen mislukt: ' + (e && e.message ? e.message : e);
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = popupModus ? 'Venster sluiten' : 'Terug naar de tool';
+    b.addEventListener('click', () => { if (popupModus) { try { window.close(); } catch (_) {} } scherm.remove(); });
+    scherm.appendChild(b);
+  }
+  return true;
+}
+
+// ---- statusbalk bovenin ----
+const OD_KLEUREN = { ok: ['#e3f1e3', '#1d5a2b'], fout: ['#fbe3dc', '#8f2410'], let: ['#fff1d6', '#7a4b00'], neutraal: ['#efece3', '#6b6555'] };
+function zetOdBalk(soort, tekst, knoppen) {
+  const el = $('od-status'), k = OD_KLEUREN[soort || 'neutraal'];
+  el.style.background = k[0]; el.style.color = k[1];
+  el.textContent = tekst;
+  (knoppen || []).forEach(([label, actie]) => {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = label;
+    b.addEventListener('click', actie); el.appendChild(b);
+  });
+}
+let odControleLoopt = false;
+async function controleerOneDrive() {
+  if (GASTVERSIE) return;
+  if (odControleLoopt) return;
+  odControleLoopt = true;
+  try {
+    zetOdBalk('neutraal', '☁️ OneDrive: controleren…');
+    const inloggen = ['🔐 Inloggen', startLogin], opnieuw = ['Controleer', controleerOneDrive];
+    if (!navigator.onLine) { zetOdBalk('let', '📵 Geen internet — opslaan in het project kan nu niet. Gebruik "Maak kaartje (PNG)" als vangnet.', [opnieuw]); return; }
+    if (!loginMogelijk()) { zetOdBalk('fout', '⛔ Deze pagina draait niet op het vaste adres (visserinspecties.github.io) en kan niet inloggen of opslaan. De kaart zelf werkt wel.'); return; }
+    let token;
+    try { token = await graphRefreshToken(); }
+    catch (e) {
+      if (e.code === 'netwerk') zetOdBalk('let', '⚠️ Microsoft is nu niet bereikbaar.', [opnieuw]);
+      else zetOdBalk('fout', e.code === 'verlopen' ? '❌ OneDrive: inlog verlopen.' : '❌ OneDrive: niet ingelogd — opslaan in een project kan niet.', [inloggen]);
+      return;
+    }
+    if (!gekozenProject) { zetOdBalk('let', '☁️ OneDrive verbonden — nog geen project gekozen.', [['Kies project', kiesProject], opnieuw]); return; }
+    let resp;
+    try { resp = await fetch(GRAPH + '/root:/' + gp(gekozenProject.pad), { headers: { Authorization: 'Bearer ' + token } }); }
+    catch (_) { zetOdBalk('let', '⚠️ OneDrive verbonden, maar de projectmap kon niet gecontroleerd worden.', [opnieuw]); return; }
+    if (resp.ok) zetOdBalk('ok', '✅ OneDrive verbonden · project: ' + gekozenProject.naam, [['Ander project', kiesProject], opnieuw]);
+    else if (resp.status === 404) zetOdBalk('fout', '❌ Projectmap niet gevonden in OneDrive: ' + gekozenProject.pad, [['Kies project', kiesProject], opnieuw]);
+    else zetOdBalk('fout', '❌ OneDrive gaf fout ' + resp.status + ' bij het controleren van de projectmap.', [inloggen, opnieuw]);
+  } finally { odControleLoopt = false; }
+}
+
+// ---- project kiezen (mappen onder 0_In Behandeling) ----
+async function odProjecten() {
+  const token = await graphRefreshToken();
+  let url = GRAPH + '/root:/' + gp(PROJECTEN_ROOT) + ':/children?$top=200&$select=name,folder,lastModifiedDateTime';
+  const uit = [];
+  for (let n = 0; url && n < 10; n++) {
+    const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+    if (!r.ok) throw new Error('projectenlijst ophalen mislukt (' + r.status + ')');
+    const j = await r.json();
+    (j.value || []).forEach(i => { if (i.folder) uit.push(i); });
+    url = j['@odata.nextLink'] || null;
+  }
+  return uit.sort((a, b) => (b.lastModifiedDateTime || '').localeCompare(a.lastModifiedDateTime || ''));
+}
+async function kiesProject() {
+  if (!(await onedriveBeschikbaar())) { alert('Geen verbinding met OneDrive.\n\nJe hebt geen internet, of je bent niet (meer) ingelogd. Klik bovenaan op "Inloggen" en probeer het opnieuw.'); return; }
+  const scherm = $('pj-scherm'), lijst = $('pj-lijst'), zoekveld = $('pj-zoek');
+  scherm.style.display = 'flex'; lijst.textContent = 'Projecten ophalen…'; zoekveld.value = '';
+  let items;
+  try { items = await odProjecten(); } catch (e) { lijst.textContent = 'Mislukt: ' + e.message; return; }
+  const toon = () => {
+    const q = zoekveld.value.trim().toLowerCase();
+    const sel = items.filter(i => !q || i.name.toLowerCase().includes(q)).slice(0, 60);
+    lijst.innerHTML = '';
+    if (!sel.length) { lijst.textContent = 'Geen projecten gevonden.'; return; }
+    sel.forEach(i => {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = i.name;
+      b.addEventListener('click', () => kiesProjectMap(i.name));
+      lijst.appendChild(b);
+    });
+  };
+  zoekveld.oninput = toon; toon(); zoekveld.focus();
+}
+async function kiesProjectMap(naam) {
+  $('pj-scherm').style.display = 'none';
+  gekozenProject = { naam, pad: PROJECTEN_ROOT + '/' + naam + '/' + SUBMAP };
+  bewaarProject();
+  controleerOneDrive();
+  await vulAdresUitProject();
+}
+
+// projectgegevens.json lezen (null als hij er niet is)
+async function leesProjectJson(pad, token) {
+  token = token || await graphRefreshToken();
+  const r = await fetch(GRAPH + '/root:/' + gp(pad) + '/projectgegevens.json:/content', { headers: { Authorization: 'Bearer ' + token } });
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error('projectgegevens lezen mislukt (' + r.status + ')');
+  try { return JSON.parse((await r.text()).replace(/^﻿/, '')); } catch (_) { throw new Error('projectgegevens.json is onleesbaar'); }
+}
+// Adres uit het gekozen project in het zoekveld zetten en meteen zoeken
+async function vulAdresUitProject() {
+  if (!gekozenProject) return;
+  let q = '';
+  try { const pg = await leesProjectJson(gekozenProject.pad); if (pg && pg.adres) q = pg.adres; } catch (_) {}
+  if (!q) q = gekozenProject.naam;   // terugval: de mapnaam bevat meestal het adres
+  ['postcode', 'huisnr', 'toev'].forEach(id => { $(id).value = ''; });
+  $('adres').value = q;
+  await zoek();
+}
+
+// ---- opslaan in het project: kaartje.png + oriëntatie in projectgegevens.json ----
+// Huismaten leest beide bestanden uit 020 AANTEKENINGEN en zet het kaartje vooraan in de A3.
+async function opslaanInProject() {
+  if (!state.edges.length) return;
+  const info = $('opslaanInfo'), knop = $('opslaan');
+  const fout = t => { info.textContent = '❌ ' + t; info.style.color = '#b00020'; melding(t, true); };
+  info.style.color = '';
+  if (state.vg === null) { fout('Wijs eerst een voorgevel aan: klik een gevel in de tabel of op de kaart.'); return; }
+  if (!gekozenProject) { fout('Kies eerst een project.'); kiesProject(); return; }
+  const pad = gekozenProject.pad;
+  knop.disabled = true; info.textContent = 'Opslaan…';
+  try {
+    const token = await graphRefreshToken();
+    const H = { Authorization: 'Bearer ' + token };
+    const map = await fetch(GRAPH + '/root:/' + gp(pad), { headers: H });
+    if (map.status === 404) throw new Error('Projectmap bestaat niet in OneDrive: ' + pad + ' — niets opgeslagen. Kies het project opnieuw.');
+    if (!map.ok) throw new Error('OneDrive gaf fout ' + map.status + ' bij het controleren van de projectmap.');
+    // Eerst alles lezen en voorbereiden, dan pas schrijven
+    const pg = await leesProjectJson(pad, token);
+    const bestaand = await fetch(GRAPH + '/root:/' + gp(pad) + '/kaartje.png', { headers: H });
+    if (bestaand.ok && !confirm('Er staat al een kaartje in dit project. Vervangen?')) { info.textContent = 'Niet opgeslagen: het bestaande kaartje blijft staan.'; return; }
+    const png = await maakPngBlob();
+    const vgAz = state.edges[state.vg].az;
+    const o = {};
+    [['VG', 0], ['LG', 90], ['AG', 180], ['RG', 270]].forEach(([k, off]) => { o[k] = compass((vgAz + off) % 360); });
+    const data = Object.assign({ versie: 1, mapnaam: gekozenProject.naam }, pg || {});
+    data.orientatie = o; data.orientatieHoek = Math.round(vgAz); data.orientatieBron = state.vgBron || 'handmatig';
+    if (!data.adres && state.adres) data.adres = state.adres.weergavenaam;
+    const bj = state.pand && state.pand.f && state.pand.f.properties && state.pand.f.properties.bouwjaar;
+    if (!data.bouwjaar && bj) data.bouwjaar = String(bj);
+    const h = state.hoogte;
+    if (h && boven(h.max, h) != null) {
+      data.hoogte3dbag = { hoogstePuntBovenMaaiveld: +boven(h.max, h).toFixed(2), hoogstePuntNAP: +h.max.toFixed(2), maaiveldNAP: +h.maaiveld.toFixed(2),
+        nokBovenMaaiveld: boven(h.nok, h) == null ? null : +boven(h.nok, h).toFixed(2), daktype: h.daktype, bron: h.bron, jaar: h.jaar, pandId: h.id, twijfel: h.twijfel };
+    }
+
+    const p1 = await fetch(GRAPH + '/root:/' + gp(pad) + '/kaartje.png:/content', { method: 'PUT', headers: Object.assign({ 'Content-Type': 'image/png' }, H), body: png.blob });
+    if (!p1.ok) throw new Error('kaartje opslaan mislukt (' + p1.status + ')');
+    const p2 = await fetch(GRAPH + '/root:/' + gp(pad) + '/projectgegevens.json:/content', { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, H), body: JSON.stringify(data, null, 2) });
+    if (!p2.ok) throw new Error('kaartje is opgeslagen, maar projectgegevens.json niet (' + p2.status + ')');
+    const tekst = '✅ Opgeslagen in ' + gekozenProject.naam + ': kaartje.png + oriëntatie (voorgevel ' + compass(vgAz) + ', ' + Math.round(vgAz) + '°). Open Huismaten opnieuw of kies daar het project nog eens: de A3 krijgt dan het blok "Ligging en oriëntatie".'
+      + (png.achterOK || $('achtergrond').value === 'geen' ? '' : ' (Let op: zonder achtergrondkaart, die was niet beschikbaar.)');
+    info.textContent = tekst; melding('Opgeslagen in het project.');
+  } catch (e) {
+    fout((e && e.message ? e.message : e) + ' Gebruik zo nodig "Maak kaartje (PNG)" als vangnet.');
+  }
+  knop.disabled = false;
+}
+
+$('opslaan').addEventListener('click', opslaanInProject);
+$('pj-sluit').addEventListener('click', () => { $('pj-scherm').style.display = 'none'; });
+$('pj-scherm').addEventListener('click', e => { if (e.target === $('pj-scherm')) $('pj-scherm').style.display = 'none'; });
+window.addEventListener('online', controleerOneDrive);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) controleerOneDrive(); });
+
+(async () => {
+  gekozenProject = laadProject();
+  const wasCallback = await verwerkLoginCallback();
+  if (wasCallback && (localStorage.getItem(LOGIN_MODUS) || '').startsWith('popup')) return;  // pop-up sluit zichzelf
+  controleerOneDrive();
+})();
+</script>
+</body>
+</html>
