@@ -215,9 +215,8 @@ table.r .sub{color:var(--muted);font-size:12px}
 /* ══════════ Instellingen ══════════ */
 const CLIENT_ID = 'fdf237c9-bf46-47fa-ab3d-a8834a73e284';
 const TENANT_ID = '984fd1fb-3d68-4c94-aff2-47f699fb5dae';
-const REDIRECT  = 'https://visserinspecties.github.io/foto-upload/factuur.html';
 const SCOPE     = 'https://graph.microsoft.com/Files.ReadWrite https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/User.Read offline_access';
-const RT_KEY    = 'rt_factuur';
+const RT_KEY    = 'rt';          /* gedeelde inlog van het dashboard (inloggen.html) */
 const STARTS = [
   {id:'beh',  label:'In Behandeling', path:'0_In Behandeling'},
   {id:'af',   label:'Afgewerkt',      path:'Afgewerkt'},
@@ -240,22 +239,24 @@ function sheet(html,after){closeSheet();const d=document.createElement('div');d.
   d.addEventListener('click',e=>{if(e.target===d)closeSheet()});$('layer').appendChild(d);after&&after()}
 function closeSheet(){$('layer').innerHTML=''}
 
-/* ══════════ Inloggen (PKCE, zelfde app-registratie als Foto Upload) ══════════ */
+/* ══════════ Inloggen: gebruikt de centrale inlog van het dashboard (inloggen.html, localStorage 'rt') ══════════ */
 let token=null;
-function b64url(buf){return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'')}
-async function login(){
-  const verifier=b64url(crypto.getRandomValues(new Uint8Array(32)));
-  const challenge=b64url(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier)));
-  LS.set('pkce_fact',verifier);try{sessionStorage.setItem('pkce_fact',verifier)}catch(e){}
-  const p=new URLSearchParams({client_id:CLIENT_ID,response_type:'code',redirect_uri:REDIRECT,scope:SCOPE,code_challenge:challenge,code_challenge_method:'S256',prompt:'select_account'});
-  location.href=`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize?${p}`;
-}
 async function tokenVraag(body){
   const r=await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:CLIENT_ID,scope:SCOPE,...body})});
-  const d=await r.json();if(!d.access_token)throw new Error(d.error_description||'Inloggen mislukt');
+  const d=await r.json();
+  if(!d.access_token){
+    if(d.error==='invalid_grant'||d.error==='interaction_required')LS.del(RT_KEY);
+    throw new Error(d.error_description||'Inloggen mislukt');
+  }
   token=d.access_token;if(d.refresh_token)LS.set(RT_KEY,d.refresh_token);
 }
-async function vernieuw(){const rt=LS.get(RT_KEY);if(!rt)throw new Error('Niet ingelogd');await tokenVraag({grant_type:'refresh_token',refresh_token:rt})}
+async function vernieuw(){
+  // oude losse factuur-inlog nog aanwezig en geen centrale? eenmalig overnemen
+  if(!LS.get(RT_KEY)&&LS.get('rt_factuur'))LS.set(RT_KEY,LS.get('rt_factuur'));
+  LS.del('rt_factuur');
+  const rt=LS.get(RT_KEY);if(!rt)throw new Error('Niet ingelogd');
+  await tokenVraag({grant_type:'refresh_token',refresh_token:rt});
+}
 const G='https://graph.microsoft.com/v1.0/';
 const ENC=p=>p.split('/').map(encodeURIComponent).join('/');
 async function graph(url,opts={},retry=true){
@@ -841,14 +842,7 @@ async function toonApp(){
   else await gaNaar(start.path);
 }
 async function init(){
-  const q=new URLSearchParams(location.search);
-  if(q.get('error')){$('login-status').innerHTML=`<div class="msg err">${esc(q.get('error_description')||q.get('error'))}</div>`;$('login').classList.remove('hidden');return}
-  if(q.get('code')){
-    let v=LS.get('pkce_fact','');if(!v){try{v=sessionStorage.getItem('pkce_fact')||''}catch(e){}}
-    try{await tokenVraag({grant_type:'authorization_code',code:q.get('code'),redirect_uri:REDIRECT,code_verifier:v});LS.del('pkce_fact');history.replaceState({},'',REDIRECT);await toonApp();return}
-    catch(e){$('login-status').innerHTML=`<div class="msg err">${esc(e.message)}</div>`;$('login').classList.remove('hidden');return}
-  }
-  if(LS.get(RT_KEY)){try{await vernieuw();await toonApp();return}catch(e){}}
+  try{await vernieuw();await toonApp();return}catch(e){}
   $('login').classList.remove('hidden');
 }
 init();
