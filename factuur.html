@@ -167,6 +167,7 @@ table.r .sub{color:var(--muted);font-size:12px}
       <h2><span><span class="stap">4</span>Mail aan de klant</span></h2>
       <label class="l">E-mailadres klant</label>
       <input type="email" id="m-aan" placeholder="naam@voorbeeld.nl" autocomplete="off">
+      <div class="hint hidden" id="m-bron" style="margin-top:4px"></div>
       <div class="chips" id="m-sugg" style="margin-top:6px"></div>
       <label class="l">Onderwerp</label><input type="text" id="m-onderwerp">
       <label class="l">Bijlagen</label>
@@ -456,7 +457,8 @@ async function kiesFactuur(item,p){
     $('werk').classList.remove('hidden');
     const w=controleer(F);
     if(w.length)say('warn','⚠️ '+w.map(esc).join('<br>⚠️ '));else say('ok','✓ Factuur gelezen. Bedragen kloppen en de betaallink is gevonden.');
-    zoekBijlagen();zoekMailadres();
+    $('m-aan').value='';
+    zoekBijlagen();zoekMailUitTxt().finally(zoekMailadres);
   }catch(e){console.error(e);say('err','Lezen mislukt: '+esc(e.message))}
 }
 function vulGegevens(){
@@ -566,6 +568,30 @@ $('b-extra').onclick=()=>mapKiezer('Bijlage toevoegen','pdf',async(it,p)=>{
   const b={id:it.id,name:it.name,pad:p,soort:isLabelNaam(it.name)?'label':'overig',aan:true};bijlagen.push(b);renderBijlagen(true);
   await labelInfo(b);const a=F.adressen.find(a=>labelPast(b.name,a));if(a){b.adres=a;a.label=b}renderBijlagen();onderwerpAuto()});
 
+/* klant-e-mail uit het opdrachtgever-tekstbestand in de projectmap (gemaakt door Nieuwe projectmap) */
+async function zoekMailUitTxt(){
+  const bron=$('m-bron');bron.classList.add('hidden');bron.textContent='';
+  const eigen=/visserinspecties\.nl$/i;
+  const mappen=[bronMap];
+  if(bronMap&&bronMap.includes('/'))mappen.push(bronMap.split('/').slice(0,-1).join('/')); // factuur in een submap? dan ook de hoofdmap
+  for(const p of mappen){
+    try{
+      const items=(p===bronMap&&bronMap===map?inhoud:await lijstMap(p)).filter(i=>i.file&&/\.txt$/i.test(i.name));
+      for(const t of items){
+        const tekst=new TextDecoder('utf-8').decode(await downloadItem(t.id)).replace(/^﻿/,'');
+        let adres=(tekst.match(/^\s*-?\s*E-?mail(?:adres)?\s*:\s*([^\s@]+@[^\s@]+\.[^\s@,;]+)/im)||[])[1]||'';
+        if(!adres)adres=(tekst.match(/[^\s@<>"]+@[^\s@<>"]+\.[a-z]{2,}/ig)||[]).find(a=>!eigen.test(a))||'';
+        if(adres&&!eigen.test(adres)){
+          $('m-aan').value=adres.toLowerCase();
+          bron.textContent='✓ Uit opdrachtgever-bestand: '+t.name;bron.classList.remove('hidden');
+          return adres;
+        }
+      }
+    }catch(e){console.warn('opdrachtgever-bestand lezen',e)}
+  }
+  return '';
+}
+
 /* klant-e-mail voorstellen uit eerdere mails */
 async function zoekMailadres(){
   $('m-sugg').innerHTML='';
@@ -586,7 +612,8 @@ async function zoekMailadres(){
     if(!$('m-aan').value&&top.length===1)$('m-aan').value=top[0];
   }catch(e){console.warn('mailadres zoeken',e)}
 }
-$('m-sugg').addEventListener('click',e=>{const c=e.target.closest('[data-mail]');if(c)$('m-aan').value=c.dataset.mail});
+$('m-sugg').addEventListener('click',e=>{const c=e.target.closest('[data-mail]');if(c){$('m-aan').value=c.dataset.mail;$('m-bron').classList.add('hidden')}});
+$('m-aan').addEventListener('input',()=>$('m-bron').classList.add('hidden'));
 $('a-achter').addEventListener('change',zoekMailadres);
 
 /* onderwerp */
@@ -601,13 +628,27 @@ function onderwerpAuto(){
 $('m-onderwerp').addEventListener('input',()=>{$('m-onderwerp').dataset.auto=''});
 
 /* ══════════ Stap 5: makelaar ══════════ */
+/* vaste makelaars: staan er altijd, op elk apparaat. Nieuwe makelaars worden na gebruik vanzelf onthouden (in deze browser). */
+const VASTE_MAKELAARS=[
+  {naam:'Zwinregio Makelaars',      mail:'info@zwinregio.com',        aanhef:'Goedendag,'},
+  {naam:'Boogerman Makelaars',      mail:'info@boogerman.nl',         aanhef:'Goedendag,'},
+  {naam:'Verhage Lemahieu Makelaars',mail:'info@verhage-lemahieu.nl', aanhef:'Dag dames,'}
+];
+function alleMakelaars(){
+  const vast=VASTE_MAKELAARS.map(m=>({...m,vast:true}));
+  const eigen=LSJ.get('fact_makelaars',[]).filter(m=>m.mail&&!vast.some(v=>v.mail.toLowerCase()===m.mail.toLowerCase()));
+  return [...vast,...eigen];
+}
 function renderMakelaars(){
-  const lijst=LSJ.get('fact_makelaars',[]);
-  $('k-bekend').innerHTML=lijst.map((m,i)=>`<button class="chip" data-mk="${i}">${esc(m.naam||m.mail)}</button>`).join('');
+  const huidig=$('k-mail').value.trim().toLowerCase();
+  $('k-bekend').innerHTML=alleMakelaars().map((m,i)=>`<button class="chip${m.mail.toLowerCase()===huidig?' on':''}" data-mk="${i}">${esc(m.naam||m.mail)}${m.vast?'':` <span data-weg="${esc(m.mail)}" title="Uit de lijst halen" style="opacity:.55;padding-left:4px">✕</span>`}</button>`).join('');
 }
 $('k-aan').onchange=()=>{$('k-velden').classList.toggle('hidden',!$('k-aan').checked);renderMakelaars()};
-$('k-bekend').addEventListener('click',e=>{const c=e.target.closest('[data-mk]');if(!c)return;const m=LSJ.get('fact_makelaars',[])[+c.dataset.mk];
-  $('k-naam').value=m.naam||'';$('k-mail').value=m.mail||'';$('k-aanhef').value=m.aanhef||'Goedendag,'});
+$('k-bekend').addEventListener('click',e=>{
+  const weg=e.target.closest('[data-weg]');
+  if(weg){LSJ.set('fact_makelaars',LSJ.get('fact_makelaars',[]).filter(m=>m.mail.toLowerCase()!==weg.dataset.weg.toLowerCase()));renderMakelaars();return}
+  const c=e.target.closest('[data-mk]');if(!c)return;const m=alleMakelaars()[+c.dataset.mk];
+  $('k-naam').value=m.naam||'';$('k-mail').value=m.mail||'';$('k-aanhef').value=m.aanhef||'Goedendag,';renderMakelaars()});
 
 /* ══════════ Opslagmap kiezen (vel) ══════════ */
 $('o-ander').onclick=()=>mapKiezer('Factuur opslaan in…','map',(it,p)=>{doelMap=p;$('o-map').textContent=p||'OneDrive'});
