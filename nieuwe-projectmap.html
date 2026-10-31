@@ -353,11 +353,18 @@ const SCREENSHOT_SUBMAP = "020 AANTEKENINGEN";
 // Sjabloonbestanden die uit de root van "0_In Behandeling" gekopieerd worden
 const TEMPLATE_BESTANDEN = [
   "01_betaalmethoden.docx",
-  "1_Bijlage 4 woningbouw basis - EP certificatie.pdf",
+  "1_Bijlage 4 woningbouw basis - Visser Inspecties.pdf",
   "Template Schetsen tekeningen schemas.pdf",
   "Beslisschema_s visserinspecties isso 7e druk.pdf",
   "Overzichtstabel U waarden dakvensters VELUX (4).pdf"
 ];
+
+// Sjablonen die niet uit OneDrive maar uit deze GitHub-map komen (altijd de nieuwste versie).
+// Opnieuw maken: python3 scripts/maak-bijlage4.py sjablonen/bijlage4-woningbouw-basis.pdf
+const REPO_SJABLONEN = {
+  "1_Bijlage 4 woningbouw basis - Visser Inspecties.pdf": "sjablonen/bijlage4-woningbouw-basis.pdf"
+};
+const REPO_BASIS = /github\.io$/.test(location.hostname) ? '' : 'https://visserinspecties.github.io/foto-upload/';
 
 // Sjabloon voor de Huismaten-tool, staat als "master"-versie in de root van "0_In Behandeling".
 // Bij elke nieuwe projectmap wordt hier een projectgebonden kopie van gemaakt.
@@ -1075,6 +1082,17 @@ async function kopieerBestand(bronPad, doelPad) {
   if (!putResp.ok) throw new Error('upload mislukt');
 }
 
+// ── Sjabloon uit de GitHub-map naar de projectmap uploaden ──
+async function uploadRepoSjabloon(repoPad, doelPad) {
+  const resp = await fetch(REPO_BASIS + repoPad, { cache: 'no-cache' });
+  if (!resp.ok) throw new Error('sjabloon niet gevonden: ' + repoPad);
+  const blob = await resp.blob();
+  const token = await getToken();
+  const putUrl = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(doelPad)}:/content`;
+  const putResp = await fetch(putUrl, { method:'PUT', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/pdf' }, body: blob });
+  if (!putResp.ok) throw new Error('upload mislukt');
+}
+
 // ── Graph: tekstbestand ophalen ───────────────────────────────
 async function haalBestandAlsTekst(pad) {
   const token = await getToken();
@@ -1637,7 +1655,8 @@ async function voerProjectmapUit(g) {
   let gekopieerd = 0, overgeslagen = 0;
   for (const bestand of TEMPLATE_BESTANDEN) {
     try {
-      await kopieerBestand(`${ROOT_PATH}/${bestand}`, `${projectPad}/${bestand}`);
+      if (REPO_SJABLONEN[bestand]) await uploadRepoSjabloon(REPO_SJABLONEN[bestand], `${projectPad}/${bestand}`);
+      else await kopieerBestand(`${ROOT_PATH}/${bestand}`, `${projectPad}/${bestand}`);
       gekopieerd++;
     } catch(e) { overgeslagen++; }
   }
