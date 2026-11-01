@@ -183,6 +183,11 @@ details.helper[open] summary::before{content:"–"}
 .ov .st{font-family:var(--f-mono);font-size:11px;min-width:34px;text-align:center;border-radius:4px;padding:1px 4px;margin-top:2px;flex:none}
 .ov .st.done{background:var(--soft);color:var(--ink)}
 .ov .st.now{background:var(--accent);color:var(--accent-ink)}
+.ov li.now{background:var(--accent-soft);border:2px solid var(--accent);border-radius:8px;padding:8px 9px;margin:4px -4px;border-bottom:2px solid var(--accent)}
+.ov li.now .lbl{font-weight:700;color:var(--ink)}
+.ov li.now .st.now{animation:knipper 1.6s ease-in-out infinite}
+@keyframes knipper{50%{opacity:.55}}
+@media (prefers-reduced-motion:reduce){.ov li.now .st.now{animation:none}}
 .ov .st.todo{color:var(--muted);border:1px dashed var(--line)}
 .ov li.sec{font-family:var(--f-mono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.05em;padding-top:10px;border-bottom:none}
 .ov .lbl{min-width:0}
@@ -221,6 +226,9 @@ details.helper[open] summary::before{content:"–"}
 .back{display:inline-block;font-size:13px;color:var(--accent);text-decoration:none;margin-bottom:6px}
 .odbalk{font-size:13.5px;font-weight:500;padding:9px 12px;border-radius:8px;margin:14px 0 0;display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--accent-soft);color:var(--accent)}
 .odbalk.ok{background:var(--note-bg);color:var(--ink)}
+.odbalk.opgeslagen{background:#DCF3E3;color:#14532D;border:1.5px solid #3E9B5F}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .odbalk.opgeslagen{background:#123322;color:#9BE3B4;border-color:#3E9B5F} }
+:root[data-theme="dark"] .odbalk.opgeslagen{background:#123322;color:#9BE3B4;border-color:#3E9B5F}
 .odbalk.fout{background:var(--warm-bg);color:var(--warm)}
 .odbalk.let{background:var(--amber-bg);color:var(--amber)}
 .odbalk button{font-size:12.5px;font-weight:600;padding:4px 11px;border:1px solid currentColor;background:var(--surface);color:inherit;border-radius:6px;cursor:pointer}
@@ -251,6 +259,7 @@ details.helper[open] summary::before{content:"–"}
 @media (prefers-reduced-motion:no-preference){ .card{animation:fade .18s ease-out} @keyframes fade{from{opacity:.4}to{opacity:1}} }
 </style>
 
+<script src="assets/beslisschema-pdf.js" defer></script>
 </head>
 <body>
 <div class="wrap">
@@ -881,7 +890,10 @@ function kopTekst(){ return ['Beslisschema’s ISSO 82.1 (7e druk)','Project: '+
 function addToReport(){
   const r=S.run, n=node(r.cur); if(n.type!=='end') return;
   S.saved.push(maakEntry(r));
-  r.savedAt=Date.now(); save(); render(); toast('Toegevoegd aan verslag');
+  r.savedAt=Date.now(); save(); render();
+  if(OD && project) opslaanInProject(true);
+  else if(OD){ toast('Toegevoegd aan verslag — kies een project om het op te slaan'); zetBalk('let','☁️ Verslag nog niet opgeslagen: kies eerst het project.',[['Kies project',kiesProject]]); }
+  else toast('Toegevoegd aan verslag');
 }
 function reportText(){
   return kopTekst()+'\n'+S.saved.map((e,i)=>entryText(e,i)).join('\n')+'\nBron: ISSO-publicatie 82.1, 7e druk.\n';
@@ -891,19 +903,34 @@ async function copyReport(){
   try{ await navigator.clipboard.writeText(t); toast('Verslag gekopieerd'); }
   catch(e){ const pre=$('#reportPre'); if(pre){ const sel=window.getSelection(), rg=document.createRange(); rg.selectNodeContents(pre); sel.removeAllRanges(); sel.addRange(rg); } toast('Kopiëren lukte niet — tekst is geselecteerd'); }
 }
-async function saveFile(text, name){
-  text = text || reportText(); name = name || bestandsnaam();
-  const blob=new Blob([text],{type:'text/plain;charset=utf-8'});
-  try{ const file=new File([blob],name,{type:'text/plain'}); if(navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file], title:name}); return; } }catch(e){ if(e && e.name==='AbortError') return; }
+function pdfData(entries){
+  return {project:S.project||'', datum:today(), entries:entries||S.saved,
+    maker: window.GAST ? 'Gemaakt met de beslisschema-tool van Visser Inspecties' : 'John Visser · EnergiePrestatie-adviseur',
+    auteur: window.GAST ? 'Visser Inspecties' : 'John Visser – Visser Inspecties', voet: MAKER};
+}
+async function maakPdf(entries){
+  if(!window.BeslisPdf) throw new Error('het PDF-onderdeel is nog niet geladen');
+  return await window.BeslisPdf.maak(pdfData(entries));
+}
+async function deelBestand(bytes, name){
+  const blob=new Blob([bytes],{type:'application/pdf'});
+  try{ const file=new File([blob],name,{type:'application/pdf'}); if(navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file], title:name}); return; } }catch(e){ if(e && e.name==='AbortError') return; }
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},500);
 }
-function saveRun(){
-  const r=S.run; if(node(r.cur).type!=='end') return;
-  const e=maakEntry(r); const pr=(S.project||'').trim(), rm=(r.ruimte||'').trim();
-  const name=("Beslisschema's ISSO 82.1"+(pr?' - '+pr:'')+(rm?' - '+rm:'')+' - '+isoDate()).replace(/[\\/:*?"<>|]/g,'').slice(0,150)+'.txt';
-  saveFile(kopTekst()+'\n'+entryText(e)+'\nBron: ISSO-publicatie 82.1, 7e druk.\n', name);
+async function saveFile(){
+  if(!S.saved.length){ toast('Er staat nog niets in het verslag'); return; }
+  try{ toast('PDF maken…'); await deelBestand(await maakPdf(), bestandsnaam()); }
+  catch(e){ toast('PDF maken lukte niet: '+(e.message||e)); }
 }
-function bestandsnaam(){ const pr=(S.project||'').trim().replace(/[\\/:*?"<>|]/g,'').slice(0,80); return "Beslisschema's ISSO 82.1"+(pr?' - '+pr:'')+' - '+isoDate()+'.txt'; }
+async function saveRun(){
+  const r=S.run; if(node(r.cur).type!=='end') return;
+  const pr=(S.project||'').trim(), rm=(r.ruimte||'').trim();
+  const name=("Beslisschema's ISSO 82.1"+(pr?' - '+pr:'')+(rm?' - '+rm:'')).replace(/[\\/:*?"<>|]/g,'').slice(0,150)+'.pdf';
+  try{ toast('PDF maken…'); await deelBestand(await maakPdf([maakEntry(r)]), name); }
+  catch(e){ toast('PDF maken lukte niet: '+(e.message||e)); }
+}
+// vaste naam per project: elke keer opslaan werkt hetzelfde bestand bij
+function bestandsnaam(){ const pr=(S.project||'').trim().replace(/[\\/:*?"<>|]/g,'').slice(0,80); return "Beslisschema's ISSO 82.1"+(pr?' - '+pr:'')+'.pdf'; }
 let MAKER='Visser Inspecties · EnergiePrestatie-advies';
 const inFrame = (()=>{ try{ return window.self!==window.top; }catch(e){ return true; } })();
 
@@ -957,7 +984,12 @@ async function controleerOneDrive(){
     let resp;
     try{ resp=await fetch('https://graph.microsoft.com/v1.0/me/drive/root:/'+encodeURIComponent(project.pad),{headers:{Authorization:'Bearer '+token}}); }
     catch(_){ zetBalk('let','⚠️ OneDrive verbonden, maar de projectmap kon niet gecontroleerd worden.',[opnieuw]); return; }
-    if(resp.ok) zetBalk('ok','✅ OneDrive verbonden · project: '+project.naam,[['Wijzig project',kiesProject],opnieuw]);
+    if(resp.ok){
+      const st=opslagStatus();
+      if(st==='bij') toonOpgeslagen();
+      else if(st==='achter'){ zetBalk('ok','✅ OneDrive verbonden · project: '+project.naam,[['Wijzig project',kiesProject],opnieuw]); controleLoopt=false; opslaanInProject(true); return; }
+      else zetBalk('ok','✅ OneDrive verbonden · project: '+project.naam,[['Wijzig project',kiesProject],opnieuw]);
+    }
     else if(resp.status===404) zetBalk('fout','❌ Projectmap niet gevonden in OneDrive: '+project.pad,[kies,opnieuw]);
     else zetBalk('fout','❌ OneDrive gaf een fout ('+resp.status+').',[opnieuw]);
   } finally { controleLoopt=false; }
@@ -1037,21 +1069,56 @@ async function laadProjectGegevens(){
   }catch(_){}
   save(); $('#project').value=S.project;
 }
-async function opslaanInProject(){
+// bijhouden wat er per project is opgeslagen, zodat de balk weet of het verslag bijgewerkt is
+function opslagInfo(){ S.opslag=S.opslag||{}; return project? S.opslag[project.pad] : null; }
+function vingerafdruk(){ return JSON.stringify(S.saved.map(e=>[e.ruimte,e.title,e.lines.length])); }
+function opslagStatus(){ if(!project || !S.saved.length) return 'leeg'; const i=opslagInfo(); return i && i.vinger===vingerafdruk() ? 'bij' : 'achter'; }
+function toonOpgeslagen(){
+  const i=opslagInfo(); if(!i) return;
+  zetBalk('opgeslagen','✅ Verslag opgeslagen in de projectmap · '+project.naam+' / '+SUBMAP+' · '+i.aantal+' ruimte'+(i.aantal===1?'':'n')+' · '+i.tijd,[['Wijzig project',kiesProject],['Controleer',controleerOneDrive]]);
+}
+let opslaanBezig=false, opslaanNogEens=false, laatsteFout='';
+// bevestiging direct onder de knop "Toevoegen aan verslag" (de balk bovenaan valt op de telefoon buiten beeld)
+function inlineStatus(){
+  if(!OD) return '';
+  let soort, t;
+  if(!project){ soort='let'; t='☁️ Nog niet opgeslagen: kies bovenaan eerst het project.'; }
+  else if(opslaanBezig){ soort=''; t='☁️ Opslaan in de projectmap…'; }
+  else if(laatsteFout){ soort='fout'; t='❌ Niet opgeslagen: '+laatsteFout; }
+  else if(opslagStatus()==='bij'){ const i=opslagInfo(); soort='opgeslagen'; t='✅ Opgeslagen in de projectmap · '+SUBMAP+' · '+i.tijd; }
+  else return '';
+  return '<div class="odbalk '+soort+'" role="status">'+esc(t)+(soort==='fout'?' <button type="button" data-act="odsave">Opnieuw proberen</button>':'')+'</div>';
+}
+async function opslaanInProject(stil){
   if(!S.saved.length){ melding={soort:'fout',tekst:'Er staat nog niets in het verslag.'}; render(); return; }
   if(!project){ await kiesProject(); if(!project) return; }
+  if(opslaanBezig){ opslaanNogEens=true; return; }
+  opslaanBezig=true; laatsteFout='';
+  zetBalk('','☁️ Verslag opslaan in de projectmap…'); render();
+  const vinger=vingerafdruk(), aantal=S.saved.length, pad=project.pad;
   try{
+    if(!navigator.onLine) throw new Error('geen internet. Zodra je weer bereik hebt, wordt het automatisch opgeslagen.');
+    const pdf=await maakPdf();
     const token=await graphRefreshToken();
-    const bestaat=await fetch('https://graph.microsoft.com/v1.0/me/drive/root:/'+encodeURIComponent(project.pad),{headers:{Authorization:'Bearer '+token}});
-    if(bestaat.status===404) throw new Error('projectmap bestaat niet in OneDrive: '+project.pad+'. Kies het project opnieuw.');
+    const bestaat=await fetch('https://graph.microsoft.com/v1.0/me/drive/root:/'+encodeURIComponent(pad),{headers:{Authorization:'Bearer '+token}});
+    if(bestaat.status===404) throw new Error('projectmap bestaat niet in OneDrive: '+pad+'. Kies het project opnieuw.');
     const naam=bestandsnaam();
-    const resp=await fetch('https://graph.microsoft.com/v1.0/me/drive/root:/'+encodeURIComponent(project.pad)+'/'+encodeURIComponent(naam)+':/content?@microsoft.graph.conflictBehavior=rename',{method:'PUT',headers:{Authorization:'Bearer '+token},body:new Blob([reportText()],{type:'text/plain;charset=utf-8'})});
+    const resp=await fetch('https://graph.microsoft.com/v1.0/me/drive/root:/'+encodeURIComponent(pad)+'/'+encodeURIComponent(naam)+':/content?@microsoft.graph.conflictBehavior=replace',{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/pdf'},body:new Blob([pdf],{type:'application/pdf'})});
     if(!resp.ok){ let m=resp.statusText; try{ m=(await resp.json()).error.message||m; }catch(_){} throw new Error(m); }
     const res=await resp.json();
-    melding={soort:'ok', tekst:'Opgeslagen in '+project.naam+' / '+SUBMAP+' als “'+(res.name||naam)+'”.'};
+    const tijd=new Date().toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'});
+    S.opslag=S.opslag||{}; S.opslag[pad]={vinger, aantal, tijd, naam:res.name||naam}; save();
+    melding={soort:'ok', tekst:'Opgeslagen in '+project.naam+' / '+SUBMAP+' als “'+(res.name||naam)+'” ('+tijd+').'};
+    if(project && project.pad===pad) toonOpgeslagen();
+    toast('Opgeslagen in de projectmap');
   }catch(e){
-    melding={soort:'fout', tekst:'Niet opgeslagen in OneDrive: '+(e.message||e)+' Het verslag staat nog hier; download het als vangnet.'};
-    controleerOneDrive();
+    laatsteFout=String(e.message||e);
+    melding={soort:'fout', tekst:'Niet opgeslagen in OneDrive: '+(e.message||e)+' Het verslag staat nog hier in de tool.'};
+    zetBalk('fout','❌ Verslag niet opgeslagen: '+(e.message||e),[['Opnieuw proberen',()=>opslaanInProject()]]);
+    if(!stil) toast('Opslaan in de projectmap mislukt');
+  }finally{
+    opslaanBezig=false;
+    if(opslaanNogEens){ opslaanNogEens=false; opslaanInProject(true); }
   }
   render();
 }
@@ -1154,11 +1221,13 @@ function renderWork(){
     } else {
       if(n.cont) h+='<button class="btn primary" data-act="cont">'+esc(n.cont.label)+' →</button>';
       h+= r.savedAt ? '<button class="btn" disabled>✓ In verslag</button>' : '<button class="btn'+(n.cont?'':' primary')+'" data-act="addreport">Toevoegen aan verslag</button>';
-      if(!inFrame) h+='<button class="btn" data-act="saverun">Opslaan als bestand</button>';
+      if(!inFrame) h+='<button class="btn" data-act="saverun">PDF van deze ruimte</button>';
       h+='<button class="btn" data-act="nextroom">Volgende ruimte</button>';
     }
   }
-  h+='</div></div>';
+  h+='</div>';
+  if(n.type==='end' && r.savedAt && !r.stack.length) h+=inlineStatus();
+  h+='</div>';
   w.innerHTML=h;
 }
 
@@ -1179,7 +1248,7 @@ function renderSide(){
     if(F.sections && F.sections[id]) ov+='<li class="sec">'+esc(F.sections[id])+'</li>';
     const st = id===curId ? 'now' : (ans[id]!=null ? 'done' : 'todo');
     const a = ans[id]!=null ? (n.options.find(o=>o.k===ans[id])||{}).label : '';
-    ov+='<li class="'+(st==='todo'?'dim':'')+'"><span class="st '+st+'">'+(st==='now'?'nu':st==='done'?esc(shortAns(a)):'–')+'</span><span class="lbl">'+esc(n.short||strip(n.q))+'</span></li>';
+    ov+='<li class="'+(st==='todo'?'dim':st==='now'?'now':'')+'"'+(st==='now'?' aria-current="step"':'')+'><span class="st '+st+'">'+(st==='now'?'nu':st==='done'?esc(shortAns(a)):'–')+'</span><span class="lbl">'+esc(n.short||strip(n.q))+'</span></li>';
   });
   let tr='';
   r.steps.forEach((x,i)=>{
@@ -1200,7 +1269,7 @@ function renderReport(){
   let h='<div class="card"><div class="crumb"><span class="pill">Verslag</span><span>'+esc(S.project||'geen project ingevuld')+'</span></div>';
   if(!S.saved.length){ h+='<h2 class="q">Nog geen ruimten in het verslag</h2><p class="sub">Doorloop een schema en kies bij de uitkomst “Toevoegen aan verslag”.</p></div>'; return h; }
   h+='<h2 class="q">'+S.saved.length+' beoordeelde ruimte'+(S.saved.length>1?'n':'')+'</h2>';
-  h+='<div class="navrow" style="border-top:none;margin-top:6px;padding-top:0">'+(OD?'<button class="btn primary" data-act="odsave">Opslaan in projectmap ('+SUBMAP+')</button>':'')+'<button class="btn'+(OD?'':' primary')+'" data-act="copy">Kopieer verslag</button>'+(inFrame?'':'<button class="btn" data-act="file">Opslaan als bestand</button>')+'<button class="btn" data-act="clearask">Verslag leegmaken</button></div>';
+  h+='<div class="navrow" style="border-top:none;margin-top:6px;padding-top:0">'+(OD?'<button class="btn primary" data-act="odsave">Opslaan in projectmap ('+SUBMAP+')</button>':'')+'<button class="btn'+(OD?'':' primary')+'" data-act="copy">Kopieer verslag</button>'+(inFrame?'':'<button class="btn" data-act="file">PDF downloaden</button>')+'<button class="btn" data-act="clearask">Verslag leegmaken</button></div>';
   if(melding) h+='<div class="melding '+melding.soort+'">'+esc(melding.tekst)+'</div>';
   if(S.clearAsk) h+='<div class="confirm"><span>Alle '+S.saved.length+' ruimten uit het verslag verwijderen?</span><button class="btn" data-act="clearno">Annuleren</button><button class="btn primary" data-act="clearyes">Ja, leegmaken</button></div>';
   S.saved.forEach((e,i)=>{ h+='<div class="entry"><h3>'+esc(e.ruimte)+'</h3>'+
@@ -1236,7 +1305,7 @@ document.addEventListener('click', e=>{
   else if(a==='clearask'){ S.clearAsk=true; render(); }
   else if(a==='clearno'){ S.clearAsk=false; render(); }
   else if(a==='clearyes'){ S.saved=[]; S.clearAsk=false; save(); render(); toast('Verslag leeggemaakt'); }
-  else if(a==='del'){ S.saved.splice(+t.dataset.i,1); save(); render(); }
+  else if(a==='del'){ S.saved.splice(+t.dataset.i,1); save(); render(); if(OD && project && S.saved.length) opslaanInProject(true); }
   else if(a==='addrow' || a==='delrow'){
     const n=node(S.run.cur); const d=hData(S.run.cur,n.helper); const arr=d[t.dataset.p];
     if(a==='addrow') arr.push(Object.fromEntries(Object.keys(arr[0]||{oms:''}).map(k=>[k, k==='iso'?'ja':'']))); else if(arr.length>1) arr.splice(+t.dataset.i,1); else Object.keys(arr[0]).forEach(k=>arr[0][k]= k==='iso'?'ja':'');
