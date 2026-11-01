@@ -976,7 +976,10 @@ async function saveRun(){
 // vaste naam per project: elke keer opslaan werkt hetzelfde bestand bij
 function bestandsnaam(){ const pr=(S.project||'').trim().replace(/[\\/:*?"<>|]/g,'').slice(0,80); return "Beslisschema's ISSO 82.1"+(pr?' - '+pr:'')+'.pdf'; }
 let MAKER='Visser Inspecties · EnergiePrestatie-advies';
-const inFrame = (()=>{ try{ return window.self!==window.top; }catch(e){ return true; } })();
+// ingebed = geopend als venster in een andere tool van hetzelfde adres (Huismaten): dan werkt alles gewoon
+const ingebed = (()=>{ try{ return window.self!==window.top && window.top.location.origin===location.origin; }catch(e){ return false; } })();
+const inFrame = (()=>{ try{ return window.self!==window.top; }catch(e){ return true; } })() && !ingebed;
+const VANUIT = (()=>{ try{ const q=new URLSearchParams(location.search); return {pad:q.get('ppad'), naam:q.get('pnaam')}; }catch(e){ return {}; } })();
 
 /* ============================================================
    ONEDRIVE — zelfde inlog als Huismaten en de Projectmap-app
@@ -993,6 +996,7 @@ let project = null;   // {naam, pad} — pad eindigt op 020 AANTEKENINGEN
 let melding = null;
 
 function leesProject(){
+  if(ingebed && VANUIT.pad) return {naam:VANUIT.naam||VANUIT.pad.split('/').slice(-2,-1)[0]||VANUIT.pad, pad:VANUIT.pad};
   for(const sleutel of ['bs_gekozen_project','huismaten_project']){
     try{ const p=JSON.parse(localStorage.getItem(sleutel)||'null'); if(p && p.naam && p.pad && p.naam!==SUBMAP) return p; }catch(e){}
   }
@@ -1385,7 +1389,9 @@ document.addEventListener('keydown', e=>{
   if(e.key==='Backspace'){ e.preventDefault(); backOne(); }
 });
 
-if(!inFrame && location.origin==='https://visserinspecties.github.io' && !window.GAST) $('#backlink').hidden=false;
+if(!inFrame && !ingebed && location.origin==='https://visserinspecties.github.io' && !window.GAST) $('#backlink').hidden=false;
+// in het Huismaten-venster kan inloggen niet (Microsoft weigert dat in een venster): via Huismaten inloggen
+if(ingebed && window.VILogin){ VILogin.naarInlog=()=>toast('Inloggen lukt niet in dit venster: sluit het en log in via Huismaten'); }
 if(window.GAST) MAKER='Gemaakt met de beslisschema-tool van Visser Inspecties';
 if(OD){
   const p=leesProject();

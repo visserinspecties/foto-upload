@@ -7,6 +7,7 @@
   function plaats() {
     var pad = location.pathname.split('/').pop();
     if (pad === '' || pad === 'index.html') return;              // dashboard zelf
+    try { if (window.self !== window.top) return; } catch (e) { return; }   // geopend als venster in een andere tool
     if (document.querySelector('[data-home-knop]')) return;       // al geplaatst
     var bestaand = Array.prototype.some.call(document.querySelectorAll('a[href="index.html"]'),
       function (a) { return a.textContent.trim() === '⌂'; });

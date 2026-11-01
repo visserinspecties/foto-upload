@@ -302,6 +302,19 @@
   .od-knoppen button.primair:hover:not(:disabled){ background:#8d3a26; }
   .od-knoppen button:disabled{ opacity:.45; cursor:not-allowed; }
   #od-annuleer{ margin-left:auto; }
+  /* Beslisschema's als venster over Huismaten heen */
+  .bs-rij{ display:flex; justify-content:flex-end; margin:0 0 8px; }
+  .bs-knop{ background:#5B2D86; color:#fff; border:none; border-radius:8px; padding:9px 14px; font-size:0.85rem; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:8px; }
+  .bs-knop:hover{ filter:brightness(1.1); }
+  .bs-knop small{ font-weight:400; opacity:.8; font-size:0.75rem; }
+  .bs-laag{ position:fixed; inset:0; z-index:10000; background:rgba(15,12,25,.55); display:flex;
+    padding:max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); }
+  .bs-laag[hidden]{ display:none; }
+  .bs-venster{ flex:1; display:flex; flex-direction:column; background:#F2F4F3; border-radius:12px; overflow:hidden; box-shadow:0 10px 40px rgba(0,0,0,.35); }
+  .bs-kop{ display:flex; align-items:center; gap:10px; background:#5B2D86; color:#fff; padding:8px 10px 8px 14px; }
+  .bs-kop b{ font-size:0.9rem; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .bs-klaar{ background:#fff; color:#5B2D86; border:none; border-radius:7px; padding:8px 14px; font-weight:700; font-size:0.85rem; cursor:pointer; white-space:nowrap; }
+  .bs-venster iframe{ flex:1; width:100%; border:0; background:#F2F4F3; }
 </style>
 <script src="assets/home-knop.js" defer></script>
 </head>
@@ -320,6 +333,7 @@
 <div id="project-banner" style="display:none; font-size:12px; color:#6b6555; margin:-10px 0 14px; padding:6px 10px; background:#efece3; border-radius:6px;"></div>
 
 <div id="autosave-status" style="font-size:11px;color:#8a8473;margin:-10px 0 10px;min-height:14px;"></div>
+<div class="bs-rij"><button type="button" class="bs-knop" id="btn-beslisschemas" title="Opent de beslisschema's over Huismaten heen; je invoer hier blijft staan">📋 Beslisschema's <small>ISSO 82.1</small></button></div>
 <div class="tabs">
   <div class="tab active" data-mode="vloer">Woonoppervlakte</div>
   <div class="tab" data-mode="gevelstandaard">Schil</div>
@@ -8292,6 +8306,36 @@ updateDaktypeZichtbaarheid();     // Nokrichting-vraag tonen/verbergen + labels 
 herbereken();
 try { autosaveToonBanner(); } catch(e) { console.warn('autosave-banner', e); }
 
+</script>
+<!-- Beslisschema's ISSO 82.1 als venster over Huismaten: Huismaten blijft eronder staan, met alle invoer -->
+<div class="bs-laag" id="bs-laag" hidden role="dialog" aria-modal="true" aria-label="Beslisschema's ISSO 82.1">
+  <div class="bs-venster">
+    <div class="bs-kop"><b>Beslisschema's ISSO 82.1</b><button type="button" class="bs-klaar" id="bs-klaar">✓ Klaar — terug naar Huismaten</button></div>
+    <iframe id="bs-frame" title="Beslisschema's ISSO 82.1"></iframe>
+  </div>
+</div>
+<script>
+(function(){
+  const knop=document.getElementById('btn-beslisschemas'), laag=document.getElementById('bs-laag'), frame=document.getElementById('bs-frame');
+  if(!knop || !laag || !frame) return;
+  const gast = typeof GASTVERSIE!=='undefined' && GASTVERSIE;
+  function doelUrl(){
+    let u=(gast?'beslisschemas-gast.html':'beslisschemas.html')+'?vanuit=huismaten';
+    try{ const p=actiefProjectPad(); if(!gast && p) u+='&pnaam='+encodeURIComponent(actiefProjectNaam()||'')+'&ppad='+encodeURIComponent(p); }catch(_){}
+    return u;
+  }
+  function open(){
+    const u=doelUrl();
+    if(frame.dataset.url!==u){ frame.src=u; frame.dataset.url=u; }   // ander project gekozen: opnieuw laden (de beslisschema's bewaren zelf hun voortgang)
+    laag.hidden=false; document.documentElement.style.overflow='hidden';
+    setTimeout(()=>document.getElementById('bs-klaar').focus(),50);
+  }
+  function sluit(){ laag.hidden=true; document.documentElement.style.overflow=''; knop.focus(); }
+  knop.addEventListener('click', open);
+  document.getElementById('bs-klaar').addEventListener('click', sluit);
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape' && !laag.hidden) sluit(); });
+  window.addEventListener('message', e=>{ if(e.origin===location.origin && e.data && e.data.type==='bs-sluit') sluit(); });
+})();
 </script>
 </body>
 </html>
