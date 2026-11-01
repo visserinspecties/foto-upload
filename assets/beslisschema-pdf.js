@@ -65,8 +65,8 @@ async function maak(data){
   tekst('Verslag thermische zone en aangrenzende ruimten',L,92,10,fR,MUTED);
   y=112; thermo(L,y,R-L,3); y+=20;
   // projectgegevens
-  const velden=[['PROJECT / ADRES',data.project||'–'],['DATUM',data.datum||''],['OPGESTELD DOOR',data.maker||'']];
-  const kolW=[(R-L)*0.48,(R-L)*0.2,(R-L)*0.32]; let x=L;
+  const velden=[['PROJECT / ADRES',data.project||'–'],['WONING',data.woning||'–'],['DATUM',data.datum||''],['OPGESTELD DOOR',data.maker||'']];
+  const kolW=[(R-L)*0.33,(R-L)*0.17,(R-L)*0.21,(R-L)*0.29]; let x=L;
   velden.forEach((v,i)=>{ tekst(v[0],x,y,6.8,fM,MUTED); wrap(v[1],fB,9.5,kolW[i]-12).forEach((r,j)=>tekst(r,x,y+14+j*12.5,9.5,fB,INK)); x+=kolW[i]; });
   y+=14+12.5*Math.max(...velden.map((v,i)=>wrap(v[1],fB,9.5,kolW[i]-12).length))+16;
 
