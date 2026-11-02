@@ -80,6 +80,9 @@ input[type=text],input[type=search],select{background:var(--surface);border:1px 
 .det th{font-size:12px;color:var(--muted);font-weight:500}
 .det .tbl{overflow-x:auto}
 .det td.num{font-family:var(--f-mono);text-align:right}
+.det th.num{text-align:right}
+.det tr.raak td{background:var(--ok-bg);font-weight:700}
+.b-diep{background:var(--accent-soft);color:var(--accent)}
 .proj-item{display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--line);padding:9px 0}
 .proj-item:last-child{border-bottom:none}
 .proj-item .t{flex:1;min-width:0}
@@ -129,6 +132,7 @@ input[type=text],input[type=search],select{background:var(--surface);border:1px 
     <div id="herkend"></div>
     <div id="melding"></div>
     <div id="resultaten"></div>
+    <div id="diep"></div>
     <div id="meer" hidden style="margin-top:10px"><button class="btn" type="button" id="meerknop">Meer resultaten</button></div>
   </section>
 
@@ -264,9 +268,88 @@ function renderProject(){
 }
 
 /* ================= Zoeken in de BCRG-databank ================= */
-let laatsteZoek = null, resultaten = [], herkend = null;
+let laatsteZoek = null, resultaten = [], herkend = null, zoekNr = 0;
 const norm = s => String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+const kaal = s => String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
 const isNr = s => /^\s*\d{8}\s*[A-Za-z]{2}\s*$/.test(s);
+const detCache = new Map();
+function detail(id){
+  if(!detCache.has(id)) detCache.set(id, fetch(SERVER+'/bcrg/'+id).then(r => { if(!r.ok) throw new Error('fout '+r.status); return r.json(); }).catch(e => { detCache.delete(id); throw e; }));
+  return detCache.get(id);
+}
+/* Diep zoeken: veel verklaringen (bv. "Hulpenergie ATAG iZone- P-serie ketels") noemen het type alleen
+   in de tabel (specifications). De BCRG-zoekfunctie kijkt daar niet in, dus halen we alle verklaringen
+   van het merk op en doorzoeken we de tabelrijen zelf. */
+const STOP = new Set(['de','het','een','van','en','the','bv','b','v','nv','gmbh','ltd','verwarming','nederland','benelux','group','international']);
+function merkWoord(s){ return norm(s).split(' ').find(w => w.length>=3 && !STOP.has(w) && !/\d/.test(w)) || ''; }
+function typeWoorden(termen, merken){
+  const t = termen.filter(x => !isNr(x)).sort((a,b) => b.length-a.length)[0] || '';
+  return norm(t).split(' ').filter(w => w.length>1 && !merken.includes(w) && !STOP.has(w));
+}
+function rijTreffer(rij, woorden){
+  const sterk = woorden.filter(w => /\d/.test(w) && /[a-z]/.test(w) && w.length>=3);
+  if(!sterk.length) return 0;
+  const typeKaal = kaal(woorden.join(''));
+  let best = 0;
+  for(const [k, v] of Object.entries(rij)){
+    if(k==='id' || typeof v!=='string') continue;
+    if(kaal(v) === typeKaal){ best = 1; break; }
+    const rw = norm(v).split(' ');
+    if(!sterk.every(w => rw.includes(w))) continue;
+    best = Math.max(best, woorden.filter(w => rw.includes(w)).length / woorden.length);
+  }
+  return best;
+}
+function schrijfDiep(html){ $('diep').innerHTML = html ? `<div class="klein" style="margin-top:8px">${html}</div>` : ''; }
+async function diepZoeken(termen, opt, nr){
+  const merken = new Set();
+  if(opt.match && herkend && herkend.merk) merken.add(merkWoord(herkend.merk));
+  resultaten.slice(0,5).forEach(r => merken.add(merkWoord(r.d.manufacturer)));
+  if(!merken.size || [...merken].every(m=>!m)){ const w = merkWoord(termen.find(t=>!isNr(t))||''); if(w) merken.add(w); }
+  const mlijst = [...merken].filter(Boolean).slice(0,2);
+  const woorden = typeWoorden(termen, mlijst);
+  if(!mlijst.length || !woorden.some(w => /\d/.test(w) && /[a-z]/.test(w))) { schrijfDiep(''); return; }
+  schrijfDiep(`<span class="spinner"></span>Ook zoeken in de tabellen van alle ${mlijst.map(esc).join(' / ')}-verklaringen…`);
+  try{
+    const kandidaten = new Map();
+    for(const m of mlijst){
+      for(let off=0; off<400; off+=100){
+        const l = await bcrgZoek({search:m, limit:'100', offset:String(off)});
+        if(nr !== zoekNr) return;
+        (l.results||[]).forEach(d => kandidaten.set(d.id, d));
+        if(off+100 >= (l.count||0)) break;
+      }
+    }
+    const alleenGeldig = $('geldig').checked;
+    const al = new Set(resultaten.map(r => r.d.id));
+    const te = [...kandidaten.values()].filter(d => !al.has(d.id) && (d.specification_types||[]).length && (!alleenGeldig || status(d).ok));
+    const treffers = [];
+    for(let i=0; i<te.length; i+=10){
+      if(nr !== zoekNr) return;
+      schrijfDiep(`<span class="spinner"></span>Tabellen doorzoeken: ${Math.min(i+10, te.length)} van ${te.length} ${mlijst.map(esc).join(' / ')}-verklaringen…`);
+      const dets = await Promise.all(te.slice(i, i+10).map(d => detail(d.id).catch(() => null)));
+      dets.forEach((v, j) => { if(!v) return;
+        let best = 0, waar = null;
+        for(const [soort, blok] of Object.entries(v.specifications||{})) for(const rij of ((blok&&blok.values)||[])){
+          const s = rijTreffer(rij, woorden);
+          if(s > best){ best = s; waar = {soort, rij}; }
+        }
+        if(best >= 0.75) treffers.push({d: te[i+j], best, waar});
+      });
+    }
+    if(nr !== zoekNr) return;
+    const top = resultaten.length ? resultaten[0].s : 1;
+    treffers.sort((a,b) => b.best-a.best).forEach(t => {
+      const rt = t.waar.rij.title || Object.values(t.waar.rij).find(x => typeof x==='string') || '';
+      resultaten.push({d:t.d, s: t.best>=1 ? top : top*t.best*0.8, match: !!opt.match && t.best>=1, diep:{soort:t.waar.soort, rij:rt, kaal:kaal(rt)}});
+    });
+    resultaten.sort((a,b) => b.s-a.s);
+    renderResultaten();
+    schrijfDiep(treffers.length
+      ? `🔎 ${treffers.length} extra verklaring${treffers.length>1?'en':''} gevonden in de tabellen (type staat niet in de titel).`
+      : `🔎 Ook de tabellen van ${te.length} ${mlijst.map(esc).join(' / ')}-verklaringen doorzocht — niets extra gevonden.`);
+  }catch(e){ if(nr === zoekNr) schrijfDiep('⚠️ Dieper zoeken in de tabellen lukte niet.'); }
+}
 function status(d){
   if(d.revoked_at) return {t:'Ingetrokken', k:'b-verlopen', ok:false};
   if(d.expired_at || d.discontinued_from || d.is_available===false) return {t:(d.registration_number_display||'').includes('vervangen') ? 'Vervangen' : 'Verlopen', k:'b-verlopen', ok:false};
@@ -294,6 +377,7 @@ async function zoek(termen, opt={}){
   if(!termen.length){ melding('let','Typ iets om te zoeken of maak een foto.'); return; }
   melding('', '<span class="spinner"></span>Zoeken in de BCRG-databank…');
   laatsteZoek = {termen, offset:0};
+  const nr = ++zoekNr; schrijfDiep('');
   try{
     const uniek = new Map();
     const lijsten = await Promise.all(termen.slice(0,4).map(t => bcrgZoek({search: isNr(t) ? t.replace(/\s/g,'').toUpperCase() : t}).catch(()=>({results:[]}))));
@@ -305,6 +389,7 @@ async function zoek(termen, opt={}){
     melding('', '');
     renderResultaten();
     $('meer').hidden = !(termen.length===1 && laatsteZoek.count > 20);
+    diepZoeken(termen, opt, nr);
   }catch(e){ melding('fout', 'Zoeken lukte niet: '+esc(e.message||e)); }
 }
 async function meer(){
@@ -324,11 +409,12 @@ function renderResultaten(){
   const el = $('resultaten');
   if(!resultaten.length){ el.innerHTML = laatsteZoek ? '<div class="melding let">Geen verklaringen gevonden. Probeer alleen het type (zonder merk), of zet “Alleen geldige” uit.</div>' : ''; return; }
   const verborgen = resultaten.length - lijst.length;
-  el.innerHTML = lijst.map(({d, match}) => { const st = status(d), nr = d.registration_number;
+  el.innerHTML = lijst.map(({d, match, diep}) => { const st = status(d), nr = d.registration_number;
     return `<div class="res${match?' match':''}" data-id="${esc(d.id)}">
       <div class="kop"><div class="titel">${esc(d.title)}</div>${match?'<span class="badge b-match">Match</span>':''}</div>
       <div class="meta">${esc(d.manufacturer||'')} · <span class="mono">${esc(d.registration_number_display||nr)}</span> · ${esc(d.declaration_type||'')}${cats(d)?' · '+esc(cats(d)):''}</div>
       <div class="meta"><span class="badge ${st.k}">${st.t}</span> ${d.visible_from?'sinds '+datumNL(d.visible_from):''}${d.expired_at?' · verlopen '+datumNL(d.expired_at):''} ${inProject(nr)?'<span class="badge b-inproj">✓ In project</span>':''}</div>
+      ${diep?`<div class="meta"><span class="badge b-diep">🔎 In tabel</span> type <b>${esc(diep.rij)}</b> staat in de tabel “${esc(diep.soort)}”</div>`:''}
       <div class="acties">
         <button class="btn klein" type="button" data-act="det">Details</button>
         ${d.declaration_document?`<button class="btn klein" type="button" data-act="pdf">⬇ Download pdf</button>`:''}
@@ -336,19 +422,23 @@ function renderResultaten(){
       </div><div class="det" hidden></div></div>`; }).join('') +
     (verborgen ? `<p class="klein" style="margin-top:8px">${verborgen} verlopen/vervangen verklaring${verborgen>1?'en':''} verborgen (zet “Alleen geldige” uit om ze te zien).</p>` : '');
 }
-async function details(kaart, d){
+async function details(kaart, d, diep){
   const det = kaart.querySelector('.det');
   if(!det.hidden){ det.hidden = true; return; }
   det.hidden = false; det.innerHTML = '<span class="spinner"></span>Laden…';
   try{
-    const v = await (await fetch(SERVER+'/bcrg/'+d.id)).json();
+    const v = await detail(d.id);
     const geldig = [['woningbouw',v.is_applicable_for_residential_function],['utiliteitsbouw',v.is_applicable_for_utility_function],['nieuwbouw',v.is_applicable_for_new_construction],['bestaande bouw',v.is_applicable_for_existing_construction],['basisopname',v.is_applicable_for_basis_capture],['detailopname',v.is_applicable_for_detail_capture]].filter(x=>x[1]).map(x=>x[0]).join(', ');
     let h = `<div>${esc(v.description||'')}</div><p class="klein" style="margin:6px 0 0">Geldig voor: ${esc(geldig||'–')} · ${(v.guidelines||[]).map(esc).join(', ')}${v.predecessor?' · opvolger van '+esc(v.predecessor.registration_number||''):''}${(v.follow_ups||[]).length?' · opgevolgd door '+v.follow_ups.map(f=>esc(f.registration_number||f)).join(', '):''}</p>`;
     for(const [soort, blok] of Object.entries(v.specifications||{})){
       const rijen = (blok && blok.values) || [];
       if(!rijen.length) continue;
-      const kol = [...new Set(rijen.flatMap(r => Object.keys(r)))].filter(k => k!=='id');
-      h += `<div class="tbl"><table><thead><tr><th colspan="${kol.length}">${esc(soort)}</th></tr><tr>${kol.map(k=>`<th>${esc(k)}</th>`).join('')}</tr></thead><tbody>${rijen.map(r=>`<tr>${kol.map(k=>{const x=r[k];return typeof x==='number'?`<td class="num">${x.toLocaleString('nl-NL')}</td>`:`<td>${esc(x==null?'':typeof x==='object'?JSON.stringify(x):x)}</td>`}).join('')}</tr>`).join('')}</tbody></table></div>`;
+      let kol = [...new Set(rijen.flatMap(r => Object.keys(r)))].filter(k => k!=='id');
+      kol = [...kol.filter(k => k==='title'), ...kol.filter(k => k!=='title')];
+      const isGetal = k => rijen.every(r => r[k]==null || typeof r[k]==='number');
+      const naam = k => k==='title' ? 'type' : k;
+      const raak = r => diep && Object.values(r).some(x => typeof x==='string' && kaal(x)===diep.kaal);
+      h += `<div class="tbl"><table><thead><tr><th colspan="${kol.length}">${esc(soort)}</th></tr><tr>${kol.map(k=>`<th${isGetal(k)?' class="num"':''}>${esc(naam(k))}</th>`).join('')}</tr></thead><tbody>${rijen.map(r=>`<tr${raak(r)?' class="raak"':''}>${kol.map(k=>{const x=r[k];return typeof x==='number'?`<td class="num">${x.toLocaleString('nl-NL',{maximumFractionDigits:6})}</td>`:`<td>${esc(x==null?'':typeof x==='object'?JSON.stringify(x):x)}</td>`}).join('')}</tr>`).join('')}</tbody></table></div>`;
     }
     det.innerHTML = h;
   }catch(e){ det.innerHTML = '⚠️ Details laden lukte niet.'; }
@@ -463,7 +553,7 @@ $('overzicht').onclick = overzichtPdf;
 $('resultaten').addEventListener('click', async e => {
   const b = e.target.closest('button[data-act]'); if(!b) return;
   const kaart = b.closest('.res'), r = resultaten.find(x => x.d.id === kaart.dataset.id); if(!r) return;
-  if(b.dataset.act==='det') details(kaart, r.d);
+  if(b.dataset.act==='det') details(kaart, r.d, r.diep);
   else if(b.dataset.act==='pdf'){ b.disabled=true; try{ await deel(await haalPdf(r.d), pdfNaam(r.d)); }catch(err){ toast('Download lukte niet'); } b.disabled=false; }
   else if(b.dataset.act==='proj') aanProject(r.d, b);
 });
