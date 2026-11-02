@@ -76,6 +76,7 @@ var GASTVERSIE = true;
 header > div{flex:1}
 @media (min-width: 801px){ .wrap{height:calc(100vh - 70px)!important} }
 </style>
+<script src="assets/richting-kleuren.js"></script>
 </head>
 <body>
 <header><div><h1>Pand-oriëntatie via BAG</h1><div class="gast-sub">Gastversie van Visser Inspecties — werkt zonder inloggen; bestanden komen op je eigen apparaat</div></div></header>
@@ -225,7 +226,7 @@ L.control.scale({ imperial: false }).addTo(kaart);
 laag = L.layerGroup().addTo(kaart);
 }
 
-const KLEUR = { N: '#1d4ed8', NO: '#0891b2', O: '#059669', ZO: '#ca8a04', Z: '#dc2626', ZW: '#c2410c', W: '#7c3aed', NW: '#4f46e5' };
+const KLEUR = (window.VI_RICHTING && VI_RICHTING.KLEUR) || { N: '#1f4e9c', NO: '#2f8fbf', O: '#3aa776', ZO: '#9cc23a', Z: '#e3a21a', ZW: '#e0662a', W: '#c0392b', NW: '#7d4ea3' };   // vaste kleuren per windrichting (assets/richting-kleuren.js)
 
 // ---------- state ----------
 let state = { adres: null, edges: [], vg: null, vgBron: '', pand: null };

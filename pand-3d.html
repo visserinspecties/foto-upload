@@ -73,6 +73,7 @@
   @media (max-width: 800px) { .wrap { flex-direction:column; height:auto; } .zijkant { width:auto; } .beeld { height:75vh; } }
 </style>
 <script src="assets/home-knop.js" defer></script>
+<script src="assets/richting-kleuren.js"></script>
 </head>
 <body>
 <header><h1>Pand in 3D</h1><a href="pand-orientatie.html">← Pand-oriëntatie</a></header>
@@ -450,6 +451,8 @@ function dikkeLijn(punten, kleur, px, grp) {
 }
 
 // ================= model opbouwen =================
+const DAK_RICHTING = (window.VI_RICHTING && VI_RICHTING.KLEUR) || { N: '#1f4e9c', NO: '#2f8fbf', O: '#3aa776', ZO: '#9cc23a', Z: '#e3a21a', ZW: '#e0662a', W: '#c0392b', NW: '#7d4ea3' };
+const DAK_PLAT = (window.VI_RICHTING && VI_RICHTING.PLAT) || '#c9d3cd';
 const KLEUR = { RoofSurface: new THREE.Color('#cf7a60'), WallSurface: new THREE.Color('#efe8dc'), GroundSurface: new THREE.Color('#8e979f'), anders: new THREE.Color('#d8d2c6') };
 const lokaal = (p, O) => [p[0] - O[0], p[1] - O[1], p[2] - O[2]];
 
@@ -477,7 +480,11 @@ function bouwMesh(gebouw, O, opties) {
     let tris;
     try { tris = THREE.ShapeUtils.triangulateShape(rings[0].map(naar2), rings.slice(1).map(r => r.map(naar2))); } catch (_) { return; }
     const alle = rings.flat();
-    const k = opties.kleur || KLEUR[v.type] || KLEUR.anders;
+    let k = opties.kleur || KLEUR[v.type] || KLEUR.anders;
+    if (!opties.kleur && v.type === 'RoofSurface') {   // dakvlak: kleur van de windrichting (zelfde als Pand analyse); plat = lichtgrijs
+      const helling = Math.acos(Math.min(1, Math.abs(g.n.z))) * 180 / Math.PI;
+      k = new THREE.Color(helling < 5 ? DAK_PLAT : (DAK_RICHTING[compass(azimuth(g.n.x, g.n.y))] || '#cf7a60'));
+    }
     for (const t of tris) for (const i of t) { pos.push(...alle[i]); col.push(k.r, k.g, k.b); }
   });
   const geo = new THREE.BufferGeometry();
