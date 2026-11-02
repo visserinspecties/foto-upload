@@ -1,5 +1,7 @@
-/* Visser Inspecties — energielabel-opzoeker voor de Pand analyse-tool (gebaseerd op de worker van Erkend-Energielabel.nl).
-   Cloudflare Worker: zoekt het geregistreerde energielabel op in EP-Online en geeft JSON terug.
+/* Visser Inspecties — server voor de tools (Cloudflare Worker).
+   1) Energielabels uit EP-Online (Pand analyse; gebaseerd op de worker van Erkend-Energielabel.nl).
+   2) Kwaliteitsverklaringen uit de BCRG-databank (altijd actueel):  /bcrg?search=…  /bcrg/<id>  /bcrg-pdf?u=…
+   3) Typeplaatje herkennen met Cloudflare Workers AI (binding met de naam AI):  POST /herken  {beeld:"data:image/jpeg;base64,…"}
    - Met variabele EP_KEY (gratis EP-Online API-key): officiële webservice.
    - Zonder EP_KEY: het openbare zoekscherm van www.ep-online.nl.
    Aanroep:  GET https://<worker>/?q=3343DA%2045&vbo=0531010000000065                                  */
@@ -12,10 +14,17 @@ export default {
     const origin = req.headers.get('Origin') || '';
     const cors = {
       'Access-Control-Allow-Origin': '*',   /* openbare gegevens: elke plek waar de app draait (ook tablet/bestand) */
-      'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Vary': 'Origin'
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Vary': 'Origin'
     };
     if (req.method === 'OPTIONS') return new Response(null, { headers: cors });
     const url = new URL(req.url);
+    if (url.pathname === '/bcrg' || url.pathname.startsWith('/bcrg/')) return bcrg(url, cors);
+    if (url.pathname === '/bcrg-pdf') return bcrgPdf(url, cors);
+    if (url.pathname === '/herken') {
+      if (req.method !== 'POST') return json({ fout: 'Gebruik POST' }, 405, cors);
+      if (!TOEGESTAAN.some(o => origin.startsWith(o))) return json({ fout: 'Niet toegestaan vanaf deze website' }, 403, cors);
+      return herken(req, env, cors);
+    }
     const bron = env.EP_KEY ? 'EP-Online webservice' : 'EP-Online (openbaar zoekscherm)';
     const sessie = { env };
     /* meerdere adressen tegelijk: ?b=3343DA 43~0531010000000063;3343DA 45~0531010000000065 (max 25) */
@@ -134,4 +143,73 @@ async function viaApi(q, vbo, key) {
     ep2: x.PrimaireFossieleEnergie ?? null, hernieuwbaar: x.Aandeel_hernieuwbare_energie ?? null,
     warmtebehoefte: x.Warmtebehoefte ?? null, energieindex: x.EnergieIndex ?? null
   }));
+}
+
+
+/* ================= BCRG: kwaliteitsverklaringen ================= */
+const BCRG = 'https://mijn.bcrg.nl/api/v1/declarations/';
+async function bcrg(url, cors) {
+  const id = url.pathname.replace(/^\/bcrg\/?/, '').replace(/\/$/, '');
+  let doel;
+  if (id) { if (!/^[0-9a-f-]{36}$/i.test(id)) return json({ fout: 'Ongeldig id' }, 400, cors); doel = BCRG + id + '/'; }
+  else {
+    const q = new URLSearchParams();
+    for (const k of ['search', 'category', 'declaration_type', 'ordering', 'limit', 'offset']) { const v = url.searchParams.get(k); if (v) q.set(k, v); }
+    if (!q.has('limit')) q.set('limit', '20');
+    doel = BCRG + '?' + q.toString();
+  }
+  try {
+    const r = await fetch(doel, { headers: { Accept: 'application/json', 'User-Agent': 'VisserInspecties-tools/1.0' }, cf: { cacheTtl: 600, cacheEverything: true } });
+    return new Response(await r.text(), { status: r.status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=600', ...cors } });
+  } catch (e) { return json({ fout: 'BCRG niet bereikbaar: ' + (e.message || e) }, 502, cors); }
+}
+async function bcrgPdf(url, cors) {
+  const u = url.searchParams.get('u') || '';
+  if (!/^https:\/\/mijn\.bcrg\.nl\/media\/[\w\/.\-%]+\.pdf$/i.test(u)) return json({ fout: 'Alleen pdf-documenten van mijn.bcrg.nl' }, 400, cors);
+  const r = await fetch(u, { cf: { cacheTtl: 86400, cacheEverything: true } });
+  if (!r.ok) return json({ fout: 'Pdf niet gevonden (' + r.status + ')' }, r.status, cors);
+  return new Response(r.body, { headers: { 'Content-Type': 'application/pdf', 'Cache-Control': 'public, max-age=86400', ...cors } });
+}
+
+/* ================= Typeplaatje herkennen (Workers AI) ================= */
+const VRAAG = 'Dit is een foto van een typeplaatje, label of datablad van een installatie of bouwproduct (bijv. cv-ketel, warmtepomp, zonnepaneel, boiler, WTW-unit, isolatie, glas). ' +
+  'Lees de tekst en geef ALLEEN een JSON-object terug, zonder uitleg, met deze velden: ' +
+  '{"merk":"fabrikant/merk","type":"productnaam en type zoals op het plaatje, bv. Avanta Ace 28c CCS","typenummer":"artikel- of typenummer indien aanwezig","productsoort":"bv. cv-ketel, warmtepomp, pv-paneel, boiler, ventilatie-unit","codes":["andere belangrijke codes"],"tekst":"korte samenvatting van de belangrijkste technische gegevens op het plaatje"}. ' +
+  'Laat een veld leeg ("") als je het niet kunt lezen. Verzin niets.';
+async function herken(req, env, cors) {
+  if (!env.AI) return json({ fout: 'Workers AI is nog niet gekoppeld: voeg in Cloudflare bij Settings → Bindings een Workers AI-binding toe met de naam AI.' }, 500, cors);
+  let body; try { body = await req.json(); } catch (e) { return json({ fout: 'Geen geldige aanvraag' }, 400, cors); }
+  const dataUrl = String(body.beeld || '');
+  const m = /^data:image\/(jpeg|jpg|png|webp);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
+  if (!m) return json({ fout: 'Stuur een foto (jpeg/png) als data-URL' }, 400, cors);
+  if (m[2].length > 6_000_000) return json({ fout: 'Foto te groot' }, 413, cors);
+  const bytes = Uint8Array.from(atob(m[2]), c => c.charCodeAt(0));
+  const pogingen = [
+    ['@cf/meta/llama-4-scout-17b-16e-instruct', () => ({ messages: [{ role: 'user', content: [{ type: 'text', text: VRAAG }, { type: 'image_url', image_url: { url: dataUrl } }] }], max_tokens: 700, temperature: 0 })],
+    ['@cf/mistralai/mistral-small-3.1-24b-instruct', () => ({ messages: [{ role: 'user', content: [{ type: 'text', text: VRAAG }, { type: 'image_url', image_url: { url: dataUrl } }] }], max_tokens: 700, temperature: 0 })],
+    ['@cf/meta/llama-3.2-11b-vision-instruct', () => ({ messages: [{ role: 'user', content: VRAAG }], image: Array.from(bytes), max_tokens: 700, temperature: 0 })],
+    ['@cf/llava-hf/llava-1.5-7b-hf', () => ({ image: Array.from(bytes), prompt: VRAAG, max_tokens: 512 })]
+  ];
+  const fouten = [];
+  for (const [model, invoer] of pogingen) {
+    try {
+      let r;
+      try { r = await env.AI.run(model, invoer()); }
+      catch (e) {
+        if (/agree/i.test(String(e.message || e))) { await env.AI.run(model, { prompt: 'agree' }); r = await env.AI.run(model, invoer()); }
+        else throw e;
+      }
+      const tekst = typeof r === 'string' ? r : (r.response ?? r.description ?? r.result?.response ?? JSON.stringify(r));
+      const data = leesJson(typeof tekst === 'string' ? tekst : JSON.stringify(tekst));
+      if (data && (data.merk || data.type || data.typenummer)) return json({ model, ...data }, 200, cors);
+      fouten.push(model + ': niets herkend');
+    } catch (e) { fouten.push(model + ': ' + String(e.message || e).slice(0, 160)); }
+  }
+  return json({ fout: 'Typeplaatje niet herkend. Probeer een scherpere foto of typ het type.', details: fouten }, 422, cors);
+}
+function leesJson(t) {
+  if (t && typeof t === 'object') return t;
+  const a = t.indexOf('{'), b = t.lastIndexOf('}');
+  if (a < 0 || b <= a) return null;
+  try { return JSON.parse(t.slice(a, b + 1)); } catch (e) { try { return JSON.parse(t.slice(a, b + 1).replace(/,\s*([}\]])/g, '$1')); } catch (_) { return null; } }
 }

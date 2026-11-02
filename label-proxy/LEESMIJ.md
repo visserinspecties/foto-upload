@@ -13,6 +13,12 @@ Gebaseerd op de worker van Erkend-Energielabel.nl.
 5. Open de Pand analyse-tool → tab **Pand analyse** → zoek een adres → bij **Bestaand energielabel** op ⚙ →
    plak het adres → OK. De tool onthoudt het op dit apparaat (doe het op iPad, iPhone en pc één keer).
 
+## Kwaliteitsverklaringen (BCRG) en foto-herkenning
+
+Dezelfde worker zoekt ook kwaliteitsverklaringen in de BCRG-databank (`/bcrg`) en leest foto's van typeplaatjes met
+Cloudflare Workers AI (`/herken`). Daarvoor één keer: worker → **Settings** → **Bindings** → **Add binding** →
+**Workers AI** → naam `AI` → **Deploy**.
+
 ## Aanrader: officiële EP-Online-sleutel
 
 Zonder sleutel leest de server het openbare zoekscherm van ep-online.nl. Met een (gratis) API-sleutel

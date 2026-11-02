@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kwaliteitsverklaringen · Visser Inspecties</title>
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#F2F4F3; --surface:#FFFFFF; --ink:#18232A; --muted:#5A6870; --line:#D5DCDE; --soft:#E9EEEE;
+  --accent:#5B2D86; --accent-ink:#FFFFFF; --accent-soft:#EFE8F6;
+  --ok:#1E7A3C; --ok-bg:#DCF3E3; --fout:#B3401F; --fout-bg:#FBEAE4; --let:#946000; --let-bg:#FAF0D8;
+  --focus:#E08A00;
+  --f-display:"Merriweather", Georgia, serif; --f-body:"IBM Plex Sans","Segoe UI",system-ui,-apple-system,sans-serif; --f-mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#10171A; --surface:#172126; --ink:#E5ECEE; --muted:#9CAAB0; --line:#2B383E; --soft:#1E2A2F;
+  --accent:#C3A4EA; --accent-ink:#1A1026; --accent-soft:#2C2339;
+  --ok:#8FD6A6; --ok-bg:#123322; --fout:#F0A58B; --fout-bg:#3A231B; --let:#E3B14E; --let-bg:#342910; color-scheme:dark;
+}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+.wrap{max-width:980px;margin:0 auto;padding:20px max(16px,env(safe-area-inset-right)) 48px max(16px,env(safe-area-inset-left))}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+h1{font-family:var(--f-display);font-size:clamp(22px,3.2vw,30px);margin:4px 0 0}
+h2{font-family:var(--f-display);font-size:18px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:14px;margin:0 0 12px}
+.klein{font-size:12.5px;color:var(--muted)}
+.mono{font-family:var(--f-mono)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-top:16px}
+@media(max-width:520px){.card{padding:16px 14px}}
+.odbalk{font-size:13.5px;font-weight:500;padding:9px 12px;border-radius:8px;margin:14px 0 0;display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--accent-soft);color:var(--accent)}
+.odbalk.ok{background:var(--ok-bg);color:var(--ok);border:1.5px solid #3E9B5F}
+.odbalk.fout{background:var(--fout-bg);color:var(--fout)}
+.odbalk.let{background:var(--let-bg);color:var(--let)}
+.odbalk button{font-size:12.5px;font-weight:600;padding:4px 11px;border:1px solid currentColor;background:var(--surface);color:inherit;border-radius:6px;cursor:pointer}
+.btn{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:500;font-size:14px;min-height:40px}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.btn.klein{padding:5px 10px;font-size:13px;min-height:34px}
+.btn:disabled{opacity:.5;cursor:default}
+input[type=text],input[type=search],select{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;width:100%;min-width:0}
+.drop{border:2px dashed var(--line);border-radius:12px;padding:18px;text-align:center;cursor:pointer;display:block;position:relative}
+.drop:hover,.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop img{max-width:100%;max-height:280px;border-radius:8px;display:block;margin:0 auto 8px}
+.drop input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.drop b{display:block;font-size:16px;margin-bottom:2px}
+.zoekrij{display:flex;gap:8px;margin-top:12px}
+.zoekrij input{flex:1}
+.filters{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin-top:10px;font-size:14px}
+.filters select{width:auto}
+.filters label{display:inline-flex;gap:6px;align-items:center}
+.herkend{background:var(--ok-bg);border-radius:10px;padding:12px 14px;margin-top:14px;font-size:14px}
+.herkend b{color:var(--ok)}
+.melding{margin-top:12px;padding:9px 12px;border-radius:8px;font-size:14px}
+.melding.fout{background:var(--fout-bg);color:var(--fout)}
+.melding.ok{background:var(--ok-bg);color:var(--ok)}
+.melding.let{background:var(--let-bg);color:var(--let)}
+.res{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:10px;background:var(--surface)}
+.res.match{border:2px solid var(--ok)}
+.res .kop{display:flex;gap:10px;align-items:flex-start}
+.res .titel{font-weight:600;flex:1;min-width:0}
+.res .meta{font-size:13px;color:var(--muted);margin-top:2px}
+.badge{display:inline-block;font-size:11.5px;font-weight:700;border-radius:6px;padding:2px 8px;white-space:nowrap}
+.b-match{background:var(--ok);color:#fff}
+.b-geldig{background:var(--ok-bg);color:var(--ok)}
+.b-verlopen{background:var(--fout-bg);color:var(--fout)}
+.b-inproj{background:var(--accent-soft);color:var(--accent)}
+.acties{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.det{margin-top:10px;font-size:13.5px}
+.det table{border-collapse:collapse;width:100%;margin-top:6px}
+.det th,.det td{border-bottom:1px solid var(--line);padding:4px 6px;text-align:left;vertical-align:top}
+.det th{font-size:12px;color:var(--muted);font-weight:500}
+.det .tbl{overflow-x:auto}
+.det td.num{font-family:var(--f-mono);text-align:right}
+.proj-item{display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--line);padding:9px 0}
+.proj-item:last-child{border-bottom:none}
+.proj-item .t{flex:1;min-width:0}
+.proj-item .t b{display:block;font-weight:600}
+.leeg{color:var(--muted);font-size:14px;padding:8px 0}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom));background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:14px;z-index:50}
+.od-overlay{position:fixed;inset:0;background:rgba(15,12,25,.5);z-index:40;display:flex;align-items:center;justify-content:center;padding:16px}
+.od-venster{background:var(--surface);border:1px solid var(--line);border-radius:12px;width:100%;max-width:480px;padding:18px}
+.od-pad{font-size:12px;color:var(--muted);background:var(--bg);border-radius:6px;padding:6px 8px;margin-bottom:8px;word-break:break-all;font-family:var(--f-mono)}
+.od-lijst{border:1px solid var(--line);border-radius:8px;background:var(--bg);max-height:300px;overflow-y:auto;margin-bottom:12px}
+.od-item{padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer;font-size:14px}
+.od-item:hover{background:var(--accent-soft)}
+.od-leeg{padding:12px;color:var(--muted);font-size:14px}
+.od-knoppen{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:draai .8s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes draai{to{transform:rotate(360deg)}}
+.foot{margin-top:24px;font-size:12.5px;color:var(--muted)}
+</style>
+<script src="assets/login.js"></script>
+<script src="assets/home-knop.js" defer></script>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">BCRG-databank · altijd actueel</div>
+  <h1>Kwaliteitsverklaringen</h1>
+  <div class="odbalk" id="od-status">☁️ OneDrive: controleren…</div>
+
+  <section class="card">
+    <h2>Zoek verklaring bij product</h2>
+    <p class="sub">Maak een foto van het typeplaatje of datablad, of typ merk + type of het verklaringnummer.</p>
+    <label class="drop" id="drop">
+      <input type="file" id="foto" accept="image/*">
+      <div id="drop-inhoud"><b>📷 Foto van het typeplaatje</b><span class="klein">Tik om een foto te maken of te kiezen</span></div>
+    </label>
+    <div class="zoekrij">
+      <input type="search" id="q" placeholder="…of typ merk + type, bv. Remeha Avanta Ace 28c, of 20210473GK" autocomplete="off" enterkeyhint="search">
+      <button class="btn primary" id="zoek" type="button">Zoek</button>
+    </div>
+    <div class="filters">
+      <label>Categorie <select id="cat">
+        <option value="">Alle</option><option value="8">Ruimteverwarming</option><option value="10">Tapwater</option><option value="12">Ventilatie</option>
+        <option value="11">Ruimtekoeling</option><option value="9">PV-cellen</option><option value="7">Bouwkundig</option><option value="13">Generieke verklaringen</option>
+      </select></label>
+      <label><input type="checkbox" id="geldig" checked> Alleen geldige</label>
+      <label><input type="checkbox" id="alleengk"> Alleen kwaliteitsverklaringen (GK)</label>
+    </div>
+    <div id="herkend"></div>
+    <div id="melding"></div>
+    <div id="resultaten"></div>
+    <div id="meer" hidden style="margin-top:10px"><button class="btn" type="button" id="meerknop">Meer resultaten</button></div>
+  </section>
+
+  <section class="card">
+    <h2>Kwaliteitsverklaringen van dit project</h2>
+    <p class="sub" id="proj-sub">Kies eerst een project.</p>
+    <div class="zoekrij" style="margin-top:0">
+      <input type="search" id="pq" placeholder="Zoek in dit project…" autocomplete="off">
+      <button class="btn" type="button" id="overzicht">📄 Overzicht als PDF</button>
+    </div>
+    <div id="projlijst" style="margin-top:8px"><div class="leeg">—</div></div>
+  </section>
+
+  <p class="foot">Bron: BCRG-databank Energieprestaties (mijn.bcrg.nl), live opgevraagd. Herkenning van foto's met Cloudflare Workers AI; controleer altijd of de gevonden verklaring past bij het product ter plaatse. Visser Inspecties · EnergiePrestatie-advies.</p>
+</div>
+<div id="toast" class="toast" hidden></div>
+<div class="od-overlay" id="od-overlay" hidden><div class="od-venster" role="dialog" aria-labelledby="od-titel">
+  <h2 id="od-titel">Kies het project</h2>
+  <div class="od-pad" id="od-pad">OneDrive</div>
+  <div class="od-lijst" id="od-lijst"></div>
+  <div class="od-knoppen"><button class="btn" id="od-terug">↑ Terug</button><button class="btn" id="od-annuleer">Annuleren</button><button class="btn primary" id="od-ok">Dit project gebruiken</button></div>
+</div></div>
+
+<script>
+(function(){
+"use strict";
+const SERVER = 'https://ep-labels.falling-brook-4828.workers.dev';
+const SUBMAP = '040 KWALITEITSVERKLARING', ROOT = '0_In Behandeling', MANIFEST = 'kwaliteitsverklaringen.json';
+const OD_CLIENT = 'fdf237c9-bf46-47fa-ab3d-a8834a73e284', OD_TENANT = '984fd1fb-3d68-4c94-aff2-47f699fb5dae';
+const OD_SCOPE = 'https://graph.microsoft.com/Files.ReadWrite offline_access', GRAPH = 'https://graph.microsoft.com/v1.0';
+const $ = id => document.getElementById(id);
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const toast = t => { const el=$('toast'); el.textContent=t; el.hidden=false; clearTimeout(toast._t); toast._t=setTimeout(()=>el.hidden=true, 2600); };
+const datumNL = d => d ? new Date(d).toLocaleDateString('nl-NL',{day:'numeric',month:'short',year:'numeric'}) : '';
+const lees = (k, std) => { try{ const v=JSON.parse(localStorage.getItem(k)); return v==null?std:v; }catch(e){ return std; } };
+const bewaar = (k, v) => { try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} };
+
+/* ================= OneDrive (gedeelde inlog van de Visser-tools) ================= */
+let project = null;   // {naam, pad}  pad = projectmap
+let ingelogd = false;
+function startProject(){
+  project = lees('kv_project', null);
+  if(!project) for(const k of ['huismaten_project','bs_gekozen_project','pa_project']){
+    const p = lees(k, null);
+    if(p && p.naam && p.pad && p.naam!=='020 AANTEKENINGEN'){ project = {naam:p.naam, pad:p.pad.replace(/\/020 AANTEKENINGEN$/,'')}; break; }
+  }
+}
+async function token(){
+  let rt=null; try{ rt=localStorage.getItem('rt'); }catch(e){}
+  if(!rt){ ingelogd=false; throw new Error('Niet ingelogd bij OneDrive.'); }
+  let r; try{ r = await fetch(`https://login.microsoftonline.com/${OD_TENANT}/oauth2/v2.0/token`, {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({client_id:OD_CLIENT, grant_type:'refresh_token', refresh_token:rt, scope:OD_SCOPE})}); }
+  catch(e){ throw new Error('Geen verbinding met Microsoft.'); }
+  const d = await r.json().catch(()=>({}));
+  if(!d.access_token){ if(d.error==='invalid_grant'||d.error==='interaction_required'){ try{ localStorage.removeItem('rt'); }catch(e){} ingelogd=false; } throw new Error('Inlog verlopen — log opnieuw in.'); }
+  if(d.refresh_token){ try{ localStorage.setItem('rt', d.refresh_token); }catch(e){} }
+  ingelogd = true; return d.access_token;
+}
+async function graph(pad, opt={}){
+  const t = await token();
+  const r = await fetch(GRAPH+pad, {...opt, headers:{...(opt.headers||{}), Authorization:'Bearer '+t}});
+  if(!r.ok){ let m=r.status+' '+r.statusText; try{ m=(await r.json()).error.message||m; }catch(_){}; const e=new Error(m); e.status=r.status; throw e; }
+  return r;
+}
+const padUrl = p => '/me/drive/root:/' + p.split('/').map(encodeURIComponent).join('/') + ':';
+function balk(soort, tekst, knoppen){
+  const el=$('od-status'); el.className='odbalk '+(soort||''); el.textContent=tekst;
+  (knoppen||[]).forEach(([l,a]) => { const b=document.createElement('button'); b.type='button'; b.textContent=l; b.onclick=a; el.appendChild(b); });
+}
+async function controleer(){
+  if(!navigator.onLine){ balk('let','📵 Geen internet.',[['Controleer',controleer]]); return; }
+  try{ await token(); }
+  catch(e){ balk('fout', e.message, [['Inloggen',()=>window.VILogin&&VILogin.naarInlog()],['Controleer',controleer]]); renderProject(); return; }
+  if(!project){ balk('let','☁️ OneDrive verbonden — kies een project.',[['Kies project',kiesProject]]); renderProject(); return; }
+  try{ await graph(padUrl(project.pad)+'?$select=id'); }
+  catch(e){ if(e.status===404){ balk('fout','❌ Projectmap niet gevonden: '+project.pad,[['Kies project',kiesProject]]); return; } }
+  balk('ok','✅ OneDrive verbonden · project: '+project.naam,[['Wijzig project',kiesProject]]);
+  laadProject();
+}
+function kiesMap(){
+  return new Promise(resolve => {
+    const ov=$('od-overlay'), lijst=$('od-lijst'), padEl=$('od-pad'), ok=$('od-ok'), terug=$('od-terug'), ann=$('od-annuleer'), stapel=[];
+    async function toon(){
+      padEl.textContent='OneDrive'+stapel.map(x=>' / '+x.naam).join(''); terug.disabled=!stapel.length; ok.disabled=true; lijst.innerHTML='<div class="od-leeg">Mappen laden…</div>';
+      try{
+        const top=stapel.length?stapel[stapel.length-1].id:null;
+        const r=await graph(top?`/me/drive/items/${top}/children?$top=500&$select=id,name,folder`:'/me/drive/root/children?$top=500&$select=id,name,folder');
+        const mappen=((await r.json()).value||[]).filter(i=>i.folder).sort((a,b)=>a.name.localeCompare(b.name,'nl',{numeric:true}));
+        ok.disabled=!stapel.length; lijst.innerHTML='';
+        mappen.forEach(m=>{ const d=document.createElement('div'); d.className='od-item'; d.textContent='📁 '+m.name; d.onclick=()=>{ stapel.push({id:m.id,naam:m.name}); toon(); }; lijst.appendChild(d); });
+        if(!mappen.length) lijst.innerHTML='<div class="od-leeg">Geen submappen hier.</div>';
+      }catch(err){ lijst.innerHTML='<div class="od-leeg">⚠️ '+esc(err.message||err)+'</div>'; }
+    }
+    function sluit(r){ ov.hidden=true; ok.onclick=terug.onclick=ann.onclick=null; resolve(r); }
+    terug.onclick=()=>{ stapel.pop(); toon(); }; ann.onclick=()=>sluit(null);
+    ok.onclick=()=>sluit(stapel.map(x=>x.naam));
+    ov.hidden=false;
+    (async()=>{ try{ const j=await (await graph(padUrl(ROOT)+'?$select=id')).json(); stapel.push({id:j.id,naam:ROOT}); }catch(_){} toon(); })();
+  });
+}
+async function kiesProject(){
+  try{ await token(); }catch(e){ if(confirm('Niet ingelogd bij OneDrive. Nu inloggen?')) VILogin.naarInlog(); return; }
+  let delen = await kiesMap(); if(!delen || !delen.length) return;
+  if(delen.length>1 && /^0\d0 /.test(delen[delen.length-1])) delen = delen.slice(0,-1);   // een submap gekozen: de projectmap erboven
+  project = {naam:delen[delen.length-1], pad:delen.join('/')};
+  bewaar('kv_project', project); projVerklaringen = []; controleer();
+}
+
+/* ================= Projectlijst (040 KWALITEITSVERKLARING) ================= */
+let projVerklaringen = [];   // [{nr,titel,fabrikant,soort,categorie,status,bestand,toegevoegd,webUrl}]
+async function laadProject(){
+  if(!project) return renderProject();
+  $('proj-sub').textContent = project.naam + ' / ' + SUBMAP;
+  $('projlijst').innerHTML = '<div class="leeg"><span class="spinner"></span>Laden…</div>';
+  let manifest = [], bestanden = [];
+  try{ manifest = JSON.parse(await (await graph(padUrl(project.pad+'/'+SUBMAP+'/'+MANIFEST)+'/content')).text()) || []; }catch(e){}
+  try{ bestanden = ((await (await graph(padUrl(project.pad+'/'+SUBMAP)+'/children?$top=500&$select=name,webUrl,file,lastModifiedDateTime')).json()).value||[]).filter(f=>f.file); }
+  catch(e){ if(e.status!==404){ $('projlijst').innerHTML='<div class="leeg">⚠️ '+esc(e.message)+'</div>'; return; } }
+  const perNaam = Object.fromEntries(bestanden.map(f=>[f.name,f]));
+  projVerklaringen = manifest.map(m => ({...m, webUrl:(perNaam[m.bestand]||{}).webUrl, ontbreekt:!perNaam[m.bestand]}));
+  bestanden.filter(f => f.name!==MANIFEST && /\.pdf$/i.test(f.name) && !manifest.some(m=>m.bestand===f.name))
+    .forEach(f => projVerklaringen.push({nr:(f.name.match(/\d{8}[A-Z]{2}/)||[''])[0], titel:f.name.replace(/\.pdf$/i,''), bestand:f.name, webUrl:f.webUrl, losbestand:true}));
+  renderProject(); renderResultaten();
+}
+function renderProject(){
+  const el = $('projlijst');
+  if(!project){ $('proj-sub').textContent='Kies eerst een project (bovenaan).'; el.innerHTML='<div class="leeg">—</div>'; return; }
+  const q = $('pq').value.trim().toLowerCase();
+  const lijst = projVerklaringen.filter(v => !q || [v.nr,v.titel,v.fabrikant,v.categorie,v.soort].join(' ').toLowerCase().includes(q));
+  if(!projVerklaringen.length){ el.innerHTML='<div class="leeg">Nog geen kwaliteitsverklaringen in dit project. Zoek hierboven en tik op “＋ Aan project”.</div>'; return; }
+  if(!lijst.length){ el.innerHTML='<div class="leeg">Niets gevonden voor “'+esc(q)+'”.</div>'; return; }
+  el.innerHTML = lijst.map(v => `<div class="proj-item"><div class="t"><b>${esc(v.titel)}</b><span class="klein">${[v.nr, v.fabrikant, v.categorie, v.status].filter(Boolean).map(esc).join(' · ')}${v.ontbreekt?' · <span style="color:var(--fout)">pdf ontbreekt in de map</span>':''}</span></div>
+    ${v.webUrl?`<a class="btn klein" href="${esc(v.webUrl)}" target="_blank" rel="noopener">Openen</a>`:''}</div>`).join('');
+}
+
+/* ================= Zoeken in de BCRG-databank ================= */
+let laatsteZoek = null, resultaten = [], herkend = null;
+const norm = s => String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+const isNr = s => /^\s*\d{8}\s*[A-Za-z]{2}\s*$/.test(s);
+function status(d){
+  if(d.revoked_at) return {t:'Ingetrokken', k:'b-verlopen', ok:false};
+  if(d.expired_at || d.discontinued_from || d.is_available===false) return {t:(d.registration_number_display||'').includes('vervangen') ? 'Vervangen' : 'Verlopen', k:'b-verlopen', ok:false};
+  return {t:'Geldig', k:'b-geldig', ok:true};
+}
+const cats = d => (d.sub_categories||[]).map(c => (c.parent?c.parent.title+' › ':'')+c.title).join(', ');
+async function bcrgZoek(params){
+  const q = new URLSearchParams({ordering:'-created_at', limit:'20', ...params});
+  if($('cat').value) q.set('category', $('cat').value);
+  if($('alleengk').checked) q.set('declaration_type','GK');
+  const r = await fetch(SERVER+'/bcrg?'+q.toString());
+  if(!r.ok) throw new Error('BCRG gaf een fout ('+r.status+')');
+  return r.json();
+}
+function score(d, termen){
+  const t = norm(d.title+' '+d.description+' '+d.manufacturer+' '+d.registration_number);
+  let s = 0;
+  termen.forEach(term => { const w = norm(term).split(' ').filter(x=>x.length>1); if(!w.length) return;
+    const hit = w.filter(x => t.split(' ').includes(x) || t.includes(x)).length; s += hit / w.length; });
+  if(status(d).ok) s += 0.3;
+  return s;
+}
+async function zoek(termen, opt={}){
+  termen = termen.map(t=>String(t||'').trim()).filter(Boolean);
+  if(!termen.length){ melding('let','Typ iets om te zoeken of maak een foto.'); return; }
+  melding('', '<span class="spinner"></span>Zoeken in de BCRG-databank…');
+  laatsteZoek = {termen, offset:0};
+  try{
+    const uniek = new Map();
+    const lijsten = await Promise.all(termen.slice(0,4).map(t => bcrgZoek({search: isNr(t) ? t.replace(/\s/g,'').toUpperCase() : t}).catch(()=>({results:[]}))));
+    lijsten.forEach(l => (l.results||[]).forEach(d => uniek.set(d.id, d)));
+    laatsteZoek.count = Math.max(0, ...lijsten.map(l=>l.count||0));
+    resultaten = [...uniek.values()].map(d => ({d, s:score(d, termen)})).sort((a,b) => b.s-a.s);
+    const top = resultaten.length ? resultaten[0].s : 0;
+    resultaten.forEach(r => r.match = opt.match && r.s >= Math.max(0.9, top-0.35));
+    melding('', '');
+    renderResultaten();
+    $('meer').hidden = !(termen.length===1 && laatsteZoek.count > 20);
+  }catch(e){ melding('fout', 'Zoeken lukte niet: '+esc(e.message||e)); }
+}
+async function meer(){
+  if(!laatsteZoek) return;
+  laatsteZoek.offset += 20;
+  try{
+    const l = await bcrgZoek({search:laatsteZoek.termen[0], offset:String(laatsteZoek.offset)});
+    (l.results||[]).forEach(d => { if(!resultaten.some(r=>r.d.id===d.id)) resultaten.push({d, s:score(d, laatsteZoek.termen)}); });
+    renderResultaten(); $('meer').hidden = laatsteZoek.offset + 20 >= (l.count||0);
+  }catch(e){ toast('Meer laden lukte niet'); }
+}
+function melding(soort, html){ $('melding').innerHTML = html ? `<div class="melding ${soort}">${html}</div>` : ''; }
+const inProject = nr => projVerklaringen.some(v => v.nr === nr);
+function renderResultaten(){
+  const alleenGeldig = $('geldig').checked;
+  const lijst = resultaten.filter(r => !alleenGeldig || status(r.d).ok);
+  const el = $('resultaten');
+  if(!resultaten.length){ el.innerHTML = laatsteZoek ? '<div class="melding let">Geen verklaringen gevonden. Probeer alleen het type (zonder merk), of zet “Alleen geldige” uit.</div>' : ''; return; }
+  const verborgen = resultaten.length - lijst.length;
+  el.innerHTML = lijst.map(({d, match}) => { const st = status(d), nr = d.registration_number;
+    return `<div class="res${match?' match':''}" data-id="${esc(d.id)}">
+      <div class="kop"><div class="titel">${esc(d.title)}</div>${match?'<span class="badge b-match">Match</span>':''}</div>
+      <div class="meta">${esc(d.manufacturer||'')} · <span class="mono">${esc(d.registration_number_display||nr)}</span> · ${esc(d.declaration_type||'')}${cats(d)?' · '+esc(cats(d)):''}</div>
+      <div class="meta"><span class="badge ${st.k}">${st.t}</span> ${d.visible_from?'sinds '+datumNL(d.visible_from):''}${d.expired_at?' · verlopen '+datumNL(d.expired_at):''} ${inProject(nr)?'<span class="badge b-inproj">✓ In project</span>':''}</div>
+      <div class="acties">
+        <button class="btn klein" type="button" data-act="det">Details</button>
+        ${d.declaration_document?`<button class="btn klein" type="button" data-act="pdf">⬇ Download pdf</button>`:''}
+        ${d.declaration_document?`<button class="btn klein ${inProject(nr)?'':'primary'}" type="button" data-act="proj"${inProject(nr)?' disabled':''}>${inProject(nr)?'✓ In project':'＋ Aan project'}</button>`:''}
+      </div><div class="det" hidden></div></div>`; }).join('') +
+    (verborgen ? `<p class="klein" style="margin-top:8px">${verborgen} verlopen/vervangen verklaring${verborgen>1?'en':''} verborgen (zet “Alleen geldige” uit om ze te zien).</p>` : '');
+}
+async function details(kaart, d){
+  const det = kaart.querySelector('.det');
+  if(!det.hidden){ det.hidden = true; return; }
+  det.hidden = false; det.innerHTML = '<span class="spinner"></span>Laden…';
+  try{
+    const v = await (await fetch(SERVER+'/bcrg/'+d.id)).json();
+    const geldig = [['woningbouw',v.is_applicable_for_residential_function],['utiliteitsbouw',v.is_applicable_for_utility_function],['nieuwbouw',v.is_applicable_for_new_construction],['bestaande bouw',v.is_applicable_for_existing_construction],['basisopname',v.is_applicable_for_basis_capture],['detailopname',v.is_applicable_for_detail_capture]].filter(x=>x[1]).map(x=>x[0]).join(', ');
+    let h = `<div>${esc(v.description||'')}</div><p class="klein" style="margin:6px 0 0">Geldig voor: ${esc(geldig||'–')} · ${(v.guidelines||[]).map(esc).join(', ')}${v.predecessor?' · opvolger van '+esc(v.predecessor.registration_number||''):''}${(v.follow_ups||[]).length?' · opgevolgd door '+v.follow_ups.map(f=>esc(f.registration_number||f)).join(', '):''}</p>`;
+    for(const [soort, blok] of Object.entries(v.specifications||{})){
+      const rijen = (blok && blok.values) || [];
+      if(!rijen.length) continue;
+      const kol = [...new Set(rijen.flatMap(r => Object.keys(r)))].filter(k => k!=='id');
+      h += `<div class="tbl"><table><thead><tr><th colspan="${kol.length}">${esc(soort)}</th></tr><tr>${kol.map(k=>`<th>${esc(k)}</th>`).join('')}</tr></thead><tbody>${rijen.map(r=>`<tr>${kol.map(k=>{const x=r[k];return typeof x==='number'?`<td class="num">${x.toLocaleString('nl-NL')}</td>`:`<td>${esc(x==null?'':typeof x==='object'?JSON.stringify(x):x)}</td>`}).join('')}</tr>`).join('')}</tbody></table></div>`;
+    }
+    det.innerHTML = h;
+  }catch(e){ det.innerHTML = '⚠️ Details laden lukte niet.'; }
+}
+async function haalPdf(d){
+  const r = await fetch(SERVER+'/bcrg-pdf?u='+encodeURIComponent(d.declaration_document));
+  if(!r.ok) throw new Error('pdf niet op te halen ('+r.status+')');
+  return await r.blob();
+}
+const pdfNaam = d => (d.registration_number + ' - ' + (d.title||'').replace(/[\\/:*?"<>|]/g,'').slice(0,90)).trim() + '.pdf';
+async function deel(blob, naam){
+  try{ const f=new File([blob],naam,{type:'application/pdf'}); if(navigator.canShare && navigator.canShare({files:[f]}) && /iPad|iPhone|iPod/.test(navigator.userAgent)){ await navigator.share({files:[f], title:naam}); return; } }catch(e){ if(e && e.name==='AbortError') return; }
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=naam; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 800);
+}
+async function aanProject(d, knop){
+  if(!project){ await kiesProject(); if(!project) return; }
+  knop.disabled = true; knop.innerHTML = '<span class="spinner"></span>Opslaan…';
+  try{
+    const blob = await haalPdf(d), naam = pdfNaam(d);
+    await graph(padUrl(project.pad+'/'+SUBMAP+'/'+naam)+'/content?@microsoft.graph.conflictBehavior=replace', {method:'PUT', headers:{'Content-Type':'application/pdf'}, body:blob});
+    let manifest = [];
+    try{ manifest = JSON.parse(await (await graph(padUrl(project.pad+'/'+SUBMAP+'/'+MANIFEST)+'/content')).text()) || []; }catch(e){}
+    manifest = manifest.filter(m => m.nr !== d.registration_number);
+    manifest.push({nr:d.registration_number, titel:d.title, fabrikant:d.manufacturer, soort:d.declaration_type, categorie:cats(d), status:status(d).t, geldigVanaf:d.visible_from, bestand:naam, bron:d.declaration_document, toegevoegd:new Date().toISOString()});
+    await graph(padUrl(project.pad+'/'+SUBMAP+'/'+MANIFEST)+'/content?@microsoft.graph.conflictBehavior=replace', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(manifest, null, 1)});
+    toast('Opgeslagen in '+SUBMAP);
+    await laadProject();
+  }catch(e){ knop.disabled=false; knop.textContent='＋ Aan project'; melding('fout','Niet opgeslagen: '+esc(e.message||e)); if(String(e.message).includes('ingelogd')||String(e.message).includes('Inlog')) controleer(); }
+}
+
+/* ================= Foto -> herkennen ================= */
+let fotoData = null;
+async function verklein(file){
+  const img = await new Promise((ok, fout) => { const i=new Image(); i.onload=()=>ok(i); i.onerror=fout; i.src=URL.createObjectURL(file); });
+  const max = 1600, sc = Math.min(1, max/Math.max(img.naturalWidth, img.naturalHeight));
+  const c = document.createElement('canvas'); c.width=Math.round(img.naturalWidth*sc); c.height=Math.round(img.naturalHeight*sc);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.85);
+}
+async function kiesFoto(file){
+  if(!file) return;
+  try{ fotoData = await verklein(file); }catch(e){ melding('fout','Deze foto kan niet gelezen worden.'); return; }
+  $('drop-inhoud').innerHTML = `<img src="${fotoData}" alt="Gekozen foto"><span class="klein">Foto gekozen — tik op Zoek (of kies een andere)</span>`;
+  herken();
+}
+async function herken(){
+  if(!fotoData) return;
+  $('herkend').innerHTML = '<div class="herkend"><span class="spinner"></span>Typeplaatje lezen…</div>';
+  try{
+    const r = await fetch(SERVER+'/herken', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({beeld:fotoData})});
+    const d = await r.json();
+    if(!r.ok || d.fout) throw new Error(d.fout || ('fout '+r.status));
+    herkend = d;
+    $('herkend').innerHTML = `<div class="herkend"><b>Herkend:</b> ${esc(d.merk||'?')} · <b>${esc(d.type||d.typenummer||'?')}</b>${d.productsoort?' · '+esc(d.productsoort):''}${d.typenummer&&d.type?'<br><span class="klein">Typenummer: '+esc(d.typenummer)+'</span>':''}${(d.codes||[]).length?'<br><span class="klein">Codes: '+(d.codes||[]).map(esc).join(', ')+'</span>':''}${d.tekst?'<div class="klein" style="margin-top:4px">'+esc(d.tekst)+'</div>':''}</div>`;
+    const type = String(d.type||'').replace(new RegExp('^'+String(d.merk||'').replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*','i'),'');
+    $('q').value = [d.merk, type].filter(Boolean).join(' ');
+    zoek([[d.merk, type].filter(Boolean).join(' '), type, d.typenummer].filter((x,i,a)=>x && a.indexOf(x)===i), {match:true});
+  }catch(e){ $('herkend').innerHTML = `<div class="melding let">Typeplaatje niet herkend (${esc(e.message||e)}). Typ het type hieronder of maak een scherpere foto.</div>`; }
+}
+
+/* ================= Overzicht als PDF ================= */
+function laadScript(src){ return new Promise((ok,fout)=>{ const s=document.createElement('script'); s.src=src; s.onload=ok; s.onerror=()=>fout(new Error('Kan '+src+' niet laden')); document.head.appendChild(s); }); }
+async function overzichtPdf(){
+  if(!project || !projVerklaringen.length){ toast('Nog geen verklaringen in dit project'); return; }
+  try{
+    if(!window.PDFLib) await laadScript('lib/pdf-lib.min.js'); if(!window.fontkit) await laadScript('lib/fontkit.umd.min.js');
+    const get = async u => new Uint8Array(await (await fetch(u)).arrayBuffer());
+    const {PDFDocument, rgb} = PDFLib; const doc = await PDFDocument.create(); doc.registerFontkit(fontkit);
+    const fK = await doc.embedFont(await get('fonts/Merriweather-700-normal.ttf'),{subset:true}), fR = await doc.embedFont(await get('fonts/IBMPlexSans-Regular.ttf'),{subset:true}), fB = await doc.embedFont(await get('fonts/IBMPlexSans-SemiBold.ttf'),{subset:true}), fM = await doc.embedFont(await get('fonts/IBMPlexMono-Medium.ttf'),{subset:true});
+    const W=595.28, H=841.89, L=50, R=W-50, PAARS=rgb(.357,.176,.525), INK=rgb(.094,.137,.165), GR=rgb(.353,.408,.439), LIJN=rgb(.835,.863,.871), OK=rgb(.118,.478,.235), FOUT=rgb(.702,.251,.122);
+    const veilig = (t,f) => { const set=new Set(f.getCharacterSet()); return Array.from(String(t||'')).map(c=>set.has(c.codePointAt(0))?c:(c==='›'?'>':'')).join(''); };
+    const wrap = (t,f,s,max) => { const out=[]; let r=''; veilig(t,f).split(/\s+/).forEach(w=>{ const p=r?r+' '+w:w; if(f.widthOfTextAtSize(p,s)>max&&r){out.push(r);r=w;}else r=p; }); if(r) out.push(r); return out; };
+    let page, y;
+    const nieuw = () => { page = doc.addPage([W,H]); page.drawRectangle({x:0,y:H-5,width:W,height:5,color:PAARS}); y = 50; };
+    const tekst = (t,x,yy,s,f,c) => page.drawText(veilig(t,f),{x,y:H-yy,size:s,font:f,color:c});
+    nieuw();
+    tekst('BCRG-DATABANK · '+new Date().toLocaleDateString('nl-NL',{day:'numeric',month:'long',year:'numeric'}).toUpperCase(),L,y,8,fM,GR); y+=26;
+    tekst('Kwaliteitsverklaringen',L,y,22,fK,INK); y+=18;
+    tekst(project.naam,L,y,11,fB,INK); y+=14;
+    tekst('John Visser · EnergiePrestatie-adviseur · Visser Inspecties',L,y,9,fR,GR); y+=22;
+    page.drawLine({start:{x:L,y:H-y},end:{x:R,y:H-y},thickness:1,color:PAARS}); y+=18;
+    projVerklaringen.forEach((v,i) => {
+      const tl = wrap(v.titel,fB,10.5,R-L-110), ml = wrap([v.fabrikant,v.soort,v.categorie].filter(Boolean).join(' · '),fR,8.5,R-L-110);
+      const h = tl.length*13 + ml.length*11 + 14;
+      if(y+h > H-60){ nieuw(); }
+      tekst(v.nr||'–',L,y,9,fM,PAARS);
+      tl.forEach((r,j)=>tekst(r,L+90,y+j*13,10.5,fB,INK));
+      ml.forEach((r,j)=>tekst(r,L+90,y+tl.length*13+j*11,8.5,fR,GR));
+      if(v.status){ const ok=v.status==='Geldig'; tekst(v.status,R-fB.widthOfTextAtSize(v.status,9),y,9,fB,ok?OK:FOUT); }
+      y += h - 6; page.drawLine({start:{x:L,y:H-y},end:{x:R,y:H-y},thickness:.4,color:LIJN}); y += 14;
+    });
+    const n = doc.getPageCount();
+    doc.getPages().forEach((p,i) => { page=p; tekst('Bron: BCRG-databank Energieprestaties (mijn.bcrg.nl) · Visser Inspecties · EnergiePrestatie-advies',L,H-28,7,fR,GR); tekst('pagina '+(i+1)+' van '+n,R-50,H-28,7,fM,GR); });
+    doc.setTitle('Kwaliteitsverklaringen – '+project.naam); doc.setAuthor('John Visser – Visser Inspecties');
+    await deel(new Blob([await doc.save()],{type:'application/pdf'}), 'Kwaliteitsverklaringen - '+project.naam.replace(/[\\/:*?"<>|]/g,'')+'.pdf');
+  }catch(e){ toast('PDF maken lukte niet: '+(e.message||e)); }
+}
+
+/* ================= Bediening ================= */
+$('foto').addEventListener('change', e => kiesFoto(e.target.files[0]));
+const drop = $('drop');
+['dragover','dragenter'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(t => drop.addEventListener(t, () => drop.classList.remove('over')));
+drop.addEventListener('drop', e => { e.preventDefault(); const f=e.dataTransfer.files[0]; if(f) kiesFoto(f); });
+$('zoek').onclick = () => { const q=$('q').value.trim(); if(q) zoek([q], {match:false}); else if(fotoData) herken(); else melding('let','Typ iets om te zoeken of maak een foto.'); };
+$('q').addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); $('zoek').click(); } });
+['cat','alleengk'].forEach(id => $(id).addEventListener('change', () => { if(laatsteZoek) zoek(laatsteZoek.termen, {match:!!herkend}); }));
+$('geldig').addEventListener('change', renderResultaten);
+$('meerknop').onclick = meer;
+$('pq').addEventListener('input', renderProject);
+$('overzicht').onclick = overzichtPdf;
+$('resultaten').addEventListener('click', async e => {
+  const b = e.target.closest('button[data-act]'); if(!b) return;
+  const kaart = b.closest('.res'), r = resultaten.find(x => x.d.id === kaart.dataset.id); if(!r) return;
+  if(b.dataset.act==='det') details(kaart, r.d);
+  else if(b.dataset.act==='pdf'){ b.disabled=true; try{ await deel(await haalPdf(r.d), pdfNaam(r.d)); }catch(err){ toast('Download lukte niet'); } b.disabled=false; }
+  else if(b.dataset.act==='proj') aanProject(r.d, b);
+});
+startProject(); renderProject(); controleer();
+window.addEventListener('online', controleer);
+})();
+</script>
+</body>
+</html>
