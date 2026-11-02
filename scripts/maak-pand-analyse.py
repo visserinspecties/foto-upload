@@ -406,7 +406,7 @@ vervang("$('bag-tol').onchange=()=>{S.roles={};compute();renderAll(false);change
 vervang("  S.blds.forEach(b=>{const ll=b.ring.map(c=>rd2wgs(c[0],c[1]));const h=relH(b);const sel=b.id===S.sel;\n    L.polygon(",
         "  S.blds.forEach(b=>{const ll=b.ring.map(c=>rd2wgs(c[0],c[1]));const h=relH(b);const sel=b.id===S.sel;if(S.burenUit&&!sel)return;\n    L.polygon(")
 vervang("    // pijl op de geselecteerde gevel, loodrecht naar buiten\n",
-        "    // VG/AG/LG/RG binnen het pand, bij elk geveldeel\n    {const cs=codes();if(cs)visible().forEach(({e,i})=>{const c=cs[i];if(!c||(e.len<2&&c!=='VG'))return;const p=[e.mid[0]-e.n[0]*1.8,e.mid[1]-e.n[1]*1.8];\n      L.marker(rd2wgs(...p),{icon:L.divIcon({html:`<span class=\"bag-code${c==='VG'?' vg':''}\">${c}</span>`,className:'',iconSize:null,iconAnchor:[14,9]})}).addTo(grp).on('click',()=>selEdge(i))})}\n    // pijl op de geselecteerde gevel, loodrecht naar buiten\n")
+        "    // VG/AG/LG/RG binnen het pand: één label per gevel, bij het langste geveldeel (VG bij de echte voorgevel)\n    {const cs=codes(),vi=vgIndex(),lang={};if(cs){visible().forEach(({e,i})=>{const c=cs[i];if(!c)return;if(lang[c]===undefined||e.len>S.edges[lang[c]].len)lang[c]=i});if(vi>=0)lang.VG=vi;\n      Object.entries(lang).forEach(([c,i])=>{const e=S.edges[i],t=e.len>5?0.62:0.5,p=[e.a[0]+(e.c[0]-e.a[0])*t-e.n[0]*2.2,e.a[1]+(e.c[1]-e.a[1])*t-e.n[1]*2.2];\n      L.marker(rd2wgs(...p),{icon:L.divIcon({html:`<span class=\"bag-code${c==='VG'?' vg':''}\">${c}</span>`,className:'',iconSize:null,iconAnchor:[14,9]})}).addTo(grp).on('click',()=>selEdge(i))})}}\n    // pijl op de geselecteerde gevel, loodrecht naar buiten\n")
 vervang("  map.on('click',e=>{const[x,y]=wgs2rd(e.latlng.lat,e.latlng.lng);const hit=S.blds.find(b=>inside([x,y],b.ring));\n    if(hit)selectBld(hit.id,false);else loadArea(x,y,null)});",
         "  map.on('click',e=>{const[x,y]=wgs2rd(e.latlng.lat,e.latlng.lng);const hit=S.blds.find(b=>inside([x,y],b.ring));\n    if(S.burenUit&&!(hit&&hit.id===S.sel))return;   // buren verborgen: niet per ongeluk een ander pand kiezen\n    if(hit)selectBld(hit.id,false);else loadArea(x,y,null)});")
 # 3D: buren verbergen
@@ -459,7 +459,8 @@ vervang("  S.blds.forEach(o=>{if(o.id===b.id)return;s+=`<polygon points=",
         "  S.blds.forEach(o=>{if(o.id===b.id||S.burenUit)return;s+=`<polygon points=")
 vervang("""    s+=`<line x1="${A[0]}" y1="${A[1]}" x2="${Z[0]}" y2="${Z[1]}" stroke="${c}" stroke-width="${bel?4:6}" ${bel?'stroke-dasharray="7 6"':''}/>`});""",
         """    s+=`<line x1="${A[0]}" y1="${A[1]}" x2="${Z[0]}" y2="${Z[1]}" stroke="${c}" stroke-width="${bel?4:6}" ${bel?'stroke-dasharray="7 6"':''}/>`});
-  {const cs=codes();if(cs)visible().forEach(({e,i})=>{const c=cs[i];if(!c||(e.len<2&&c!=='VG'))return;const q=P([e.mid[0]-e.n[0]*Math.max(1.6,14/sc),e.mid[1]-e.n[1]*Math.max(1.6,14/sc)]);
+  {const cs=codes(),vi=vgIndex(),lang={};if(cs)visible().forEach(({e,i})=>{const c=cs[i];if(!c)return;if(lang[c]===undefined||e.len>S.edges[lang[c]].len)lang[c]=i});if(vi>=0)lang.VG=vi;
+   Object.entries(lang).forEach(([c,i])=>{const e=S.edges[i],d=Math.max(1.8,16/sc),t=e.len>5?0.62:0.5;const q=P([e.a[0]+(e.c[0]-e.a[0])*t-e.n[0]*d,e.a[1]+(e.c[1]-e.a[1])*t-e.n[1]*d]);
     s+=`<rect x="${q[0]-14}" y="${q[1]-8}" width="28" height="16" rx="4" fill="${c==='VG'?'#E08A00':'#432D6A'}"/><text x="${q[0]}" y="${+q[1]+4}" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">${c}</text>`})}""")
 
 DOEL.write_text(s, encoding='utf-8')

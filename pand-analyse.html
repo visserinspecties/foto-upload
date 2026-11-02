@@ -1567,9 +1567,10 @@ function renderMap(fit){
     gr.filter(g=>g.dir!=='BEL').forEach(g=>{const e=S.edges[g.langste],c=DCOL[g.dir],dim=hl&&hl!==g.dir;
       const t=e.len>5?0.28:0.5,base=[e.a[0]+(e.c[0]-e.a[0])*t,e.a[1]+(e.c[1]-e.a[1])*t],lp=[base[0]+e.n[0]*2.4,base[1]+e.n[1]*2.4];
       L.marker(rd2wgs(...lp),{icon:L.divIcon({html:`<span class="bag-lbl" style="border-color:${c};color:${c};opacity:${dim?.35:1}">${g.dir}</span>`,className:'',iconSize:null,iconAnchor:[17,11]})}).addTo(grp).on('click',()=>kiesGroep(g.dir))});
-    // VG/AG/LG/RG binnen het pand, bij elk geveldeel
-    {const cs=codes();if(cs)visible().forEach(({e,i})=>{const c=cs[i];if(!c||(e.len<2&&c!=='VG'))return;const p=[e.mid[0]-e.n[0]*1.8,e.mid[1]-e.n[1]*1.8];
-      L.marker(rd2wgs(...p),{icon:L.divIcon({html:`<span class="bag-code${c==='VG'?' vg':''}">${c}</span>`,className:'',iconSize:null,iconAnchor:[14,9]})}).addTo(grp).on('click',()=>selEdge(i))})}
+    // VG/AG/LG/RG binnen het pand: één label per gevel, bij het langste geveldeel (VG bij de echte voorgevel)
+    {const cs=codes(),vi=vgIndex(),lang={};if(cs){visible().forEach(({e,i})=>{const c=cs[i];if(!c)return;if(lang[c]===undefined||e.len>S.edges[lang[c]].len)lang[c]=i});if(vi>=0)lang.VG=vi;
+      Object.entries(lang).forEach(([c,i])=>{const e=S.edges[i],t=e.len>5?0.62:0.5,p=[e.a[0]+(e.c[0]-e.a[0])*t-e.n[0]*2.2,e.a[1]+(e.c[1]-e.a[1])*t-e.n[1]*2.2];
+      L.marker(rd2wgs(...p),{icon:L.divIcon({html:`<span class="bag-code${c==='VG'?' vg':''}">${c}</span>`,className:'',iconSize:null,iconAnchor:[14,9]})}).addTo(grp).on('click',()=>selEdge(i))})}}
     // pijl op de geselecteerde gevel, loodrecht naar buiten
     const e=S.edges[S.eSel];
     if(e){const Lp=Math.min(Math.max(e.len*.45,3.5),7),tg=[-e.n[1],e.n[0]],P=(d,s)=>rd2wgs(e.mid[0]+e.n[0]*d+tg[0]*s,e.mid[1]+e.n[1]*d+tg[1]*s);
@@ -1872,7 +1873,8 @@ function planSVG(W,Hh){
   s+=`<polygon points="${b.ring.map(c=>P(c).join(',')).join(' ')}" fill="#E8E1F1" stroke="#432D6A" stroke-width="1"/>`;
   visible().forEach(({e,i})=>{const bel=role(i)==='Belendend',c=bel?'#8a8f8c':DCOL[e.dir],A=P(e.a),Z=P(e.c);
     s+=`<line x1="${A[0]}" y1="${A[1]}" x2="${Z[0]}" y2="${Z[1]}" stroke="${c}" stroke-width="${bel?4:6}" ${bel?'stroke-dasharray="7 6"':''}/>`});
-  {const cs=codes();if(cs)visible().forEach(({e,i})=>{const c=cs[i];if(!c||(e.len<2&&c!=='VG'))return;const q=P([e.mid[0]-e.n[0]*Math.max(1.6,14/sc),e.mid[1]-e.n[1]*Math.max(1.6,14/sc)]);
+  {const cs=codes(),vi=vgIndex(),lang={};if(cs)visible().forEach(({e,i})=>{const c=cs[i];if(!c)return;if(lang[c]===undefined||e.len>S.edges[lang[c]].len)lang[c]=i});if(vi>=0)lang.VG=vi;
+   Object.entries(lang).forEach(([c,i])=>{const e=S.edges[i],d=Math.max(1.8,16/sc),t=e.len>5?0.62:0.5;const q=P([e.a[0]+(e.c[0]-e.a[0])*t-e.n[0]*d,e.a[1]+(e.c[1]-e.a[1])*t-e.n[1]*d]);
     s+=`<rect x="${q[0]-14}" y="${q[1]-8}" width="28" height="16" rx="4" fill="${c==='VG'?'#E08A00':'#432D6A'}"/><text x="${q[0]}" y="${+q[1]+4}" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">${c}</text>`})}
   const es=S.edges[S.eSel];
   if(es){const Lp=Math.max(34/sc,Math.min(Math.max(es.len*.45,3.5),7)),m=P(es.mid),t=P([es.mid[0]+es.n[0]*Lp,es.mid[1]+es.n[1]*Lp]);
