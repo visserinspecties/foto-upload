@@ -170,6 +170,13 @@ body.tab-bag .wrap{max-width:1180px}
 .bag-tools{position:absolute;z-index:1000;top:8px;right:8px;display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
 .bag-tools button,.bag-tools select{border:0;background:#fff;color:#1d2b25;padding:7px 10px;border-radius:7px;font-size:.75rem;font-weight:600;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.2);min-height:32px}
 .bag-tools button.on{background:#432D6A;color:#fff}
+.bag-code{background:#432D6A;color:#fff;border-radius:6px;padding:1px 6px;font-weight:800;font-size:11px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.35);cursor:pointer}
+.bag-code.vg{background:#E08A00;font-size:12px;padding:2px 7px}
+.bag-codepill{display:inline-block;min-width:30px;text-align:center;border-radius:6px;padding:1px 6px;font-weight:800;font-size:.75rem;background:#EFEAF5;color:#432D6A}
+.bag-codepill.vg{background:#E08A00;color:#fff}
+.bag-vgblok{background:#F4F2F6;border-left:4px solid #E08A00;border-radius:8px;padding:8px 10px;margin:0 0 10px;font-size:.85rem}
+.bag-vgblok table{width:100%;margin-top:6px}
+.bag-vgknop{margin-top:8px}
 .bag-grid{display:grid;grid-template-columns:1fr;gap:14px}
 @media(min-width:900px){.bag-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
 .bag-grid .kaart{margin:0}
@@ -726,7 +733,7 @@ body.tab-bag .wrap{max-width:1180px}
           <div class="bag-tools">
             <button type="button" data-l="lucht" class="on">Luchtfoto</button><button type="button" data-l="kaart">Kaart</button>
             <select id="bag-rad"><option value="40">Straal 40 m</option><option value="75" selected>Straal 75 m</option><option value="125">Straal 125 m</option></select>
-            <button type="button" id="bag-t3d" class="on">3D</button>
+            <button type="button" id="bag-buren" class="on" title="Belendende panden tonen of verbergen">Buren</button><button type="button" id="bag-t3d" class="on">3D</button>
           </div>
         </div>
         <div class="bag-vw bag-vw3">
@@ -734,7 +741,7 @@ body.tab-bag .wrap{max-width:1180px}
           <div class="bag-tag">3D · slepen = draaien · rechts = schuiven · scroll = zoom</div>
           <div class="bag-tools">
             <select id="bag-hsel"><option value="b3_h_dak_max" selected>Nokhoogte</option><option value="b3_h_dak_70p">Hoogte 70% dak</option><option value="b3_h_dak_50p">Hoogte 50% dak</option></select>
-            <button type="button" id="bag-reset">Reset</button><button type="button" id="bag-exag">×1</button>
+            <button type="button" id="bag-buren3" class="on" title="Belendende panden tonen of verbergen">Buren</button><button type="button" id="bag-reset">Reset</button><button type="button" id="bag-exag">×1</button>
           </div>
         </div>
       </div>
@@ -761,8 +768,8 @@ body.tab-bag .wrap{max-width:1180px}
             <div id="bag-groepen"><p class="klein">—</p></div>
             <p class="klein">Gevellengte per oriëntatie, loodrecht op de gevel naar buiten t.o.v. het ware noorden; 8 sectoren van 45° (N = 337,5°–22,5°) conform NTA 8800. Gedeelde muren (tegen een ander BAG-pand) worden automatisch herkend en tellen niet mee.</p>
             <details><summary>Alle geveldelen (<span id="bag-ndelen">0</span>) en rollen</summary>
-              <table><thead><tr><th>#</th><th>Lengte</th><th>Azimut</th><th>Or.</th><th>Rol</th></tr></thead>
-                <tbody id="bag-tb"><tr><td colspan="5" class="klein">—</td></tr></tbody></table>
+              <table><thead><tr><th>#</th><th>Lengte</th><th>Azimut</th><th>Or.</th><th>Gevel</th><th>Rol</th></tr></thead>
+                <tbody id="bag-tb"><tr><td colspan="6" class="klein">—</td></tr></tbody></table>
               <div class="bag-rij">
                 <label>Samenvoegen bij knik &lt; <input type="number" id="bag-tol" value="8" min="0" max="30" style="width:52px">°</label>
                 <label>Verberg &lt; <input type="number" id="bag-minl" value="0.5" min="0" step="0.1" style="width:56px"> m</label>
@@ -945,7 +952,7 @@ function col(h){if(h==null)return[190,190,190];for(let i=1;i<STOPS.length;i++){i
 const css=c=>`rgb(${c.join(',')})`;
 
 /* ===== State ===== */
-const S={center:null,addr:null,addrPt:null,blds:[],sel:null,edges:[],area:0,roles:{},auto:{},eSel:-1,autoSel:true,hlDir:null,exag:1,tab:'orient'};
+const S={center:null,addr:null,addrPt:null,blds:[],sel:null,edges:[],area:0,roles:{},auto:{},eSel:-1,autoSel:true,hlDir:null,exag:1,tab:'orient',vgInfo:'',vgTok:0,burenUit:(()=>{try{return localStorage.getItem('pa_buren_uit')==='1'}catch(e){return false}})()};
 const H=()=>$('bag-hsel').value;
 const relH=(b,k=H())=>{if(!b||!b.h||b.h.b3_h_maaiveld==null)return null;const v=b.h[k]!=null?b.h[k]:b.h.b3_h_dak_70p;return v==null?null:v-b.h.b3_h_maaiveld};
 const selB=()=>S.blds.find(b=>b.id===S.sel);
@@ -967,6 +974,7 @@ function init(){
   document.querySelectorAll('#bag [data-l]').forEach(b=>b.onclick=()=>{document.querySelectorAll('#bag [data-l]').forEach(x=>x.classList.remove('on'));b.classList.add('on');Object.values(layers).forEach(l=>map.removeLayer(l));layers[b.dataset.l].addTo(map)});
   grp=L.layerGroup().addTo(map);
   map.on('click',e=>{const[x,y]=wgs2rd(e.latlng.lat,e.latlng.lng);const hit=S.blds.find(b=>inside([x,y],b.ring));
+    if(S.burenUit&&!(hit&&hit.id===S.sel))return;   // buren verborgen: niet per ongeluk een ander pand kiezen
     if(hit)selectBld(hit.id,false);else loadArea(x,y,null)});
   init3d();
   $('bag-leg').innerHTML=Array.from({length:30},(_,i)=>`<span style="flex:1;background:${css(col(i*2))}"></span>`).join('');
@@ -1453,7 +1461,7 @@ async function loadArea(x,y,addr,keepSel){
 }
 
 function selectBld(id,fit,first){
-  S.sel=id;S.roles={};S.eSel=-1;compute();
+  S.sel=id;S.roles={};S.eSel=-1;compute();setTimeout(autoVoorgevel,0);
   renderAll(!!fit);if(fit)resetView();
   if(!fit&&!first){const b=selB();if(b&&map&&!map.getBounds().contains(rd2wgs(...centroid(b.ring))))map.panTo(rd2wgs(...centroid(b.ring)))}
   changed();
@@ -1501,6 +1509,43 @@ function groepen(){
 function grensInfo(az){const r=((az-22.5)%45+45)%45,d=Math.min(r,45-r);return d<3?[dirOf(az-3),dirOf(az+3)].filter((x,i,a)=>a.indexOf(x)===i):null}
 const visible=()=>{const m=+$('bag-minl').value||0;return S.edges.map((e,i)=>({e,i})).filter(o=>o.e.len>=m)};
 const role=i=>S.roles[i]||'Gevel';
+/* ---- VG/AG/LG/RG: staande voor de voorgevel, kijkend naar het huis: links = LG, rechts = RG ---- */
+const angD=(a,b)=>{const d=Math.abs(((a-b)%360+360)%360);return d>180?360-d:d};
+function vgIndex(){for(const k in S.roles)if(S.roles[k]==='Voorgevel'&&S.edges[+k])return +k;return -1}
+function codes(){const vi=vgIndex();if(vi<0)return null;const av=S.edges[vi].az,doel={VG:av,LG:(av+90)%360,AG:(av+180)%360,RG:(av+270)%360};
+  return S.edges.map((e,i)=>{if(role(i)==='Belendend')return null;if(i===vi)return'VG';let best=null,bd=1e9;for(const k in doel){const d=angD(e.az,doel[k]);if(d<bd){bd=d;best=k}}return best})}
+function codeVan(i){const c=codes();return c?c[i]:null}
+function zetVoorgevel(i,bron){for(const k in S.roles)if(S.roles[k]==='Voorgevel'||(S.roles[k]==='Achtergevel'&&S.vgAuto))delete S.roles[k];
+  S.roles[i]='Voorgevel';delete S.auto[i];autoFill(i);S.vgAuto=bron==='auto';if(bron!=='auto')S.vgInfo='Voorgevel zelf aangewezen: gevel '+(i+1)+'.';
+  S.eSel=i;S.autoSel=false;renderMap(false);renderGevels();changed()}
+const opSeg=(p,a,b)=>{const dx=b[0]-a[0],dy=b[1]-a[1],l2=dx*dx+dy*dy,t=l2?Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/l2)):0;return[a[0]+t*dx,a[1]+t*dy]};
+function dichtbij(p,lijnen){let best=null,bd=1e18;for(const l of lijnen)for(let i=0;i<l.length-1;i++){const q=opSeg(p,l[i],l[i+1]),d=Math.hypot(q[0]-p[0],q[1]-p[1]);if(d<bd){bd=d;best=q}}return best?{punt:best,afstand:bd}:null}
+async function autoVoorgevel(){
+  const b=selB();if(!b||!S.edges.length)return;const tok=++S.vgTok;S.vgInfo='';
+  if(vgIndex()>=0)return;
+  const v=vboOf(b);if(!v||!v.postcode||!v.huisnummer){S.vgInfo='Voorgevel niet automatisch bepaald (geen adres bij dit pand): wijs hem zelf aan.';renderGevels();return}
+  try{
+    const q=`postcode:${String(v.postcode).replace(/\s/g,'')} and huisnummer:${v.huisnummer}`;
+    const ad=((((await (await fetch(LS+'/free?q='+encodeURIComponent(q)+'&fq=type:adres&rows=1&fl=openbareruimte_id,centroide_rd,straatnaam')).json()).response)||{}).docs||[])[0];
+    if(tok!==S.vgTok)return;
+    const pm=/POINT\(([-\d.]+) ([-\d.]+)\)/.exec((ad&&ad.centroide_rd)||'');
+    if(!ad||!ad.openbareruimte_id||!pm){S.vgInfo='Voorgevel niet automatisch bepaald (geen straatgegevens): wijs hem zelf aan.';renderGevels();return}
+    const weg=((((await (await fetch(LS+'/free?fq=type:weg&fq=openbareruimte_id:'+encodeURIComponent(ad.openbareruimte_id)+'&rows=1&fl=geometrie_rd')).json()).response)||{}).docs||[])[0];
+    if(tok!==S.vgTok)return;
+    if(!weg||!weg.geometrie_rd){S.vgInfo='Voorgevel niet automatisch bepaald (straat niet gevonden): wijs hem zelf aan.';renderGevels();return}
+    const lijnen=[];for(const g of weg.geometrie_rd.match(/\(([^()]+)\)/g)||[]){const pts=g.replace(/[()]/g,'').split(',').map(t=>t.trim().split(/\s+/).map(Number));if(pts.length>=2)lijnen.push(pts)}
+    const adr=S.addrPt||[+pm[1],+pm[2]],d0=dichtbij(adr,lijnen);
+    if(!d0){S.vgInfo='Voorgevel niet automatisch bepaald: wijs hem zelf aan.';renderGevels();return}
+    const richting=((Math.atan2(d0.punt[0]-adr[0],d0.punt[1]-adr[1])*180/Math.PI)+360)%360;
+    let beste=-1,score=1e18,ruim=false;
+    for(const grens of[50,181]){S.edges.forEach((e,i)=>{if(e.len<2||role(i)==='Belendend')return;const vs=angD(e.az,richting);if(vs>grens)return;
+        const sc=dichtbij(e.mid,lijnen).afstand+vs*0.05-Math.min(e.len,10)*0.2;if(sc<score){score=sc;beste=i}});
+      if(beste>=0){ruim=grens>50;break}}
+    if(beste<0||vgIndex()>=0||tok!==S.vgTok){if(beste<0){S.vgInfo='Voorgevel niet automatisch bepaald: wijs hem zelf aan.';renderGevels()}return}
+    S.vgInfo='Voorgevel automatisch gekozen: gevel '+(beste+1)+' kijkt naar '+(ad.straatnaam||'de straat')+(ruim?' (bij benadering)':'')+'. Klopt het niet? Kies een andere gevel en tik op “Maak voorgevel”.';
+    zetVoorgevel(beste,'auto');
+  }catch(e){if(tok===S.vgTok){S.vgInfo='Voorgevel kon niet automatisch bepaald worden (geen verbinding): wijs hem zelf aan.';renderGevels()}}
+}
 function totals(){const t={};visible().forEach(({e,i})=>{if(role(i)!=='Belendend')t[e.dir]=(t[e.dir]||0)+e.len});return t}
 
 /* ===== Render ===== */
@@ -1510,7 +1555,7 @@ function renderGevels(){renderTable();renderRose();renderRes();renderGroepen();r
 function renderMap(fit){
   if(!grp)return;grp.clearLayers();if(!S.blds.length)return;
   const orient=S.tab!=='hoogte';
-  S.blds.forEach(b=>{const ll=b.ring.map(c=>rd2wgs(c[0],c[1]));const h=relH(b);const sel=b.id===S.sel;
+  S.blds.forEach(b=>{const ll=b.ring.map(c=>rd2wgs(c[0],c[1]));const h=relH(b);const sel=b.id===S.sel;if(S.burenUit&&!sel)return;
     L.polygon(ll,{color:sel?'#432D6A':'#fff',weight:sel?(orient?1:3):1,fillColor:orient?(sel?'#ffffff':'#e9ece9'):css(col(h)),fillOpacity:orient?(sel?.35:.45):(sel?.85:.6),interactive:false}).addTo(grp);
     if(!orient&&h!=null&&(sel||Math.abs(polyArea(b.ring))>40)){const c=centroid(b.ring);
       L.marker(rd2wgs(c[0],c[1]),{interactive:false,icon:L.divIcon({className:'',html:`<span class="bag-hl">${fmt(h)} m</span>`,iconSize:null,iconAnchor:[18,8]})}).addTo(grp)}});
@@ -1522,6 +1567,9 @@ function renderMap(fit){
     gr.filter(g=>g.dir!=='BEL').forEach(g=>{const e=S.edges[g.langste],c=DCOL[g.dir],dim=hl&&hl!==g.dir;
       const t=e.len>5?0.28:0.5,base=[e.a[0]+(e.c[0]-e.a[0])*t,e.a[1]+(e.c[1]-e.a[1])*t],lp=[base[0]+e.n[0]*2.4,base[1]+e.n[1]*2.4];
       L.marker(rd2wgs(...lp),{icon:L.divIcon({html:`<span class="bag-lbl" style="border-color:${c};color:${c};opacity:${dim?.35:1}">${g.dir}</span>`,className:'',iconSize:null,iconAnchor:[17,11]})}).addTo(grp).on('click',()=>kiesGroep(g.dir))});
+    // VG/AG/LG/RG binnen het pand, bij elk geveldeel
+    {const cs=codes();if(cs)visible().forEach(({e,i})=>{const c=cs[i];if(!c||(e.len<2&&c!=='VG'))return;const p=[e.mid[0]-e.n[0]*1.8,e.mid[1]-e.n[1]*1.8];
+      L.marker(rd2wgs(...p),{icon:L.divIcon({html:`<span class="bag-code${c==='VG'?' vg':''}">${c}</span>`,className:'',iconSize:null,iconAnchor:[14,9]})}).addTo(grp).on('click',()=>selEdge(i))})}
     // pijl op de geselecteerde gevel, loodrecht naar buiten
     const e=S.edges[S.eSel];
     if(e){const Lp=Math.min(Math.max(e.len*.45,3.5),7),tg=[-e.n[1],e.n[0]],P=(d,s)=>rd2wgs(e.mid[0]+e.n[0]*d+tg[0]*s,e.mid[1]+e.n[1]*d+tg[1]*s);
@@ -1622,15 +1670,16 @@ function renderVbo(b){
   if(cur&&labelApi()&&!res){haalLabel(cur).then(()=>{if(selB()===b&&vboOf(b)===cur){renderVbo(b);changed()}})}
 }
 function renderTable(){
-  const tb=$('bag-tb');const vis=visible();$('bag-ndelen').textContent=vis.length;if(!vis.length){tb.innerHTML='<tr><td colspan="5" class="klein">—</td></tr>';return}
+  const tb=$('bag-tb');const vis=visible();$('bag-ndelen').textContent=vis.length;if(!vis.length){tb.innerHTML='<tr><td colspan="6" class="klein">—</td></tr>';return}
   tb.innerHTML=vis.map(({e,i})=>`<tr data-i="${i}" class="${i===S.eSel?'sel':''} ${role(i)==='Belendend'?'bel':''}">
     <td><b>${i+1}</b></td><td>${fmt(e.len)} m</td><td>${Math.round(e.az)}°</td>
     <td><span class="bag-pill" style="background:${role(i)==='Belendend'?'#aaa':DCOL[e.dir]}">${e.dir}</span></td>
+    <td>${(c=>c?`<span class="bag-codepill${c==='VG'?' vg':''}">${c}</span>`:'<span class="klein">–</span>')(codeVan(i))}</td>
     <td><select data-i="${i}">${ROLES.map(r=>`<option${r===role(i)?' selected':''}>${r}</option>`).join('')}</select>${S.auto[i]?' <span class="klein" title="Automatisch herkend: ligt tegen een ander BAG-pand">auto</span>':''}</td></tr>`).join('');
   tb.querySelectorAll('tr').forEach(tr=>tr.onclick=ev=>{if(!['SELECT','OPTION'].includes(ev.target.tagName))selEdge(+tr.dataset.i)});
   tb.querySelectorAll('select').forEach(s=>s.onchange=()=>{const i=+s.dataset.i;
     if(['Voorgevel','Achtergevel'].includes(s.value))for(const k in S.roles)if(S.roles[k]===s.value)delete S.roles[k];
-    S.roles[i]=s.value;delete S.auto[i];autoFill(i);renderMap(false);renderGevels();changed()});
+    S.roles[i]=s.value;delete S.auto[i];if(s.value==='Voorgevel'){S.vgAuto=false;S.vgInfo='Voorgevel zelf aangewezen: gevel '+(i+1)+'.'}autoFill(i);renderMap(false);renderGevels();changed()});
 }
 function autoFill(i){if(S.roles[i]!=='Voorgevel'||Object.values(S.roles).includes('Achtergevel'))return;
   const az=S.edges[i].az;let best=-1,bd=99;visible().forEach(({e,i:j})=>{if(j===i||S.roles[j])return;const d=Math.abs(((e.az-az+360)%360)-180);if(d<bd&&e.len>2){bd=d;best=j}});
@@ -1656,16 +1705,25 @@ function renderRes(){
   if(!selB()||!e){el.innerHTML='<p class="klein">Zoek een adres of klik op een pand.</p>';return}
   const bel=role(S.eSel)==='Belendend',gr=grensInfo(e.az),rol=role(S.eSel);
   el.innerHTML=`<div class="bag-res"><div class="bag-res-dir" style="background:${bel?'#8a8f8c':DCOL[e.dir]}">${e.dir}</div>
-    <div><div class="bag-res-az">${Math.round(e.az)}°</div><div class="klein">t.o.v. het ware noorden · gevel ${S.eSel+1}${rol!=='Gevel'?' · '+rol.toLowerCase():''} · lengte ${fmt(e.len)} m</div>
-    <p class="klein" style="margin:6px 0 0">${S.autoSel?'Automatisch gekozen: meest zuidgerichte gevel.':'Zelf gekozen gevel.'} Loodrecht op de gevel, vanuit het pand naar buiten. Klik een andere gevel op de kaart om te wisselen.</p>
+    <div><div class="bag-res-az">${Math.round(e.az)}°</div><div class="klein">t.o.v. het ware noorden · gevel ${S.eSel+1}${codeVan(S.eSel)?' · <b>'+codeVan(S.eSel)+'</b>':''}${rol!=='Gevel'?' · '+rol.toLowerCase():''} · lengte ${fmt(e.len)} m</div>
+    <p class="klein" style="margin:6px 0 0">${S.autoSel?'Automatisch gekozen: meest zuidgerichte gevel.':(rol==='Voorgevel'?'Voorgevel.':'Zelf gekozen gevel.')} Loodrecht op de gevel, vanuit het pand naar buiten. Klik een andere gevel op de kaart om te wisselen.</p>
+    ${!bel&&rol!=='Voorgevel'?'<button type="button" class="actie licht bag-vgknop" id="bag-maakvg">⭐ Maak voorgevel (VG)</button>':''}
     ${bel?'<div class="bag-let">Waarschijnlijk een gedeelde muur (tegen een ander BAG-pand).</div>':''}
     ${gr?`<div class="bag-let">Let op: ligt binnen 3° van de grens ${gr.join(' / ')}. Controleer ter plaatse.</div>`:''}</div></div>`;
 }
+function vgBlok(){
+  const cs=codes(),vi=vgIndex();
+  if(!cs)return`<div class="bag-vgblok">${esc(S.vgInfo||'Voorgevel zoeken…')}<br><span class="klein">Kies een gevel op de kaart of in de tabel en tik op “Maak voorgevel”.</span></div>`;
+  const tot={},az={};S.edges.forEach((e,i)=>{const c=cs[i];if(!c||e.len<(+$('bag-minl').value||0))return;tot[c]=(tot[c]||0)+e.len});
+  const av=S.edges[vi].az,dz={VG:av,LG:(av+90)%360,AG:(av+180)%360,RG:(av+270)%360};
+  return`<div class="bag-vgblok">${esc(S.vgInfo||('Voorgevel: gevel '+(vi+1)+'.'))}<table>${['VG','AG','LG','RG'].map(k=>`<tr><td><span class="bag-codepill${k==='VG'?' vg':''}">${k}</span></td><td>${dirOf(dz[k])} · ${Math.round(dz[k])}°</td><td style="text-align:right">${tot[k]?fmt(tot[k])+' m':'<span class="klein">–</span>'}</td></tr>`).join('')}</table><span class="klein">Staande voor de voorgevel, kijkend naar het huis: links = LG, rechts = RG. Gedeelde muren tellen niet mee.</span></div>`;
+}
 function renderGroepen(){
+  {const k=$('bag-maakvg');if(k)k.onclick=()=>zetVoorgevel(S.eSel,'hand')}
   const el=$('bag-groepen');const gr=groepen(),gv=gevelvlakken(selB());
   if(!gr.length){el.innerHTML='<p class="klein">—</p>';return}
   const mx=Math.max(...gr.map(g=>g.len));
-  el.innerHTML=gr.map(g=>{const bel=g.dir==='BEL',c=bel?'#8a8f8c':DCOL[g.dir];
+  el.innerHTML=vgBlok()+gr.map(g=>{const bel=g.dir==='BEL',c=bel?'#8a8f8c':DCOL[g.dir];
     return`<div class="bag-groep${S.hlDir===g.dir?' on':''}" data-d="${g.dir}">
       <span class="bag-chip" style="border-color:${c};color:${c}${bel?';border-style:dashed':''}">${bel?'– –':g.dir}</span>
       <div><b>${bel?'Gedeelde muur':fmt(g.len)+' m'}</b> <span class="klein">${bel?fmt(g.len)+' m · telt niet mee':''}</span></div>
@@ -1745,7 +1803,7 @@ function build3d(resetCam){
   world.add(new THREE.ArrowHelper(new THREE.Vector3(0,0,-1),new THREE.Vector3(r*1.15,0.2,r*0.2),r*0.3,0x432D6A,6,4));
   const nl=makeText('N',10);nl.position.set(r*1.15,1,r*0.2-r*0.3-6);world.add(nl);
   const sb=selB(),gref=sb&&sb.geo?sb.geo.zmin:null;
-  S.blds.forEach(b=>{const sel=b.id===S.sel;
+  S.blds.forEach(b=>{const sel=b.id===S.sel;if(S.burenUit&&!sel)return;
     if(b.geo&&gref!=null){
       // echt 3D-model (LoD2.2)
       const T=b.geo.tri,n=b.geo.n,pos=new Float32Array(n*9),colr=new Float32Array(n*9);
@@ -1810,10 +1868,12 @@ function planSVG(W,Hh){
   let s=`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${Hh}" viewBox="0 0 ${W} ${Hh}" font-family="Arial,Helvetica,sans-serif">`;
   s+=`<defs><clipPath id="cp"><rect width="${W}" height="${Hh}"/></clipPath><marker id="ah" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10z" fill="#555"/></marker></defs>`;
   s+=`<rect width="${W}" height="${Hh}" fill="#fbfcfb"/><g clip-path="url(#cp)">`;
-  S.blds.forEach(o=>{if(o.id===b.id)return;s+=`<polygon points="${o.ring.map(c=>P(c).join(',')).join(' ')}" fill="#E5E2EA" stroke="#b9c4be" stroke-width="1"/>`});
+  S.blds.forEach(o=>{if(o.id===b.id||S.burenUit)return;s+=`<polygon points="${o.ring.map(c=>P(c).join(',')).join(' ')}" fill="#E5E2EA" stroke="#b9c4be" stroke-width="1"/>`});
   s+=`<polygon points="${b.ring.map(c=>P(c).join(',')).join(' ')}" fill="#E8E1F1" stroke="#432D6A" stroke-width="1"/>`;
   visible().forEach(({e,i})=>{const bel=role(i)==='Belendend',c=bel?'#8a8f8c':DCOL[e.dir],A=P(e.a),Z=P(e.c);
     s+=`<line x1="${A[0]}" y1="${A[1]}" x2="${Z[0]}" y2="${Z[1]}" stroke="${c}" stroke-width="${bel?4:6}" ${bel?'stroke-dasharray="7 6"':''}/>`});
+  {const cs=codes();if(cs)visible().forEach(({e,i})=>{const c=cs[i];if(!c||(e.len<2&&c!=='VG'))return;const q=P([e.mid[0]-e.n[0]*Math.max(1.6,14/sc),e.mid[1]-e.n[1]*Math.max(1.6,14/sc)]);
+    s+=`<rect x="${q[0]-14}" y="${q[1]-8}" width="28" height="16" rx="4" fill="${c==='VG'?'#E08A00':'#432D6A'}"/><text x="${q[0]}" y="${+q[1]+4}" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">${c}</text>`})}
   const es=S.edges[S.eSel];
   if(es){const Lp=Math.max(34/sc,Math.min(Math.max(es.len*.45,3.5),7)),m=P(es.mid),t=P([es.mid[0]+es.n[0]*Lp,es.mid[1]+es.n[1]*Lp]);
     const dx=t[0]-m[0],dy=t[1]-m[1],l=Math.hypot(dx,dy)||1,ux=dx/l,uy=dy/l,hx=t[0]-ux*13,hy=t[1]-uy*13;
@@ -1869,11 +1929,11 @@ async function pdfGegevens(){
     adres:addrOf(b), pandId:b.id, bouwjaar:b.bouwjaar||'–',
     kpi:[['NOKHOOGTE',fm(h.hmax)],['HOOGTE (70%)',fm(h.h70)],['DAKHELLING',(dakHelling(b)?.tekst??'–').replace(/ \(.*\)/,'')],['BOUWLAGEN'+(h.lagenEst?' (SCHATTING)':''),String(h.lagen??'–')],['BOUWJAAR',String(b.bouwjaar||'–')]],
     plan, roos, img3d:snapshot3d(),
-    gevels:visible().map(({e,i})=>({nr:i+1,rol:role(i),len:fm(e.len),az:Math.round(e.az)+'°',dir:e.dir,kleur:role(i)==='Belendend'?'#aaaaaa':DCOL[e.dir]})),
+    gevels:visible().map(({e,i})=>({nr:i+1,code:codeVan(i)||'',rol:role(i),len:fm(e.len),az:Math.round(e.az)+'°',dir:e.dir,kleur:role(i)==='Belendend'?'#aaaaaa':DCOL[e.dir]})),
     totalen:DIRS.filter(d=>t[d]).map(d=>({dir:d,len:fm(t[d]),kleur:DCOL[d]})),
     groepen:(()=>{const gv=gevelvlakken(b);return groepen().map(g=>({dir:g.dir,bel:g.dir==='BEL',len:fm(g.len),delen:g.delen.length,az:g.azTxt,kleur:g.dir==='BEL'?'#8a8f8c':DCOL[g.dir],gevel:gv?(g.dir==='BEL'?(gv.gedeeld?fmt(gv.gedeeld,1)+' m²':'-'):(gv.per[g.dir]?fmt(gv.per[g.dir],1)+' m²':'-')):null}))})(),
     gevelTotaal:(()=>{const gv=gevelvlakken(b);return gv?fmt(gv.totaal,1)+' m²':null})(),
-    gekozen:(()=>{const e=S.edges[S.eSel];if(!e)return null;return{dir:e.dir,az:Math.round(e.az),len:fm(e.len),nr:S.eSel+1,rol:role(S.eSel),auto:S.autoSel,bel:role(S.eSel)==='Belendend',grens:grensInfo(e.az),kleur:role(S.eSel)==='Belendend'?'#8a8f8c':DCOL[e.dir]}})(),
+    gekozen:(()=>{const e=S.edges[S.eSel];if(!e)return null;return{code:codeVan(S.eSel)||'',vgInfo:S.vgInfo,dir:e.dir,az:Math.round(e.az),len:fm(e.len),nr:S.eSel+1,rol:role(S.eSel),auto:S.autoSel,bel:role(S.eSel)==='Belendend',grens:grensInfo(e.az),kleur:role(S.eSel)==='Belendend'?'#8a8f8c':DCOL[e.dir]}})(),
     hoogte:{hmax:h.hmax,h70:h.h70,hmin:h.hmin,top:h.top},
     pandgegevens:[...metaRows(b).filter(r=>r[0]!=='Adres'&&r[0]!=='Pand-ID'),...(h.h50!=null?[['Hoogte 50%',fm(h.h50)]]:[]),['Laagste dakdeel',fm(h.hmin)],...(h.route==='tegels'?[]:[['Maaiveld',fmt(h.mv,2)+' m NAP']])],
     buren:buren(8).map(o=>{const q=heights(o);return{adres:(o.adressen[0]||'pand …'+o.id.slice(-6))+(o.adressen.length>1?` (+${o.adressen.length-1})`:''),bj:String(o.bouwjaar||''),h70:fm(q.h70),nok:fm(q.hmax),zelf:o.id===b.id}}),
@@ -1890,11 +1950,14 @@ async function pdfGegevens(){
 function bind(){
   bindZoek();
   $('bag-rad').onchange=()=>{if(S.center)loadArea(S.center[0],S.center[1],S.addr,S.sel)};
-  $('bag-tol').onchange=()=>{S.roles={};compute();renderAll(false);changed()};
+  $('bag-tol').onchange=()=>{S.roles={};compute();renderAll(false);changed();autoVoorgevel()};
   $('bag-minl').onchange=()=>{S.eSel=zuidelijkste();S.autoSel=true;renderAll(false);changed()};
   document.querySelectorAll('#bag [data-t]').forEach(b=>b.onclick=()=>{S.tab=b.dataset.t;document.querySelectorAll('#bag [data-t]').forEach(x=>x.classList.toggle('on',x===b));
     document.querySelectorAll('#bag .bag-paneel').forEach(t=>t.classList.toggle('on',t.id==='bag-p-'+S.tab));renderMap(false);renderLegenda();build3d(false)});
   $('bag-reset').onclick=resetView;
+  const burenKnop=()=>{['bag-buren','bag-buren3'].forEach(id=>{const k=$(id);if(k){k.classList.toggle('on',!S.burenUit);k.textContent=S.burenUit?'Buren uit':'Buren'}})};
+  ['bag-buren','bag-buren3'].forEach(id=>{const k=$(id);if(k)k.onclick=()=>{S.burenUit=!S.burenUit;try{localStorage.setItem('pa_buren_uit',S.burenUit?'1':'0')}catch(e){}burenKnop();renderMap(false);build3d(false)}});
+  burenKnop();
   $('bag-exag').onclick=e=>{S.exag=S.exag===1?2:S.exag===2?3:1;e.target.textContent='×'+S.exag;build3d(false)};
   $('bag-hsel').onchange=()=>{renderMap(false);build3d(false);renderList()};
   $('bag-t3d').onclick=e=>{const v=$('bag-views');v.classList.toggle('no3d');e.target.classList.toggle('on',!v.classList.contains('no3d'));setTimeout(()=>{map&&map.invalidateSize();resize()},50)};
@@ -2959,9 +3022,9 @@ function pandPaginas(doc, pd){
     doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(107,122,115);
     doc.text('t.o.v. het ware noorden', tx + azw + 3, y+8.5);
     doc.setTextColor(29,42,34); doc.setFontSize(9);
-    doc.text(pdfTekst(`Gevel ${g.nr}${g.rol!=='Gevel'?' ('+g.rol.toLowerCase()+')':''} · gevellengte ${g.len} · oriëntatie ${g.dir}`), tx, y+14.5);
+    doc.text(pdfTekst(`Gevel ${g.nr}${g.code?' · '+g.code:''}${g.rol!=='Gevel'?' ('+g.rol.toLowerCase()+')':''} · gevellengte ${g.len} · oriëntatie ${g.dir}`), tx, y+14.5);
     doc.setFontSize(8); doc.setTextColor(107,122,115);
-    const uitleg = (g.auto ? 'Automatisch gekozen: meest zuidgerichte gevel. ' : 'Door de adviseur gekozen gevel. ') + 'Richting loodrecht op de gevel, vanuit het pand naar buiten.';
+    const uitleg = (g.auto ? 'Automatisch gekozen: meest zuidgerichte gevel. ' : g.rol==='Voorgevel' ? (g.vgInfo ? g.vgInfo.replace(/ Klopt het niet\?.*$/,'')+' ' : 'Voorgevel. ') : 'Door de adviseur gekozen gevel. ') + 'Richting loodrecht op de gevel, vanuit het pand naar buiten.';
     doc.text(doc.splitTextToSize(pdfTekst(uitleg), PBR - 30 - rs - 6), tx, y+19.5);
     const let_ = [g.bel ? 'Waarschijnlijk een gedeelde muur.' : '', g.grens ? `Ligt binnen 3° van de grens ${g.grens.join(' / ')}; ter plaatse controleren.` : ''].filter(Boolean).join(' ');
     if(let_){ doc.setTextColor(122,75,0); doc.text(pdfTekst(let_), tx, y+27.5); }

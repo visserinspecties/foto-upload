@@ -337,5 +337,130 @@ if(!$('adviseur').value) $('adviseur').value = 'John Visser';
 # adres uit projectgegevens.json bij het openen (als er een project is maar nog geen adres)
 vervang("initMsal();\n/* ============ TABBLADEN", "initMsal().then(() => { if(odProject && ingelogd && !$('pc-pc').value) adresUitProject(); });\n/* ============ TABBLADEN")
 
+# ================================================================
+#  VG / AG / LG / RG (zoals Pand-oriëntatie) + buren wegklikken
+# ================================================================
+vervang('.bag-tools button.on{background:#432D6A;color:#fff}', '''.bag-tools button.on{background:#432D6A;color:#fff}
+.bag-code{background:#432D6A;color:#fff;border-radius:6px;padding:1px 6px;font-weight:800;font-size:11px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.35);cursor:pointer}
+.bag-code.vg{background:#E08A00;font-size:12px;padding:2px 7px}
+.bag-codepill{display:inline-block;min-width:30px;text-align:center;border-radius:6px;padding:1px 6px;font-weight:800;font-size:.75rem;background:#EFEAF5;color:#432D6A}
+.bag-codepill.vg{background:#E08A00;color:#fff}
+.bag-vgblok{background:#F4F2F6;border-left:4px solid #E08A00;border-radius:8px;padding:8px 10px;margin:0 0 10px;font-size:.85rem}
+.bag-vgblok table{width:100%;margin-top:6px}
+.bag-vgknop{margin-top:8px}''')
+vervang('<button type="button" id="bag-t3d" class="on">3D</button>',
+        '<button type="button" id="bag-buren" class="on" title="Belendende panden tonen of verbergen">Buren</button><button type="button" id="bag-t3d" class="on">3D</button>')
+vervang('<button type="button" id="bag-reset">Reset</button>',
+        '<button type="button" id="bag-buren3" class="on" title="Belendende panden tonen of verbergen">Buren</button><button type="button" id="bag-reset">Reset</button>')
+vervang('<th>Or.</th><th>Rol</th></tr></thead>', '<th>Or.</th><th>Gevel</th><th>Rol</th></tr></thead>')
+vervang('<tbody id="bag-tb"><tr><td colspan="5" class="klein">—</td></tr></tbody>', '<tbody id="bag-tb"><tr><td colspan="6" class="klein">—</td></tr></tbody>')
+
+# toestand
+vervang("const S={center:null,addr:null,addrPt:null,blds:[],sel:null,edges:[],area:0,roles:{},auto:{},eSel:-1,autoSel:true,hlDir:null,exag:1,tab:'orient'};",
+        "const S={center:null,addr:null,addrPt:null,blds:[],sel:null,edges:[],area:0,roles:{},auto:{},eSel:-1,autoSel:true,hlDir:null,exag:1,tab:'orient',vgInfo:'',vgTok:0,burenUit:(()=>{try{return localStorage.getItem('pa_buren_uit')==='1'}catch(e){return false}})()};")
+
+# functies: codes per gevel en automatische voorgevel (gevel die naar de straat van het adres kijkt)
+vervang("const role=i=>S.roles[i]||'Gevel';", r"""const role=i=>S.roles[i]||'Gevel';
+/* ---- VG/AG/LG/RG: staande voor de voorgevel, kijkend naar het huis: links = LG, rechts = RG ---- */
+const angD=(a,b)=>{const d=Math.abs(((a-b)%360+360)%360);return d>180?360-d:d};
+function vgIndex(){for(const k in S.roles)if(S.roles[k]==='Voorgevel'&&S.edges[+k])return +k;return -1}
+function codes(){const vi=vgIndex();if(vi<0)return null;const av=S.edges[vi].az,doel={VG:av,LG:(av+90)%360,AG:(av+180)%360,RG:(av+270)%360};
+  return S.edges.map((e,i)=>{if(role(i)==='Belendend')return null;if(i===vi)return'VG';let best=null,bd=1e9;for(const k in doel){const d=angD(e.az,doel[k]);if(d<bd){bd=d;best=k}}return best})}
+function codeVan(i){const c=codes();return c?c[i]:null}
+function zetVoorgevel(i,bron){for(const k in S.roles)if(S.roles[k]==='Voorgevel'||(S.roles[k]==='Achtergevel'&&S.vgAuto))delete S.roles[k];
+  S.roles[i]='Voorgevel';delete S.auto[i];autoFill(i);S.vgAuto=bron==='auto';if(bron!=='auto')S.vgInfo='Voorgevel zelf aangewezen: gevel '+(i+1)+'.';
+  S.eSel=i;S.autoSel=false;renderMap(false);renderGevels();changed()}
+const opSeg=(p,a,b)=>{const dx=b[0]-a[0],dy=b[1]-a[1],l2=dx*dx+dy*dy,t=l2?Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/l2)):0;return[a[0]+t*dx,a[1]+t*dy]};
+function dichtbij(p,lijnen){let best=null,bd=1e18;for(const l of lijnen)for(let i=0;i<l.length-1;i++){const q=opSeg(p,l[i],l[i+1]),d=Math.hypot(q[0]-p[0],q[1]-p[1]);if(d<bd){bd=d;best=q}}return best?{punt:best,afstand:bd}:null}
+async function autoVoorgevel(){
+  const b=selB();if(!b||!S.edges.length)return;const tok=++S.vgTok;S.vgInfo='';
+  if(vgIndex()>=0)return;
+  const v=vboOf(b);if(!v||!v.postcode||!v.huisnummer){S.vgInfo='Voorgevel niet automatisch bepaald (geen adres bij dit pand): wijs hem zelf aan.';renderGevels();return}
+  try{
+    const q=`postcode:${String(v.postcode).replace(/\s/g,'')} and huisnummer:${v.huisnummer}`;
+    const ad=((((await (await fetch(LS+'/free?q='+encodeURIComponent(q)+'&fq=type:adres&rows=1&fl=openbareruimte_id,centroide_rd,straatnaam')).json()).response)||{}).docs||[])[0];
+    if(tok!==S.vgTok)return;
+    const pm=/POINT\(([-\d.]+) ([-\d.]+)\)/.exec((ad&&ad.centroide_rd)||'');
+    if(!ad||!ad.openbareruimte_id||!pm){S.vgInfo='Voorgevel niet automatisch bepaald (geen straatgegevens): wijs hem zelf aan.';renderGevels();return}
+    const weg=((((await (await fetch(LS+'/free?fq=type:weg&fq=openbareruimte_id:'+encodeURIComponent(ad.openbareruimte_id)+'&rows=1&fl=geometrie_rd')).json()).response)||{}).docs||[])[0];
+    if(tok!==S.vgTok)return;
+    if(!weg||!weg.geometrie_rd){S.vgInfo='Voorgevel niet automatisch bepaald (straat niet gevonden): wijs hem zelf aan.';renderGevels();return}
+    const lijnen=[];for(const g of weg.geometrie_rd.match(/\(([^()]+)\)/g)||[]){const pts=g.replace(/[()]/g,'').split(',').map(t=>t.trim().split(/\s+/).map(Number));if(pts.length>=2)lijnen.push(pts)}
+    const adr=S.addrPt||[+pm[1],+pm[2]],d0=dichtbij(adr,lijnen);
+    if(!d0){S.vgInfo='Voorgevel niet automatisch bepaald: wijs hem zelf aan.';renderGevels();return}
+    const richting=((Math.atan2(d0.punt[0]-adr[0],d0.punt[1]-adr[1])*180/Math.PI)+360)%360;
+    let beste=-1,score=1e18,ruim=false;
+    for(const grens of[50,181]){S.edges.forEach((e,i)=>{if(e.len<2||role(i)==='Belendend')return;const vs=angD(e.az,richting);if(vs>grens)return;
+        const sc=dichtbij(e.mid,lijnen).afstand+vs*0.05-Math.min(e.len,10)*0.2;if(sc<score){score=sc;beste=i}});
+      if(beste>=0){ruim=grens>50;break}}
+    if(beste<0||vgIndex()>=0||tok!==S.vgTok){if(beste<0){S.vgInfo='Voorgevel niet automatisch bepaald: wijs hem zelf aan.';renderGevels()}return}
+    S.vgInfo='Voorgevel automatisch gekozen: gevel '+(beste+1)+' kijkt naar '+(ad.straatnaam||'de straat')+(ruim?' (bij benadering)':'')+'. Klopt het niet? Kies een andere gevel en tik op “Maak voorgevel”.';
+    zetVoorgevel(beste,'auto');
+  }catch(e){if(tok===S.vgTok){S.vgInfo='Voorgevel kon niet automatisch bepaald worden (geen verbinding): wijs hem zelf aan.';renderGevels()}}
+}""")
+# na het (her)berekenen van de gevels de voorgevel zoeken
+vervang("  S.sel=id;S.roles={};S.eSel=-1;compute();\n", "  S.sel=id;S.roles={};S.eSel=-1;compute();setTimeout(autoVoorgevel,0);\n")
+vervang("$('bag-tol').onchange=()=>{S.roles={};compute();renderAll(false);changed()};", "$('bag-tol').onchange=()=>{S.roles={};compute();renderAll(false);changed();autoVoorgevel()};")
+
+# kaart: buren verbergen + VG/AG/LG/RG-labels op de gevels
+vervang("  S.blds.forEach(b=>{const ll=b.ring.map(c=>rd2wgs(c[0],c[1]));const h=relH(b);const sel=b.id===S.sel;\n    L.polygon(",
+        "  S.blds.forEach(b=>{const ll=b.ring.map(c=>rd2wgs(c[0],c[1]));const h=relH(b);const sel=b.id===S.sel;if(S.burenUit&&!sel)return;\n    L.polygon(")
+vervang("    // pijl op de geselecteerde gevel, loodrecht naar buiten\n",
+        "    // VG/AG/LG/RG binnen het pand, bij elk geveldeel\n    {const cs=codes();if(cs)visible().forEach(({e,i})=>{const c=cs[i];if(!c||(e.len<2&&c!=='VG'))return;const p=[e.mid[0]-e.n[0]*1.8,e.mid[1]-e.n[1]*1.8];\n      L.marker(rd2wgs(...p),{icon:L.divIcon({html:`<span class=\"bag-code${c==='VG'?' vg':''}\">${c}</span>`,className:'',iconSize:null,iconAnchor:[14,9]})}).addTo(grp).on('click',()=>selEdge(i))})}\n    // pijl op de geselecteerde gevel, loodrecht naar buiten\n")
+vervang("  map.on('click',e=>{const[x,y]=wgs2rd(e.latlng.lat,e.latlng.lng);const hit=S.blds.find(b=>inside([x,y],b.ring));\n    if(hit)selectBld(hit.id,false);else loadArea(x,y,null)});",
+        "  map.on('click',e=>{const[x,y]=wgs2rd(e.latlng.lat,e.latlng.lng);const hit=S.blds.find(b=>inside([x,y],b.ring));\n    if(S.burenUit&&!(hit&&hit.id===S.sel))return;   // buren verborgen: niet per ongeluk een ander pand kiezen\n    if(hit)selectBld(hit.id,false);else loadArea(x,y,null)});")
+# 3D: buren verbergen
+vervang("  S.blds.forEach(b=>{const sel=b.id===S.sel;\n    if(b.geo&&gref!=null){", "  S.blds.forEach(b=>{const sel=b.id===S.sel;if(S.burenUit&&!sel)return;\n    if(b.geo&&gref!=null){")
+# knoppen
+vervang("  $('bag-reset').onclick=resetView;\n", r"""  $('bag-reset').onclick=resetView;
+  const burenKnop=()=>{['bag-buren','bag-buren3'].forEach(id=>{const k=$(id);if(k){k.classList.toggle('on',!S.burenUit);k.textContent=S.burenUit?'Buren uit':'Buren'}})};
+  ['bag-buren','bag-buren3'].forEach(id=>{const k=$(id);if(k)k.onclick=()=>{S.burenUit=!S.burenUit;try{localStorage.setItem('pa_buren_uit',S.burenUit?'1':'0')}catch(e){}burenKnop();renderMap(false);build3d(false)}});
+  burenKnop();
+""")
+
+# tabel: kolom Gevel
+vervang("<td><span class=\"bag-pill\" style=\"background:${role(i)==='Belendend'?'#aaa':DCOL[e.dir]}\">${e.dir}</span></td>\n    <td><select",
+        "<td><span class=\"bag-pill\" style=\"background:${role(i)==='Belendend'?'#aaa':DCOL[e.dir]}\">${e.dir}</span></td>\n    <td>${(c=>c?`<span class=\"bag-codepill${c==='VG'?' vg':''}\">${c}</span>`:'<span class=\"klein\">–</span>')(codeVan(i))}</td>\n    <td><select")
+vervang("if(!vis.length){tb.innerHTML='<tr><td colspan=\"5\" class=\"klein\">—</td></tr>';return}", "if(!vis.length){tb.innerHTML='<tr><td colspan=\"6\" class=\"klein\">—</td></tr>';return}")
+vervang("    S.roles[i]=s.value;delete S.auto[i];autoFill(i);renderMap(false);renderGevels();changed()});",
+        "    S.roles[i]=s.value;delete S.auto[i];if(s.value==='Voorgevel'){S.vgAuto=false;S.vgInfo='Voorgevel zelf aangewezen: gevel '+(i+1)+'.'}autoFill(i);renderMap(false);renderGevels();changed()});")
+
+# geselecteerde gevel: code + knop "Maak voorgevel"
+vervang("""<div class="klein">t.o.v. het ware noorden · gevel ${S.eSel+1}${rol!=='Gevel'?' · '+rol.toLowerCase():''} · lengte ${fmt(e.len)} m</div>""",
+        """<div class="klein">t.o.v. het ware noorden · gevel ${S.eSel+1}${codeVan(S.eSel)?' · <b>'+codeVan(S.eSel)+'</b>':''}${rol!=='Gevel'?' · '+rol.toLowerCase():''} · lengte ${fmt(e.len)} m</div>""")
+vervang("""<p class="klein" style="margin:6px 0 0">${S.autoSel?'Automatisch gekozen: meest zuidgerichte gevel.':'Zelf gekozen gevel.'} Loodrecht op de gevel, vanuit het pand naar buiten. Klik een andere gevel op de kaart om te wisselen.</p>""",
+        """<p class="klein" style="margin:6px 0 0">${S.autoSel?'Automatisch gekozen: meest zuidgerichte gevel.':(rol==='Voorgevel'?'Voorgevel.':'Zelf gekozen gevel.')} Loodrecht op de gevel, vanuit het pand naar buiten. Klik een andere gevel op de kaart om te wisselen.</p>
+    ${!bel&&rol!=='Voorgevel'?'<button type="button" class="actie licht bag-vgknop" id="bag-maakvg">⭐ Maak voorgevel (VG)</button>':''}""")
+vervang("function renderGroepen(){\n", "function renderGroepen(){\n  {const k=$('bag-maakvg');if(k)k.onclick=()=>zetVoorgevel(S.eSel,'hand')}\n")
+# blok bovenaan "Gevelrichtingen": VG/AG/LG/RG met richting en lengte
+vervang("  if(!gr.length){el.innerHTML='<p class=\"klein\">—</p>';return}\n  const mx=Math.max(...gr.map(g=>g.len));\n  el.innerHTML=gr.map(",
+        "  if(!gr.length){el.innerHTML='<p class=\"klein\">—</p>';return}\n  const mx=Math.max(...gr.map(g=>g.len));\n  el.innerHTML=vgBlok()+gr.map(")
+vervang("function renderGroepen(){\n", r"""function vgBlok(){
+  const cs=codes(),vi=vgIndex();
+  if(!cs)return`<div class="bag-vgblok">${esc(S.vgInfo||'Voorgevel zoeken…')}<br><span class="klein">Kies een gevel op de kaart of in de tabel en tik op “Maak voorgevel”.</span></div>`;
+  const tot={},az={};S.edges.forEach((e,i)=>{const c=cs[i];if(!c||e.len<(+$('bag-minl').value||0))return;tot[c]=(tot[c]||0)+e.len});
+  const av=S.edges[vi].az,dz={VG:av,LG:(av+90)%360,AG:(av+180)%360,RG:(av+270)%360};
+  return`<div class="bag-vgblok">${esc(S.vgInfo||('Voorgevel: gevel '+(vi+1)+'.'))}<table>${['VG','AG','LG','RG'].map(k=>`<tr><td><span class="bag-codepill${k==='VG'?' vg':''}">${k}</span></td><td>${dirOf(dz[k])} · ${Math.round(dz[k])}°</td><td style="text-align:right">${tot[k]?fmt(tot[k])+' m':'<span class="klein">–</span>'}</td></tr>`).join('')}</table><span class="klein">Staande voor de voorgevel, kijkend naar het huis: links = LG, rechts = RG. Gedeelde muren tellen niet mee.</span></div>`;
+}
+function renderGroepen(){
+""")
+
+# PDF en tekst: code bij de gevels
+vervang("gevels:visible().map(({e,i})=>({nr:i+1,rol:role(i),", "gevels:visible().map(({e,i})=>({nr:i+1,code:codeVan(i)||'',rol:role(i),")
+vervang("gekozen:(()=>{const e=S.edges[S.eSel];if(!e)return null;return{dir:e.dir,az:Math.round(e.az),len:fm(e.len),nr:S.eSel+1,rol:role(S.eSel),",
+        "gekozen:(()=>{const e=S.edges[S.eSel];if(!e)return null;return{code:codeVan(S.eSel)||'',vgInfo:S.vgInfo,dir:e.dir,az:Math.round(e.az),len:fm(e.len),nr:S.eSel+1,rol:role(S.eSel),")
+vervang("doc.text(pdfTekst(`Gevel ${g.nr}${g.rol!=='Gevel'?' ('+g.rol.toLowerCase()+')':''} · gevellengte ${g.len} · oriëntatie ${g.dir}`), tx, y+14.5);",
+        "doc.text(pdfTekst(`Gevel ${g.nr}${g.code?' · '+g.code:''}${g.rol!=='Gevel'?' ('+g.rol.toLowerCase()+')':''} · gevellengte ${g.len} · oriëntatie ${g.dir}`), tx, y+14.5);")
+vervang("const uitleg = (g.auto ? 'Automatisch gekozen: meest zuidgerichte gevel. ' : 'Door de adviseur gekozen gevel. ') + 'Richting loodrecht op de gevel, vanuit het pand naar buiten.';",
+        "const uitleg = (g.auto ? 'Automatisch gekozen: meest zuidgerichte gevel. ' : g.rol==='Voorgevel' ? (g.vgInfo ? g.vgInfo.replace(/ Klopt het niet\\?.*$/,'')+' ' : 'Voorgevel. ') : 'Door de adviseur gekozen gevel. ') + 'Richting loodrecht op de gevel, vanuit het pand naar buiten.';")
+
+# plattegrond in de PDF: buren volgen de knop, VG/AG/LG/RG bij de gevels
+vervang("  S.blds.forEach(o=>{if(o.id===b.id)return;s+=`<polygon points=",
+        "  S.blds.forEach(o=>{if(o.id===b.id||S.burenUit)return;s+=`<polygon points=")
+vervang("""    s+=`<line x1="${A[0]}" y1="${A[1]}" x2="${Z[0]}" y2="${Z[1]}" stroke="${c}" stroke-width="${bel?4:6}" ${bel?'stroke-dasharray="7 6"':''}/>`});""",
+        """    s+=`<line x1="${A[0]}" y1="${A[1]}" x2="${Z[0]}" y2="${Z[1]}" stroke="${c}" stroke-width="${bel?4:6}" ${bel?'stroke-dasharray="7 6"':''}/>`});
+  {const cs=codes();if(cs)visible().forEach(({e,i})=>{const c=cs[i];if(!c||(e.len<2&&c!=='VG'))return;const q=P([e.mid[0]-e.n[0]*Math.max(1.6,14/sc),e.mid[1]-e.n[1]*Math.max(1.6,14/sc)]);
+    s+=`<rect x="${q[0]-14}" y="${q[1]-8}" width="28" height="16" rx="4" fill="${c==='VG'?'#E08A00':'#432D6A'}"/><text x="${q[0]}" y="${+q[1]+4}" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">${c}</text>`})}""")
+
 DOEL.write_text(s, encoding='utf-8')
 print('Gemaakt:', DOEL.name, f'({len(s)//1024} kB)')
