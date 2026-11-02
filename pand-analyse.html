@@ -1573,7 +1573,7 @@ function renderPand(){
   renderVbo(b);
 }
 /* bestaand energielabel uit EP-Online via de label-server (Cloudflare Worker) */
-const LABEL_API_STD='';   // eigen Cloudflare Worker: instellen via ⚙ bij het energielabel
+const LABEL_API_STD='https://ep-labels.falling-brook-4828.workers.dev/';   // eigen Cloudflare Worker (label-proxy/worker.js); per apparaat te wijzigen via ⚙
 const labelApi=()=>{try{return localStorage.getItem('ee_label_api')||LABEL_API_STD}catch(e){return LABEL_API_STD}};
 const LBLK={'A+++++':'#00843d','A++++':'#00843d','A+++':'#00843d','A++':'#00843d','A+':'#00843d','A':'#009036','B':'#55ab26','C':'#c8d100','D':'#ffed00','E':'#fbba00','F':'#eb6909','G':'#e2001a'};
 const labelCache={},verwCache={};

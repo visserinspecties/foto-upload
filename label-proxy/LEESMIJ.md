@@ -9,7 +9,7 @@ Gebaseerd op de worker van Erkend-Energielabel.nl.
 1. Maak een gratis account op https://dash.cloudflare.com (Workers Free: 100.000 verzoeken per dag).
 2. Links: **Workers & Pages** → **Create** → **Create Worker** → naam `ep-label` → **Deploy**.
 3. **Edit code** → alles weghalen → de inhoud van `worker.js` (deze map) erin plakken → **Deploy**.
-4. Kopieer het adres van de worker, bv. `https://ep-label.<jouwnaam>.workers.dev/`.
+4. Kopieer het adres van de worker. Huidige worker: `https://ep-labels.falling-brook-4828.workers.dev/` (staat als standaard in de tool).
 5. Open de Pand analyse-tool → tab **Pand analyse** → zoek een adres → bij **Bestaand energielabel** op ⚙ →
    plak het adres → OK. De tool onthoudt het op dit apparaat (doe het op iPad, iPhone en pc één keer).
 

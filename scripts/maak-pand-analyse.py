@@ -116,7 +116,7 @@ vervang("window.bsProject = () => [$('projnr').value.trim(), $('project').value.
         "window.bsProject = () => $('project').value.trim();")
 
 # ---------- label-server: eigen worker ----------
-vervang("const LABEL_API_STD='https://ep-label.long-rain-6721.workers.dev/';", "const LABEL_API_STD='';   // eigen Cloudflare Worker: instellen via ⚙ bij het energielabel")
+vervang("const LABEL_API_STD='https://ep-label.long-rain-6721.workers.dev/';", "const LABEL_API_STD='https://ep-labels.falling-brook-4828.workers.dev/';   // eigen Cloudflare Worker (label-proxy/worker.js); per apparaat te wijzigen via ⚙")
 s = s.replace("https://ep-label.jouwnaam.workers.dev", "https://ep-label.visserinspecties.workers.dev")
 
 # ---------- OneDrive: gedeelde Visser-inlog i.p.v. eigen app-registratie ----------
