@@ -27,7 +27,15 @@ main{max-width:640px;margin:0 auto;padding:22px 14px 40px}
 .card h2{font-weight:700;font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
 .stap{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--brand);color:#fff;font-size:11px;margin-right:6px;letter-spacing:0}
 label.l{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px}
-input[type=number]{width:100%;min-height:40px;padding:8px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);font-size:15px;font-family:inherit}
+.lijst{border:1px solid var(--line);border-radius:10px;max-height:320px;overflow:auto;background:var(--bg);margin-top:8px}
+.lijst label{display:flex;align-items:center;gap:9px;padding:7px 11px;border-bottom:1px solid var(--line);cursor:pointer;font-size:14px}
+.lijst label:last-child{border-bottom:0}
+.lijst small{margin-left:auto;color:var(--muted);font-size:11.5px;text-align:right}
+.lijst input{width:17px;height:17px;accent-color:var(--brand)}
+.mini{border:0;background:none;color:var(--brand);font:inherit;font-size:12.5px;text-decoration:underline;cursor:pointer;padding:2px 4px}
+.hint{font-size:12.5px;color:var(--muted);margin-top:6px}
+[hidden]{display:none!important}
+input[type=text],input[type=number]{width:100%;min-height:40px;padding:8px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);font-size:15px;font-family:inherit}
 .rij{display:flex;gap:10px}.rij>div{flex:1}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
 .chip{border:1px solid var(--line);background:var(--bg);border-radius:99px;padding:6px 14px;font-size:13px;cursor:pointer;min-height:34px;font-family:inherit;color:var(--ink)}
@@ -83,6 +91,27 @@ input[type=number]{width:100%;min-height:40px;padding:8px 11px;border:1px solid 
 
   <div class="card">
     <h2><span class="stap">2</span>Welke nummers?</h2>
+    <div class="chips" id="modus">
+      <button class="chip on" data-v="pand">Uit pand-ID (BAG)</button>
+      <button class="chip" data-v="reeks">Nummerreeks</button>
+    </div>
+
+    <div id="m-pand">
+      <label class="l" for="pandid">Pand-ID (16 cijfers; een link uit de BAG-viewer plakken mag ook)</label>
+      <div class="rij">
+        <div style="flex:3"><input type="text" id="pandid" inputmode="numeric" autocomplete="off" placeholder="bijv. 0599100000123456"></div>
+        <div style="flex:1;min-width:110px"><button class="btn sec" id="b-pand">Ophalen</button></div>
+      </div>
+      <div id="pand-status"></div>
+      <div id="pand-resultaat" hidden>
+        <label class="l" for="projnaam">Naam projectmap</label>
+        <input type="text" id="projnaam" autocomplete="off">
+        <div class="hint">Selecteer <button class="mini" id="sel-alles">alles</button> · <button class="mini" id="sel-niets">niets</button> · <button class="mini" id="sel-wonen">alleen woningen</button></div>
+        <div class="lijst" id="adressen"></div>
+      </div>
+    </div>
+
+    <div id="m-reeks" hidden>
     <div class="rij">
       <div><label class="l" for="van">Beginnummer</label><input type="number" id="van" inputmode="numeric" min="0" step="1"></div>
       <div><label class="l" for="tot">Eindnummer</label><input type="number" id="tot" inputmode="numeric" min="0" step="1"></div>
@@ -92,6 +121,7 @@ input[type=number]{width:100%;min-height:40px;padding:8px 11px;border:1px solid 
       <button class="chip on" data-v="alles">Alles</button>
       <button class="chip" data-v="even">Even</button>
       <button class="chip" data-v="oneven">Oneven</button>
+    </div>
     </div>
     <div class="voorbeeld" id="voorbeeld">Vul begin- en eindnummer in.</div>
   </div>
@@ -211,17 +241,116 @@ function nummers() {
   }
   return lijst;
 }
-function werkVoorbeeldBij() {
+/* ── modus: pand-ID of nummerreeks ── */
+let modus = 'pand';
+try { modus = localStorage.getItem('gm_modus') || 'pand'; } catch(e) {}
+function zetModus(m) {
+  modus = m; try { localStorage.setItem('gm_modus', m); } catch(e) {}
+  $('modus').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x.dataset.v === m));
+  $('m-pand').hidden = m !== 'pand'; $('m-reeks').hidden = m !== 'reeks';
+  werkVoorbeeldBij();
+}
+$('modus').querySelectorAll('.chip').forEach(c => c.onclick = () => zetModus(c.dataset.v));
+
+/* ── BAG: alle adressen (verblijfsobjecten) in één pand ── */
+const BAG_OGC = 'https://api.pdok.nl/kadaster/bag/ogc/v2';
+const RD_CRS  = 'http://www.opengis.net/def/crs/EPSG/0/28992';
+const BESTAAT_NIET = /gesloopt|niet gerealiseerd|ingetrokken|ten onrechte/i;
+let pandAdressen = [];   // {map, straat, nr, gebruiksdoel, aan}
+const pandIdUit = s => { const m = String(s).replace(/\s/g, '').match(/\d{10,16}/); return m ? m[0].padStart(16, '0') : ''; };
+const veiligeNaam = s => String(s).replace(/["*:<>?\/\\|]/g, '').replace(/\s+/g, ' ').trim();
+async function ogcItems(collectie, params) {
+  const out = []; let n = 0;
+  let url = `${BAG_OGC}/collections/${collectie}/items?` + new URLSearchParams({ f: 'json', crs: RD_CRS, limit: '1000', ...params });
+  while (url && n++ < 20) {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`BAG gaf foutcode ${r.status} (${collectie})`);
+    const d = await r.json();
+    out.push(...(d.features || []));
+    const nx = (d.links || []).find(l => l.rel === 'next'); url = nx ? nx.href : null;
+  }
+  return out;
+}
+async function haalPand() {
+  const id = pandIdUit($('pandid').value), st = $('pand-status');
+  $('pand-resultaat').hidden = true; pandAdressen = []; werkVoorbeeldBij();
+  if (!id) { st.innerHTML = '<div class="msg err">Geen pand-ID gevonden. Een pand-ID is een nummer van 16 cijfers.</div>'; return; }
+  $('pandid').value = id;
+  st.innerHTML = '<div class="msg warn">Pand opzoeken in de BAG…</div>';
+  try {
+    const panden = (await ogcItems('pand', { identificatie: id })).filter(f => !BESTAAT_NIET.test(f.properties?.status || ''));
+    const pand = panden[0];
+    if (!pand) { st.innerHTML = `<div class="msg err">Pand ${esc(id)} niet gevonden in de BAG (of gesloopt).</div>`; return; }
+    // omhullend kader van het pand, dan alle verblijfsobjecten daarin die aan dít pand gekoppeld zijn
+    const xy = pand.geometry.coordinates.flat(Infinity);
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (let i = 0; i < xy.length - 1; i += 2) { x0 = Math.min(x0, xy[i]); x1 = Math.max(x1, xy[i]); y0 = Math.min(y0, xy[i+1]); y1 = Math.max(y1, xy[i+1]); }
+    st.innerHTML = '<div class="msg warn">Adressen in het pand ophalen…</div>';
+    const vbos = (await ogcItems('verblijfsobject', { bbox: [x0 - 1, y0 - 1, x1 + 1, y1 + 1].join(','), 'bbox-crs': RD_CRS }))
+      .filter(f => !BESTAAT_NIET.test(f.properties?.status || ''))
+      .filter(f => (f.properties['pand.href'] || []).some(h => String(h).split('/').pop() === String(pand.id)));
+    if (!vbos.length) { st.innerHTML = '<div class="msg err">Dit pand heeft geen (actieve) adressen in de BAG.</div>'; return; }
+    // meest voorkomende straat = projectnaam; adressen aan een andere straat krijgen de straatnaam in de mapnaam
+    const tel = {}; vbos.forEach(f => { const s = f.properties.openbare_ruimte_naam || ''; tel[s] = (tel[s] || 0) + 1; });
+    const hoofdstraat = Object.entries(tel).sort((a, b) => b[1] - a[1])[0][0];
+    const gezien = new Set();
+    pandAdressen = vbos.map(f => {
+      const p = f.properties;
+      const nr = `${p.huisnummer}${p.huisletter || ''}${p.toevoeging ? '-' + p.toevoeging : ''}`;
+      const straat = p.openbare_ruimte_naam || '';
+      return { straat, nr, hn: p.huisnummer, rest: `${p.huisletter || ''}${p.toevoeging || ''}`,
+               map: veiligeNaam(straat === hoofdstraat ? nr : `${straat} ${nr}`),
+               gebruiksdoel: (p.gebruiksdoel || '').replace(/,\s*/g, ', '), aan: true };
+    }).filter(a => !gezien.has(a.map) && gezien.add(a.map))
+      .sort((a, b) => (a.straat === hoofdstraat ? '' : a.straat).localeCompare(b.straat === hoofdstraat ? '' : b.straat, 'nl')
+                      || a.hn - b.hn || a.rest.localeCompare(b.rest, 'nl', { numeric: true }));
+    $('projnaam').value = veiligeNaam('Project ' + hoofdstraat);
+    const woonplaats = vbos[0].properties.woonplaats_naam || '';
+    st.innerHTML = `<div class="msg ok">Pand ${esc(id)}${pand.properties.bouwjaar ? ' · bouwjaar ' + esc(pand.properties.bouwjaar) : ''}: <b>${pandAdressen.length} adressen</b>, ${esc(hoofdstraat)}${woonplaats ? ', ' + esc(woonplaats) : ''}.</div>`;
+    renderAdressen(); $('pand-resultaat').hidden = false;
+  } catch (e) {
+    st.innerHTML = `<div class="msg err">BAG niet bereikbaar: ${esc(e.message)}</div>`;
+  }
+  werkVoorbeeldBij();
+}
+function renderAdressen() {
+  $('adressen').innerHTML = pandAdressen.map((a, i) =>
+    `<label><input type="checkbox" data-i="${i}"${a.aan ? ' checked' : ''}><span>📁 ${esc(a.map)}</span><small>${esc(a.gebruiksdoel)}</small></label>`).join('');
+}
+$('adressen').addEventListener('change', e => { const c = e.target.closest('[data-i]'); if (c) { pandAdressen[+c.dataset.i].aan = c.checked; werkVoorbeeldBij(); } });
+$('sel-alles').onclick = () => { pandAdressen.forEach(a => a.aan = true); renderAdressen(); werkVoorbeeldBij(); };
+$('sel-niets').onclick = () => { pandAdressen.forEach(a => a.aan = false); renderAdressen(); werkVoorbeeldBij(); };
+$('sel-wonen').onclick = () => { pandAdressen.forEach(a => a.aan = /woon/i.test(a.gebruiksdoel)); renderAdressen(); werkVoorbeeldBij(); };
+$('b-pand').onclick = haalPand;
+$('pandid').addEventListener('keydown', e => { if (e.key === 'Enter') haalPand(); });
+$('projnaam').addEventListener('input', werkVoorbeeldBij);
+
+/* wat er gemaakt gaat worden: {pad, project, namen} of {fout} */
+function plan() {
+  if (modus === 'pand') {
+    if (!pandAdressen.length) return { fout: 'Vul een pand-ID in en klik op Ophalen.' };
+    const project = veiligeNaam($('projnaam').value);
+    if (!project) return { fout: 'Geef de projectmap een naam.' };
+    const namen = pandAdressen.filter(a => a.aan).map(a => a.map);
+    if (!namen.length) return { fout: 'Geen adressen geselecteerd.' };
+    return { pad: huidigPad, project, namen };
+  }
   const l = nummers();
-  const knop = $('b-maak');
-  if (!l) { $('voorbeeld').textContent = 'Vul begin- en eindnummer in.'; knop.disabled = true; return; }
-  if (!l.length) { $('voorbeeld').textContent = 'Geen nummers in dit bereik.'; knop.disabled = true; return; }
+  if (!l) return { fout: 'Vul begin- en eindnummer in.' };
+  if (!l.length) return { fout: 'Geen nummers in dit bereik.' };
+  return { pad: huidigPad, project: '', namen: l.map(String) };
+}
+function werkVoorbeeldBij() {
+  const p = plan(), knop = $('b-maak');
+  $('doel-tekst').textContent = p.project ? `${huidigPad} › ${p.project}` : huidigPad;
+  if (p.fout) { $('voorbeeld').textContent = p.fout; knop.disabled = true; knop.textContent = 'Mappen aanmaken'; return; }
+  const l = p.namen;
   if (l.length > MAX_MAPPEN) {
     $('voorbeeld').innerHTML = `<span style="color:var(--err)">Meer dan ${MAX_MAPPEN} mappen — maak het bereik kleiner.</span>`;
     knop.disabled = true; return;
   }
   const toon = l.length <= 8 ? l.join(', ') : `${l.slice(0, 4).join(', ')} … ${l.slice(-2).join(', ')}`;
-  $('voorbeeld').innerHTML = `<b>${l.length} ${l.length === 1 ? 'map' : 'mappen'}</b>: ${esc(toon)}`;
+  $('voorbeeld').innerHTML = (p.project ? `Map <b>${esc(p.project)}</b> met ` : '') + `<b>${l.length} ${l.length === 1 ? 'submap' : 'submappen'}</b>: ${esc(toon)}`;
   knop.disabled = false;
   knop.textContent = `${l.length} ${l.length === 1 ? 'map' : 'mappen'} aanmaken`;
 }
@@ -242,11 +371,17 @@ async function maakMap(pad, naam) {
   return 'nieuw';
 }
 $('b-maak').onclick = async () => {
-  const l = nummers(); if (!l || !l.length) return;
-  const pad = huidigPad, knop = $('b-maak'), bar = $('voortgang'), st = $('status');
-  if (l.length > 50 && !confirm(`${l.length} mappen aanmaken in\n${pad}?`)) return;
+  const p = plan(); if (p.fout) return;
+  const l = p.namen, knop = $('b-maak'), bar = $('voortgang'), st = $('status');
+  let pad = p.pad;
+  if (l.length > 50 && !confirm(`${l.length} mappen aanmaken in\n${p.project ? pad + ' › ' + p.project : pad}?`)) return;
   knop.disabled = true; bar.style.display = 'block'; st.innerHTML = '';
   let nieuw = 0, bestond = 0; const fouten = [];
+  if (p.project) {
+    try { await maakMap(pad, p.project); }
+    catch (e) { st.innerHTML = `<div class="msg err">Projectmap aanmaken mislukt: ${esc(e.message)}</div>`; knop.disabled = false; bar.style.display = 'none'; return; }
+    pad = pad + '/' + p.project;
+  }
   for (let i = 0; i < l.length; i++) {
     try { (await maakMap(pad, String(l[i]))) === 'nieuw' ? nieuw++ : bestond++; }
     catch (e) { fouten.push(`${l[i]}: ${e.message}`); }
@@ -257,7 +392,7 @@ $('b-maak').onclick = async () => {
   if (fouten.length) h += `<div class="msg err">Niet gelukt (${fouten.length}): ${esc(fouten.slice(0, 5).join(' · '))}${fouten.length > 5 ? ' …' : ''}</div>`;
   st.innerHTML = h;
   knop.disabled = false; werkVoorbeeldBij();
-  toonMap(pad);
+  toonMap(p.project ? p.pad : pad);
 };
 
 /* ── start ── */
@@ -269,6 +404,7 @@ $('b-login').onclick = () => VILogin.naarInlog();
     const me = await graph('/me?$select=displayName');
     if (me.ok) $('who').textContent = (await me.json()).displayName || 'Visser Inspecties';
     $('app-screen').style.display = 'block';
+    zetModus(modus);
     toonMap(START_PAD);
   } catch (e) {
     $('login-screen').style.display = 'block';
