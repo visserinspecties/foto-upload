@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meetstaat</title>
+<link rel="icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="assets/home-knop.js" defer></script>
+<script src="assets/login.js"></script>
+<style>
+:root{
+  --inkt:#1d1833; --inkt-zacht:#6b6584; --lijn:#d9d5e1; --papier:#f4f2f6;
+  --vlak:#ffffff; --groen:#432d6a; --groen-licht:#e8e6ed; --geel:#fff8d6;
+  --geel-rand:#e8d97a; --blauw:#1c4f8f; --rood:#b3261e;
+  --r:6px; --schaduw:0 1px 3px rgba(67,45,106,.10);
+  --serif:'Merriweather',Georgia,'Times New Roman',serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--papier);color:var(--inkt);
+  font:14.5px/1.55 var(--serif)}
+.band{background:var(--groen);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:20}
+.band::after{content:"";position:absolute;left:0;right:0;bottom:-5px;height:5px;background:linear-gradient(90deg,#019541 0 16.6%,#54ae32 0 33.3%,#c6d500 0 50%,#ffee02 0 66.6%,#faba00 0 83.3%,#ec670a 0)}
+.band .titel{font-weight:700;font-size:15px}
+.band .sub{font-size:12px;color:#cfc8e6}
+.band .who{margin-left:auto;text-align:right;font-size:11.5px;color:#cfc8e6}
+.band a{color:#fff;text-decoration:none;background:rgba(255,255,255,.14);border-radius:10px;padding:8px 12px;font-size:13px}
+@media(max-width:600px){.band .sub{display:none}}
+.wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;
+  padding:24px 22px 60px;max-width:1700px;margin:0 auto}
+@media(max-width:1050px){.wrap{grid-template-columns:1fr}}
+.kaart{background:var(--vlak);border:1px solid var(--lijn);border-radius:var(--r);
+  box-shadow:var(--schaduw);margin-bottom:16px;overflow:hidden}
+.kaart>h2{margin:0;font-size:14px;font-weight:700;padding:10px 14px;
+  border-bottom:1px solid var(--lijn);background:#faf9fb;letter-spacing:.3px}
+.kaart>.inhoud{padding:14px}
+#dropzone{border:2px dashed var(--lijn);border-radius:var(--r);background:#faf9fb;
+  padding:34px 20px;text-align:center;cursor:pointer;transition:.15s}
+#dropzone:hover,#dropzone.over{border-color:var(--groen);background:var(--groen-licht)}
+#dropzone strong{display:block;font-size:16px;margin-bottom:5px}
+#dropzone small{color:var(--inkt-zacht)}
+canvas{max-width:100%;border:1px solid var(--lijn);border-radius:4px;display:block}
+#viewer{position:relative;overflow:auto;max-height:74vh;background:#eceaf0;padding:8px}
+#viewer img{max-width:100%;display:block;border:1px solid var(--lijn)}
+.balk{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 14px;
+  border-bottom:1px solid var(--lijn);background:#faf9fb;font-size:13px}
+button{font:inherit;font-size:13px;padding:6px 12px;border-radius:var(--r);
+  border:1px solid var(--lijn);background:#fff;color:var(--inkt);cursor:pointer}
+button:hover{border-color:var(--groen);color:var(--groen)}
+button.primair{background:var(--groen);border-color:var(--groen);color:#fff;font-weight:700}
+button.primair:hover{background:#2f1f4c;color:#fff}
+button:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--groen);outline-offset:1px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{border:1px solid var(--lijn);padding:5px 7px;text-align:left;vertical-align:middle}
+th{background:var(--groen);color:#fff;font-weight:700;font-size:12px}
+tbody tr:nth-child(even){background:#faf9fb}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+input,select{font:inherit;font-size:13px;padding:4px 6px;border:1px solid var(--lijn);
+  border-radius:4px;background:#fff;color:var(--inkt);width:100%}
+input.invul{background:var(--geel);border-color:var(--geel-rand)}
+input.num{text-align:right;font-variant-numeric:tabular-nums}
+.rij{display:grid;grid-template-columns:1fr auto;gap:9px;align-items:center;margin-bottom:8px}
+.rij label{font-size:13px;color:var(--inkt-zacht)}
+.rij input,.rij select{width:150px}
+.hint{font-size:12px;color:var(--inkt-zacht);margin:8px 0 0;line-height:1.5}
+.ketens{max-height:240px;overflow:auto;border:1px solid var(--lijn);border-radius:4px}
+.keten{padding:7px 10px;border-bottom:1px solid var(--lijn);cursor:pointer;font-size:12.5px}
+.keten:hover{background:var(--groen-licht)}
+.keten .som{font-weight:700;color:var(--groen)}
+.keten .del{color:var(--inkt-zacht);font-variant-numeric:tabular-nums}
+.keten .as{float:right;font-size:11px;color:var(--inkt-zacht);
+  background:#eceaf0;padding:1px 6px;border-radius:9px}
+.leeg{padding:16px;color:var(--inkt-zacht);font-size:13px;text-align:center}
+.melding{padding:8px 11px;border-radius:4px;font-size:13px;margin-bottom:10px}
+.melding.ok{background:#e3f3e9;color:#1f7a45}
+.melding.let{background:var(--geel);color:#6b5a00}
+.melding.fout{background:#fbe6e4;color:var(--rood)}
+.legenda{display:flex;gap:16px;font-size:12px;color:var(--inkt-zacht);margin-top:10px;flex-wrap:wrap}
+.legenda i{display:inline-block;width:11px;height:11px;border-radius:2px;
+  margin-right:4px;vertical-align:-1px;border:1px solid var(--lijn)}
+.totaal td{background:#eceaf0;font-weight:700}
+h3{font-size:13px;margin:16px 0 8px;font-weight:700}
+h3:first-child{margin-top:0}
+.knoprij{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+#login-screen{display:none;max-width:420px;margin:60px auto;padding:0 14px;text-align:center}
+#login-screen h2{font-size:18px;margin:0}
+#login-screen p{margin:10px 0 18px;color:var(--inkt-zacht)}
+#app-screen{display:none}
+</style>
+</head>
+<body>
+<div class="band">
+  <span class="titel">Meetstaat</span>
+  <span class="sub">plattegrond erin, meetstaat eruit</span>
+  <div class="who" id="who">Visser Inspecties</div>
+  <a href="index.html" aria-label="Terug naar het dashboard">⌂</a>
+</div>
+
+<div id="login-screen">
+  <h2>Inloggen</h2>
+  <p>Log in met je Microsoft-account van Visser Inspecties om de meetstaat te gebruiken.</p>
+  <button class="primair" id="b-login">Inloggen met Microsoft</button>
+</div>
+
+<div class="wrap" id="app-screen">
+
+<!-- ============ LINKERKOLOM: tekening ============ -->
+<div>
+  <div class="kaart">
+    <h2>Tekening</h2>
+    <div class="inhoud">
+      <div id="dropzone" tabindex="0" role="button" aria-label="Tekening kiezen of hierheen slepen">
+        <strong>Sleep de plattegrond hierheen</strong>
+        <small>PDF, PNG of JPG — of klik om te kiezen</small>
+      </div>
+      <input type="file" id="bestand" accept=".pdf,.png,.jpg,.jpeg" hidden>
+      <p class="hint">Bij een PDF leest de tool de maatvoering uit de tekstlaag en bepaalt zelf de
+        schaal. Bij een afbeelding dient de tekening als naslag en typ je de maten zelf in.</p>
+    </div>
+  </div>
+
+  <div class="kaart" id="viewerkaart" hidden>
+    <h2>Weergave</h2>
+    <div class="balk">
+      <button id="vorige">Vorige</button>
+      <span id="paginalabel">—</span>
+      <button id="volgende">Volgende</button>
+      <span style="flex:1"></span>
+      <button id="uit">Kleiner</button>
+      <button id="in">Groter</button>
+    </div>
+    <div id="viewer"></div>
+  </div>
+
+  <div class="kaart" id="ketenkaart" hidden>
+    <h2>Gevonden maatkettingen</h2>
+    <div class="inhoud">
+      <div id="schaalmelding"></div>
+      <div class="ketens" id="ketenlijst"></div>
+      <p class="hint">Klik een ketting aan om de som over te nemen als hoofdmaat. De som van een
+        ketting hoort gelijk te zijn aan de totaalmaat ernaast; klopt dat niet, dan mist er een maat.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============ RECHTERKOLOM: invoer ============ -->
+<div>
+  <div class="kaart">
+    <h2>Project</h2>
+    <div class="inhoud">
+      <div class="rij"><label for="pnaam">Projectnaam</label><input id="pnaam" class="invul"></div>
+      <div class="rij"><label for="padres">Adres</label><input id="padres" class="invul"></div>
+      <div class="rij"><label for="pdatum">Opnamedatum</label><input id="pdatum" type="date" class="invul"></div>
+      <div class="rij"><label for="pkoers">Kompaskoers voorgevel (°)</label>
+        <input id="pkoers" type="number" class="invul num" value="180" min="0" max="359"></div>
+      <p class="hint">De koers van de voorgevel bepaalt de oriëntatie van alle gevels.
+        180 is pal zuid, 0 is noord.</p>
+    </div>
+  </div>
+
+  <div class="kaart">
+    <h2>Bouwlagen</h2>
+    <div class="inhoud">
+      <table id="lagentabel">
+        <thead><tr>
+          <th>Bouwlaag</th>
+          <th class="num">Verdiepingshoogte (mm)</th>
+          <th class="num">Gevelhoogte (mm)</th>
+          <th class="num">Woonoppervlak (m²)</th>
+          <th></th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="knoprij">
+        <button id="laagerbij">Bouwlaag toevoegen</button>
+      </div>
+      <p class="hint">Verdiepingshoogte is vloer tot vloer, binnenwerks. Gevelhoogte is wat de
+        gevel aan de buitenkant per laag opgaat — die twee lopen uiteen zodra een dakvlak
+        door een verdieping snijdt. Woonoppervlak zijn de binnenmaten van die verdieping, zónder
+        correctie voor scheidingsmuren — vul die dus rechtstreeks in zoals gemeten. Ruimte onder
+        1,5 m plafondhoogte telt niet mee; dat wordt vooral relevant bij dakverdiepingen.</p>
+    </div>
+  </div>
+
+  <div class="kaart">
+    <h2>Dak</h2>
+    <div class="inhoud">
+      <div class="rij"><label for="daktype">Daktype</label>
+        <select id="daktype">
+          <option value="plat">Plat dak</option>
+          <option value="zadel">Zadeldak</option>
+          <option value="lessenaar">Lessenaarsdak</option>
+          <option value="schild">Schilddak</option>
+        </select></div>
+      <div class="rij" id="hellingrij" hidden><label for="helling">Dakhelling (graden)</label>
+        <input id="helling" type="text" inputmode="decimal" class="invul num" value="45"></div>
+      <div class="rij" id="nokrij" hidden><label for="nokricht">Nokrichting</label>
+        <select id="nokricht">
+          <option value="langs">Evenwijdig aan voorgevel</option>
+          <option value="dwars">Haaks op voorgevel</option>
+        </select></div>
+      <p class="hint" id="dakhint">Bij een hellend dak wordt het dakvlak berekend als
+        geprojecteerd oppervlak gedeeld door de cosinus van de helling.</p>
+    </div>
+  </div>
+
+  <div class="kaart">
+    <h2>Gevels</h2>
+    <div class="inhoud">
+      <div class="rij"><label for="sfvoorgevel">Snel: voorgevel breedte (m)</label>
+        <input id="sfvoorgevel" type="text" inputmode="decimal" class="invul num"></div>
+      <div class="rij"><label for="sfzijgevel">Snel: zijgevel diepte (m)</label>
+        <input id="sfzijgevel" type="text" inputmode="decimal" class="invul num"></div>
+      <div class="rij"><label for="sfgedeeld">Gedeelde zijgevel(s)</label>
+        <select id="sfgedeeld">
+          <option value="0">Geen (vrijstaand)</option>
+          <option value="1L">Eén kant — links gedeeld (halfvrijstaand)</option>
+          <option value="1R">Eén kant — rechts gedeeld (halfvrijstaand)</option>
+          <option value="2">Beide kanten gedeeld (tussenwoning)</option>
+        </select></div>
+      <div class="knoprij">
+        <button id="snelvoetafdruk">Vul gevels + voetafdruk in (rechthoek)</button>
+      </div>
+      <p class="hint" id="snelhint">Voor een eenvoudige plattegrond (bv. makelaarstekening): dit
+        vult voor-, achter- en beide zijgevels in volgens de rechthoeklogica — voorgevel = achtergevel,
+        beide zijgevels = diepte — en zet dezelfde maten bij de voetafdruk hieronder. Bij een gedeelde
+        zijgevel telt de beukmaat (breedte voor voor-/achtergevel) 11 cm per gedeelde zijde extra —
+        de voetafdruk-maten blijven ongecorrigeerd. Wijkt de vorm van het huis af van een rechthoek,
+        pas de gevels dan handmatig aan in de tabel.</p>
+      <table id="gevelstabel">
+        <thead><tr>
+          <th>Gevel</th><th>Oriëntatie</th>
+          <th class="num">Lengte (m)</th>
+          <th class="num">Hoogte (m)</th>
+          <th class="num">Oppervlak (m²)</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="knoprij">
+        <button id="gevelerbij">Gevelvlak toevoegen</button>
+      </div>
+      <p class="hint">Hoogte staat standaard op de som van de gevelhoogtes. Loopt een gevelvlak
+        maar over één laag, pas de hoogte dan aan.</p>
+    </div>
+  </div>
+
+  <div class="kaart">
+    <h2>Vloer en dak</h2>
+    <div class="inhoud">
+      <div class="rij"><label for="vlvorm">Voetafdruk lengte × breedte (m)</label>
+        <span><input id="vllengte" type="text" inputmode="decimal" class="invul num"
+          style="width:70px;display:inline-block" value="0,00">
+        <input id="vlbreedte" type="text" inputmode="decimal" class="invul num"
+          style="width:70px;display:inline-block" value="0,00"></span></div>
+      <div class="rij"><label for="vlgrond">Vloer op grond (m²)</label>
+        <input id="vlgrond" type="text" inputmode="decimal" class="invul num" value="0,0"></div>
+      <div class="rij"><label for="vlkruip">Vloer boven kruipruimte (m²)</label>
+        <input id="vlkruip" type="text" inputmode="decimal" class="invul num" value="0,0"></div>
+      <div class="rij"><label for="vlbuiten">Vloer grenzend aan buitenlucht (m²)</label>
+        <input id="vlbuiten" type="text" inputmode="decimal" class="invul num" value="0,0"></div>
+      <p class="hint">Een uitkragende verdiepingsvloer met verwarmde ruimte erboven telt als
+        vloer grenzend aan buitenlucht. Kijk daarvoor in de doorsnede, niet in het gevelaanzicht.</p>
+    </div>
+  </div>
+
+  <div class="kaart">
+    <h2>Meetstaat</h2>
+    <div class="inhoud">
+      <div id="meetstaat"></div>
+      <div class="legenda">
+        <span><i style="background:var(--geel);border-color:var(--geel-rand)"></i>zelf invullen</span>
+        <span><i style="background:#fff"></i>berekend</span>
+      </div>
+      <div class="knoprij">
+        <button class="primair" id="exporteer">Meetstaat naar Excel</button>
+        <button class="primair" id="pdf">Meetstaat naar PDF</button>
+        <button id="wissen">Alles wissen</button>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+const $ = s => document.querySelector(s);
+const getal = v => {
+  if (typeof v === "number") return v;
+  const n = parseFloat(String(v == null ? "" : v).replace(/\s/g, "").replace(",", "."));
+  return isNaN(n) ? 0 : n;
+};
+const fmt = (v, d = 2) => (Math.round(v * 10 ** d) / 10 ** d)
+  .toLocaleString("nl-NL", { minimumFractionDigits: d, maximumFractionDigits: d });
+
+const ORIENTATIES = [
+  [22.5, "Noord"], [67.5, "Noordoost"], [112.5, "Oost"], [157.5, "Zuidoost"],
+  [202.5, "Zuid"], [247.5, "Zuidwest"], [292.5, "West"], [337.5, "Noordwest"]
+];
+function orientatie(koers) {
+  const k = ((koers % 360) + 360) % 360;
+  for (const [gr, naam] of ORIENTATIES) if (k < gr) return naam;
+  return "Noord";
+}
+
+/* ---------------- toestand ---------------- */
+let staat = {
+  lagen: [{ naam: "Begane grond", vh: 2600, gh: 2600, wo: 0 }],
+  gevels: [
+    { naam: "Voorgevel", offset: 0, lengte: 0, hoogte: null },
+    { naam: "Rechterzijgevel", offset: 90, lengte: 0, hoogte: null },
+    { naam: "Achtergevel", offset: 180, lengte: 0, hoogte: null },
+    { naam: "Linkerzijgevel", offset: 270, lengte: 0, hoogte: null }
+  ],
+  mmPerPt: null, ketens: [], bestandsnaam: ""
+};
+
+/* ---------------- bestand inladen ---------------- */
+const dz = $("#dropzone");
+dz.addEventListener("click", () => $("#bestand").click());
+dz.addEventListener("keydown", e => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("#bestand").click(); }
+});
+["dragenter", "dragover"].forEach(t => dz.addEventListener(t, e => {
+  e.preventDefault(); dz.classList.add("over");
+}));
+["dragleave", "drop"].forEach(t => dz.addEventListener(t, e => {
+  e.preventDefault(); dz.classList.remove("over");
+}));
+dz.addEventListener("drop", e => {
+  if (e.dataTransfer.files.length) verwerk(e.dataTransfer.files[0]);
+});
+$("#bestand").addEventListener("change", e => {
+  if (e.target.files.length) verwerk(e.target.files[0]);
+});
+
+function verwerk(file) {
+  staat.bestandsnaam = file.name;
+  if (/\.pdf$/i.test(file.name)) laadPdf(file);
+  else laadAfbeelding(file);
+}
+
+function laadAfbeelding(file) {
+  const url = URL.createObjectURL(file);
+  $("#viewer").innerHTML = `<img src="${url}" alt="Ingeladen plattegrond">`;
+  $("#viewerkaart").hidden = false;
+  $("#paginalabel").textContent = file.name;
+  $("#vorige").disabled = $("#volgende").disabled = true;
+  $("#ketenkaart").hidden = false;
+  $("#schaalmelding").innerHTML =
+    `<div class="melding let">Een afbeelding heeft geen tekstlaag, dus de maten zijn niet
+     automatisch uit te lezen. Gebruik de tekening als naslag en typ de maten zelf in — bij de
+     Gevels-kaart rechts staat een snelle invoer voor voorgevel breedte en zijgevel diepte.</div>`;
+  $("#ketenlijst").innerHTML = `<div class="leeg">Geen maatkettingen — dit is een afbeelding.</div>`;
+  const sf = $("#sfvoorgevel");
+  if (sf) sf.focus();
+}
+
+/* ---------------- PDF ---------------- */
+let pdfDoc = null, pagina = 1, zoom = 1.3;
+
+async function laadPdf(file) {
+  try {
+    const buf = await file.arrayBuffer();
+    pdfDoc = await pdfjsLib.getDocument({ data: buf }).promise;
+    pagina = 1;
+    $("#viewerkaart").hidden = false;
+    $("#ketenkaart").hidden = false;
+    await toonPagina();
+  } catch (err) {
+    $("#viewerkaart").hidden = false;
+    $("#viewer").innerHTML =
+      `<div class="melding fout">Deze PDF kon niet worden geopend: ${err.message}</div>`;
+  }
+}
+
+async function toonPagina() {
+  const page = await pdfDoc.getPage(pagina);
+  const vp = page.getViewport({ scale: zoom });
+  const cv = document.createElement("canvas");
+  cv.width = vp.width; cv.height = vp.height;
+  await page.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
+  $("#viewer").innerHTML = ""; $("#viewer").appendChild(cv);
+  $("#paginalabel").textContent = `Pagina ${pagina} van ${pdfDoc.numPages}`;
+  $("#vorige").disabled = pagina <= 1;
+  $("#volgende").disabled = pagina >= pdfDoc.numPages;
+  await leesMaten(page);
+}
+
+$("#vorige").onclick = () => { if (pagina > 1) { pagina--; toonPagina(); } };
+$("#volgende").onclick = () => { if (pagina < pdfDoc.numPages) { pagina++; toonPagina(); } };
+$("#in").onclick = () => { zoom = Math.min(zoom * 1.25, 6); toonPagina(); };
+$("#uit").onclick = () => { zoom = Math.max(zoom / 1.25, .3); toonPagina(); };
+
+/* ---------------- maatvoering uitlezen ---------------- */
+async function leesMaten(page) {
+  const tc = await page.getTextContent();
+  const items = [];
+  for (const it of tc.items) {
+    const t = (it.str || "").trim();
+    if (!/^\d{2,5}$/.test(t)) continue;
+    const m = it.transform;
+    const horizontaal = Math.abs(m[0]) >= Math.abs(m[1]);
+    items.push({
+      waarde: parseInt(t, 10),
+      x: m[4] + (horizontaal ? (it.width || 0) / 2 : 0),
+      y: m[5] - (horizontaal ? 0 : (it.height || 0) / 2),
+      as: horizontaal ? "H" : "V"
+    });
+  }
+
+  const ketens = [];
+  ketens.push(...cluster(items.filter(i => i.as === "H"), "y", "x", "horizontaal"));
+  ketens.push(...cluster(items.filter(i => i.as === "V"), "x", "y", "verticaal"));
+
+  const factoren = [];
+  for (const k of ketens) {
+    for (let i = 0; i < k.leden.length - 1; i++) {
+      const afstandPt = Math.abs(k.leden[i + 1].pos - k.leden[i].pos);
+      const afstandMm = (k.leden[i].waarde + k.leden[i + 1].waarde) / 2;
+      if (afstandPt > 4 && afstandMm > 200) factoren.push(afstandMm / afstandPt);
+    }
+  }
+  staat.mmPerPt = mediaan(factoren);
+  staat.ketens = ketens.sort((a, b) => b.som - a.som);
+  toonKetens();
+}
+
+function cluster(lijst, asKey, sorteerKey, label) {
+  const gesorteerd = [...lijst].sort((a, b) => a[asKey] - b[asKey] || a[sorteerKey] - b[sorteerKey]);
+  const groepen = []; let huidig = [];
+  for (const i of gesorteerd) {
+    if (!huidig.length || Math.abs(i[asKey] - huidig[0][asKey]) < 4) huidig.push(i);
+    else { groepen.push(huidig); huidig = [i]; }
+  }
+  if (huidig.length) groepen.push(huidig);
+
+  return groepen.filter(g => g.length >= 2).map(g => {
+    const leden = g.sort((a, b) => a[sorteerKey] - b[sorteerKey])
+      .map(i => ({ waarde: i.waarde, pos: i[sorteerKey] }));
+    return {
+      richting: label,
+      leden,
+      som: leden.reduce((s, l) => s + l.waarde, 0)
+    };
+  }).filter(k => k.som >= 1000);
+}
+
+function mediaan(a) {
+  if (!a.length) return null;
+  const s = [...a].sort((x, y) => x - y);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+function toonKetens() {
+  const mel = $("#schaalmelding");
+  if (staat.mmPerPt) {
+    const schaal = Math.round(staat.mmPerPt / (25.4 / 72));
+    mel.innerHTML = `<div class="melding ok">Schaal herkend: ${fmt(staat.mmPerPt, 3)} mm per punt,
+      dat komt neer op ongeveer 1:${schaal}. Controleer dit tegen het stempel op de tekening.</div>`;
+  } else {
+    mel.innerHTML = `<div class="melding let">Geen maatkettingen gevonden om de schaal op te
+      ijken. Deze pagina heeft mogelijk geen tekstlaag, of het is een pagina zonder maatvoering.</div>`;
+  }
+
+  const lijst = $("#ketenlijst");
+  if (!staat.ketens.length) {
+    lijst.innerHTML = `<div class="leeg">Geen maatkettingen op deze pagina.</div>`;
+    return;
+  }
+  lijst.innerHTML = staat.ketens.slice(0, 40).map((k, i) => `
+    <div class="keten" data-i="${i}" role="button" tabindex="0">
+      <span class="as">${k.richting}</span>
+      <span class="som">${k.som.toLocaleString("nl-NL")} mm</span>
+      <span class="del"> = ${k.leden.map(l => l.waarde).join(" + ")}</span>
+    </div>`).join("");
+
+  lijst.querySelectorAll(".keten").forEach(el => {
+    el.onclick = () => gebruikKeten(staat.ketens[+el.dataset.i]);
+    el.onkeydown = e => { if (e.key === "Enter") gebruikKeten(staat.ketens[+el.dataset.i]); };
+  });
+}
+
+function gebruikKeten(k) {
+  const meters = k.som / 1000;
+  const doelen = staat.gevels.map((g, i) => `${i}: ${g.naam}`).join("\n");
+  const keuze = prompt(
+    `Ketting van ${k.som} mm (${fmt(meters)} m) toewijzen aan welk gevelvlak?\n\n${doelen}\n\n` +
+    `Typ het nummer, of L voor de lengte van de voetafdruk, of B voor de breedte.`, "0");
+  if (keuze === null) return;
+  if (/^l$/i.test(keuze)) { $("#vllengte").value = fmt(meters); }
+  else if (/^b$/i.test(keuze)) { $("#vlbreedte").value = fmt(meters); }
+  else {
+    const i = parseInt(keuze, 10);
+    if (!isNaN(i) && staat.gevels[i]) staat.gevels[i].lengte = meters;
+  }
+  tekenGevels(); rekenen();
+}
+
+/* ---------------- bouwlagen ---------------- */
+function tekenLagen() {
+  const tb = $("#lagentabel tbody");
+  tb.innerHTML = staat.lagen.map((l, i) => `
+    <tr>
+      <td><input class="invul" data-i="${i}" data-v="naam" value="${l.naam}"></td>
+      <td><input class="invul num" type="number" data-i="${i}" data-v="vh" value="${l.vh}"></td>
+      <td><input class="invul num" type="number" data-i="${i}" data-v="gh" value="${l.gh}"></td>
+      <td><input class="invul num" type="text" inputmode="decimal" data-i="${i}" data-v="wo" value="${fmt(l.wo || 0, 1)}"></td>
+      <td><button data-weg="${i}" aria-label="Bouwlaag verwijderen">×</button></td>
+    </tr>`).join("");
+  tb.querySelectorAll("input").forEach(inp => {
+    inp.oninput = () => {
+      const l = staat.lagen[+inp.dataset.i];
+      l[inp.dataset.v] = inp.dataset.v === "naam" ? inp.value : getal(inp.value);
+      rekenen(); tekenGevels();
+    };
+  });
+  tb.querySelectorAll("[data-weg]").forEach(b => b.onclick = () => {
+    if (staat.lagen.length > 1) { staat.lagen.splice(+b.dataset.weg, 1); tekenLagen(); tekenGevels(); rekenen(); }
+  });
+}
+$("#laagerbij").onclick = () => {
+  const n = staat.lagen.length;
+  staat.lagen.push({ naam: n === 1 ? "Eerste verdieping" : `Verdieping ${n}`, vh: 2600, gh: 2600, wo: 0 });
+  tekenLagen(); tekenGevels(); rekenen();
+};
+
+const totaleGevelhoogte = () => staat.lagen.reduce((s, l) => s + l.gh, 0) / 1000;
+
+/* ---------------- gevels ---------------- */
+function tekenGevels() {
+  const koers = getal($("#pkoers").value);
+  const H = totaleGevelhoogte();
+  const tb = $("#gevelstabel tbody");
+  tb.innerHTML = staat.gevels.map((g, i) => {
+    const h = g.hoogte === null ? H : g.hoogte;
+    return `<tr>
+      <td><input class="invul" data-i="${i}" data-v="naam" value="${g.naam}"></td>
+      <td>${orientatie(koers + g.offset)}</td>
+      <td><input class="invul num" type="text" inputmode="decimal" data-i="${i}" data-v="lengte" value="${fmt(g.lengte)}"></td>
+      <td><input class="invul num" type="text" inputmode="decimal" data-i="${i}" data-v="hoogte" value="${fmt(h)}"></td>
+      <td class="num">${fmt(g.lengte * h, 1)}</td>
+    </tr>`;
+  }).join("");
+  tb.querySelectorAll("input").forEach(inp => {
+    inp.oninput = () => {
+      const g = staat.gevels[+inp.dataset.i];
+      const v = inp.dataset.v;
+      g[v] = v === "naam" ? inp.value : getal(inp.value);
+      const rij = inp.closest("tr");
+      const h = g.hoogte === null ? totaleGevelhoogte() : g.hoogte;
+      rij.lastElementChild.textContent = fmt(g.lengte * h, 1);
+      rekenen();
+    };
+  });
+}
+$("#gevelerbij").onclick = () => {
+  staat.gevels.push({ naam: "Extra gevelvlak", offset: 0, lengte: 0, hoogte: totaleGevelhoogte() });
+  tekenGevels(); rekenen();
+};
+$("#pkoers").oninput = () => { tekenGevels(); rekenen(); };
+
+/* ---------------- snelle voetafdruk (rechthoeklogica) ---------------- */
+$("#snelvoetafdruk").onclick = () => {
+  const breedte = getal($("#sfvoorgevel").value);
+  const diepte = getal($("#sfzijgevel").value);
+  if (!breedte || !diepte) {
+    alert("Vul zowel de voorgevel breedte als de zijgevel diepte in.");
+    return;
+  }
+  const gedeeld = $("#sfgedeeld").value;
+  const aantalGedeeld = gedeeld === "0" ? 0 : (gedeeld === "2" ? 2 : 1);
+  const beukmaat = breedte + aantalGedeeld * 0.11; // +11 cm per gedeelde (partij)zijgevel
+
+  staat.gevels.forEach(g => {
+    const o = ((g.offset % 360) + 360) % 360;
+    if (o === 0 || o === 180) g.lengte = beukmaat;      // voor-/achtergevel
+    else if (o === 90 || o === 270) g.lengte = diepte;  // beide zijgevels
+  });
+  $("#vllengte").value = fmt(breedte);   // voetafdruk blijft ongecorrigeerd
+  $("#vlbreedte").value = fmt(diepte);
+  tekenGevels(); rekenen();
+};
+
+/* ---------------- dak ---------------- */
+$("#daktype").onchange = () => {
+  const t = $("#daktype").value;
+  $("#hellingrij").hidden = t === "plat";
+  $("#nokrij").hidden = !(t === "zadel" || t === "schild");
+  rekenen();
+};
+["#helling", "#nokricht", "#vllengte", "#vlbreedte", "#vlgrond", "#vlkruip", "#vlbuiten"]
+  .forEach(s => $(s).oninput = rekenen);
+
+function dakOppervlak() {
+  const L = getal($("#vllengte").value);
+  const B = getal($("#vlbreedte").value);
+  const geprojecteerd = L * B;
+  const t = $("#daktype").value;
+  if (t === "plat" || !geprojecteerd) return { opp: geprojecteerd, toel: "plat dak" };
+  const hel = getal($("#helling").value) * Math.PI / 180;
+  const c = Math.cos(hel);
+  if (c < 0.05) return { opp: 0, toel: "helling te steil om te rekenen" };
+  return {
+    opp: geprojecteerd / c,
+    toel: `geprojecteerd ${fmt(geprojecteerd, 1)} m² gedeeld door cos ${$("#helling").value}°`
+  };
+}
+
+/* ---------------- meetstaat ---------------- */
+let laatsteStaat = [];
+function rekenen() {
+  const koers = getal($("#pkoers").value);
+  const H = totaleGevelhoogte();
+  const rijen = [];
+
+  staat.lagen.forEach(l => rijen.push({
+    groep: "Bouwlagen", post: l.naam,
+    waarde: l.vh, eenheid: "mm", toel: `gevelhoogte ${l.gh} mm`
+  }));
+  rijen.push({
+    groep: "Bouwlagen", post: "Totale gevelhoogte",
+    waarde: H, eenheid: "m", toel: "som van de gevelhoogtes"
+  });
+
+  let woonTotaal = 0;
+  staat.lagen.forEach(l => {
+    const wo = l.wo || 0;
+    woonTotaal += wo;
+    rijen.push({
+      groep: "Woonoppervlak", post: l.naam, waarde: wo, eenheid: "m²",
+      toel: "binnenmaten, geen correctie scheidingsmuur"
+    });
+  });
+  rijen.push({
+    groep: "Woonoppervlak", post: "Totaal woonoppervlak", waarde: woonTotaal, eenheid: "m²", toel: ""
+  });
+
+  let gevelTotaal = 0;
+  staat.gevels.forEach(g => {
+    const h = g.hoogte === null ? H : g.hoogte;
+    const opp = g.lengte * h;
+    gevelTotaal += opp;
+    rijen.push({
+      groep: "Gevels", post: g.naam, waarde: opp, eenheid: "m²",
+      toel: `${fmt(g.lengte)} m × ${fmt(h)} m · ${orientatie(koers + g.offset)}`
+    });
+  });
+  rijen.push({ groep: "Gevels", post: "Totaal gevels", waarde: gevelTotaal, eenheid: "m²", toel: "" });
+
+  const dak = dakOppervlak();
+  rijen.push({ groep: "Dak en vloer", post: "Dakvlak", waarde: dak.opp, eenheid: "m²", toel: dak.toel });
+  [["Vloer op grond", "#vlgrond"], ["Vloer boven kruipruimte", "#vlkruip"],
+   ["Vloer grenzend aan buitenlucht", "#vlbuiten"]].forEach(([n, s]) =>
+    rijen.push({ groep: "Dak en vloer", post: n, waarde: getal($(s).value), eenheid: "m²", toel: "" }));
+
+  const schil = gevelTotaal + dak.opp +
+    getal($("#vlgrond").value) + getal($("#vlkruip").value) + getal($("#vlbuiten").value);
+  rijen.push({ groep: "Totaal", post: "Schiloppervlak", waarde: schil, eenheid: "m²", toel: "gevels + dak + vloeren" });
+
+  laatsteStaat = rijen;
+  toonMeetstaat(rijen);
+}
+
+function toonMeetstaat(rijen) {
+  let html = `<table><thead><tr><th>Post</th><th class="num">Waarde</th>
+    <th>Eenheid</th><th>Toelichting</th></tr></thead><tbody>`;
+  let groep = null;
+  for (const r of rijen) {
+    if (r.groep !== groep) {
+      groep = r.groep;
+      html += `<tr class="totaal"><td colspan="4">${groep}</td></tr>`;
+    }
+    const dec = r.eenheid === "mm" ? 0 : (r.eenheid === "m²" ? 1 : 2);
+    html += `<tr><td>${r.post}</td><td class="num">${fmt(r.waarde, dec)}</td>
+      <td>${r.eenheid}</td><td style="color:var(--inkt-zacht);font-size:12px">${r.toel}</td></tr>`;
+  }
+  $("#meetstaat").innerHTML = html + "</tbody></table>";
+}
+
+/* ---------------- export ---------------- */
+$("#exporteer").onclick = () => {
+  const wb = XLSX.utils.book_new();
+  const koers = getal($("#pkoers").value);
+
+  const uitg = [
+    ["Meetstaat"], [],
+    ["Project", $("#pnaam").value], ["Adres", $("#padres").value],
+    ["Opnamedatum", $("#pdatum").value], ["Bronbestand", staat.bestandsnaam],
+    ["Kompaskoers voorgevel", koers],
+    ["Herkende schaal (mm per punt)", staat.mmPerPt ? Math.round(staat.mmPerPt * 1000) / 1000 : "handmatig"],
+    [], ["Daktype", $("#daktype").value], ["Dakhelling (graden)", $("#helling").value], [],
+    ["Blauw = uit de tekening. Geel = zelf ingevuld. Controleer alles in het werk."]
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(uitg), "Uitgangspunten");
+
+  const lagen = [["Bouwlaag", "Verdiepingshoogte (mm)", "Gevelhoogte (mm)", "Woonoppervlak (m2)"]];
+  staat.lagen.forEach(l => lagen.push([l.naam, l.vh, l.gh, l.wo || 0]));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(lagen), "Bouwlagen");
+
+  const gv = [["Gevel", "Oriëntatie", "Lengte (m)", "Hoogte (m)", "Oppervlak (m2)"]];
+  staat.gevels.forEach(g => {
+    const h = g.hoogte === null ? totaleGevelhoogte() : g.hoogte;
+    gv.push([g.naam, orientatie(koers + g.offset), g.lengte, h, Math.round(g.lengte * h * 10) / 10]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(gv), "Gevels");
+
+  const ms = [["Groep", "Post", "Waarde", "Eenheid", "Gemeten", "OK", "Toelichting"]];
+  laatsteStaat.forEach(r => ms.push([r.groep, r.post,
+    Math.round(r.waarde * 100) / 100, r.eenheid, "", "", r.toel]));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ms), "Meetstaat");
+
+  if (staat.ketens.length) {
+    const kt = [["Richting", "Som (mm)", "Maten"]];
+    staat.ketens.forEach(k => kt.push([k.richting, k.som, k.leden.map(l => l.waarde).join(" + ")]));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(kt), "Maatkettingen");
+  }
+
+  const naam = ($("#pnaam").value || "meetstaat").replace(/[^\w\s-]/g, "").trim() || "meetstaat";
+  XLSX.writeFile(wb, `Meetstaat ${naam}.xlsx`);
+};
+
+
+/* ---------------- PDF ---------------- */
+const GROEN = [67, 45, 106], INKT = [29, 24, 51], ZACHT = [107, 101, 132];
+// jsPDF's standaardfont kent het superscript-teken niet, dus platslaan
+const pt = v => (v && typeof v === "object")
+  ? { ...v, content: String(v.content).replace(/²/g, "2") }
+  : String(v == null ? "" : v).replace(/²/g, "2");
+
+function maakPdf() {
+  const JS = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+  if (!JS) { alert("De PDF-bibliotheek is niet geladen. Controleer je internetverbinding."); return null; }
+  const doc = new JS({ unit: "mm", format: "a4", orientation: "portrait" });
+  if (typeof doc.autoTable !== "function") {
+    alert("De tabelmodule voor de PDF is niet geladen."); return null;
+  }
+
+  const koers = getal($("#pkoers").value);
+  const H = totaleGevelhoogte();
+  const marge = 15, breed = 180;
+
+  doc.setFillColor(...GROEN);
+  doc.rect(0, 0, 210, 22, "F");
+  doc.setTextColor(255).setFont("helvetica", "bold").setFontSize(15);
+  doc.text("Meetstaat", marge, 13);
+  doc.setFont("helvetica", "normal").setFontSize(9);
+  doc.text("Visser Inspecties", 210 - marge, 13, { align: "right" });
+
+  let y = 32;
+  doc.setTextColor(...INKT).setFont("helvetica", "bold").setFontSize(12);
+  doc.text($("#pnaam").value || "Naamloos project", marge, y);
+  y += 6;
+  doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(...ZACHT);
+
+  const kop = [];
+  if ($("#padres").value) kop.push($("#padres").value);
+  if ($("#pdatum").value) {
+    const d = new Date($("#pdatum").value);
+    kop.push("opname " + d.toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" }));
+  }
+  kop.push(`voorgevel ${Math.round(koers)}° · ${orientatie(koers)}`);
+  const dakLabel = $("#daktype").selectedOptions[0].text;
+  kop.push($("#daktype").value === "plat" ? dakLabel : `${dakLabel} ${getal($("#helling").value)}°`);
+  doc.text(kop.join("   ·   "), marge, y);
+  y += 4;
+  if (staat.bestandsnaam) {
+    doc.text(`bron: ${staat.bestandsnaam}` +
+      (staat.mmPerPt ? ` · schaal 1:${Math.round(staat.mmPerPt / (25.4 / 72))}` : ""), marge, y);
+    y += 4;
+  }
+  y += 3;
+
+  const opmaak = {
+    startY: y, margin: { left: marge, right: marge },
+    styles: { font: "helvetica", fontSize: 8.5, cellPadding: 1.8, textColor: INKT,
+              lineColor: [217, 213, 225], lineWidth: 0.1 },
+    headStyles: { fillColor: GROEN, textColor: 255, fontStyle: "bold", fontSize: 8 },
+    alternateRowStyles: { fillColor: [250, 249, 251] }
+  };
+
+  const kolomTitel = t => {
+    doc.setFont("helvetica", "bold").setFontSize(10).setTextColor(...INKT);
+    doc.text(t, marge, doc.lastAutoTable.finalY + 9);
+    return doc.lastAutoTable.finalY + 12;
+  };
+
+  doc.autoTable({ ...opmaak,
+    head: [["Bouwlaag", "Verdiepingshoogte", "Gevelhoogte", "Woonoppervlak", "Gemeten", "OK"]],
+    body: staat.lagen.map(l => [l.naam, `${l.vh} mm`, `${l.gh} mm`, pt(`${fmt(l.wo || 0, 1)} m2`), "", ""]),
+    columnStyles: { 1: { halign: "right", cellWidth: 26 }, 2: { halign: "right", cellWidth: 24 },
+                    3: { halign: "right", cellWidth: 24 }, 4: { cellWidth: 22 }, 5: { cellWidth: 12, halign: "center" } }
+  });
+
+  let ny = kolomTitel("Gevels");
+  let gevelTotaal = 0;
+  const gevelRijen = staat.gevels.map(g => {
+    const h = g.hoogte === null ? H : g.hoogte;
+    gevelTotaal += g.lengte * h;
+    return [g.naam, orientatie(koers + g.offset), fmt(g.lengte), fmt(h), fmt(g.lengte * h, 1), "", ""].map(pt);
+  });
+  gevelRijen.push([{ content: "Totaal gevels", styles: { fontStyle: "bold" } }, "", "", "",
+    { content: fmt(gevelTotaal, 1), styles: { fontStyle: "bold" } }, "", ""]);
+  doc.autoTable({ ...opmaak, startY: ny,
+    head: [["Gevel", "Oriëntatie", "Lengte m", "Hoogte m", "Opp. m2", "Gemeten", "OK"]],
+    body: gevelRijen,
+    columnStyles: { 2: { halign: "right", cellWidth: 20 }, 3: { halign: "right", cellWidth: 20 },
+                    4: { halign: "right", cellWidth: 20 }, 5: { cellWidth: 24 },
+                    6: { cellWidth: 12, halign: "center" } }
+  });
+
+  ny = kolomTitel("Dak en vloer");
+  const dak = dakOppervlak();
+  const dvRijen = [["Dakvlak", fmt(dak.opp, 1), pt(dak.toel), "", ""]];
+  [["Vloer op grond", "#vlgrond"], ["Vloer boven kruipruimte", "#vlkruip"],
+   ["Vloer grenzend aan buitenlucht", "#vlbuiten"]].forEach(([n, sel]) =>
+    dvRijen.push([n, fmt(getal($(sel).value), 1), "", "", ""]));
+  const schil = gevelTotaal + dak.opp + getal($("#vlgrond").value) +
+    getal($("#vlkruip").value) + getal($("#vlbuiten").value);
+  dvRijen.push([{ content: "Schiloppervlak totaal", styles: { fontStyle: "bold" } },
+    { content: fmt(schil, 1), styles: { fontStyle: "bold" } }, "gevels + dak + vloeren", "", ""]);
+  doc.autoTable({ ...opmaak, startY: ny,
+    head: [["Bouwdeel", "Opp. m2", "Toelichting", "Gemeten", "OK"]],
+    body: dvRijen,
+    columnStyles: { 1: { halign: "right", cellWidth: 20 }, 2: { cellWidth: 52 },
+                    3: { cellWidth: 24 }, 4: { cellWidth: 12, halign: "center" } }
+  });
+
+  const paginas = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= paginas; p++) {
+    doc.setPage(p);
+    doc.setFont("helvetica", "normal").setFontSize(7.5).setTextColor(...ZACHT);
+    doc.text("Maten uit de tekening, te controleren in het werk.", marge, 288);
+    doc.text(`${p} van ${paginas}`, 210 - marge, 288, { align: "right" });
+  }
+  return doc;
+}
+
+$("#pdf").onclick = () => {
+  const doc = maakPdf();
+  if (!doc) return;
+  const naam = ($("#pnaam").value || "meetstaat").replace(/[^\w\s-]/g, "").trim() || "meetstaat";
+  doc.save(`Meetstaat ${naam}.pdf`);
+};
+
+$("#wissen").onclick = () => {
+  if (!confirm("Alle ingevulde gegevens wissen?")) return;
+  location.reload();
+};
+
+/* ---------------- start ---------------- */
+$("#pdatum").valueAsDate = new Date();
+tekenLagen(); tekenGevels(); rekenen();
+
+/* ---------------- inloggen ----------------
+   Zelfde centrale inlog als de andere tools (inloggen.html, gedeelde refresh-token).
+   Zonder internet ('onbekend') blijft de tool gewoon bruikbaar. */
+$("#b-login").onclick = () => VILogin.naarInlog();
+VILogin.controleer().then(r => {
+  if (r.status === "uit") { $("#login-screen").style.display = "block"; return; }
+  if (r.naam) $("#who").textContent = r.naam;
+  $("#app-screen").style.display = "grid";
+});
+</script>
+</body>
+</html>
