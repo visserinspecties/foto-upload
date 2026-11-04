@@ -99,6 +99,18 @@ h3:first-child{margin-top:0}
 #login-screen h2{font-size:18px;margin:0}
 #login-screen p{margin:10px 0 18px;color:var(--inkt-zacht)}
 #app-screen{display:none}
+#viewer.meten{cursor:crosshair}
+#viewer.meten.slepen{cursor:grabbing}
+#overlay{position:absolute;pointer-events:none;overflow:visible}
+#meetbalk button[aria-pressed="true"]{background:var(--groen);border-color:var(--groen);color:#fff}
+#meetstatus{color:var(--inkt-zacht);font-size:12.5px}
+.vinkje{display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--inkt-zacht)}
+.vinkje input{width:auto}
+.meting{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--lijn);font-size:13px}
+.meting .nr{color:var(--inkt-zacht);min-width:26px}
+.meting .lengte{font-weight:700;color:var(--blauw);min-width:80px;font-variant-numeric:tabular-nums}
+.meting .rich{color:var(--inkt-zacht);font-size:12px;flex:1}
+.meting button{padding:3px 9px;font-size:12px}
 </style>
 </head>
 <body>
@@ -127,8 +139,9 @@ h3:first-child{margin-top:0}
         <small>PDF, PNG of JPG — of klik om te kiezen</small>
       </div>
       <input type="file" id="bestand" accept=".pdf,.png,.jpg,.jpeg" hidden>
-      <p class="hint">Bij een PDF leest de tool de maatvoering uit de tekstlaag en bepaalt zelf de
-        schaal. Bij een afbeelding dient de tekening als naslag en typ je de maten zelf in.</p>
+      <p class="hint">Bij een PDF uit een tekenprogramma leest de tool de maatvoering uit de tekstlaag en
+        bepaalt zelf de schaal. Bij een scan, foto of afbeelding ijk je de schaal op één bekende maatlijn
+        en meet je daarna door punten aan te tikken.</p>
     </div>
   </div>
 
@@ -147,7 +160,20 @@ h3:first-child{margin-top:0}
     <div class="balk" style="border-top:0;color:var(--inkt-zacht);font-size:12px">
       Zoomen: + en −, Ctrl + scrollwiel, of knijpen met twee vingers. Verschuiven: slepen of scrollen.
     </div>
+    <div class="balk" id="meetbalk">
+      <button id="b-ijk" aria-pressed="false">Schaal ijken</button>
+      <button id="b-meet" aria-pressed="false" disabled>Meten</button>
+      <label class="vinkje"><input type="checkbox" id="recht" checked> recht (horizontaal / verticaal)</label>
+      <span id="meetstatus"></span>
+    </div>
     <div id="viewer"></div>
+    <div class="inhoud" id="meetvak" hidden>
+      <h3>Metingen op deze pagina</h3>
+      <div id="ijkinfo"></div>
+      <div id="meetlijst"></div>
+      <p class="hint">Meet ter controle een tweede bekende maat, liefst in de andere richting. Wijkt die
+        meer dan 1 à 2% af, dan is de scan scheef of vervormd: gebruik dan de getallen op de maatlijnen.</p>
+    </div>
   </div>
 
   <div class="kaart" id="ketenkaart" hidden>
@@ -392,6 +418,7 @@ $("#bestand").addEventListener("change", e => {
 
 function verwerk(file) {
   staat.bestandsnaam = file.name;
+  meetReset();
   if (/\.pdf$/i.test(file.name)) laadPdf(file);
   else laadAfbeelding(file);
 }
@@ -414,8 +441,8 @@ function laadAfbeelding(file) {
   staat.mmPerPt = null; staat.ketens = [];
   $("#schaalmelding").innerHTML =
     `<div class="melding let">Een afbeelding heeft geen tekstlaag, dus de maten zijn niet
-     automatisch uit te lezen. Gebruik de tekening als naslag en typ de maten zelf in — bij de
-     Gevels-kaart rechts staat een snelle invoer voor voorgevel breedte en zijgevel diepte.</div>`;
+     automatisch uit te lezen. Klik bij de weergave op <b>Schaal ijken</b>, tik begin en eind van een
+     bekende maatlijn aan en meet daarna met <b>Meten</b>. Of typ de maten zelf in.</div>`;
   $("#ketenlijst").innerHTML = `<div class="leeg">Geen maatkettingen — dit is een afbeelding.</div>`;
   const sf = $("#sfvoorgevel");
   if (sf) sf.focus();
@@ -433,6 +460,7 @@ function zetGrootte() {
   el.style.width = basis.w * zoom + "px";
   el.style.height = basis.h * zoom + "px";
   $("#zoomlabel").textContent = Math.round(zoom * 100) + "%";
+  plaatsOverlay();
 }
 
 // zoom rond een punt in het venster (cx, cy), zodat dat punt op zijn plek blijft
@@ -490,15 +518,20 @@ viewer.addEventListener("wheel", e => {
 let sleep = null;
 viewer.addEventListener("mousedown", e => {
   if (e.button !== 0 || !inhoud()) return;
-  sleep = { x: e.clientX, y: e.clientY, l: viewer.scrollLeft, t: viewer.scrollTop };
+  sleep = { x: e.clientX, y: e.clientY, l: viewer.scrollLeft, t: viewer.scrollTop, verschoven: false };
   viewer.classList.add("slepen"); e.preventDefault();
 });
 window.addEventListener("mousemove", e => {
   if (!sleep) return;
+  if (Math.hypot(e.clientX - sleep.x, e.clientY - sleep.y) > 4) sleep.verschoven = true;
   viewer.scrollLeft = sleep.l - (e.clientX - sleep.x);
   viewer.scrollTop = sleep.t - (e.clientY - sleep.y);
 });
-window.addEventListener("mouseup", () => { sleep = null; viewer.classList.remove("slepen"); });
+window.addEventListener("mouseup", () => {
+  netGesleept = !!(sleep && sleep.verschoven);
+  sleep = null; viewer.classList.remove("slepen");
+});
+let netGesleept = false;
 
 // knijpen met twee vingers (iPad / telefoon)
 let knijp = null;
@@ -540,7 +573,9 @@ async function toonPagina() {
   $("#paginalabel").textContent = `Pagina ${pagina} van ${pdfDoc.numPages}`;
   $("#vorige").disabled = pagina <= 1;
   $("#volgende").disabled = pagina >= pdfDoc.numPages;
+  meet.eerste = null; meet.zweef = null;
   passend();
+  toonMetingen();
   await leesMaten(pdfPage);
 }
 
@@ -611,8 +646,11 @@ function mediaan(a) {
 const herkendeSchaal = () => staat.mmPerPt ? Math.round(staat.mmPerPt / (25.4 / 72)) : null;
 const opgegevenSchaal = () => Math.round(getal($("#schaal").value)) || null;
 function schaalTekst() {
-  const o = opgegevenSchaal(), h = herkendeSchaal();
-  return o ? `1:${o}` : (h ? `ca. 1:${h} (herkend)` : "onbekend");
+  const o = opgegevenSchaal(), h = herkendeSchaal(), ijk = huidigeIjk();
+  if (o) return `1:${o}`;
+  if (h) return `ca. 1:${h} (herkend)`;
+  if (ijk) return bron === "pdf" ? `ca. 1:${Math.round(ijk.f / (25.4 / 72))} (geijkt)` : "geijkt op maatlijn";
+  return "onbekend";
 }
 
 function toonSchaal() {
@@ -634,9 +672,11 @@ function toonSchaal() {
     mel.innerHTML = `<div class="melding ok">Schaal 1:${o} ingevuld. Op deze pagina zijn geen maatkettingen
       gevonden om die mee te vergelijken.</div>`;
   } else {
-    mel.innerHTML = `<div class="melding let">Geen maatkettingen gevonden om de schaal op te
-      ijken. Deze pagina heeft mogelijk geen tekstlaag, of het is een pagina zonder maatvoering.</div>`;
+    mel.innerHTML = `<div class="melding let">Geen maatkettingen gevonden. Deze pagina is waarschijnlijk
+      een scan zonder tekstlaag. Klik bij de weergave op <b>Schaal ijken</b> en meet daarna met de hand.</div>`;
   }
+  const ijk = huidigeIjk();
+  if (ijk) mel.innerHTML += `<div class="melding ok">Handmatig geijkt: ${ijkTekst(ijk)}.</div>`;
 }
 $("#schaal").oninput = toonSchaal;
 
@@ -661,11 +701,13 @@ function toonKetens() {
   });
 }
 
-function gebruikKeten(k) {
-  const meters = k.som / 1000;
+function gebruikKeten(k) { gebruikMaat(k.som, "Ketting"); }
+
+function gebruikMaat(mm, wat) {
+  const meters = mm / 1000;
   const doelen = staat.gevels.map((g, i) => `${i}: ${g.naam}`).join("\n");
   const keuze = prompt(
-    `Ketting van ${k.som} mm (${fmt(meters)} m) toewijzen aan welk gevelvlak?\n\n${doelen}\n\n` +
+    `${wat} van ${Math.round(mm)} mm (${fmt(meters)} m) toewijzen aan welk gevelvlak?\n\n${doelen}\n\n` +
     `Typ het nummer, of L voor de lengte van de voetafdruk, of B voor de breedte.`, "0");
   if (keuze === null) return;
   if (/^l$/i.test(keuze)) { $("#vllengte").value = fmt(meters); }
@@ -675,6 +717,181 @@ function gebruikKeten(k) {
     if (!isNaN(i) && staat.gevels[i]) staat.gevels[i].lengte = meters;
   }
   tekenGevels(); rekenen();
+}
+
+/* ---------------- handmatig ijken en meten ----------------
+   Werkt op elke tekening (scan, foto, PDF zonder tekstlaag). Punten worden bewaard in
+   "tekeningeenheden": pixels van de afbeelding of punten van de PDF op 100 %. Zo blijven ze
+   op hun plek bij in- en uitzoomen. Per pagina: één ijking (mm per eenheid) en een lijst metingen. */
+const meet = { modus: null, eerste: null, zweef: null, ijk: {}, lijst: {} };
+const pagNr = () => bron === "pdf" ? pagina : 1;
+const huidigeIjk = () => meet.ijk[pagNr()] || null;
+const metingenHier = () => meet.lijst[pagNr()] || (meet.lijst[pagNr()] = []);
+const SVGNS = "http://www.w3.org/2000/svg";
+const overlay = document.createElementNS(SVGNS, "svg");
+overlay.id = "overlay";
+overlay.setAttribute("aria-hidden", "true");
+
+function ijkTekst(k) {
+  const lengte = k.mm >= 1000 ? `${fmt(k.mm / 1000)} m` : `${Math.round(k.mm)} mm`;
+  const s = bron === "pdf" ? `, komt neer op ca. 1:${Math.round(k.f / (25.4 / 72))}` : "";
+  return `maatlijn van ${lengte}${s}`;
+}
+function richting(m) {
+  const dx = Math.abs(m.p2.x - m.p1.x), dy = Math.abs(m.p2.y - m.p1.y);
+  if (dy < 0.02 * dx) return "horizontaal";
+  if (dx < 0.02 * dy) return "verticaal";
+  return "schuin";
+}
+
+function meetReset() {
+  meet.modus = null; meet.eerste = null; meet.zweef = null; meet.ijk = {}; meet.lijst = {};
+  zetModus(null);
+}
+
+function zetModus(m) {
+  meet.modus = m; meet.eerste = null; meet.zweef = null;
+  $("#b-ijk").setAttribute("aria-pressed", m === "ijk");
+  $("#b-meet").setAttribute("aria-pressed", m === "meet");
+  $("#b-meet").disabled = !huidigeIjk();
+  viewer.classList.toggle("meten", !!m);
+  zetStatus();
+  tekenOverlay();
+}
+function zetStatus() {
+  const t = !meet.modus ? (huidigeIjk() ? "Geijkt. Klik Meten om te meten." : "")
+    : meet.modus === "ijk"
+      ? (meet.eerste ? "Tik het eind van de bekende maatlijn aan." : "Zoom in en tik het begin van een bekende maatlijn aan.")
+      : (meet.eerste ? "Tik het eindpunt aan." : "Tik het beginpunt aan. Esc of nogmaals Meten om te stoppen.");
+  $("#meetstatus").textContent = t;
+}
+
+$("#b-ijk").onclick = () => zetModus(meet.modus === "ijk" ? null : "ijk");
+$("#b-meet").onclick = () => zetModus(meet.modus === "meet" ? null : "meet");
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape" || !meet.modus) return;
+  if (meet.eerste) { meet.eerste = null; meet.zweef = null; zetStatus(); tekenOverlay(); }
+  else zetModus(null);
+});
+
+// schermpixels per tekeningeenheid (de echte getekende breedte, zonder de rand)
+const schermFactor = () => { const el = inhoud(); return el && basis.w ? el.clientWidth / basis.w : zoom; };
+// schermpositie -> tekeningeenheden
+function naarTekening(e) {
+  const el = inhoud(); if (!el) return null;
+  const r = el.getBoundingClientRect(), k = schermFactor();
+  return {
+    x: Math.min(Math.max((e.clientX - r.left - el.clientLeft) / k, 0), basis.w),
+    y: Math.min(Math.max((e.clientY - r.top - el.clientTop) / k, 0), basis.h)
+  };
+}
+function recht(p1, p2) {
+  if (!$("#recht").checked) return p2;
+  return Math.abs(p2.x - p1.x) >= Math.abs(p2.y - p1.y) ? { x: p2.x, y: p1.y } : { x: p1.x, y: p2.y };
+}
+
+viewer.addEventListener("click", e => {
+  if (!meet.modus) return;
+  if (netGesleept) { netGesleept = false; return; }   // was verschuiven, geen tik
+  const p = naarTekening(e); if (!p) return;
+  if (!meet.eerste) { meet.eerste = p; zetStatus(); tekenOverlay(); return; }
+  const p1 = meet.eerste, p2 = recht(p1, p);
+  const lengte = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+  if (lengte * schermFactor() < 6) return;                      // per ongeluk twee keer op dezelfde plek
+  meet.eerste = null; meet.zweef = null;
+
+  if (meet.modus === "ijk") {
+    const inv = prompt("Hoe lang is deze maatlijn volgens de tekening?\n\n" +
+      "In millimeters (bijv. 8000), of in meters met komma (bijv. 8,00).", "");
+    if (inv === null || !getal(inv)) { zetStatus(); tekenOverlay(); return; }
+    let mm = getal(inv);
+    if (/m\s*$/i.test(inv.trim()) && !/mm\s*$/i.test(inv.trim())) mm *= 1000;
+    else if (mm < 100) mm *= 1000;                    // klein getal = meters
+    meet.ijk[pagNr()] = { f: mm / lengte, mm, p1, p2 };
+    zetModus("meet");                                 // na ijken meteen door met meten
+    toonMetingen(); toonSchaal();
+    return;
+  }
+  metingenHier().push({ p1, p2, e: lengte });
+  zetStatus(); tekenOverlay(); toonMetingen();
+});
+
+// meelopende lijn naar de muis (pc), zodat je ziet wat je gaat meten
+viewer.addEventListener("mousemove", e => {
+  if (!meet.modus || !meet.eerste || sleep) return;
+  const p = naarTekening(e); if (!p) return;
+  meet.zweef = recht(meet.eerste, p);
+  tekenOverlay();
+});
+
+function plaatsOverlay() {
+  const el = inhoud(); if (!el) return;
+  if (!overlay.isConnected) viewer.appendChild(overlay);
+  overlay.style.left = el.offsetLeft + el.clientLeft + "px";
+  overlay.style.top = el.offsetTop + el.clientTop + "px";
+  overlay.style.width = el.clientWidth + "px";
+  overlay.style.height = el.clientHeight + "px";
+  overlay.setAttribute("preserveAspectRatio", "none");
+  overlay.setAttribute("viewBox", `0 0 ${basis.w} ${basis.h}`);
+  tekenOverlay();
+}
+
+function lijnSvg(p1, p2, kleur, tekst, gestippeld) {
+  const z = 1 / schermFactor();                       // 1 schermpixel in tekeningeenheden
+  const dx = p2.x - p1.x, dy = p2.y - p1.y, l = Math.hypot(dx, dy) || 1;
+  const nx = -dy / l * 6 * z, ny = dx / l * 6 * z;     // dwarsstreepjes aan de uiteinden
+  const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+  const streep = gestippeld ? ` stroke-dasharray="${6 * z} ${4 * z}"` : "";
+  return `
+    <line x1="${p1.x}" y1="${p1.y}" x2="${p2.x}" y2="${p2.y}" stroke="${kleur}" stroke-width="${2 * z}"${streep}/>
+    <line x1="${p1.x - nx}" y1="${p1.y - ny}" x2="${p1.x + nx}" y2="${p1.y + ny}" stroke="${kleur}" stroke-width="${2 * z}"/>
+    <line x1="${p2.x - nx}" y1="${p2.y - ny}" x2="${p2.x + nx}" y2="${p2.y + ny}" stroke="${kleur}" stroke-width="${2 * z}"/>
+    ${tekst ? `<text x="${mx}" y="${my - 6 * z}" text-anchor="middle" font-size="${13 * z}" font-weight="700"
+      font-family="Merriweather, Georgia, serif" fill="${kleur}" stroke="#fff" stroke-width="${3.5 * z}"
+      paint-order="stroke">${tekst}</text>` : ""}`;
+}
+
+function tekenOverlay() {
+  if (!overlay.isConnected) return;
+  const z = 1 / schermFactor(), ijk = huidigeIjk();
+  let h = "";
+  if (ijk) h += lijnSvg(ijk.p1, ijk.p2, "#ec670a", `ijk ${Math.round(ijk.mm)}`, true);
+  metingenHier().forEach((m, i) =>
+    h += lijnSvg(m.p1, m.p2, "#1c4f8f", ijk ? `${i + 1}: ${fmt(m.e * ijk.f / 1000)} m` : `${i + 1}`));
+  if (meet.eerste) {
+    const kleur = meet.modus === "ijk" ? "#ec670a" : "#1c4f8f";
+    if (meet.zweef) {
+      const l = Math.hypot(meet.zweef.x - meet.eerste.x, meet.zweef.y - meet.eerste.y);
+      const t = meet.modus === "meet" && ijk ? `${fmt(l * ijk.f / 1000)} m` : "";
+      h += lijnSvg(meet.eerste, meet.zweef, kleur, t, true);
+    }
+    h += `<circle cx="${meet.eerste.x}" cy="${meet.eerste.y}" r="${5 * z}" fill="none" stroke="${kleur}" stroke-width="${2 * z}"/>`;
+  }
+  overlay.innerHTML = h;
+}
+
+function toonMetingen() {
+  const ijk = huidigeIjk(), lijst = metingenHier();
+  $("#meetvak").hidden = !ijk && !lijst.length;
+  $("#b-meet").disabled = !ijk;
+  $("#ijkinfo").innerHTML = ijk
+    ? `<div class="melding ok">Geijkt op ${ijkTekst(ijk)}. Opnieuw ijken herberekent alle metingen.</div>` : "";
+  $("#meetlijst").innerHTML = lijst.length ? lijst.map((m, i) => `
+    <div class="meting">
+      <span class="nr">${i + 1}</span>
+      <span class="lengte">${ijk ? fmt(m.e * ijk.f / 1000) + " m" : "—"}</span>
+      <span class="rich">${richting(m)}</span>
+      <button data-neem="${i}">Overnemen</button>
+      <button data-weg="${i}" aria-label="Meting ${i + 1} verwijderen">×</button>
+    </div>`).join("") : `<div class="leeg">Nog geen metingen. Klik Meten en tik twee punten aan.</div>`;
+  $("#meetlijst").querySelectorAll("[data-neem]").forEach(b => b.onclick = () => {
+    const m = lijst[+b.dataset.neem];
+    gebruikMaat(m.e * ijk.f, `Meting ${+b.dataset.neem + 1}`);
+  });
+  $("#meetlijst").querySelectorAll("[data-weg]").forEach(b => b.onclick = () => {
+    lijst.splice(+b.dataset.weg, 1); toonMetingen(); tekenOverlay();
+  });
+  zetStatus();
 }
 
 /* ---------------- bouwlagen ---------------- */
@@ -966,10 +1183,23 @@ $("#exporteer").onclick = () => {
     ["Kompaskoers voorgevel", koers],
     ["Schaal", schaalTekst()],
     ["Herkende schaal (mm per punt)", staat.mmPerPt ? Math.round(staat.mmPerPt * 1000) / 1000 : "niet herkend"],
+    ["Handmatig geijkt", Object.keys(meet.ijk).length
+      ? Object.entries(meet.ijk).map(([p, k]) => `pagina ${p}: ${ijkTekst(k)}`).join("; ") : "nee"],
     [], ["Daktype", $("#daktype").value], ["Dakhelling (graden)", $("#helling").value], [],
     ["Blauw = uit de tekening. Geel = zelf ingevuld. Controleer alles in het werk."]
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(uitg), "Uitgangspunten");
+
+  const metRijen = [];
+  Object.entries(meet.lijst).forEach(([p, lijst]) => {
+    const ijk = meet.ijk[p];
+    lijst.forEach((m, i) => metRijen.push([+p, i + 1, ijk ? Math.round(m.e * ijk.f) : "", richting(m)]));
+  });
+  if (metRijen.length) {
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+      ["Handmatig gemeten op de tekening (bij benadering, controleren in het werk)"], [],
+      ["Pagina", "Nr", "Lengte (mm)", "Richting"], ...metRijen]), "Metingen");
+  }
 
   const lagen = [["Bouwlaag", "Verdiepingshoogte (mm)", "Gevelhoogte (mm)", "Woonoppervlak (m2)"]];
   staat.lagen.forEach(l => lagen.push([l.naam, l.vh, l.gh, l.wo || 0]));
