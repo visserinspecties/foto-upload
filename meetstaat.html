@@ -50,6 +50,10 @@ body{margin:0;background:var(--papier);color:var(--inkt);
 #zoomlabel{min-width:44px;text-align:center;font-variant-numeric:tabular-nums}
 .schaalrij{display:flex;align-items:center;gap:6px;font-size:13px;margin-bottom:10px}
 .schaalrij input{width:80px}
+#ramentabel{width:auto;min-width:100%}
+#ramentabel td{padding:3px 4px}
+#ramentabel select{width:auto;max-width:150px}
+#ramentabel input{width:64px !important}
 .balk{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 14px;
   border-bottom:1px solid var(--lijn);background:#faf9fb;font-size:13px}
 button{font:inherit;font-size:13px;padding:6px 12px;border-radius:var(--r);
@@ -194,7 +198,9 @@ h3:first-child{margin-top:0}
         gevel aan de buitenkant per laag opgaat — die twee lopen uiteen zodra een dakvlak
         door een verdieping snijdt. Woonoppervlak zijn de binnenmaten van die verdieping, zónder
         correctie voor scheidingsmuren — vul die dus rechtstreeks in zoals gemeten. Ruimte onder
-        1,5 m plafondhoogte telt niet mee; dat wordt vooral relevant bij dakverdiepingen.</p>
+        1,5 m plafondhoogte telt niet mee; dat wordt vooral relevant bij dakverdiepingen.
+        Voor Huismaten: geef alleen de lagen onder de dakrand op; de zolder onder een hellend dak
+        rekent Huismaten zelf uit het dak.</p>
     </div>
   </div>
 
@@ -280,6 +286,39 @@ h3:first-child{margin-top:0}
   </div>
 
   <div class="kaart">
+    <h2>Ramen en deuren</h2>
+    <div class="inhoud">
+      <div class="rij"><label for="rdglas">Standaard glastype</label>
+        <select id="rdglas">
+          <option value="">— kies —</option>
+          <option value="e">Enkel glas (e)</option>
+          <option value="D">Dubbel glas (D)</option>
+          <option value="Hr">HR-glas (Hr)</option>
+          <option value="Hr+">HR+-glas (Hr+)</option>
+          <option value="++">HR++-glas (++)</option>
+          <option value="Vz">Voorzetraam</option>
+          <option value="+++">Triple glas (+++)</option>
+        </select></div>
+      <div style="overflow-x:auto">
+      <table id="ramentabel">
+        <thead><tr>
+          <th>#</th><th>Type</th><th>Gevel</th><th>Bouwlaag</th>
+          <th class="num">Aantal</th><th class="num">Breedte (cm)</th><th class="num">Hoogte (cm)</th>
+          <th>Glas</th><th class="num">m²</th><th></th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+      </div>
+      <div class="knoprij">
+        <button id="raamerbij">Raam / deur toevoegen</button>
+      </div>
+      <p class="hint">Maten in cm, net als in Huismaten. Je mag ook <b>115/120</b> in de breedte typen:
+        dan wordt dat 115 breed en 120 hoog. Een nieuwe regel neemt type, gevel, bouwlaag en glas van de
+        vorige over. Bij "Deur met raam" vul je daaronder de maat van het glas in de deur in.</p>
+    </div>
+  </div>
+
+  <div class="kaart">
     <h2>Meetstaat</h2>
     <div class="inhoud">
       <div id="meetstaat"></div>
@@ -288,7 +327,7 @@ h3:first-child{margin-top:0}
         <span><i style="background:#fff"></i>berekend</span>
       </div>
       <div class="knoprij">
-        <button class="primair" id="exporteer">Meetstaat naar Excel</button>
+        <button class="primair" id="exporteer">Meetstaat naar Excel (ook voor Huismaten)</button>
         <button class="primair" id="pdf">Meetstaat naar PDF</button>
         <button id="wissen">Alles wissen</button>
       </div>
@@ -653,17 +692,17 @@ function tekenLagen() {
     inp.oninput = () => {
       const l = staat.lagen[+inp.dataset.i];
       l[inp.dataset.v] = inp.dataset.v === "naam" ? inp.value : getal(inp.value);
-      rekenen(); tekenGevels();
+      rekenen(); tekenGevels(); tekenRamen();
     };
   });
   tb.querySelectorAll("[data-weg]").forEach(b => b.onclick = () => {
-    if (staat.lagen.length > 1) { staat.lagen.splice(+b.dataset.weg, 1); tekenLagen(); tekenGevels(); rekenen(); }
+    if (staat.lagen.length > 1) { staat.lagen.splice(+b.dataset.weg, 1); tekenLagen(); tekenGevels(); tekenRamen(); rekenen(); }
   });
 }
 $("#laagerbij").onclick = () => {
   const n = staat.lagen.length;
   staat.lagen.push({ naam: n === 1 ? "Eerste verdieping" : `Verdieping ${n}`, vh: 2600, gh: 2600, wo: 0 });
-  tekenLagen(); tekenGevels(); rekenen();
+  tekenLagen(); tekenGevels(); tekenRamen(); rekenen();
 };
 
 const totaleGevelhoogte = () => staat.lagen.reduce((s, l) => s + l.gh, 0) / 1000;
@@ -748,6 +787,92 @@ function dakOppervlak() {
   };
 }
 
+/* ---------------- ramen en deuren ---------------- */
+// Zelfde typen en codes als Huismaten, zodat de Excel daar 1-op-1 in te lezen is.
+const RD_TYPES = [["raam", "Raam"], ["deur", "Deur"], ["deurmetraam", "Deur met raam"],
+  ["paneel", "Paneel"], ["dakraam", "Dakraam"]];
+const GLAS = [["", "standaard"], ["e", "e"], ["D", "D"], ["Hr", "Hr"], ["Hr+", "Hr+"],
+  ["++", "++"], ["Vz", "Vz"], ["+++", "+++"]];
+staat.ramen = [];
+
+const nokDwars = () => $("#nokricht").value === "dwars";      // nok van voor naar achter
+function gevelOpties() {
+  const d = nokDwars();
+  return [["VG", "Voorgevel"], ["AG", "Achtergevel"], ["LG", "Linkergevel"], ["RG", "Rechtergevel"],
+    ["DAKVLAK_A", d ? "Dakvlak links" : "Dakvlak voor"],
+    ["DAKVLAK_B", d ? "Dakvlak rechts" : "Dakvlak achter"]];
+}
+function laagOpties() {
+  return staat.lagen.map((l, i) => [i === 0 ? "bg" : "v" + i, l.naam]).concat([["zolder", "Zolder (onder dak)"]]);
+}
+const opties = (lijst, gekozen) => lijst.map(([v, t]) =>
+  `<option value="${v}"${v === gekozen ? " selected" : ""}>${t}</option>`).join("");
+const gevelCode = g => {             // dakvlak → de gevel waar het in het aanzicht bij hoort
+  if (g === "DAKVLAK_A") return nokDwars() ? "LG" : "VG";
+  if (g === "DAKVLAK_B") return nokDwars() ? "RG" : "AG";
+  return g;
+};
+function raamOpp(r) {
+  const n = Math.max(parseInt(r.aantal, 10) || 1, 1);
+  let opp = getal(r.b) * getal(r.h) / 10000;
+  if (r.type === "deurmetraam") opp -= getal(r.rb) * getal(r.rh) / 10000;   // deur min glas in de deur
+  return { stuk: Math.max(opp, 0), totaal: Math.max(opp, 0) * n, glas: r.type === "deurmetraam"
+    ? getal(r.rb) * getal(r.rh) / 10000 * n : 0 };
+}
+
+function tekenRamen() {
+  const tb = $("#ramentabel tbody");
+  if (!staat.ramen.length) {
+    tb.innerHTML = `<tr><td colspan="10" class="leeg">Nog geen ramen of deuren.</td></tr>`; return;
+  }
+  const lagen = laagOpties();
+  tb.innerHTML = staat.ramen.map((r, i) => {
+    if (!lagen.some(([v]) => v === r.laag)) r.laag = "bg";
+    const o = raamOpp(r);
+    return `<tr>
+      <td>${i + 1}</td>
+      <td><select data-i="${i}" data-v="type">${opties(RD_TYPES, r.type)}</select></td>
+      <td><select data-i="${i}" data-v="gevel">${opties(gevelOpties(), r.gevel)}</select></td>
+      <td><select data-i="${i}" data-v="laag">${opties(lagen, r.laag)}</select></td>
+      <td><input class="invul num" type="number" min="1" step="1" style="width:56px" data-i="${i}" data-v="aantal" value="${r.aantal}"></td>
+      <td><input class="invul num" type="text" inputmode="decimal" style="width:76px" data-i="${i}" data-v="b" value="${r.b}"></td>
+      <td><input class="invul num" type="text" inputmode="decimal" style="width:76px" data-i="${i}" data-v="h" value="${r.h}"></td>
+      <td><select data-i="${i}" data-v="glas">${opties(GLAS, r.glas)}</select></td>
+      <td class="num">${fmt(o.totaal)}</td>
+      <td><button data-weg="${i}" aria-label="Regel verwijderen">×</button></td>
+    </tr>` + (r.type === "deurmetraam" ? `<tr><td></td><td colspan="4" style="font-size:12px;color:var(--inkt-zacht)">
+      Glas in de deur (cm): breedte × hoogte</td>
+      <td><input class="invul num" type="text" inputmode="decimal" style="width:76px" data-i="${i}" data-v="rb" value="${r.rb}"></td>
+      <td><input class="invul num" type="text" inputmode="decimal" style="width:76px" data-i="${i}" data-v="rh" value="${r.rh}"></td>
+      <td colspan="3" style="font-size:12px;color:var(--inkt-zacht)">glas ${fmt(o.glas)} m²</td></tr>` : "");
+  }).join("");
+  tb.querySelectorAll("input,select").forEach(el => {
+    el.onchange = () => {
+      const r = staat.ramen[+el.dataset.i], v = el.dataset.v;
+      let w = el.value.trim();
+      if ((v === "b" || v === "rb") && /^\s*\d+([.,]\d+)?\s*[/x×]\s*\d+([.,]\d+)?\s*$/i.test(w)) {
+        const [b, h] = w.split(/[/x×]/i).map(x => x.trim());      // "115/120" → 115 breed, 120 hoog
+        r[v] = b; r[v === "b" ? "h" : "rh"] = h;
+      } else r[v] = w;
+      tekenRamen(); rekenen();
+    };
+  });
+  tb.querySelectorAll("[data-weg]").forEach(b => b.onclick = () => {
+    staat.ramen.splice(+b.dataset.weg, 1); tekenRamen(); rekenen();
+  });
+}
+$("#raamerbij").onclick = () => {
+  const vorige = staat.ramen[staat.ramen.length - 1];
+  staat.ramen.push(vorige
+    ? { ...vorige, aantal: 1, b: "", h: "", rb: "", rh: "" }
+    : { type: "raam", gevel: "VG", laag: "bg", aantal: 1, b: "", h: "", glas: "", rb: "", rh: "" });
+  tekenRamen(); rekenen();
+  const rijen = $("#ramentabel tbody").querySelectorAll('input[data-v="b"]');
+  if (rijen.length) rijen[rijen.length - 1].focus();
+};
+$("#nokricht").addEventListener("change", tekenRamen);
+$("#rdglas").onchange = rekenen;
+
 /* ---------------- meetstaat ---------------- */
 let laatsteStaat = [];
 function rekenen() {
@@ -794,6 +919,16 @@ function rekenen() {
   [["Vloer op grond", "#vlgrond"], ["Vloer boven kruipruimte", "#vlkruip"],
    ["Vloer grenzend aan buitenlucht", "#vlbuiten"]].forEach(([n, s]) =>
     rijen.push({ groep: "Dak en vloer", post: n, waarde: getal($(s).value), eenheid: "m²", toel: "" }));
+
+  const rdPerGevel = {};
+  staat.ramen.forEach(r => {
+    const g = gevelCode(r.gevel), o = raamOpp(r);
+    rdPerGevel[g] = (rdPerGevel[g] || 0) + o.totaal + o.glas;
+  });
+  ["VG", "AG", "LG", "RG"].filter(g => rdPerGevel[g]).forEach(g => rijen.push({
+    groep: "Ramen en deuren", post: { VG: "Voorgevel", AG: "Achtergevel", LG: "Linkergevel", RG: "Rechtergevel" }[g],
+    waarde: rdPerGevel[g], eenheid: "m²", toel: "ramen, deuren en panelen in dit aanzicht (incl. dakvlak)"
+  }));
 
   const schil = gevelTotaal + dak.opp +
     getal($("#vlgrond").value) + getal($("#vlkruip").value) + getal($("#vlbuiten").value);
@@ -858,8 +993,95 @@ $("#exporteer").onclick = () => {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(kt), "Maatkettingen");
   }
 
+  if (staat.ramen.length) {
+    const rd = [["#", "Type", "Gevel", "Bouwlaag", "Aantal", "Breedte (cm)", "Hoogte (cm)", "Glas", "m2 totaal"]];
+    const lagen = Object.fromEntries(laagOpties()), gevels = Object.fromEntries(gevelOpties());
+    staat.ramen.forEach((r, i) => rd.push([i + 1, Object.fromEntries(RD_TYPES)[r.type], gevels[r.gevel],
+      lagen[r.laag], +r.aantal || 1, getal(r.b), getal(r.h), r.glas || $("#rdglas").value,
+      Math.round(raamOpp(r).totaal * 100) / 100]));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rd), "Ramen en deuren");
+  }
+
+  // Tabblad "Invoer" in het formaat van Huismaten: daar kun je deze Excel direct inlezen.
+  const hm = huismatenInvoer();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(hm.aoa), "Invoer");
+  if (hm.let.length) uitg.push([], ["Let op bij inlezen in Huismaten:"], ...hm.let.map(t => ["", t]));
+  wb.Sheets["Uitgangspunten"] = XLSX.utils.aoa_to_sheet(uitg);
+
   const naam = ($("#pnaam").value || "meetstaat").replace(/[^\w\s-]/g, "").trim() || "meetstaat";
   XLSX.writeFile(wb, `Meetstaat ${naam}.xlsx`);
+  if (hm.let.length) alert("Excel gemaakt. Let op bij inlezen in Huismaten:\n\n• " + hm.let.join("\n• "));
+};
+
+/* ---------------- Huismaten-invoer ----------------
+   Huismaten leest het tabblad "Invoer": kolommen Sectie / Index / Veld / Waarde, maten in cm.
+   Huismaten telt de scheidingsmuur (11 cm per gedeelde kant) zelf bij de beukmaat op,
+   dus hier gaat de ongecorrigeerde breedte uit de voetafdruk heen. */
+function huismatenInvoer() {
+  const aoa = [["Sectie", "Index", "Veld", "Waarde"]], let_ = [];
+  const zet = (sectie, index, veld, waarde) => aoa.push([sectie, index, veld, waarde]);
+  const cm = m => Math.round(m * 1000) / 10;              // meter → cm, 1 decimaal
+  const gevel = off => (staat.gevels.find(g => g.offset === off) || { lengte: 0 }).lengte;
+
+  const breedte = getal($("#vllengte").value) || gevel(0);
+  const diepte = getal($("#vlbreedte").value) || gevel(90);
+  if (!getal($("#vllengte").value) && gevel(0) && $("#sfgedeeld").value !== "0")
+    let_.push("Beukmaat komt uit de voorgevel en bevat dan al de 11 cm scheidingsmuur; Huismaten telt die er zelf nog eens bij. Vul liever de voetafdruk in.");
+
+  const ged = $("#sfgedeeld").value;
+  zet("Gevel", 1, "type", ged === "0" ? "vrijstaand" : ged === "2" ? "tussenwoning" : "halfvrijstaand");
+  if (ged === "1L" || ged === "1R") zet("Gevel", 1, "buurzijde", ged === "1L" ? "links" : "rechts");
+  zet("Gevel", 1, "beukmaat", cm(breedte));
+  zet("Gevel", 1, "diepte", cm(diepte));
+  zet("Gevel", 1, "hoogte", cm(totaleGevelhoogte()));
+
+  const dt = $("#daktype").value, hel = getal($("#helling").value);
+  const dakmap = { plat: "plat", zadel: "zadel", schild: "schilddak", lessenaar: "geen" };
+  zet("Gevel", 1, "daktype", dakmap[dt]);
+  if (dt === "lessenaar") let_.push("Huismaten kent geen lessenaarsdak; daktype staat op 'geen'. Kies in Huismaten zelf het dak (bijvoorbeeld asymmetrisch).");
+  if (dt !== "plat") {
+    zet("Gevel", 1, "nokrichting", nokDwars() ? "voorachter" : "zijgevel");
+    zet("Gevel", 1, "hellingshoek", hel);
+  }
+  if (dt === "schild") ["voor", "zij", "achter"].forEach(k => zet("Gevel", 1, "schilddak-helling-" + k, hel));
+  if ($("#rdglas").value) zet("Gevel", 1, "standaard-glas", $("#rdglas").value);
+
+  staat.lagen.forEach((l, i) => {
+    const vh = Math.round(l.vh) / 10, gh = Math.round(l.gh || l.vh) / 10;   // mm → cm; gevelhoogte nooit leeg
+    if (i === 0) {
+      zet("BeganeGrond", 1, "lengte", cm(breedte));
+      zet("BeganeGrond", 1, "breedte", cm(diepte));
+      zet("BeganeGrond", 1, "verdiepingshoogte", vh);
+      zet("BeganeGrond", 1, "gevelhoogte", gh);
+    } else {
+      zet("Verdieping", i, "breedte", cm(breedte));
+      zet("Verdieping", i, "diepte", cm(diepte));
+      zet("Verdieping", i, "verdiepingshoogte", vh);
+      zet("Verdieping", i, "gevelhoogte", gh);
+    }
+    if (i > 0 && /zolder|kap/i.test(l.naam) && dt !== "plat")
+      let_.push(`"${l.naam}" gaat als gewone verdieping naar Huismaten. Ligt die onder het hellende dak, haal hem dan weg: Huismaten rekent de zolder zelf uit het dak.`);
+  });
+
+  staat.ramen.forEach((r, i) => {
+    const n = i + 1;
+    zet("RaamDeur", n, "type", r.type);
+    zet("RaamDeur", n, "verdieping", r.laag);
+    zet("RaamDeur", n, "orientatie", r.gevel);
+    zet("RaamDeur", n, "plaats", "hoofd");
+    zet("RaamDeur", n, "aantal", Math.max(parseInt(r.aantal, 10) || 1, 1));
+    zet("RaamDeur", n, "breedte", getal(r.b));
+    zet("RaamDeur", n, "hoogte", getal(r.h));
+    zet("RaamDeur", n, "glastype", r.glas || $("#rdglas").value);
+    if (r.type === "deurmetraam") {
+      zet("RaamDeur", n, "raambreedte", getal(r.rb));
+      zet("RaamDeur", n, "raamhoogte", getal(r.rh));
+    }
+    zet("RaamDeur", n, "zonwering", "0");
+  });
+  const leeg = staat.ramen.filter(r => !getal(r.b) || !getal(r.h)).length;
+  if (leeg) let_.push(`${leeg} raam/deur-regel(s) zonder breedte of hoogte.`);
+  return { aoa, let: let_ };
 };
 
 
@@ -968,6 +1190,19 @@ function maakPdf() {
                     3: { cellWidth: 24 }, 4: { cellWidth: 12, halign: "center" } }
   });
 
+  if (staat.ramen.length) {
+    ny = kolomTitel("Ramen en deuren");
+    const lagen = Object.fromEntries(laagOpties()), gevels = Object.fromEntries(gevelOpties());
+    doc.autoTable({ ...opmaak, startY: ny,
+      head: [["#", "Type", "Gevel", "Bouwlaag", "Aantal", "B × H cm", "Glas", "m2", "Gemeten", "OK"]],
+      body: staat.ramen.map((r, i) => [i + 1, Object.fromEntries(RD_TYPES)[r.type], gevels[r.gevel],
+        lagen[r.laag], +r.aantal || 1, `${getal(r.b)} × ${getal(r.h)}`, r.glas || $("#rdglas").value,
+        fmt(raamOpp(r).totaal), "", ""]),
+      columnStyles: { 0: { cellWidth: 8 }, 4: { halign: "right", cellWidth: 13 }, 7: { halign: "right", cellWidth: 14 },
+                      8: { cellWidth: 20 }, 9: { cellWidth: 10, halign: "center" } }
+    });
+  }
+
   const paginas = doc.internal.getNumberOfPages();
   for (let p = 1; p <= paginas; p++) {
     doc.setPage(p);
@@ -992,7 +1227,7 @@ $("#wissen").onclick = () => {
 
 /* ---------------- start ---------------- */
 $("#pdatum").valueAsDate = new Date();
-tekenLagen(); tekenGevels(); rekenen();
+tekenLagen(); tekenGevels(); tekenRamen(); rekenen();
 
 /* ---------------- inloggen ----------------
    Zelfde centrale inlog als de andere tools (inloggen.html, gedeelde refresh-token).
