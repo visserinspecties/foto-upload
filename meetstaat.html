@@ -44,9 +44,12 @@ body{margin:0;background:var(--papier);color:var(--inkt);
 #dropzone:hover,#dropzone.over{border-color:var(--groen);background:var(--groen-licht)}
 #dropzone strong{display:block;font-size:16px;margin-bottom:5px}
 #dropzone small{color:var(--inkt-zacht)}
-canvas{max-width:100%;border:1px solid var(--lijn);border-radius:4px;display:block}
-#viewer{position:relative;overflow:auto;max-height:74vh;background:#eceaf0;padding:8px}
-#viewer img{max-width:100%;display:block;border:1px solid var(--lijn)}
+#viewer{position:relative;overflow:auto;height:74vh;background:#eceaf0;padding:8px;touch-action:pan-x pan-y}
+#viewer canvas,#viewer img{display:block;border:1px solid var(--lijn);max-width:none;background:#fff}
+#viewer.slepen{cursor:grabbing}
+#zoomlabel{min-width:44px;text-align:center;font-variant-numeric:tabular-nums}
+.schaalrij{display:flex;align-items:center;gap:6px;font-size:13px;margin-bottom:10px}
+.schaalrij input{width:80px}
 .balk{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 14px;
   border-bottom:1px solid var(--lijn);background:#faf9fb;font-size:13px}
 button{font:inherit;font-size:13px;padding:6px 12px;border-radius:var(--r);
@@ -132,8 +135,13 @@ h3:first-child{margin-top:0}
       <span id="paginalabel">—</span>
       <button id="volgende">Volgende</button>
       <span style="flex:1"></span>
-      <button id="uit">Kleiner</button>
-      <button id="in">Groter</button>
+      <button id="uit" aria-label="Uitzoomen">−</button>
+      <span id="zoomlabel">100%</span>
+      <button id="in" aria-label="Inzoomen">+</button>
+      <button id="passend">Passend</button>
+    </div>
+    <div class="balk" style="border-top:0;color:var(--inkt-zacht);font-size:12px">
+      Zoomen: + en −, Ctrl + scrollwiel, of knijpen met twee vingers. Verschuiven: slepen of scrollen.
     </div>
     <div id="viewer"></div>
   </div>
@@ -141,6 +149,8 @@ h3:first-child{margin-top:0}
   <div class="kaart" id="ketenkaart" hidden>
     <h2>Gevonden maatkettingen</h2>
     <div class="inhoud">
+      <div class="schaalrij"><label for="schaal">Schaal volgens tekening</label>
+        <span>1 :</span><input id="schaal" type="number" class="invul num" min="1" step="1" placeholder="100"></div>
       <div id="schaalmelding"></div>
       <div class="ketens" id="ketenlijst"></div>
       <p class="hint">Klik een ketting aan om de som over te nemen als hoofdmaat. De som van een
@@ -349,11 +359,20 @@ function verwerk(file) {
 
 function laadAfbeelding(file) {
   const url = URL.createObjectURL(file);
-  $("#viewer").innerHTML = `<img src="${url}" alt="Ingeladen plattegrond">`;
+  pdfDoc = null; bron = "img";
+  const img = new Image();
+  img.alt = "Ingeladen plattegrond";
+  img.onload = () => {
+    basis = { w: img.naturalWidth, h: img.naturalHeight };
+    $("#viewer").innerHTML = ""; $("#viewer").appendChild(img);
+    passend();
+  };
+  img.src = url;
   $("#viewerkaart").hidden = false;
   $("#paginalabel").textContent = file.name;
   $("#vorige").disabled = $("#volgende").disabled = true;
   $("#ketenkaart").hidden = false;
+  staat.mmPerPt = null; staat.ketens = [];
   $("#schaalmelding").innerHTML =
     `<div class="melding let">Een afbeelding heeft geen tekstlaag, dus de maten zijn niet
      automatisch uit te lezen. Gebruik de tekening als naslag en typ de maten zelf in — bij de
@@ -363,14 +382,107 @@ function laadAfbeelding(file) {
   if (sf) sf.focus();
 }
 
-/* ---------------- PDF ---------------- */
-let pdfDoc = null, pagina = 1, zoom = 1.3;
+/* ---------------- weergave: zoomen en verschuiven ---------------- */
+let pdfDoc = null, pdfPage = null, pagina = 1, zoom = 1, bron = null;
+let basis = { w: 0, h: 0 };            // grootte van de tekening op 100 %
+let renderTaak = null, hertekenTimer = null;
+const viewer = $("#viewer");
+const inhoud = () => viewer.querySelector("canvas,img");
 
+function zetGrootte() {
+  const el = inhoud(); if (!el) return;
+  el.style.width = basis.w * zoom + "px";
+  el.style.height = basis.h * zoom + "px";
+  $("#zoomlabel").textContent = Math.round(zoom * 100) + "%";
+}
+
+// zoom rond een punt in het venster (cx, cy), zodat dat punt op zijn plek blijft
+function zoomNaar(nieuw, cx, cy) {
+  if (!basis.w) return;
+  nieuw = Math.min(Math.max(nieuw, 0.1), 8);
+  if (cx == null) { cx = viewer.clientWidth / 2; cy = viewer.clientHeight / 2; }
+  const px = (viewer.scrollLeft + cx - 8) / zoom;
+  const py = (viewer.scrollTop + cy - 8) / zoom;
+  zoom = nieuw;
+  zetGrootte();
+  viewer.scrollLeft = px * zoom + 8 - cx;
+  viewer.scrollTop = py * zoom + 8 - cy;
+  if (bron === "pdf") { clearTimeout(hertekenTimer); hertekenTimer = setTimeout(herteken, 220); }
+}
+
+function passend() {
+  if (!basis.w) return;
+  zoom = Math.max((viewer.clientWidth - 20) / basis.w, 0.1);
+  zetGrootte(); viewer.scrollLeft = viewer.scrollTop = 0;
+  if (bron === "pdf") herteken();
+}
+
+// PDF scherp tekenen op de huidige zoom (begrensd, zodat een iPad het geheugen niet opraakt)
+async function herteken() {
+  if (!pdfPage) return;
+  if (renderTaak) { try { renderTaak.cancel(); } catch (e) {} }
+  const dpr = window.devicePixelRatio || 1;
+  const max = Math.sqrt(16e6 / (basis.w * basis.h));
+  const schaal = Math.min(zoom * dpr, max);
+  const vp = pdfPage.getViewport({ scale: schaal });
+  const cv = document.createElement("canvas");
+  cv.width = Math.floor(vp.width); cv.height = Math.floor(vp.height);
+  renderTaak = pdfPage.render({ canvasContext: cv.getContext("2d"), viewport: vp });
+  try { await renderTaak.promise; } catch (e) { return; }   // geannuleerd door een nieuwere zoom
+  renderTaak = null;
+  const oud = inhoud();
+  if (oud) oud.replaceWith(cv); else viewer.appendChild(cv);
+  zetGrootte();
+}
+
+$("#in").onclick = () => zoomNaar(zoom * 1.25);
+$("#uit").onclick = () => zoomNaar(zoom / 1.25);
+$("#passend").onclick = passend;
+
+// Ctrl + scrollwiel (en knijpen op een touchpad, dat stuurt hetzelfde)
+viewer.addEventListener("wheel", e => {
+  if (!e.ctrlKey && !e.metaKey) return;
+  e.preventDefault();
+  const r = viewer.getBoundingClientRect();
+  zoomNaar(zoom * Math.exp(-e.deltaY * 0.0025), e.clientX - r.left, e.clientY - r.top);
+}, { passive: false });
+
+// slepen met de muis om te verschuiven
+let sleep = null;
+viewer.addEventListener("mousedown", e => {
+  if (e.button !== 0 || !inhoud()) return;
+  sleep = { x: e.clientX, y: e.clientY, l: viewer.scrollLeft, t: viewer.scrollTop };
+  viewer.classList.add("slepen"); e.preventDefault();
+});
+window.addEventListener("mousemove", e => {
+  if (!sleep) return;
+  viewer.scrollLeft = sleep.l - (e.clientX - sleep.x);
+  viewer.scrollTop = sleep.t - (e.clientY - sleep.y);
+});
+window.addEventListener("mouseup", () => { sleep = null; viewer.classList.remove("slepen"); });
+
+// knijpen met twee vingers (iPad / telefoon)
+let knijp = null;
+const afstand = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+viewer.addEventListener("touchstart", e => {
+  if (e.touches.length === 2) knijp = { d: afstand(e.touches), z: zoom };
+}, { passive: true });
+viewer.addEventListener("touchmove", e => {
+  if (!knijp || e.touches.length !== 2) return;
+  e.preventDefault();
+  const r = viewer.getBoundingClientRect();
+  const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left;
+  const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2 - r.top;
+  zoomNaar(knijp.z * afstand(e.touches) / knijp.d, cx, cy);
+}, { passive: false });
+viewer.addEventListener("touchend", e => { if (e.touches.length < 2) knijp = null; });
+
+/* ---------------- PDF ---------------- */
 async function laadPdf(file) {
   try {
     const buf = await file.arrayBuffer();
     pdfDoc = await pdfjsLib.getDocument({ data: buf }).promise;
-    pagina = 1;
+    pagina = 1; bron = "pdf";
     $("#viewerkaart").hidden = false;
     $("#ketenkaart").hidden = false;
     await toonPagina();
@@ -382,22 +494,19 @@ async function laadPdf(file) {
 }
 
 async function toonPagina() {
-  const page = await pdfDoc.getPage(pagina);
-  const vp = page.getViewport({ scale: zoom });
-  const cv = document.createElement("canvas");
-  cv.width = vp.width; cv.height = vp.height;
-  await page.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
-  $("#viewer").innerHTML = ""; $("#viewer").appendChild(cv);
+  pdfPage = await pdfDoc.getPage(pagina);
+  const vp = pdfPage.getViewport({ scale: 1 });
+  basis = { w: vp.width, h: vp.height };
+  viewer.innerHTML = "";
   $("#paginalabel").textContent = `Pagina ${pagina} van ${pdfDoc.numPages}`;
   $("#vorige").disabled = pagina <= 1;
   $("#volgende").disabled = pagina >= pdfDoc.numPages;
-  await leesMaten(page);
+  passend();
+  await leesMaten(pdfPage);
 }
 
 $("#vorige").onclick = () => { if (pagina > 1) { pagina--; toonPagina(); } };
 $("#volgende").onclick = () => { if (pagina < pdfDoc.numPages) { pagina++; toonPagina(); } };
-$("#in").onclick = () => { zoom = Math.min(zoom * 1.25, 6); toonPagina(); };
-$("#uit").onclick = () => { zoom = Math.max(zoom / 1.25, .3); toonPagina(); };
 
 /* ---------------- maatvoering uitlezen ---------------- */
 async function leesMaten(page) {
@@ -460,16 +569,40 @@ function mediaan(a) {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
-function toonKetens() {
+const herkendeSchaal = () => staat.mmPerPt ? Math.round(staat.mmPerPt / (25.4 / 72)) : null;
+const opgegevenSchaal = () => Math.round(getal($("#schaal").value)) || null;
+function schaalTekst() {
+  const o = opgegevenSchaal(), h = herkendeSchaal();
+  return o ? `1:${o}` : (h ? `ca. 1:${h} (herkend)` : "onbekend");
+}
+
+function toonSchaal() {
   const mel = $("#schaalmelding");
-  if (staat.mmPerPt) {
-    const schaal = Math.round(staat.mmPerPt / (25.4 / 72));
-    mel.innerHTML = `<div class="melding ok">Schaal herkend: ${fmt(staat.mmPerPt, 3)} mm per punt,
-      dat komt neer op ongeveer 1:${schaal}. Controleer dit tegen het stempel op de tekening.</div>`;
+  if (bron === "img") return;               // afbeelding: melding staat al
+  const o = opgegevenSchaal(), h = herkendeSchaal();
+  const uitleg = "De kettingsommen komen uit de getallen op de tekening zelf en hangen niet van de schaal af.";
+  if (o && h) {
+    if (Math.abs(h / o - 1) < 0.1) {
+      mel.innerHTML = `<div class="melding ok">Herkende schaal ca. 1:${h} klopt met 1:${o} van de tekening.</div>`;
+    } else {
+      mel.innerHTML = `<div class="melding let">Herkend ca. 1:${h}, tekening zegt 1:${o}. De PDF is dan
+        waarschijnlijk verkleind of vergroot opgeslagen (bijvoorbeeld A1 als A3). ${uitleg}</div>`;
+    }
+  } else if (h) {
+    mel.innerHTML = `<div class="melding ok">Schaal herkend: ca. 1:${h} (${fmt(staat.mmPerPt, 3)} mm per punt).
+      Vul hierboven de schaal van het stempel in ter controle.</div>`;
+  } else if (o) {
+    mel.innerHTML = `<div class="melding ok">Schaal 1:${o} ingevuld. Op deze pagina zijn geen maatkettingen
+      gevonden om die mee te vergelijken.</div>`;
   } else {
     mel.innerHTML = `<div class="melding let">Geen maatkettingen gevonden om de schaal op te
       ijken. Deze pagina heeft mogelijk geen tekstlaag, of het is een pagina zonder maatvoering.</div>`;
   }
+}
+$("#schaal").oninput = toonSchaal;
+
+function toonKetens() {
+  toonSchaal();
 
   const lijst = $("#ketenlijst");
   if (!staat.ketens.length) {
@@ -696,7 +829,8 @@ $("#exporteer").onclick = () => {
     ["Project", $("#pnaam").value], ["Adres", $("#padres").value],
     ["Opnamedatum", $("#pdatum").value], ["Bronbestand", staat.bestandsnaam],
     ["Kompaskoers voorgevel", koers],
-    ["Herkende schaal (mm per punt)", staat.mmPerPt ? Math.round(staat.mmPerPt * 1000) / 1000 : "handmatig"],
+    ["Schaal", schaalTekst()],
+    ["Herkende schaal (mm per punt)", staat.mmPerPt ? Math.round(staat.mmPerPt * 1000) / 1000 : "niet herkend"],
     [], ["Daktype", $("#daktype").value], ["Dakhelling (graden)", $("#helling").value], [],
     ["Blauw = uit de tekening. Geel = zelf ingevuld. Controleer alles in het werk."]
   ];
@@ -774,7 +908,7 @@ function maakPdf() {
   y += 4;
   if (staat.bestandsnaam) {
     doc.text(`bron: ${staat.bestandsnaam}` +
-      (staat.mmPerPt ? ` · schaal 1:${Math.round(staat.mmPerPt / (25.4 / 72))}` : ""), marge, y);
+      (opgegevenSchaal() || herkendeSchaal() ? ` · schaal ${schaalTekst()}` : ""), marge, y);
     y += 4;
   }
   y += 3;
