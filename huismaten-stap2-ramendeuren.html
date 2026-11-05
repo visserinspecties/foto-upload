@@ -6489,8 +6489,23 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
 
   // stippellijnen bij verdiepingsvloeren, met hoogtemaat (t.b.v. EPA-invoer/bewijsvoering)
   verdiepingsvloerHoogtes().forEach(niveau=>{
-    if(niveau<=0 || niveau>=gevelhoogte) return;
+    if(niveau<=0) return;
     const yVloer = yBase - niveau*SCALE;
+    if(niveau>=gevelhoogte){
+      // vloer boven de gootlijn (meestal de zoldervloer): in de kopgevel tot aan de dakhellingen,
+      // in een gevel met dakvlak (stippelrechthoek tot de nok) over de volle breedte
+      let inset = null;
+      if(heeftDriehoek && !MP && driehoekHoogte > 0 && niveau < gevelhoogte + driehoekHoogte){
+        inset = (niveau - gevelhoogte) / Math.tan(deg2rad(hellingshoek)) * SCALE;
+      } else if(!heeftDriehoek && !MP && dakvlakInfo && dakvlakInfo.nokhoogte && niveau < dakvlakInfo.nokhoogte){
+        inset = 0;
+      }
+      if(inset === null || w - 2*inset <= 1) return;
+      svg.appendChild(svgEl('line', {x1:x0+inset, y1:yVloer, x2:x0+w-inset, y2:yVloer, stroke:'black', 'stroke-width':0.7, 'stroke-dasharray':'4,2.5'}));
+      svg.appendChild(svgEl('text', {x:x0+w/2, y:yVloer-2.5, 'text-anchor':'middle', 'font-size':tekstGrootte(), fill:'black'}));
+      svg.lastChild.textContent = `${niveau.toFixed(2)} m${heeftZolder() && Math.abs(niveau - cumulatieveVloerhoogte('zolder')) < 0.005 ? ' zoldervloer' : ''}`;
+      return;
+    }
     svg.appendChild(svgEl('line', {x1:x0, y1:yVloer, x2:x0+w, y2:yVloer, stroke:'black', 'stroke-width':0.7, 'stroke-dasharray':'4,2.5'}));
     // vlak onder de schuine strook? dan het label onder de lijn, anders valt het over de rode lijn
     const onderStrook = sFront && (yVloer - (yBase - sFront.hStart*SCALE)) < fs*1.3 && yVloer > yBase - sFront.hStart*SCALE;
