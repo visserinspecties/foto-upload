@@ -5319,15 +5319,7 @@ function tekenUitbouwSilhouetten(svg, x0, yBase, geplaatst, maatKant){
       oppLbl.textContent = `${oppWaarde.toFixed(2)} m²`;
       svg.appendChild(oppLbl);
     }
-    // breedte-maat (onder)
-    const breedteLbl = svgEl('text', {x:rx+bPx/2,y:yBase+9,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'});
-    breedteLbl.textContent = `${item.breedte.toFixed(2)} m`;
-    svg.appendChild(breedteLbl);
-    // hoogte-maat (geroteerd, rechts naast het vlak)
-    const hoogteX = maatKant==='buitenLinks' ? rx - tekstGrootte()*0.9 : maatKant==='buitenRechts' ? rx + bPx + tekstGrootte()*0.9 : rx + tekstGrootte()*0.9;
-    const hoogteLbl = svgEl('text', {x:hoogteX,y:ry+hPx/2,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black',transform:`rotate(-90 ${hoogteX} ${ry+hPx/2})`});
-    hoogteLbl.textContent = `${item.hoogte.toFixed(2)} m`;
-    svg.appendChild(hoogteLbl);
+    // breedte en hoogte staan in de maatketting van het aanzicht (tekenBreedteketting / tekenHoogteketting)
   });
 }
 
@@ -6214,6 +6206,142 @@ function rdTekenLabels(svg, plan, x0, yBase, xLabels, yMin, yMax, xRand){
   });
 }
 
+// ============================================================
+// MAATLIJNEN in de gevelaanzichten (architectenstijl)
+// Links een hoogteketting met peilmaten (±0,00 = bovenkant BG-vloer), onder een breedteketting:
+// bovenste rij = delen (gevel tussen/naast uitbouwen, uitbouwen van opzij), onderste rij = totaal.
+// Alleen lijnen, polygonen en tekst, zodat de PDF-renderer (tekenSvgElementOpCanvas) ze ook tekent.
+// ============================================================
+const MAAT_KLEUR = '#444';
+function maatLijnDikte(){ return PRINT_MODE ? 0.18 : 0.6; }
+function maatGetal(m){ return (Math.round(m*100)/100).toFixed(2).replace('.', ','); }
+function peilTekst(m){ return Math.abs(m) < 0.005 ? '±0,00' : (m > 0 ? '+' : '−') + maatGetal(Math.abs(m)); }
+// Ruimte (in svg-eenheden) die de maatlijnen links en onder innemen
+function maatRuimte(){
+  const fs = tekstGrootte();
+  return {links: fs*13.5, onder: fs*5.2};
+}
+// Hoogteniveaus (meters) die in de hoogteketting komen: [{h, naam}], gesorteerd, samengevoegd
+function maatNiveaus(lijst){
+  const out = [];
+  lijst.filter(n=>n && isFinite(n.h) && n.h >= -0.001).sort((a,b)=>a.h-b.h).forEach(n=>{
+    const vorig = out[out.length-1];
+    if(vorig && Math.abs(vorig.h - n.h) < 0.005){ if(!vorig.namen.includes(n.naam)) vorig.namen.push(n.naam); }
+    else out.push({h:n.h, namen:[n.naam]});
+  });
+  // zelfde soort samenvoegen: 'goot VG' + 'goot RG' -> 'goot VG+RG'
+  out.forEach(n=>{
+    const groepen = new Map();
+    n.namen.forEach(nm=>{
+      const [kop, ...rest] = String(nm).split(' ');
+      if(!groepen.has(kop)) groepen.set(kop, []);
+      if(rest.length) groepen.get(kop).push(rest.join(' '));
+    });
+    n.namen = [...groepen].map(([kop, delen])=> delen.length ? `${kop} ${delen.join('+')}` : kop);
+  });
+  return out;
+}
+function maatSchuinStreepje(svg, x, y, fs){
+  const t = fs*0.32;
+  svg.appendChild(svgEl('line', {x1:x-t, y1:y+t, x2:x+t, y2:y-t, stroke:MAAT_KLEUR, 'stroke-width':maatLijnDikte()*1.6}));
+}
+// Verticale ketting op x, niveaus in meters; xRand = linkerrand van de tekening (hulplijnen tot daar)
+function tekenHoogteketting(svg, x, yBase, niveaus, xRand){
+  if(niveaus.length < 2) return;
+  const fs = tekstGrootte(), lw = maatLijnDikte();
+  const Y = h => yBase - h*SCALE;
+  const yTop = Y(niveaus[niveaus.length-1].h);
+  svg.appendChild(svgEl('line', {x1:x, y1:Y(0), x2:x, y2:yTop, stroke:MAAT_KLEUR, 'stroke-width':lw}));
+  niveaus.forEach(n=>{
+    // hulplijn van de ketting tot vlak bij de tekening
+    svg.appendChild(svgEl('line', {x1:x - fs*0.4, y1:Y(n.h), x2:xRand - fs*0.4, y2:Y(n.h), stroke:MAAT_KLEUR, 'stroke-width':lw*0.7}));
+    maatSchuinStreepje(svg, x, Y(n.h), fs);
+  });
+  // deelmaten: geroteerd, tussen ketting en tekening
+  for(let i=1; i<niveaus.length; i++){
+    const a = Y(niveaus[i-1].h), b = Y(niveaus[i].h);
+    const tekst = maatGetal(niveaus[i].h - niveaus[i-1].h);
+    if(Math.abs(a-b) < tekst.length*fs*0.5) continue;   // past niet: peilmaat zegt het al
+    const tx = x + fs*1.0, ty = (a+b)/2;
+    svg.appendChild(svgEl('text', {x:tx, y:ty, 'text-anchor':'middle', 'font-size':fs*0.9, fill:MAAT_KLEUR, transform:`rotate(-90 ${tx} ${ty})`}));
+    svg.lastChild.textContent = tekst;
+  }
+  // peilmaten links van de ketting, met driehoekje; bij te weinig ruimte schuiven ze uiteen
+  const gewenst = niveaus.map(n=>({n, y:Y(n.h)}));
+  const minAfstand = fs*1.1;
+  for(let i=gewenst.length-2; i>=0; i--){   // van boven naar beneden: niveau i ligt onder i+1
+    const boven = gewenst[i+1];
+    if(gewenst[i].y - boven.y < minAfstand) gewenst[i].y = boven.y + minAfstand;
+  }
+  const xTri = x - fs*0.9;
+  gewenst.forEach(({n, y})=>{
+    const yt = Y(n.h);
+    const d = fs*0.38;
+    svg.appendChild(svgEl('polygon', {points:`${xTri-d},${yt-d*1.6} ${xTri+d},${yt-d*1.6} ${xTri},${yt}`, fill:MAAT_KLEUR, stroke:'none'}));
+    const xt = xTri - d - fs*0.3;
+    if(Math.abs(y - yt) > 0.5) svg.appendChild(svgEl('line', {x1:xTri-d, y1:yt-d*0.8, x2:xt+fs*0.2, y2:y-fs*0.3, stroke:MAAT_KLEUR, 'stroke-width':lw*0.6}));
+    svg.appendChild(svgEl('text', {x:xt, y:y, 'text-anchor':'end', 'font-size':fs*0.9, fill:MAAT_KLEUR}));
+    svg.lastChild.textContent = `${peilTekst(n.h)} ${n.namen.join(' / ')}`;
+  });
+}
+// Horizontale maat van xa tot xb op hoogte y (svg), met hulplijnen vanaf yVan
+function tekenBreedtemaat(svg, xa, xb, y, yVan, tekst){
+  const fs = tekstGrootte(), lw = maatLijnDikte();
+  if(xb - xa < 1) return;
+  svg.appendChild(svgEl('line', {x1:xa, y1:y, x2:xb, y2:y, stroke:MAAT_KLEUR, 'stroke-width':lw}));
+  [xa, xb].forEach(x=>{
+    svg.appendChild(svgEl('line', {x1:x, y1:yVan + fs*0.4, x2:x, y2:y + fs*0.4, stroke:MAAT_KLEUR, 'stroke-width':lw*0.7}));
+    maatSchuinStreepje(svg, x, y, fs);
+  });
+  const smal = (xb - xa) < tekst.length*fs*0.5;
+  svg.appendChild(svgEl('text', {x:(xa+xb)/2, y: y - fs*0.35, 'text-anchor':'middle', 'font-size': smal ? fs*0.75 : fs*0.9, fill:MAAT_KLEUR}));
+  svg.lastChild.textContent = tekst;
+}
+// Breedteketting: delen = [[xa, xb]] (svg), totaal = [xa, xb] of null
+function tekenBreedteketting(svg, yBase, delen, totaal){
+  const fs = tekstGrootte();
+  const y1 = yBase + fs*2.0, y2 = yBase + fs*4.1;
+  delen.forEach(([a,b])=> tekenBreedtemaat(svg, a, b, y1, yBase, maatGetal((b-a)/SCALE)));
+  if(delen.length > 1){
+    // totaalmaat over de volle buitenmaat (hoofdgevel + uitstekende uitbouwen)
+    const a = Math.min(...delen.map(d=>d[0])), b = Math.max(...delen.map(d=>d[1]));
+    tekenBreedtemaat(svg, a, b, y2, y1, maatGetal((b-a)/SCALE));
+  }
+}
+// Delen langs de gevel: hoofdgevel opgeknipt op de randen van de eigen uitbouwen, plus de
+// uitbouwen die van opzij links/rechts buiten de gevel uitsteken.
+function breedteDelen(x0, w, weergaveGroepen, gap){
+  const eigen = positioneerMetHoek(weergaveGroepen.eigen || {links:[],geen:[],rechts:[]}, w, 'breedte', gap);
+  const punten = [0, w];
+  eigen.forEach(p=>{ punten.push(Math.max(0, Math.min(w, p.pos)), Math.max(0, Math.min(w, p.pos + p.bPx))); });
+  const uniek = [...new Set(punten.map(p=>Math.round(p*1000)/1000))].sort((a,b)=>a-b);
+  const delen = [];
+  for(let i=1; i<uniek.length; i++) if(uniek[i] - uniek[i-1] > 0.5) delen.push([x0 + uniek[i-1], x0 + uniek[i]]);
+  let c = x0;
+  (weergaveGroepen.overloopLinks || []).forEach(it=>{ const b = it.breedte*SCALE; delen.unshift([c - b, c]); c -= b + gap; });
+  c = x0 + w;
+  (weergaveGroepen.overloopRechts || []).forEach(it=>{ const b = it.breedte*SCALE; delen.push([c, c + b]); c += b + gap; });
+  return delen.sort((a,b)=>a[0]-b[0]);
+}
+// Hoogteniveaus van de uitbouwen in dit aanzicht (goot en nok), met korte naam
+function uitbouwNiveaus(weergaveGroepen){
+  const lijst = [];
+  const kort = naam => String(naam||'').replace(/^Uitbouw\s+/, '');
+  const g = weergaveGroepen.eigen || {links:[],geen:[],rechts:[]};
+  [...g.links, ...g.geen, ...g.rechts].forEach(d=>{
+    lijst.push({h:d.hoogte, naam:`goot ${kort(d.naam)}`});
+    if(d.daktype === 'zadel' && d.driehoekHoogte > 0) lijst.push({h:d.hoogte + d.driehoekHoogte, naam:`nok ${kort(d.naam)}`});
+  });
+  [...(weergaveGroepen.overloopLinks||[]), ...(weergaveGroepen.overloopRechts||[])].forEach(it=>{
+    lijst.push({h:it.hoogte, naam:`goot ${kort(it.naam)}`});
+    if(it.zijDak) lijst.push({h:it.zijDak.nokHoogte, naam:`nok ${kort(it.naam)}`});
+  });
+  return lijst;
+}
+function vloerNiveauNaam(niveau){
+  return (heeftZolder() && Math.abs(niveau - cumulatieveVloerhoogte('zolder')) < 0.005) ? 'zoldervloer' : 'vloer';
+}
+
 function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellingshoek, dakvlakInfo, blokkage, weergaveGroepen, dakkapelLijst, dakkapelDataAlle, wolfseind, asymProfiel, asymSpiegelen, schuin, mansProfiel){
   if(isNaN(breedte) || breedte<=0) return null;
   if(!asymProfiel && (gevelhoogte==null || isNaN(gevelhoogte))) return null;
@@ -6304,10 +6432,11 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
     const rdPlan = rdPlanGevel(rdGevel, {breedte:w/SCALE, hL:linksData.h, hR:rechtsData.h, nok:asymProfiel.h_nok, nokX:linksData.d, zolderTot:asymProfiel.h_nok},
       rdVlakken(rdGevel, {wPx:w, gapPx:gap, eigenGroepen:weergaveGroepen.eigen, overloopLinks:weergaveGroepen.overloopLinks, overloopRechts:weergaveGroepen.overloopRechts, dakkapelLijst:[], gevelTopM:Math.min(linksData.h, rechtsData.h)}));
     const rdExtra = rdExtraBreedte(rdPlan); rdBezetZet(rdPlan);
-    const viewW = w + extraLinks + extraRechts + 2*TK_MARGIN + rdExtra;
-    const viewH = hNokPx + 2*TK_MARGIN + (PRINT_MODE?10:20);
+    const MR = maatRuimte();
+    const viewW = w + extraLinks + extraRechts + 2*TK_MARGIN + rdExtra + MR.links;
+    const viewH = hNokPx + 2*TK_MARGIN + (PRINT_MODE?10:20) + MR.onder;
     const svg = nieuweSvg(viewW, viewH);
-    const x0 = TK_MARGIN + extraLinks, yBase = viewH-TK_MARGIN;
+    const x0 = TK_MARGIN + MR.links + extraLinks, yBase = viewH-TK_MARGIN-MR.onder;
     const yEaveLinks = yBase-hLinksPx, yEaveRechts = yBase-hRechtsPx, yNok = yBase-hNokPx;
 
     svg.appendChild(svgEl('polygon', {points:`${x0},${yBase} ${x0},${yEaveLinks} ${x0+dLinksPx},${yNok} ${x0+dLinksPx+dRechtsPx},${yEaveRechts} ${x0+dLinksPx+dRechtsPx},${yBase}`, fill:'white', stroke:KLEUR.gevel,'stroke-width':1.5,'data-hoofd':'1'}));
@@ -6326,8 +6455,6 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
       if(niveau<=0 || niveau>=asymProfiel.h_nok) return;
       const yVloer = yBase - niveau*SCALE;
       svg.appendChild(svgEl('line', {x1:x0, y1:yVloer, x2:x0+w, y2:yVloer, stroke:'black', 'stroke-width':0.7, 'stroke-dasharray':'4,2.5'}));
-      svg.appendChild(svgEl('text', {x:x0+vloerLabelDx(niveau*SCALE), y:yVloer-2.5, 'text-anchor':'start', 'font-size':tekstGrootte(), fill:'black'}));
-      svg.lastChild.textContent = `${niveau.toFixed(2)} m`;
     });
 
     rdTekenElementen(svg, rdPlan, x0, yBase, true);
@@ -6353,16 +6480,16 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
     }
     svg.lastChild.setAttribute('fill', KLEUR.gevel);
 
-    svg.appendChild(svgEl('text', {x:x0+w/2,y:yBase+(bezet.length ? fs*4.2 : 12),'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
-    svg.lastChild.textContent = `${asymOverspanningNaam()} ${breedte.toFixed(2)} m`;
-    const linksLabelX = x0 - extraLinks - 7;
-    const linksLabel = svgEl('text', {x:linksLabelX,y:(yEaveLinks+yBase)/2,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black',transform:`rotate(-90 ${linksLabelX} ${(yEaveLinks+yBase)/2})`});
-    linksLabel.textContent = `${linksData.naam} ${linksData.h.toFixed(2)} m`;
-    svg.appendChild(linksLabel);
-    const rechtsX = x0+w+extraRechts+7;
-    const rechtsLabel = svgEl('text', {x:rechtsX,y:(yEaveRechts+yBase)/2,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black',transform:`rotate(-90 ${rechtsX} ${(yEaveRechts+yBase)/2})`});
-    rechtsLabel.textContent = `${rechtsData.naam} ${rechtsData.h.toFixed(2)} m`;
-    svg.appendChild(rechtsLabel);
+    // maatlijnen: hoogteketting links (peilmaten), breedteketting onder
+    {
+      const code = nm => ({voorgevel:'VG', achtergevel:'AG', linkergevel:'LG', rechtergevel:'RG'})[String(nm).toLowerCase()] || nm;
+      const lv = [{h:0, naam:'peil'}, {h:linksData.h, naam:`goot ${code(linksData.naam)}`}, {h:rechtsData.h, naam:`goot ${code(rechtsData.naam)}`}, {h:asymProfiel.h_nok, naam:'nok'}];
+      verdiepingsvloerHoogtes().forEach(n=>{ if(n > 0 && n < asymProfiel.h_nok) lv.push({h:n, naam:vloerNiveauNaam(n)}); });
+      uitbouwNiveaus(weergaveGroepen).forEach(n=>lv.push(n));
+      const xRand = x0 - extraLinks;
+      tekenHoogteketting(svg, xRand - fs*2.2, yBase, maatNiveaus(lv), xRand);
+      tekenBreedteketting(svg, yBase, breedteDelen(x0, w, weergaveGroepen, gap), [x0, x0 + w]);
+    }
 
     rdTekenElementen(svg, rdPlan, x0, yBase, false);
     rdTekenLabels(svg, rdPlan, x0, yBase, x0+w+extraRechts+7+fs*1.6, fs, viewH-4, x0+w+3);
@@ -6391,10 +6518,12 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
     rdVlakken(rdGevel, {wPx:w, gapPx:gap, eigenGroepen:weergaveGroepen.eigen, overloopLinks:weergaveGroepen.overloopLinks, overloopRechts:weergaveGroepen.overloopRechts,
       dakkapelLijst:dakkapelLijst||[], gevelTopM:gevelhoogte, driehoek:heeftDriehoek && driehoekHoogte>0, hellingshoek, dakkapelDataAlle}));
   const rdExtra = rdExtraBreedte(rdPlan); rdBezetZet(rdPlan);
-  const viewW = w + extraLinks + extraRechts + 2*TK_MARGIN + rdExtra;
-  const viewH = hRect + hTri + hStippel + 2*TK_MARGIN + (dakvlakInfo ? (PRINT_MODE?14:30) : 0) + (PRINT_MODE?10:20);
+  const MR = maatRuimte();
+  const viewW = w + extraLinks + extraRechts + 2*TK_MARGIN + rdExtra + MR.links;
+  const viewH = hRect + hTri + hStippel + 2*TK_MARGIN + (dakvlakInfo ? (PRINT_MODE?14:30) : 0) + (PRINT_MODE?10:20) + MR.onder;
   const svg = nieuweSvg(viewW, viewH);
-  const x0 = TK_MARGIN + extraLinks, yBase = viewH-TK_MARGIN, yEave = yBase-hRect, yTop = yEave-hTri-hStippel;
+  const x0 = TK_MARGIN + MR.links + extraLinks, yBase = viewH-TK_MARGIN-MR.onder, yEave = yBase-hRect, yTop = yEave-hTri-hStippel;
+  const vloerPeilen = [];   // getekende vloerniveaus, voor de hoogteketting
 
   // Schuine voor-/achtergevel op de bovenste laag
   const SGz = schuin && schuin.SG && schuin.SG.actief ? schuin.SG : null;
@@ -6502,15 +6631,11 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
       }
       if(inset === null || w - 2*inset <= 1) return;
       svg.appendChild(svgEl('line', {x1:x0+inset, y1:yVloer, x2:x0+w-inset, y2:yVloer, stroke:'black', 'stroke-width':0.7, 'stroke-dasharray':'4,2.5'}));
-      svg.appendChild(svgEl('text', {x:x0+w/2, y:yVloer-2.5, 'text-anchor':'middle', 'font-size':tekstGrootte(), fill:'black'}));
-      svg.lastChild.textContent = `${niveau.toFixed(2)} m${heeftZolder() && Math.abs(niveau - cumulatieveVloerhoogte('zolder')) < 0.005 ? ' zoldervloer' : ''}`;
+      vloerPeilen.push(niveau);
       return;
     }
     svg.appendChild(svgEl('line', {x1:x0, y1:yVloer, x2:x0+w, y2:yVloer, stroke:'black', 'stroke-width':0.7, 'stroke-dasharray':'4,2.5'}));
-    // vlak onder de schuine strook? dan het label onder de lijn, anders valt het over de rode lijn
-    const onderStrook = sFront && (yVloer - (yBase - sFront.hStart*SCALE)) < fs*1.3 && yVloer > yBase - sFront.hStart*SCALE;
-    svg.appendChild(svgEl('text', {x:x0+vloerLabelDx(niveau*SCALE), y: onderStrook ? yVloer + fs*1.1 : yVloer-2.5, 'text-anchor':'start', 'font-size':tekstGrootte(), fill:'black'}));
-    svg.lastChild.textContent = `${niveau.toFixed(2)} m`;
+    vloerPeilen.push(niveau);
   });
 
   // ramen & deuren in het aanzicht (met labels/lijntjes naast de gevel waar het niet past)
@@ -6542,14 +6667,20 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
   }
   svg.lastChild.setAttribute('fill', KLEUR.gevel);
 
-  // breedte (onder, met label)
-  svg.appendChild(svgEl('text', {x:x0+w/2,y:yBase+(bezet.length ? fs*4.2 : 12),'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
-  svg.lastChild.textContent = `breedte ${breedte.toFixed(2)} m`;
-  // gevelhoogte (links, geroteerd, met label)
-  const hoogteLabelX = x0 - extraLinks - 7;
-  const hoogteLabel = svgEl('text', {x:hoogteLabelX,y:(yEave+yBase)/2,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black',transform:`rotate(-90 ${hoogteLabelX} ${(yEave+yBase)/2})`});
-  hoogteLabel.textContent = `hoogte ${gevelhoogte.toFixed(2)} m`;
-  svg.appendChild(hoogteLabel);
+  // maatlijnen: hoogteketting links (peilmaten), breedteketting onder
+  {
+    const heeftDak = (heeftDriehoek && driehoekHoogte > 0) || (MP && hTri > 0) || hStippel > 0;
+    const lv = [{h:0, naam:'peil'}, {h:gevelhoogte, naam: heeftDak ? 'goot' : 'bovenkant gevel'}];
+    if(heeftDak) lv.push({h:totaalHoogte, naam:'nok'});
+    if(MP && hTri > 0) lv.push({h:MP.knikhoogte, naam:'knik'});
+    if(heeftDriehoek && heeftWolfseind) lv.push({h:gevelhoogte + driehoekHoogte - wolfseind.restHoogte, naam:'wolfseind'});
+    if(sFront) lv.push({h:sFront.hStart, naam:'begin schuin'});
+    vloerPeilen.forEach(n=> lv.push({h:n, naam:vloerNiveauNaam(n)}));
+    uitbouwNiveaus(weergaveGroepen).forEach(n=>lv.push(n));
+    const xRand = x0 - extraLinks;
+    tekenHoogteketting(svg, xRand - fs*2.2, yBase, maatNiveaus(lv), xRand);
+    tekenBreedteketting(svg, yBase, breedteDelen(x0, w, weergaveGroepen, gap), [x0, x0 + w]);
+  }
 
   if(heeftDriehoek && driehoekHoogte>0){
     svg.appendChild(svgEl('text', {x:x0+w/2,y:yTop-6,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
