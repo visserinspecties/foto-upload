@@ -4427,7 +4427,7 @@ function rdSamenvattingTekst(rd){
   }
   delen.push(rdVerdiepingKort(d.verdieping));
   const m2 = n => (+n).toFixed(2).replace('.', ',');
-  let maat = `${m2(d.breedte)} × ${m2(d.hoogte)} m`;
+  let maat = d.uitOpp ? `${m2(d.oppIn)} m² (getekend ${m2(d.breedte)} × ${m2(d.hoogte)})` : `${m2(d.breedte)} × ${m2(d.hoogte)} m`;
   if(d.type === 'deurmetraam' && d.raamBreedte > 0 && d.raamHoogte > 0) maat += ` (raam ${m2(d.raamBreedte)} × ${m2(d.raamHoogte)})`;
   delen.push(maat);
   if(d.type === 'deur' || d.type === 'deurmetraam') delen.push(d.isolatie === 'iso' ? 'geïsoleerd' : 'ongeïsoleerd');
@@ -4596,6 +4596,10 @@ function voegRaamDeurToe(kopieerVan){
         <label id="rd-hoogtelabel-${id}">Hoogte (cm)</label>
         <input type="text" inputmode="numeric" class="numeric-input" id="rd-hoogte-${id}" step="1" data-eenheid="cm" placeholder="bv. 150">
       </div>
+      <div class="field" id="rd-oppwrap-${id}">
+        <label for="rd-opp-${id}">óf oppervlakte (m²)</label>
+        <input type="text" inputmode="decimal" class="numeric-input" id="rd-opp-${id}" placeholder="bv. 1,8" title="Vul je hier een oppervlakte in, dan worden breedte en hoogte genegeerd">
+      </div>
       <div class="field" id="rd-glaswrap-${id}">
         <label id="rd-glaslabel-${id}">Glastype</label>
         <select id="rd-glastype-${id}">${glasOptiesHtml}</select>
@@ -4634,7 +4638,7 @@ function voegRaamDeurToe(kopieerVan){
   });
   document.getElementById('rd-kop-'+id).addEventListener('click', ()=>rdKopKlik(id));
   document.getElementById('rd-type-'+id).addEventListener('change', ()=>{ toggleRaamDeurVelden(id); onRamenDeurenWijziging(); });
-  ['rd-orientatie-','rd-verdieping-','rd-aantal-','rd-breedte-','rd-hoogte-','rd-isolatie-','rd-raambreedte-','rd-raamhoogte-','rd-zonwering-'].forEach(pref=>{
+  ['rd-orientatie-','rd-verdieping-','rd-aantal-','rd-breedte-','rd-hoogte-','rd-opp-','rd-isolatie-','rd-raambreedte-','rd-raamhoogte-','rd-zonwering-'].forEach(pref=>{
     const el = document.getElementById(pref+id);
     if(el){ el.addEventListener('input', onRamenDeurenWijziging); el.addEventListener('change', onRamenDeurenWijziging); }
   });
@@ -4651,7 +4655,7 @@ function voegRaamDeurToe(kopieerVan){
 
   // Nieuw element = kopie van het vorige (incl. type, gevel, verdieping, maten, glas, zonwering).
   if(kopieerVan && kopieerVan.id){
-    ['type','verdieping','orientatie','plaats','koepelop','aantal','breedte','hoogte','glastype','isolatie','raambreedte','raamhoogte'].forEach(v=>{
+    ['type','verdieping','orientatie','plaats','koepelop','aantal','breedte','hoogte','opp','glastype','isolatie','raambreedte','raamhoogte'].forEach(v=>{
       const van = document.getElementById('rd-'+v+'-'+kopieerVan.id);
       const naar = document.getElementById('rd-'+v+'-'+id);
       if(van && naar) naar.value = van.value;
@@ -4692,8 +4696,8 @@ document.getElementById('btn-rd-alles-dicht')?.addEventListener('click', ()=>rdK
 
 function berekenRaamDeurData(rd){
   const type = document.getElementById('rd-type-'+rd.id)?.value || 'raam';
-  const breedte = parseFloat(String(document.getElementById('rd-breedte-'+rd.id)?.value).replace(',','.'));
-  const hoogte = parseFloat(String(document.getElementById('rd-hoogte-'+rd.id)?.value).replace(',','.'));
+  let breedte = parseFloat(String(document.getElementById('rd-breedte-'+rd.id)?.value).replace(',','.'));
+  let hoogte = parseFloat(String(document.getElementById('rd-hoogte-'+rd.id)?.value).replace(',','.'));
   const aantalRaw = parseInt(document.getElementById('rd-aantal-'+rd.id)?.value, 10);
   const aantal = (!isNaN(aantalRaw) && aantalRaw>0) ? aantalRaw : 1;
   const orientatieRaw = document.getElementById('rd-orientatie-'+rd.id)?.value || 'VG';
@@ -4702,6 +4706,19 @@ function berekenRaamDeurData(rd){
   const glastype = document.getElementById('rd-glastype-'+rd.id)?.value || rdStandaardGlas() || '';
   const isolatie = document.getElementById('rd-isolatie-'+rd.id)?.value || 'on';
   const zonweringAan = !!document.getElementById('rd-zonwering-'+rd.id)?.checked;
+
+  // Alleen een oppervlakte ingevuld? Dan tekenen we een vierkant met die oppervlakte.
+  // Past dat vierkant niet in de bouwlaag, dan hoogte = vrije hoogte − 10 cm en de breedte zoveel breder.
+  const oppIn = parseFloat(String(document.getElementById('rd-opp-'+rd.id)?.value || '').replace(',','.'));
+  const uitOpp = !isNaN(oppIn) && oppIn > 0;
+  rdMaatveldenUitOpp(rd.id, uitOpp);
+  let afgekapt = false;
+  if(uitOpp){
+    let z = Math.sqrt(oppIn);
+    const hMax = (type==='dakraam' || type==='dakkoepel') ? 0 : getVerdiepingshoogte(verdieping.replace(/^ev-/,'')) - 0.10;
+    if(hMax > 0.1 && z > hMax){ breedte = oppIn / hMax; hoogte = hMax; afgekapt = true; }
+    else { breedte = z; hoogte = z; }
+  }
 
   if(isNaN(breedte) || isNaN(hoogte) || breedte<=0 || hoogte<=0){
     return {id:rd.id, naam:rd.naam, type, geldig:false};
@@ -4729,7 +4746,7 @@ function berekenRaamDeurData(rd){
 
   const isKoepelOp = type==='dakkoepel' ? rdKoepelOpInfo(document.getElementById('rd-koepelop-'+rd.id)?.value) : {op:null, label:'', zadel:false};
   return {
-    id:rd.id, naam:rd.naam, type, breedte, hoogte, aantal, glastype, isolatie, verdieping, plaats, plaatsInfo,
+    id:rd.id, naam:rd.naam, type, breedte, hoogte, uitOpp, oppIn: uitOpp ? oppIn : null, afgekapt, aantal, glastype, isolatie, verdieping, plaats, plaatsInfo,
     raamBreedte, raamHoogte,
     orientatieRaw, gevelKey,
     koepelOp: isKoepelOp.op, koepelOpLabel: isKoepelOp.label, koepelOpZadel: isKoepelOp.zadel,
@@ -4740,6 +4757,13 @@ function berekenRaamDeurData(rd){
   };
 }
 
+function rdMaatveldenUitOpp(id, aan){
+  ['rd-breedte-','rd-hoogte-'].forEach(pref=>{
+    const el = document.getElementById(pref+id); if(!el) return;
+    el.style.opacity = aan ? '0.45' : '';
+    el.title = aan ? 'Wordt niet gebruikt: er is een oppervlakte ingevuld' : '';
+  });
+}
 function alleRamenDeurenData(){ return ramenDeuren.map(berekenRaamDeurData); }
 
 function ramenDeurenOrientatieLabel(gevelKey){ return gevelKey===RD_PLATDAK_KEY ? 'Plat dak' : (GEVEL_LABELS[gevelKey] || gevelKey); }
@@ -4800,21 +4824,21 @@ function rdItemRegels(d){
   for(let i = 0; i < d.aantal; i++){
     const nr = d.aantal>1 ? ` (${i+1} van ${d.aantal})` : '';
     if(d.raamOppStuk>0){
-      const formule = isDR ? `${n2l(d.raamBreedte)} × ${n2l(d.raamHoogte)}` : `${n2l(d.breedte)} × ${n2l(d.hoogte)}`;
+      const formule = isDR ? `${n2l(d.raamBreedte)} × ${n2l(d.raamHoogte)}` : d.uitOpp ? `${n2l(d.oppIn)} (oppervlakte ingevoerd)` : `${n2l(d.breedte)} × ${n2l(d.hoogte)}`;
       uit.push({soort:'raam', opp:d.raamOppStuk, glastype:d.glastype, gevelKey:d.gevelKey,
         zonwering:d.zonwering,
         label:`${d.naam}${nr}${isDR?' — raam in deur':''}${rdGlasKort(d.glastype) ? ' ('+rdGlasKort(d.glastype)+')' : ''} — ${orient}`, detail: rdGlasLabel(d.glastype) + (d.zonwering ? ', met zonwering' : ''), formule});
     }
     if(d.deurOppStuk>0){
       const formule = isDR
-        ? `${n2l(d.breedte)} × ${n2l(d.hoogte)} − ${n2l(d.raamBreedte)} × ${n2l(d.raamHoogte)}`
-        : `${n2l(d.breedte)} × ${n2l(d.hoogte)}`;
+        ? `${d.uitOpp ? n2l(d.oppIn) : n2l(d.breedte)+' × '+n2l(d.hoogte)} − ${n2l(d.raamBreedte)} × ${n2l(d.raamHoogte)}`
+        : d.uitOpp ? `${n2l(d.oppIn)} (oppervlakte ingevoerd)` : `${n2l(d.breedte)} × ${n2l(d.hoogte)}`;
       uit.push({soort:'deur', opp:d.deurOppStuk, isolatie:d.isolatie, gevelKey:d.gevelKey,
         label:`${d.naam}${nr}${isDR?' — deurdeel':''} — ${orient}`, detail: RD_ISOLATIE_LABELS[d.isolatie] || d.isolatie, formule});
     }
     if(d.paneelOppStuk>0){
       uit.push({soort:'paneel', opp:d.paneelOppStuk, gevelKey:d.gevelKey,
-        label:`${d.naam}${nr} — ${orient}`, detail:'Paneel', formule:`${n2l(d.breedte)} × ${n2l(d.hoogte)}`});
+        label:`${d.naam}${nr} — ${orient}`, detail:'Paneel', formule: d.uitOpp ? `${n2l(d.oppIn)} (oppervlakte ingevoerd)` : `${n2l(d.breedte)} × ${n2l(d.hoogte)}`});
     }
   }
   return uit;
@@ -4827,13 +4851,14 @@ function renderRamenDeurenResultaten(){
   data.forEach(d=>{
     const el = document.getElementById('rd-resultaat-'+d.id);
     if(!el) return;
-    if(!d.geldig){ el.textContent = 'Vul breedte en hoogte in.'; return; }
+    if(!d.geldig){ el.textContent = 'Vul breedte en hoogte in, of alleen de oppervlakte.'; return; }
     const delen = [];
     if(d.raamOpp>0) delen.push(`raam ${d.raamOpp.toFixed(2)} m²`);
     if(d.deurOpp>0) delen.push(`deur ${d.deurOpp.toFixed(2)} m²`);
     if(d.paneelOpp>0) delen.push(`paneel ${d.paneelOpp.toFixed(2)} m²`);
     if(d.zonwering) delen.push('met zonwering');
-    el.textContent = `${delen.join(' + ')} — ${d.gevelKey===RD_PLATDAK_KEY ? 'plat dak '+d.koepelOpLabel : ramenDeurenOrientatieLabel(d.gevelKey)}, ${ramenDeurenVerdiepingLabel(d.verdieping)}${d.aantal>1 ? ' (×'+d.aantal+')' : ''}`;
+    el.textContent = `${delen.join(' + ')} — ${d.gevelKey===RD_PLATDAK_KEY ? 'plat dak '+d.koepelOpLabel : ramenDeurenOrientatieLabel(d.gevelKey)}, ${ramenDeurenVerdiepingLabel(d.verdieping)}${d.aantal>1 ? ' (×'+d.aantal+')' : ''}`
+      + (d.uitOpp ? ` · getekend als ${(d.breedte*100).toFixed(0)} × ${(d.hoogte*100).toFixed(0)} cm${d.afgekapt ? ' (hoogte = vrije hoogte − 10 cm)' : ' (vierkant)'}` : '');
   });
 
   const container = document.getElementById('ramendeuren-resultaten');
@@ -8148,6 +8173,7 @@ function verzamelInvoerData(){
     push('RaamDeur', i+1, 'aantal', veldWaarde('rd-aantal-'+rd.id));
     push('RaamDeur', i+1, 'breedte', veldWaarde('rd-breedte-'+rd.id));
     push('RaamDeur', i+1, 'hoogte', veldWaarde('rd-hoogte-'+rd.id));
+    push('RaamDeur', i+1, 'opp', veldWaarde('rd-opp-'+rd.id));
     push('RaamDeur', i+1, 'glastype', veldWaarde('rd-glastype-'+rd.id));
     push('RaamDeur', i+1, 'isolatie', veldWaarde('rd-isolatie-'+rd.id));
     push('RaamDeur', i+1, 'raambreedte', veldWaarde('rd-raambreedte-'+rd.id));
@@ -8306,6 +8332,7 @@ function vulInvoerDataIn(rows){
       veldZetten('rd-aantal-'+rd.id, g.velden.aantal);
       veldZetten('rd-breedte-'+rd.id, g.velden.breedte);
       veldZetten('rd-hoogte-'+rd.id, g.velden.hoogte);
+      veldZetten('rd-opp-'+rd.id, g.velden.opp);
       const gl = document.getElementById('rd-glastype-'+rd.id);
       if(gl && g.velden.glastype !== undefined){ gl.value = g.velden.glastype; }
       rd.glasHandmatig = gl ? (gl.value !== rdStandaardGlas()) : false;
