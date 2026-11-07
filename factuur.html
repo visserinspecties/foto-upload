@@ -151,7 +151,7 @@ table.r .sub{color:var(--muted);font-size:12px}
     <div class="card">
       <h2><span><span class="stap">3</span>Aanhef</span><small>voor factuur én mail</small></h2>
       <div class="chips" data-groep="groet"><button class="chip" data-v="Geachte">Geachte</button><button class="chip" data-v="Beste">Beste</button><button class="chip" data-v="">Geen aanhef</button></div>
-      <div class="chips" data-groep="titel"><button class="chip" data-v="heer">heer</button><button class="chip" data-v="mevrouw">mevrouw</button><button class="chip" data-v="familie">familie</button><button class="chip" data-v="">—</button></div>
+      <div class="chips" data-groep="titel"><button class="chip" data-v="heer/mevrouw">heer/mevrouw</button><button class="chip" data-v="heer">heer</button><button class="chip" data-v="mevrouw">mevrouw</button><button class="chip" data-v="familie">familie</button><button class="chip" data-v="">—</button></div>
       <div class="chips" data-groep="naam"><button class="chip" data-v="achter">achternaam</button><button class="chip" data-v="voor">voornaam</button></div>
       <div class="grid2">
         <div><label class="l">Voornaam</label><input type="text" id="a-voor" placeholder="bijv. Rob"></div>
@@ -466,13 +466,14 @@ function vulGegevens(){
   renderRegels();
   // aanhef voorstel uit EP-Sys ("Geachte heer Slurink, Beste Rob,")
   const a=F.aanhef||'';
-  const titel=(a.match(/\b(heer|mevrouw|familie)\b/i)||[])[1]||'';
+  // titel: EP-Sys zet er vaak standaard 'mevrouw' in; daarom niet overnemen. Neutraal 'heer/mevrouw',
+  // tenzij voor deze achternaam eerder een titel is gekozen (onthouden bij het maken van de concepten)
   const achter=(a.match(/\b(?:heer|mevrouw|familie)\s+([^,]+)/i)||[])[1]||(F.klant.find(k=>/^T\.?a\.?v\.?/i.test(k))||'').replace(/^T\.?a\.?v\.?\s*/i,'').replace(/^([A-Z]\.\s*)+/,'').trim();
   const voor=(a.match(/\bBeste\s+([^,\s]+)\s*,?/i)||[])[1]||'';
   $('a-voor').value=voor&&!/^(heer|mevrouw|familie)$/i.test(voor)?voor:'';
   $('a-achter').value=achter.trim();
   A.groet=/^Beste/i.test(a)&&!/Geachte/i.test(a)?'Beste':(voor?'Beste':'Geachte');
-  A.titel=titel.toLowerCase();A.naam=$('a-voor').value?'voor':'achter';$('a-eigen').value='';
+  A.titel=LSJ.get('fact_titel',{})[achter.trim().toLowerCase()]??'heer/mevrouw';A.naam=$('a-voor').value?'voor':'achter';$('a-eigen').value='';
   renderAanhef();
   $('m-onderwerp').dataset.auto='1';$('o-map').textContent=doelMap||'OneDrive';$('o-naam').textContent=bestandsnaam();
 }
@@ -494,7 +495,7 @@ function renderRegels(){
 const bestandsnaam=()=>`Factuur ${F?F.nr:''}.pdf`;
 
 /* ══════════ Stap 3: aanhef ══════════ */
-const A={groet:'Geachte',titel:'heer',naam:'achter'};
+const A={groet:'Geachte',titel:'heer/mevrouw',naam:'achter'};
 function hoofdletter(achter){
   // "van der Berg" zonder voornaam/voorletters → "Van der Berg"
   return achter?achter.charAt(0).toUpperCase()+achter.slice(1):'';
@@ -505,7 +506,7 @@ function aanhefTekst(){
   const voor=$('a-voor').value.trim(),achter=$('a-achter').value.trim();
   if(A.naam==='voor'&&voor)return `${A.groet} ${voor},`;
   if(achter)return `${A.groet} ${A.titel?A.titel+' ':''}${hoofdletter(achter)},`;
-  if(A.titel==='heer'||A.titel==='mevrouw')return `${A.groet} ${A.titel},`;
+  if(A.titel==='heer'||A.titel==='mevrouw'||A.titel==='heer/mevrouw')return `${A.groet} ${A.titel},`;
   return A.groet==='Geachte'?'Geachte heer, mevrouw,':'Beste,';
 }
 function renderAanhef(){
@@ -837,6 +838,24 @@ $('b-voorbeeld').onclick=async()=>{
     if(w)w.location=url;else location.href=url}catch(e){if(w)w.close();say('err','Voorbeeld mislukt: '+esc(e.message))}
   b.disabled=false;
 };
+/* herinnering: concepten via Graph krijgen geen Outlook-handtekening mee */
+function handtekeningHerinnering(){
+  return new Promise(klaar=>{
+    const o=document.createElement('div');
+    o.style.cssText='position:fixed;inset:0;background:rgba(20,10,35,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+    o.innerHTML=`<div role="dialog" aria-modal="true" style="background:#fff;border-radius:14px;max-width:440px;width:100%;padding:20px 22px;box-shadow:0 10px 40px rgba(0,0,0,.3)">
+      <div style="font-size:30px;line-height:1">✍️</div>
+      <h3 style="margin:8px 0 6px;color:#432D6A">Denk aan je handtekening</h3>
+      <p style="margin:0 0 10px;font-size:14px">De concepten komen <b>zonder handtekening</b> in Outlook. Open elk concept en kies <b>Invoegen → Handtekening → Visserinspecties</b> voordat je verstuurt.</p>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px">
+        <button type="button" class="btn" data-k="0" style="background:#fff;color:#432D6A;border:1px solid #c9bedb">Annuleren</button>
+        <button type="button" class="btn" data-k="1">Begrepen, maak concepten</button></div></div>`;
+    const sluit=v=>{o.remove();document.removeEventListener('keydown',tk);klaar(v)};
+    const tk=e=>{if(e.key==='Escape')sluit(false)};
+    o.addEventListener('click',e=>{const k=e.target.closest('[data-k]');if(k)sluit(k.dataset.k==='1');else if(e.target===o)sluit(false)});
+    document.addEventListener('keydown',tk);document.body.appendChild(o);o.querySelector('[data-k="1"]').focus();
+  });
+}
 $('b-maak').onclick=async()=>{
   const aan=$('m-aan').value.trim();
   if(!F)return;
@@ -844,6 +863,7 @@ $('b-maak').onclick=async()=>{
   const mk=$('k-aan').checked;
   const labels=gekozenLabels();
   if(mk&&!labels.length){say('err','Voor de makelaar is geen label geselecteerd. Vink een label aan of zet de makelaar uit.');return}
+  if(!await handtekeningHerinnering())return;
   const b=$('b-maak');b.disabled=true;const res=$('resultaat');
   res.innerHTML='<div class="msg info"><span class="spin"></span>Factuur maken…</div>';
   try{
@@ -855,6 +875,7 @@ $('b-maak').onclick=async()=>{
     res.innerHTML='<div class="msg info"><span class="spin"></span>Concept voor de klant maken…</div>';
     const kBijl=[{name:bestandsnaam(),bytes:pdf},...bijlagen.filter(x=>x.aan)];
     const km=await maakConcept(aan,$('m-onderwerp').value.trim(),klantMail(),kBijl);
+    if($('a-achter').value.trim()){const t=LSJ.get('fact_titel',{});t[$('a-achter').value.trim().toLowerCase()]=A.titel;LSJ.set('fact_titel',t)}
     if(aan&&$('a-achter').value.trim()){const m=LSJ.get('fact_klantmail',{});m[($('a-achter').value.trim()||$('a-voor').value.trim()).toLowerCase()]=aan;LSJ.set('fact_klantmail',m)}
     let mm=null;
     if(mk){
@@ -869,7 +890,7 @@ $('b-maak').onclick=async()=>{
     res.innerHTML=`<div class="msg ok"><b>✓ Klaar.</b><br>Factuur opgeslagen als <b>${esc(bestandsnaam())}</b> in ${esc(doelMap||'OneDrive')}${opgeslagen.webUrl?` · <a href="${esc(opgeslagen.webUrl)}" target="_blank">bekijken</a>`:''}.<br>
       Concept voor de klant staat in Outlook (Concepten)${km.webLink?` · <a href="${esc(km.webLink)}" target="_blank">openen</a>`:''}.
       ${mm?`<br>Concept voor de makelaar (alleen ${labels.length>1?'labels':'het label'})${mm.webLink?` · <a href="${esc(mm.webLink)}" target="_blank">openen</a>`:''}.`:''}
-      <br><span style="font-size:12px">Voeg in Outlook je handtekening toe en verstuur.</span></div>`;
+      <br><b>✍️ Voeg in Outlook je handtekening toe (Invoegen → Handtekening) en verstuur.</b></div>`;
   }catch(e){console.error(e);res.innerHTML=`<div class="msg err">Mislukt: ${esc(e.message)}</div>`}
   b.disabled=false;
 };
