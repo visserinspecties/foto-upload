@@ -8706,6 +8706,129 @@ async function verwerkExcelBestand(file){
 
 
 
+// ---------- ZWEVEND GEVELKAARTJE ----------
+// Toont tijdens het invoeren van daken, uitbouwen, dakkapellen en ramen/deuren aan welke gevel je werkt,
+// in de windrichtingkleur (zelfde kleuren als Pand Analyse / Pand-oriëntatie) met de oriëntatie erbij.
+const GK_KLEUR = { N:'#1f4e9c', NO:'#2f8fbf', O:'#3aa776', ZO:'#9cc23a', Z:'#e3a21a', ZW:'#e0662a', W:'#c0392b', NW:'#7d4ea3' };
+const GK_NAAM = { VG:'voorgevel', AG:'achtergevel', LG:'linkergevel', RG:'rechtergevel' };
+let gkLaatste = null, gkVerborgen = false, gkTab = 'vloer';
+(function(){
+  const st = document.createElement('style');
+  st.textContent = `
+  #gevelkaart{position:fixed;right:14px;bottom:14px;z-index:9000;background:#fff;border:1px solid #d8d2e4;border-radius:12px;
+    box-shadow:0 6px 24px rgba(40,20,70,.18);padding:8px 10px;display:none;gap:10px;align-items:center;font-size:.8rem;max-width:calc(100vw - 28px)}
+  #gevelkaart .gk-wat{color:#6b6555;font-size:.72rem;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
+  #gevelkaart .gk-rij{display:flex;gap:8px}
+  #gevelkaart .gk-chip{display:flex;align-items:center;gap:7px}
+  #gevelkaart .gk-blok{width:46px;height:46px;border-radius:9px;color:#fff;font-weight:700;font-size:1.25rem;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+  #gevelkaart .gk-tekst b{display:block;font-size:.95rem;color:#2a2340}
+  #gevelkaart .gk-tekst span{color:#6b6555;font-size:.72rem}
+  #gevelkaart svg{width:64px!important;height:64px!important;max-width:none!important;flex:0 0 64px;display:block}
+  #gevelkaart .gk-dicht{position:absolute;top:2px;right:6px;border:0;background:none;color:#999;font-size:.9rem;cursor:pointer;padding:2px}
+  @media print{#gevelkaart{display:none!important}}`;
+  document.head.appendChild(st);
+  const el = document.createElement('div');
+  el.id = 'gevelkaart';
+  el.setAttribute('aria-live','polite');
+  document.body.appendChild(el);
+})();
+
+// Kleine plattegrond: VG onderaan (straatkant), actieve gevel dik in zijn kleur, noordpijl volgens de oriëntatie
+function gkPlattegrond(codes){
+  const pg = projectGegevens();
+  const vgIdx = WINDRICHTINGEN_8.indexOf(pg && pg.orientatie ? pg.orientatie.VG : '');
+  const vgHoek = (pg && typeof pg.orientatieHoek === 'number') ? pg.orientatieHoek : (vgIdx >= 0 ? vgIdx*45 : null);
+  const zijde = { VG:[18,46,46,46], AG:[18,18,46,18], LG:[18,18,18,46], RG:[46,18,46,46] };
+  let lijnen = '';
+  ['VG','AG','LG','RG'].forEach(c=>{
+    const [x1,y1,x2,y2] = zijde[c], actief = codes.includes(c);
+    const g = gevelOrientatie(c), kl = actief ? (g ? GK_KLEUR[g.richting] || '#432D6A' : '#432D6A') : '#c9c3d6';
+    lijnen += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${kl}" stroke-width="${actief?5:2}" stroke-linecap="round"/>`;
+  });
+  // noordpijl buiten het huisje: noorden staat op schermhoek 180 - VG-hoek (VG wijst naar beneden)
+  let n = '';
+  if(vgHoek != null){
+    const a = (180 - vgHoek) * Math.PI / 180, pt = r => [32 + r*Math.sin(a), 32 - r*Math.cos(a)];
+    const [tx,ty] = pt(31), [bx,by] = pt(24), [lx,ly] = pt(20);
+    const px = Math.cos(a)*3.5, py = Math.sin(a)*3.5;
+    n = `<path d="M${tx.toFixed(1)} ${ty.toFixed(1)} L${(bx+px).toFixed(1)} ${(by+py).toFixed(1)} L${(bx-px).toFixed(1)} ${(by-py).toFixed(1)} Z" fill="#2a2340"/>`
+      + `<text x="${lx.toFixed(1)}" y="${(ly+2.5).toFixed(1)}" text-anchor="middle" font-size="7" font-weight="700" fill="#2a2340">N</text>`;
+  }
+  return `<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="18" y="18" width="28" height="28" fill="#f3f0f8"/>${lijnen}<text x="32" y="42" text-anchor="middle" font-size="6.5" fill="#8a849a">VG</text>${n}</svg>`;
+}
+
+function gkChip(code, extra){
+  if(code === RD_PLATDAK_KEY) return `<div class="gk-chip"><div class="gk-blok" style="background:#8c8c8c;font-size:.8rem">PD</div><div class="gk-tekst"><b>Plat dak</b><span>geen gevel-oriëntatie</span></div></div>`;
+  const g = gevelOrientatie(code);
+  const kleur = g ? (GK_KLEUR[g.richting] || '#432D6A') : '#432D6A';
+  const groot = g ? g.richting : code;
+  const sub = g ? `${code} · ${GK_NAAM[code]}${g.hoek!=null ? ' · '+g.hoek+'°' : ''}` : `${GK_NAAM[code]} · oriëntatie onbekend`;
+  return `<div class="gk-chip"><div class="gk-blok" style="background:${kleur}">${groot}</div><div class="gk-tekst"><b>${extra ? extra+' ' : ''}${code}</b><span>${sub}</span></div></div>`;
+}
+
+// Welke gevel(s) horen bij het veld waar je nu bent?
+function gkContext(el){
+  if(!el || !el.closest) return null;
+  const rdBlok = el.closest('[id^="rd-blok-"]');
+  if(rdBlok){
+    const id = +rdBlok.id.replace('rd-blok-','');
+    const rd = ramenDeuren.find(r=>r.id===id);
+    let d = null; try { d = rd ? berekenRaamDeurData(rd) : null; } catch(_) {}
+    const sel = document.getElementById('rd-orientatie-'+id);
+    const key = d && d.gevelKey ? d.gevelKey : ramenDeurenGevelKeyVanOrientatie(sel ? sel.value : 'VG');
+    return { wat: (rd && rd.naam) || 'Raam/deur', codes:[key] };
+  }
+  const dkBlok = el.closest('[id^="dk-blok-"]');
+  if(dkBlok){
+    const id = dkBlok.id.replace('dk-blok-','');
+    const v = document.getElementById('dk-dakvlak-'+id)?.value;
+    return { wat: (document.getElementById('dk-titel-'+id)?.textContent || 'Dakkapel') + ' — aanzicht', codes:[dakvlakNaarGevelcode(v)] };
+  }
+  const ubBlok = el.closest('[id^="ub-blok-"]');
+  if(ubBlok){
+    const id = ubBlok.id.replace('ub-blok-','');
+    return { wat: (document.getElementById('ub-titel-'+id)?.textContent || 'Uitbouw') + ' — aan de', codes:[document.getElementById('ub-gevel-'+id)?.value || 'VG'] };
+  }
+  const id = el.id || '';
+  if(!/^gs-(daktype|nokrichting|hellingshoek|wolfseind|asym|schilddak|mansarde|geen-zoldervloer|vloeroffset)/.test(id)) return null;
+  const dv = dakvlakGevelCodes(), [kA, kB] = kopgevelNamen()[0] === 'Linkergevel' ? ['LG','RG'] : ['VG','AG'];
+  if(/^gs-asym-helling-voor/.test(id)) return { wat:'Dakvlak A', codes:[dv.A] };
+  if(/^gs-asym-helling-achter/.test(id)) return { wat:'Dakvlak B', codes:[dv.B] };
+  if(/^gs-wolfseind-a/.test(id)) return { wat:'Wolfseind kopgevel A', codes:[kA] };
+  if(/^gs-wolfseind-b/.test(id)) return { wat:'Wolfseind kopgevel B', codes:[kB] };
+  if(id === 'gs-schilddak-helling-voor') return { wat:'Schilddak — dakvlak', codes:['VG'] };
+  if(id === 'gs-schilddak-helling-achter') return { wat:'Schilddak — dakvlak', codes:['AG'] };
+  if(id === 'gs-schilddak-helling-zij') return { wat:'Schilddak — dakvlakken', codes:['LG','RG'] };
+  const dt = huidigDaktype();
+  if(dt === 'plat' || dt === 'geen') return { wat:'Dak', codes:[RD_PLATDAK_KEY] };
+  if(dt === 'schilddak') return { wat:'Schilddak — dakvlakken', codes:['VG','AG','LG','RG'] };
+  return { wat:'Dakvlakken A en B', codes:[dv.A, dv.B] };
+}
+
+function gkToon(ctx){
+  const el = document.getElementById('gevelkaart');
+  const zichtbaarTab = ['vloer','gevelstandaard','gevel','ramen'].includes(gkTab);
+  if(!ctx || gkVerborgen || !zichtbaarTab || (gkTab === 'vloer' && !ctx.dak)){ el.style.display = 'none'; return; }
+  const codes = ctx.codes.filter(Boolean);
+  const gevels = codes.filter(c=>c !== RD_PLATDAK_KEY);
+  const chips = (codes.length > 2 ? codes.slice(0,4) : codes).map(c=>gkChip(c)).join('');
+  el.innerHTML = `<button class="gk-dicht" title="Verbergen (komt terug bij een ander tabblad)" type="button">×</button>
+    ${gevels.length ? gkPlattegrond(gevels) : ''}
+    <div><div class="gk-wat">${ctx.wat}</div><div class="gk-rij">${chips}</div></div>`;
+  el.style.display = 'flex';
+  el.querySelector('.gk-dicht').onclick = ()=>{ gkVerborgen = true; el.style.display = 'none'; };
+}
+function gkBijwerken(doel){
+  const ctx = gkContext(doel);
+  if(ctx){ ctx.dak = !doel.closest('[id^="rd-blok-"],[id^="dk-blok-"],[id^="ub-blok-"]'); gkLaatste = { doel, ctx }; }
+  else if(gkLaatste && !document.body.contains(gkLaatste.doel)) gkLaatste = null;
+  if(gkLaatste){ const c = gkContext(gkLaatste.doel); if(c){ c.dak = gkLaatste.ctx.dak; gkLaatste.ctx = c; } }
+  gkToon(gkLaatste && gkLaatste.ctx);
+}
+document.addEventListener('focusin', e=>gkBijwerken(e.target));
+document.addEventListener('change', e=>gkBijwerken(e.target));
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click', ()=>{ gkTab = t.dataset.mode; gkVerborgen = false; gkLaatste = null; gkToon(null); }));
+
 // ---------- TABS ----------
 document.querySelectorAll('.tab').forEach(tab=>{
   tab.addEventListener('click', ()=>{
