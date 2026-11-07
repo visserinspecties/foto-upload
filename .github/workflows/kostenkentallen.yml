@@ -1,0 +1,72 @@
+name: Kostenkentallen RVO controleren
+
+# Haalt wekelijks de RVO-kostenkentallen woningbouw op. Alleen als de prijzen of de peildatum
+# veranderd zijn, worden nieuwe bestanden in data/ gezet en gaat de Pand Analyse ze gebruiken.
+# Handmatig starten: tabblad Actions -> "Kostenkentallen RVO controleren" -> Run workflow.
+
+on:
+  schedule:
+    - cron: '23 4 * * 1'        # elke maandag rond 05:23/06:23 Nederlandse tijd
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+
+concurrency:
+  group: kostenkentallen
+  cancel-in-progress: false
+
+jobs:
+  controleren:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: openpyxl installeren
+        run: pip install openpyxl==3.1.5
+
+      - name: RVO-Excel ophalen
+        run: |
+          mkdir -p /tmp/rvo
+          curl -sSfL --retry 3 --retry-delay 10 -A "VisserInspecties-kostenkentallen/1.0" \
+            -o /tmp/rvo/woningbouw.xlsx \
+            "https://regelhulpenvoorbedrijven.nl/kostenkentallen/kostenkentallen/woningbouw.xlsx"
+          ls -la /tmp/rvo
+          # een xlsx is een zip-bestand: begint met 'PK'
+          head -c 2 /tmp/rvo/woningbouw.xlsx | grep -q PK || { echo "Geen Excel-bestand ontvangen"; exit 1; }
+
+      - name: Omzetten en vergelijken
+        id: kk
+        run: python -I scripts/kostenkentallen.py uit-rvo /tmp/rvo/woningbouw.xlsx | tee /tmp/rvo/log.txt
+
+      - name: Nieuwe prijzen vastleggen
+        if: steps.kk.outputs.gewijzigd == 'true'
+        run: |
+          git config user.name "kostenkentallen-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/
+          git commit -F - <<EOF
+          Kostenkentallen bijgewerkt: RVO peildatum ${{ steps.kk.outputs.peil }}
+
+          $(cat /tmp/rvo/log.txt)
+          EOF
+          git push
+
+      - name: Website opnieuw laten bouwen
+        if: steps.kk.outputs.gewijzigd == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X POST "repos/${{ github.repository }}/pages/builds" || echo "Pages bouwt vanzelf of verzoek niet nodig"
+
+      - name: Samenvatting
+        if: always()
+        run: |
+          echo "### Kostenkentallen" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat /tmp/rvo/log.txt >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "geen log" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

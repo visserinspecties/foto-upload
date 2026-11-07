@@ -521,10 +521,13 @@ body.tab-bag .wrap{max-width:1180px}
 </div>
 
 <script>
-/* Prijzen: los bestand in data/ (zie scripts/kostenkentallen.py). Nieuw jaar = nieuw bestand + deze regel aanpassen. */
-const KK_BESTAND='data/kostenkentallen-2026.json';
+/* Prijzen: data/kostenkentallen.json = actuele RVO-set, wekelijks bijgewerkt door de GitHub Action
+   .github/workflows/kostenkentallen.yml (zie scripts/kostenkentallen.py). Oude peildata blijven in data/ staan. */
+const KK_BESTAND='data/kostenkentallen.json';
+const KK_CONTROLE='https://github.com/visserinspecties/foto-upload/actions/workflows/kostenkentallen.yml';
 let RVO_KK={},KK_META=null,KK_FOUT=false;
 const kkPeil=()=>KK_META?KK_META.prijspeil:'onbekend';
+const kkBron=()=>(KK_META&&KK_META.bronbestand||KK_BESTAND).split('/').pop();
 fetch(KK_BESTAND,{cache:'no-cache'}).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json()})
   .then(j=>{RVO_KK=j.maatregelen||{};KK_META=j;document.dispatchEvent(new Event('kk-geladen'))})
   .catch(e=>{console.error('Prijstabel niet geladen:',e);KK_FOUT=true;document.dispatchEvent(new Event('kk-geladen'))});
@@ -988,7 +991,7 @@ function ramVariant(b){
   const ag=+((vboOf(b)||{}).oppervlakte||0),gr=ramS.grootte||(type==='egw'?(ag&&ag<100?'min':ag>160?'max':'mid'):(ag&&ag<60?'min':ag>90?'max':'mid'));
   return{type,gr,ag,auto:{type:meer?'mgw':'egw'},sleutel:`${type}-tus-${ramS.aanpak}-${gr}`};
 }
-function rvoPrijs(code,sleutel){const m=RVO_KK[code];if(!m)return null;const i=RVO_VAR.indexOf(sleutel),x=m.v[i]||m.v[1];return{excl:x[0],arbeid:x[1],e:m.e,h:m.h}}
+function rvoPrijs(code,sleutel){const m=RVO_KK[code];if(!m)return null;const i=RVO_VAR.indexOf(sleutel),x=m.v[i]||m.v[1]||m.v.find(Boolean);if(!x)return null;return{excl:x[0],arbeid:x[1],e:m.e,h:m.h}}
 const btwFactor=(soort,arbeid)=>soort==='pv'?1:soort==='iso'?arbeid*1.09+(1-arbeid)*1.21:1.21;
 function zonnepanelen(b){
   const vl=vlakkenVan(b),pm2=1.93,uit=[];
@@ -1036,7 +1039,7 @@ function renderRaming(){
   const r=ramingData(b);
   if(!r){el.innerHTML=`<p class="klein">${b.h===undefined?'3D-model laden…':'Geen 3D-model: geen automatische hoeveelheden. Meet ter plaatse of met Huismaten.'}</p>`;return}
   const sel=(id,opties,waarde)=>`<select id="${id}">${opties.map(([v,t])=>`<option value="${v}"${v===waarde?' selected':''}>${t}</option>`).join('')}</select>`;
-  el.innerHTML=`<div class="ram-bron">Prijzen: <b>RVO-kostenkentallen woningbouw</b> (prijspeil ${kkPeil()}; bestand ${KK_BESTAND.split('/').pop()})${r.btw?', omgerekend naar incl. btw (isolatie: arbeid 9%, materiaal 21%; zonnepanelen 0%; overig 21%)':', excl. btw'}.</div>
+  el.innerHTML=`<div class="ram-bron">Prijzen: <b>RVO-kostenkentallen woningbouw</b> (prijspeil ${kkPeil()}${KK_META.opgehaald?', gecontroleerd '+new Date(KK_META.opgehaald).toLocaleDateString('nl-NL'):''}) <a href="${KK_CONTROLE}" target="_blank" rel="noopener" title="Op GitHub: Run workflow om nu te controleren of RVO nieuwe prijzen heeft">🔄 Prijzen controleren</a>${r.btw?', omgerekend naar incl. btw (isolatie: arbeid 9%, materiaal 21%; zonnepanelen 0%; overig 21%)':', excl. btw'}.</div>
     <div class="ram-inst">
       <label>Woningtype ${sel('ram-type',[['egw',VARNAAM.egw],['mgw',VARNAAM.mgw]],r.vr.type)}</label>
       <label>Grootte ${sel('ram-gr',[['min',VARNAAM.min],['mid',VARNAAM.mid],['max',VARNAAM.max]],r.vr.gr)}${r.vr.ag?` <span class="klein">(Ag ${r.vr.ag} m²)</span>`:''}</label>
@@ -1081,7 +1084,7 @@ function renderRaming(){
   $('ram-std').onclick=()=>{ramS.prijs={};ramS.code={};ramS.type=null;ramS.grootte=null;ramS.aanpak='enk';ramS.glas=20;ramS.glasDir={};ramS.verlies=5;ramS.hoev={};ramBewaar();her()};
   $('ram-csv').onclick=()=>{const L=[['RVO-code','Maatregel','Omschrijving RVO','Hoeveelheid','Eenheid','Bestellen (incl. snijverlies)','Prijs p/eenheid ('+(r.btw?'incl.':'excl.')+' btw)','Totaal']];
     r.sel.forEach(x=>L.push([x.code||'',x.naam,x.omschr,fmt(x.hoev,1),x.eenh,x.besteld!=null?fmt(x.besteld,1):'',fmt(x.prijs,2),fmt(x.totaal,0)]));
-    L.push(['','Totaal','','','','','',fmt(r.totaal,0)]);L.push([]);L.push(['Bron: RVO kostenkentallen woningbouw, prijspeil '+kkPeil()+' ('+KK_BESTAND.split('/').pop()+'); variant '+r.vr.sleutel]);
+    L.push(['','Totaal','','','','','',fmt(r.totaal,0)]);L.push([]);L.push(['Bron: RVO kostenkentallen woningbouw, prijspeil '+kkPeil()+' ('+kkBron()+'); variant '+r.vr.sleutel]);
     if(r.pv.length){L.push([]);L.push(['Zonnepanelen dakvlak','Oriëntatie','Helling','Panelen','m²','kWp','kWh/jaar']);r.pv.forEach(p=>L.push(['Dakvlak '+p.nr,p.dir,fmt(p.helling,0),p.n,fmt(p.m2,1),fmt(p.kwp,2),fmt(p.kwh,0)]))}
     const t='\ufeff'+L.map(a=>a.map(v=>{v=String(v??'');return/[;"\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}).join(';')).join('\r\n');
     const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:'text/csv;charset=utf-8'}));a.download=`Raming ${addrOf(b).split(',')[0]}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)};
@@ -2106,7 +2109,7 @@ function ramingPagina(doc, pd, meta){
       columnStyles:{2:{halign:'right'}, 3:{halign:'right'}, 4:{halign:'right'}, 5:{halign:'right'}}});
     y = doc.lastAutoTable.finalY + 6;
   }
-  pdfDisclaimer(doc, y, 'Indicatieve raming. Prijzen: RVO-kostenkentallen woningbouw (prijspeil ' + kkPeil() + ', ' + KK_BESTAND.split('/').pop() + '), variant ' + r.variant + ', ' + (r.btw ? 'omgerekend naar incl. btw (isolatie: arbeid 9%, materiaal 21%; zonnepanelen 0%; overig 21%)' : 'excl. btw') + '; zonder bijkomende kosten, leges en asbest; ISDE volgens RVO-bedragen woningeigenaren 2026 (indicatie, biobased-bonus niet meegerekend, toekenning door RVO); nauwkeurigheid volgens RVO -10% tot +25%. Hoeveelheden: bruto buitenwerkse oppervlaktes uit het 3D-model (3D BAG), ramen/deuren gemiddeld ' + r.glas + '% van de gevel (' + r.glasDirs + '). Zonnepanelen 435 Wp per paneel, opbrengst indicatief. Geen offerte.');
+  pdfDisclaimer(doc, y, 'Indicatieve raming. Prijzen: RVO-kostenkentallen woningbouw (prijspeil ' + kkPeil() + ', ' + kkBron() + '), variant ' + r.variant + ', ' + (r.btw ? 'omgerekend naar incl. btw (isolatie: arbeid 9%, materiaal 21%; zonnepanelen 0%; overig 21%)' : 'excl. btw') + '; zonder bijkomende kosten, leges en asbest; ISDE volgens RVO-bedragen woningeigenaren 2026 (indicatie, biobased-bonus niet meegerekend, toekenning door RVO); nauwkeurigheid volgens RVO -10% tot +25%. Hoeveelheden: bruto buitenwerkse oppervlaktes uit het 3D-model (3D BAG), ramen/deuren gemiddeld ' + r.glas + '% van de gevel (' + r.glasDirs + '). Zonnepanelen 435 Wp per paneel, opbrengst indicatief. Geen offerte.');
 }
 function oppPagina(doc, pd, meta){
   const o = pd.opp, t = o.txt;
