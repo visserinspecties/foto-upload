@@ -319,6 +319,19 @@ body.tab-bag .wrap{max-width:1180px}
 #bag .ram-tab .m2{text-align:right;white-space:nowrap;font-weight:700}
 #bag .ram-tab tr.tot td{font-weight:800;background:#F4F2F6;border-top:2px solid #432D6A}
 #bag .ram-h3{font-size:.95rem;margin:14px 0 6px}
+#bag .ram-altknop{display:inline-block;margin-top:3px;font-size:.74rem;color:#432D6A;text-decoration:none;border:1px solid #c9bedb;border-radius:6px;padding:1px 6px;background:#F4F2F6}
+#bag .ram-alt{display:block;margin-top:3px;color:#7a4a00;background:#FFF4E5;border-radius:6px;padding:2px 6px}
+.alt-over{position:fixed;inset:0;background:rgba(20,10,35,.45);z-index:9999;display:flex;align-items:center;justify-content:center}
+.alt-dlg{background:#fff;width:min(940px,95vw);max-height:90vh;display:flex;flex-direction:column;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.3);font-size:.85rem}
+.alt-kop{padding:12px 16px;border-bottom:1px solid #e3dcef}.alt-kop h3{margin:0 0 6px;color:#432D6A;font-size:1.05rem}
+.alt-filter{display:flex;flex-wrap:wrap;gap:12px;align-items:center}.alt-filter input[type=search]{padding:5px 8px;border:1px solid #c9bedb;border-radius:6px;min-width:220px}
+.alt-lijst{overflow:auto;padding:0 0 8px}.alt-lijst table{width:100%;border-collapse:collapse}
+.alt-lijst td{padding:5px 8px;border-bottom:1px solid #eee;vertical-align:top}.alt-lijst td.p{white-space:nowrap;text-align:right}
+.alt-lijst tr.og td{background:#E9762B;color:#fff;font-weight:700;position:sticky;top:0}.alt-lijst tr.sg td{background:#8C8C8C;color:#fff;font-weight:700}
+.alt-lijst tr.huidig td{background:#F1EDF6}.alt-lijst button{border:0;border-radius:6px;background:#432D6A;color:#fff;padding:4px 10px;cursor:pointer;font-family:inherit}
+.alt-lijst button:disabled{background:#bbb;cursor:default}.alt-lijst small{display:block;color:#777}.alt-nee{color:#c0392b}.alt-ja{color:#1e7a3c}
+.alt-voet{padding:10px 16px;border-top:1px solid #e3dcef;display:flex;justify-content:space-between;gap:10px;align-items:center}
+.alt-voet button{border:1px solid #c9bedb;border-radius:8px;background:#fff;padding:6px 12px;cursor:pointer;font-family:inherit}
 #bag .ram-bron{background:#F4F2F6;border-left:4px solid #432D6A;padding:6px 10px;border-radius:6px;font-size:.8rem;margin:0 0 10px}
 #bag .ram-inst select{padding:4px 6px;max-width:220px}
 #bag .ram-tab select.ram-code{display:block;margin-top:3px;max-width:340px;font-size:.74rem;padding:2px 4px}
@@ -953,17 +966,24 @@ const ISDE={spouw:{tarief:5.25,min:10,max:170,naam:'spouwmuurisolatie'},gevel:{t
 const ISDE_CAT={spouw:'spouw',buitengevel:'gevel',binnengevel:'gevel',dakbinnen:'dak',dakbuiten:'dak',platdak:'dak',vloer:'vloer',bodem:'bodem',hrpp:'glas',triple:'glas',kozijn:'glasnk',deur:'glas',hybride:'wp',wp:'wp'};
 const ISDE_RD_NIET={WB003b:'Rd 2,6 < 3,5',WB003a:'Rd 2,7 < 3,5'};   /* RVO-varianten die niet aan de ISDE-isolatiewaarde voldoen */
 const ISDE_WP_MIN=500;
+const ISDE_RD_MIN={spouw:1.1,gevel:3.5,dak:3.5,vloer:3.5,bodem:3.5};   /* minimale Rd voor ISDE; Rd uit de RVO-omschrijving, anders Rc */
+const rdUit=e=>{const m=/Rd\s*=\s*([\d,]+)/i.exec(e||'')||/Rc\s*=\s*([\d,]+)/i.exec(e||'');return m?parseFloat(m[1].replace(',','.')):null};
+const nlGetal=v=>String(v).replace('.',',');
+function isdeRdNiet(r){if(ISDE_RD_NIET[r.code])return ISDE_RD_NIET[r.code];const mn=ISDE_RD_MIN[ISDE_CAT[r.k]];if(!mn||!r.code)return null;
+  const v=rdUit((RVO_KK[r.code]||{}).e);return v!=null&&v<mn?`Rd ${nlGetal(v)} < ${nlGetal(mn)}`:null}
+/* biobased herkennen aan het materiaal in de RVO-omschrijving (RVO markeert dit zelf niet) */
+const BIO_RE=/houtvezel|vlas|hennep|cellulose|\bstro(balen|isolatie)?\b|kurk|schapenwol|lisdodde|miscanthus|olifantsgras|zeegras|jute|\briet\b|biobased/i;
 function isdeBereken(b,regels){
   const bj=+b.bouwjaar||0,uit={},meld=[];
   if(bj>=2019){regels.forEach(r=>{if(ISDE_CAT[r.k])uit[r.k]={ok:false,reden:'bouwjaar '+bj+' (ISDE alleen vóór 2019)'}});meld.push('Bouwjaar '+bj+': geen ISDE (alleen woningen met bouwjaar vóór 2019).');return{uit,totaal:0,dubbel:false,meld}}
   const act=regels.filter(r=>r.aan&&ISDE_CAT[r.k]&&ramS.isde[r.k]!==false);
   /* m² per categorie (met min/max) */
-  const perCat={};act.forEach(r=>{const c=ISDE_CAT[r.k];if(c==='wp')return;if(ISDE_RD_NIET[r.code])return;(perCat[c]=perCat[c]||[]).push(r)});
+  const perCat={};act.forEach(r=>{const c=ISDE_CAT[r.k];if(c==='wp')return;if(isdeRdNiet(r))return;(perCat[c]=perCat[c]||[]).push(r)});
   const groepM2=g=>Object.entries(perCat).filter(([c])=>ISDE[c].groep===g).reduce((s,[,rs])=>s+rs.reduce((t,r)=>t+r.hoev,0),0);
   const isoCats=new Set();
   act.forEach(r=>{const c=ISDE_CAT[r.k];
     if(c==='wp'){uit[r.k]={ok:true,bedrag:ramS.isdeWp[r.k]??ISDE_WP_MIN,wp:true};return}
-    if(ISDE_RD_NIET[r.code]){uit[r.k]={ok:false,reden:'isolatiewaarde '+ISDE_RD_NIET[r.code]};return}
+    if(isdeRdNiet(r)){uit[r.k]={ok:false,reden:'isolatiewaarde '+isdeRdNiet(r)};return}
     const d0=ISDE[c];const d=(r.k==='kozijn'&&!/triple/i.test(RVO_KK[r.code]?.e||''))?{...ISDE.glas}:d0;
     const catM2=perCat[c].reduce((t,x)=>t+x.hoev,0),minM2=d.groep?groepM2(d.groep):catM2;
     if(minM2<d.min){uit[r.k]={ok:false,reden:`minder dan ${d.min} m²`};return}
@@ -985,6 +1005,13 @@ const PV_OPBR={Z:950,ZO:910,ZW:910,O:820,W:820,plat:860};   /* kWh per kWp per j
 const ramS=(()=>{let o={};try{o=JSON.parse(localStorage.getItem('ee_raming2')||'{}')}catch(e){}
   return{isde:o.isde||{},isdeWp:o.isdeWp||{},glasDir:o.glasDir||{},glas:o.glas??20,verlies:o.verlies??5,btw:o.btw??true,aanpak:o.aanpak||'enk',prijs:o.prijs||{},code:o.code||{},type:null,grootte:null,
     aan:{},hoev:{}}})();
+/* Alternatieven: per project (adres) een andere RVO-maatregel dan de favoriet; bewaard op dit apparaat */
+const RAM_ALT_KEY='ee_raming_alt';
+const ramAltAlle=(()=>{try{return JSON.parse(localStorage.getItem(RAM_ALT_KEY)||'{}')}catch(e){return{}}})();
+const ramAltSleutel=()=>String(S.addr||'').trim().toLowerCase()||'_';
+const ramAlt=()=>ramAltAlle[ramAltSleutel()]||{};
+function ramAltZet(k,code){const s=ramAltSleutel(),o=ramAltAlle[s]=ramAltAlle[s]||{};if(code)o[k]=code;else delete o[k];
+  if(!Object.keys(o).length)delete ramAltAlle[s];try{localStorage.setItem(RAM_ALT_KEY,JSON.stringify(ramAltAlle))}catch(e){}}
 const ramBewaar=()=>{try{localStorage.setItem('ee_raming2',JSON.stringify({isde:ramS.isde,isdeWp:ramS.isdeWp,glasDir:ramS.glasDir,glas:ramS.glas,verlies:ramS.verlies,btw:ramS.btw,aanpak:ramS.aanpak,prijs:ramS.prijs,code:ramS.code}))}catch(e){}};
 function ramVariant(b){
   const meer=b.vbos.filter(v=>/woon/.test(v.p.gebruiksdoel||'woon')).length>1,type=ramS.type||(meer?'mgw':'egw');
@@ -1009,11 +1036,13 @@ function ramingData(b){
   const bron={gevelbruto:o.gevel,gevelnetto:o.gevel-glasM2,glas:glasM2,kozijn:glasM2/0.8,dakhellend:hellend,dakplat:plat,vloer:o.vloer,
     pvh:pv.filter(p=>!p.plat).reduce((s,p)=>s+p.m2,0),pvp:pv.filter(p=>p.plat).reduce((s,p)=>s+p.m2,0),woning:1,deur:1.75};
   const regels=RAM_MAATR.map(m=>{
-    const code=m.codes.includes(ramS.code[m.k])?ramS.code[m.k]:m.codes[0],rp=code?rvoPrijs(code,vr.sleutel):null;
+    const fav=m.codes.includes(ramS.code[m.k])?ramS.code[m.k]:m.codes[0],alt=ramAlt()[m.k];
+    const altOk=!!(alt&&RVO_KK[alt]&&!m.codes.includes(alt)&&(!RVO_KK[fav]||RVO_KK[alt].h===RVO_KK[fav].h));
+    const code=altOk?alt:fav,rp=code?rvoPrijs(code,vr.sleutel):null;
     const excl=ramS.prijs[m.k]!=null?ramS.prijs[m.k]:(rp?rp.excl:m.eigen),f=btwFactor(m.btw,rp?rp.arbeid:0);
     const prijs=ramS.btw?excl*f:excl,auto=bron[m.bron]||0,h=ramS.hoev[m.k]!=null?ramS.hoev[m.k]:auto;
     const eenh=rp?(rp.h==='won'?'woning':rp.h):m.eenh;
-    return{...m,code,omschr:rp?rp.e:'eigen prijs',eenh,auto,hoev:h,excl,prijs,eigenPrijs:ramS.prijs[m.k]!=null,totaal:h*prijs,aan:!!ramS.aan[m.k]&&h>0,
+    return{...m,code,fav,alt:altOk?alt:null,omschr:rp?rp.e:'eigen prijs',eenh,auto,hoev:h,excl,prijs,eigenPrijs:ramS.prijs[m.k]!=null,totaal:h*prijs,aan:!!ramS.aan[m.k]&&h>0,
       besteld:/m²/.test(eenh)&&!/^pv/.test(m.k)?h*(1+ramS.verlies/100):null}});
   const sel=regels.filter(r=>r.aan),totaal=sel.reduce((s,r)=>s+r.totaal,0),h=heights(b),isde=isdeBereken(b,regels);
   return{o,vr,gevelDirs,glasM2,regels,sel,totaal,isde,pv,kwp:pv.reduce((s,x)=>s+x.kwp,0),kwh:pv.reduce((s,x)=>s+x.kwh,0),panelen:pv.reduce((s,x)=>s+x.n,0),
@@ -1030,6 +1059,47 @@ function isdeCel(x,u){
   if(!u.ok)return vink+`<small class="isde-nee">✖ ${esc(u.reden)}</small>`;
   if(u.wp)return vink+`<span class="isde-ja">€ <input type="number" class="ram-p" data-isdewp="${x.k}" step="25" min="0" value="${Math.round(u.bedrag)}"></span><small>meldcodelijst, min. € 500</small>`;
   return vink+`<span class="isde-ja">✔ ${eur(u.bedrag)}</span><small>${fmt(u.m2,1)} m² × € ${fmt(u.tarief,2)}${u.afgetopt?' (max)':''}</small>`;
+}
+function openAlternatieven(x,r,her){
+  if(!x||!KK_META)return;
+  const subs=new Set(x.codes.map(c=>(RVO_KK[c]||{}).sub).filter(Boolean)),groepen=new Set(x.codes.map(c=>(RVO_KK[c]||{}).groep).filter(Boolean));
+  const eenh=(RVO_KK[x.fav]||{}).h,st={bio:false,heel:false,q:''};
+  const prijsVan=c=>{const p=rvoPrijs(c,r.vr.sleutel);if(!p)return null;return ramS.btw?p.excl*btwFactor(x.btw,p.arbeid):p.excl};
+  const over=document.createElement('div');over.className='alt-over';
+  over.innerHTML=`<div class="alt-dlg" role="dialog" aria-modal="true"><div class="alt-kop"><h3>Alternatieven voor: ${esc(x.naam)}</h3>
+    <div class="alt-filter"><input type="search" placeholder="zoek op materiaal, Rc, code…" id="alt-q">
+    <label><input type="checkbox" id="alt-bio"> 🌱 alleen biobased</label><label><input type="checkbox" id="alt-heel"> hele hoofdgroep tonen</label>
+    <span class="klein">★ = favoriet · prijs per eenheid ${ramS.btw?'incl.':'excl.'} btw, variant ${r.vr.sleutel}</span></div></div>
+    <div class="alt-lijst" id="alt-lijst"></div>
+    <div class="alt-voet"><span class="klein">De keuze geldt voor dit project (${esc(S.addr||'dit adres')}) en wordt op dit apparaat onthouden.</span>
+    <span>${x.alt?'<button type="button" id="alt-terug">↺ Terug naar favoriet</button> ':''}<button type="button" id="alt-sluit">Sluiten</button></span></div></div>`;
+  const sluit=()=>{over.remove();document.removeEventListener('keydown',esc_)};const esc_=e=>{if(e.key==='Escape')sluit()};
+  const kies=c=>{if(x.codes.includes(c)){ramAltZet(x.k,null);ramS.code[x.k]=c}else ramAltZet(x.k,c);delete ramS.prijs[x.k];ramBewaar();sluit();her()};
+  const teken=()=>{
+    const rij=[];let n=0;
+    KK_META.groepen.forEach(g=>{if(!groepen.has(g.nr))return;let kopG=false;
+      g.subgroepen.forEach(sg=>{if(!st.heel&&!subs.has(sg.nr))return;
+        const items=Object.entries(RVO_KK).filter(([c,m])=>m.groep===g.nr&&m.sub===sg.nr&&(!st.bio||BIO_RE.test(m.e))&&(!st.q||(c+' '+m.e).toLowerCase().includes(st.q)));
+        if(!items.length)return;
+        if(!kopG){rij.push(`<tr class="og"><td colspan="4">${esc(g.nr)} · ${esc(g.naam)}</td></tr>`);kopG=true}
+        rij.push(`<tr class="sg"><td colspan="4">${esc(sg.nr)} · ${esc(sg.naam)}</td></tr>`);
+        items.forEach(([c,m])=>{n++;const p=prijsVan(c),zelfde=!eenh||m.h===eenh,rd=ISDE_CAT[x.k]&&ISDE_CAT[x.k]!=='wp'?isdeRdNiet({k:x.k,code:c}):null;
+          const isde=!ISDE_CAT[x.k]||ISDE_CAT[x.k]==='wp'?'':rd?`<small class="alt-nee">✖ ISDE: ${esc(rd)}</small>`:'<small class="alt-ja">✔ ISDE-isolatiewaarde</small>';
+          rij.push(`<tr class="${c===x.code?'huidig':''}"><td>${x.codes.includes(c)?'★ ':''}<b>${esc(c)}</b>${BIO_RE.test(m.e)?' 🌱':''}</td>
+            <td>${esc(m.e)}${isde}${zelfde?'':`<small class="alt-nee">andere eenheid (${esc(m.h)}) dan deze regel (${esc(eenh)}): niet te kiezen</small>`}</td>
+            <td class="p">${p!=null?'€ '+fmt(p,2)+' / '+esc(m.h):'–'}</td>
+            <td>${c===x.code?'<b>gekozen</b>':`<button type="button" data-kies="${esc(c)}"${zelfde&&p!=null?'':' disabled'}>Kies</button>`}</td></tr>`)})})});
+    over.querySelector('#alt-lijst').innerHTML=n?`<table>${rij.join('')}</table>`:'<p class="klein" style="padding:12px 16px">Geen maatregelen gevonden met deze filters.</p>';
+    over.querySelectorAll('[data-kies]').forEach(b=>b.onclick=()=>kies(b.dataset.kies));
+  };
+  over.onclick=e=>{if(e.target===over)sluit()};document.addEventListener('keydown',esc_);
+  document.body.appendChild(over);
+  over.querySelector('#alt-sluit').onclick=sluit;
+  if(over.querySelector('#alt-terug'))over.querySelector('#alt-terug').onclick=()=>{ramAltZet(x.k,null);delete ramS.prijs[x.k];ramBewaar();sluit();her()};
+  over.querySelector('#alt-q').oninput=e=>{st.q=e.target.value.trim().toLowerCase();teken()};
+  over.querySelector('#alt-bio').onchange=e=>{st.bio=e.target.checked;teken()};
+  over.querySelector('#alt-heel').onchange=e=>{st.heel=e.target.checked;teken()};
+  teken();over.querySelector('#alt-q').focus();
 }
 document.addEventListener('kk-geladen',()=>{try{renderRaming()}catch(e){console.error(e)}});
 function renderRaming(){
@@ -1053,7 +1123,7 @@ function renderRaming(){
       <span class="ram-glastot">Totaal ramen/deuren <b>${fmt(r.glasM2,1)} m²</b> · dichte gevel <b>${fmt(r.o.gevel-r.glasM2,1)} m²</b></span></div></div>
     <table class="ram-tab"><thead><tr><th></th><th>Maatregel (RVO-variant)</th><th>Hoeveelheid</th><th>Prijs p/eenh.</th><th>Totaal</th><th>ISDE</th></tr></thead><tbody>
     ${r.regels.map(x=>`<tr class="${x.aan?'aan':''}"><td><input type="checkbox" data-aan="${x.k}"${ramS.aan[x.k]?' checked':''}></td>
-      <td><b>${x.naam}</b>${x.codes.length>1?`<select class="ram-code" data-code="${x.k}">${x.codes.map(c=>`<option value="${c}"${c===x.code?' selected':''}>${c} · ${esc(RVO_KK[c].e)}</option>`).join('')}</select>`:`<small>${x.code?x.code+' · ':''}${esc(x.omschr)}</small>`}</td>
+      <td><b>${x.naam}</b>${x.alt?`<small class="ram-alt">⇄ alternatief: ${x.code} · ${esc(x.omschr)} <a href="#" data-altreset="${x.k}" title="terug naar favoriet ${x.fav}">↺ favoriet</a></small>`:x.codes.length>1?`<select class="ram-code" data-code="${x.k}">${x.codes.map(c=>`<option value="${c}"${c===x.code?' selected':''}>${c} · ${esc((RVO_KK[c]||{}).e||'')}</option>`).join('')}</select>`:`<small>${x.code?x.code+' · ':''}${esc(x.omschr)}</small>`}${x.codes.length?`<a href="#" class="ram-altknop" data-alt="${x.k}" title="Andere RVO-maatregel kiezen voor dit project">⇄ alternatieven</a>`:''}</td>
       <td><input type="number" class="ram-h" data-h="${x.k}" step="0.1" min="0" value="${Math.round(x.hoev*10)/10}"> ${x.eenh}${ramS.hoev[x.k]!=null?` <a href="#" data-reset="${x.k}" title="terug naar ${fmt(x.auto,1)}">↺</a>`:''}${ramS.hoev[x.k]==null&&HERK[x.bron]?`<small>${HERK[x.bron](r)}</small>`:''}${x.besteld!=null&&x.aan?`<small>bestellen ± ${fmt(x.besteld,1)} ${x.eenh}</small>`:''}</td>
       <td>€ <input type="number" class="ram-p" data-p="${x.k}" step="0.01" min="0" value="${Math.round(x.prijs*100)/100}">${x.eigenPrijs?` <a href="#" data-preset="${x.k}" title="terug naar RVO-kental">↺</a><small>eigen prijs</small>`:''}</td>
       <td class="m2">${x.aan?eur(x.totaal):'<span class="klein">–</span>'}</td>
@@ -1072,6 +1142,8 @@ function renderRaming(){
   el.querySelectorAll('[data-isde]').forEach(c=>c.onchange=()=>{ramS.isde[c.dataset.isde]=c.checked;ramBewaar();her()});
   el.querySelectorAll('[data-isdewp]').forEach(c=>c.onchange=()=>{const v=parseFloat(c.value);if(!isNaN(v)){ramS.isdeWp[c.dataset.isdewp]=v;ramBewaar()}her()});
   el.querySelectorAll('[data-code]').forEach(c=>c.onchange=()=>{ramS.code[c.dataset.code]=c.value;ramBewaar();her()});
+  el.querySelectorAll('[data-alt]').forEach(a=>a.onclick=e=>{e.preventDefault();openAlternatieven(r.regels.find(q=>q.k===a.dataset.alt),r,her)});
+  el.querySelectorAll('[data-altreset]').forEach(a=>a.onclick=e=>{e.preventDefault();ramAltZet(a.dataset.altreset,null);delete ramS.prijs[a.dataset.altreset];ramBewaar();her()});
   el.querySelectorAll('[data-h]').forEach(c=>c.onchange=()=>{const v=parseFloat(String(c.value).replace(',','.'));ramS.hoev[c.dataset.h]=isNaN(v)?null:v;her()});
   el.querySelectorAll('[data-reset]').forEach(a=>a.onclick=e=>{e.preventDefault();delete ramS.hoev[a.dataset.reset];her()});
   el.querySelectorAll('[data-p]').forEach(c=>c.onchange=()=>{const v=parseFloat(String(c.value).replace(',','.'));if(!isNaN(v)){const x=r.regels.find(q=>q.k===c.dataset.p);const f=ramS.btw?btwFactor(x.btw,(rvoPrijs(x.code,r.vr.sleutel)||{}).arbeid||0):1;ramS.prijs[c.dataset.p]=v/f;ramBewaar()}her()});
@@ -1081,7 +1153,7 @@ function renderRaming(){
   el.querySelectorAll('[data-gdir]').forEach(c=>c.onchange=()=>{const v=parseFloat(String(c.value).replace(',','.'));if(!isNaN(v)){ramS.glasDir[c.dataset.gdir]=v;ramBewaar()}her()});
   el.querySelectorAll('[data-gdirreset]').forEach(a=>a.onclick=e=>{e.preventDefault();delete ramS.glasDir[a.dataset.gdirreset];ramBewaar();her()});
   [['ram-glas','glas'],['ram-verlies','verlies']].forEach(([id,k])=>$(id).onchange=()=>{const v=parseFloat($(id).value);if(!isNaN(v)){ramS[k]=v;ramBewaar()}her()});
-  $('ram-std').onclick=()=>{ramS.prijs={};ramS.code={};ramS.type=null;ramS.grootte=null;ramS.aanpak='enk';ramS.glas=20;ramS.glasDir={};ramS.verlies=5;ramS.hoev={};ramBewaar();her()};
+  $('ram-std').onclick=()=>{RAM_MAATR.forEach(m=>ramAltZet(m.k,null));ramS.prijs={};ramS.code={};ramS.type=null;ramS.grootte=null;ramS.aanpak='enk';ramS.glas=20;ramS.glasDir={};ramS.verlies=5;ramS.hoev={};ramBewaar();her()};
   $('ram-csv').onclick=()=>{const L=[['RVO-code','Maatregel','Omschrijving RVO','Hoeveelheid','Eenheid','Bestellen (incl. snijverlies)','Prijs p/eenheid ('+(r.btw?'incl.':'excl.')+' btw)','Totaal']];
     r.sel.forEach(x=>L.push([x.code||'',x.naam,x.omschr,fmt(x.hoev,1),x.eenh,x.besteld!=null?fmt(x.besteld,1):'',fmt(x.prijs,2),fmt(x.totaal,0)]));
     L.push(['','Totaal','','','','','',fmt(r.totaal,0)]);L.push([]);L.push(['Bron: RVO kostenkentallen woningbouw, prijspeil '+kkPeil()+' ('+kkBron()+'); variant '+r.vr.sleutel]);

@@ -20,6 +20,7 @@ export default {
     const url = new URL(req.url);
     if (url.pathname === '/bcrg' || url.pathname.startsWith('/bcrg/')) return bcrg(url, cors);
     if (url.pathname === '/bcrg-pdf') return bcrgPdf(url, cors);
+    if (url.pathname === '/gh-release') return ghRelease(url, cors);
     if (url.pathname === '/herken') {
       if (req.method !== 'POST') return json({ fout: 'Gebruik POST' }, 405, cors);
       if (!TOEGESTAAN.some(o => origin.startsWith(o))) return json({ fout: 'Niet toegestaan vanaf deze website' }, 403, cors);
@@ -212,4 +213,18 @@ function leesJson(t) {
   const a = t.indexOf('{'), b = t.lastIndexOf('}');
   if (a < 0 || b <= a) return null;
   try { return JSON.parse(t.slice(a, b + 1)); } catch (e) { try { return JSON.parse(t.slice(a, b + 1).replace(/,\s*([}\]])/g, '$1')); } catch (_) { return null; } }
+}
+
+/* Bijlage van een GitHub-release doorgeven (GitHub staat downloaden vanuit een website niet toe).
+   Alleen release-bijlagen van visserinspecties; gebruikt door de tool GitHub archief.
+   Voorbeeld: /gh-release?u=https://github.com/visserinspecties/foto-upload/releases/download/<tag>/<bestand> */
+async function ghRelease(url, cors) {
+  const u = url.searchParams.get('u') || '';
+  if (!/^https:\/\/github\.com\/visserinspecties\/[\w.-]+\/releases\/download\/[^/]+\/[^/]+$/.test(u))
+    return json({ fout: 'Alleen release-bijlagen van visserinspecties' }, 400, cors);
+  const r = await fetch(u, { redirect: 'follow', headers: { 'User-Agent': 'VisserInspecties-tools/1.0' } });
+  if (!r.ok) return json({ fout: 'GitHub gaf ' + r.status }, r.status, cors);
+  const h = { ...cors, 'Content-Type': r.headers.get('Content-Type') || 'application/octet-stream' };
+  if (r.headers.get('Content-Length')) h['Content-Length'] = r.headers.get('Content-Length');
+  return new Response(r.body, { headers: h });
 }

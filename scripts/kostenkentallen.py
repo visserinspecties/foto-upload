@@ -2,7 +2,9 @@
 Kostenkentallen voor Pand Analyse.
 
 De Pand Analyse leest de prijzen uit data/kostenkentallen.json (altijd de actuele set).
-Elke peildatum blijft daarnaast bewaard als eigen bestand, met het RVO-origineel in data/bron/.
+Elke peildatum blijft daarnaast bewaard als eigen bestand. Het RVO-origineel (10 MB) staat niet in
+de repo maar als bijlage bij een GitHub Release (tag kostenkentallen-<peil>), zodat de git-geschiedenis
+niet groeit; oude releases kun je op GitHub los verwijderen.
 
 Bron: RVO-kostenkentallen woningbouw, vast downloadadres:
   https://regelhulpenvoorbedrijven.nl/kostenkentallen/kostenkentallen/woningbouw.xlsx
@@ -12,10 +14,9 @@ en draait 'uit-rvo'; alleen bij een wijziging worden nieuwe bestanden gemaakt.
 Gebruik:
   python scripts/kostenkentallen.py uit-rvo <woningbouw.xlsx> [--url URL]
       RVO-Excel omzetten. Bij een wijziging t.o.v. data/kostenkentallen.json:
-        data/bron/rvo-woningbouw-<peil>.xlsx      (origineel, ongewijzigd; het vorige wordt opgeruimd)
         data/kostenkentallen-<peil>.json / .xlsx  (omgezet, leesbaar met oranje balken)
         data/kostenkentallen.json                 (actueel, wat de tool gebruikt)
-      Schrijft 'gewijzigd=true/false' naar $GITHUB_OUTPUT als die bestaat.
+      Schrijft gewijzigd, peil, tag en bronnaam naar $GITHUB_OUTPUT (voor de release in de workflow).
   python scripts/kostenkentallen.py naar-excel <kostenkentallen-....json>
       Leesbare Excel maken van een prijsbestand.
 
@@ -26,7 +27,6 @@ import datetime as dt
 import json
 import os
 import re
-import shutil
 import sys
 from pathlib import Path
 
@@ -63,8 +63,10 @@ def getal(x):
 
 
 def schoon(oms):
-    oms = re.sub(r',\s*(egw|mgw)-[a-z-]+\.?$', '', str(oms or '').strip())
-    return re.sub(r'\s+', ' ', oms.rstrip('.')).strip()
+    oms = str(oms or '').strip()
+    oms = re.sub(r'[\s.,]*(enkele won\.?\s*)?(egw|mgw)-[a-z-]+\.?$', '', oms)   # RVO-variantcode achteraan
+    oms = re.sub(r'[\s.\-]+$', '', oms)                                            # losse ' - .' of '.' achteraan
+    return re.sub(r'\s+', ' ', oms).strip()
 
 
 def lees_rvo(pad: Path):
@@ -118,7 +120,8 @@ def uit_rvo(pad: Path, url: str):
          'prijspeil': peil,
          'bron': 'RVO-kostenkentallen woningbouw (kostenkentallen.rvo.nl)',
          'bron_url': url,
-         'bronbestand': f'data/bron/{bronnaam}',
+         'bronbestand': bronnaam,
+         'bron_release': f'kostenkentallen-{slug}',
          'opgehaald': vandaag,
          'let_op': 'Bedragen zijn totale bouwkosten per eenheid (directe kosten + opslagen), excl. btw. '
                    'Het RVO-platform toont op het scherm alleen de directe kosten (zonder opslagen).',
@@ -133,15 +136,9 @@ def uit_rvo(pad: Path, url: str):
         if bestaand.exists() and not inhoud_gelijk(json.loads(bestaand.read_text(encoding='utf-8')), d):
             naam += f'-bijgewerkt-{vandaag}'                 # tussentijdse RVO-update, zelfde peildatum
             bronnaam = f'rvo-woningbouw-{slug}-bijgewerkt-{vandaag}.xlsx'
-            d['bronbestand'] = f'data/bron/{bronnaam}'
-        (DATA / 'bron').mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(pad, DATA / 'bron' / bronnaam)
-        # alleen het nieuwste RVO-origineel (10 MB) in de repo houden; oudere staan in het
-        # OneDrive-archief (GitHub archief verwijdert daar niets) en in de git-geschiedenis
-        for oud_bestand in (DATA / 'bron').glob('rvo-woningbouw-*.xlsx'):
-            if oud_bestand.name != bronnaam:
-                oud_bestand.unlink()
-                print('  oud RVO-origineel opgeruimd:', oud_bestand.name)
+            d['bronbestand'] = bronnaam
+            d['bron_release'] = naam
+        DATA.mkdir(parents=True, exist_ok=True)
         tekst = json.dumps(d, ensure_ascii=False, separators=(',', ':'))
         (DATA / f'{naam}.json').write_text(tekst, encoding='utf-8')
         ACTUEEL.write_text(tekst, encoding='utf-8')
@@ -153,7 +150,9 @@ def uit_rvo(pad: Path, url: str):
         print('ONGEWIJZIGD: prijzen zijn gelijk aan data/kostenkentallen.json')
     if os.environ.get('GITHUB_OUTPUT'):
         with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-            f.write(f'gewijzigd={"true" if gewijzigd else "false"}\npeil={peil}\n')
+            bron = d if gewijzigd or not oud.get('bron_release') else oud   # bij ongewijzigd: release van de huidige set
+            f.write(f'gewijzigd={"true" if gewijzigd else "false"}\npeil={peil}\n'
+                    f'tag={bron["bron_release"]}\nbronnaam={bron["bronbestand"]}\n')
 
 
 def verschil(oud, nieuw):
@@ -179,7 +178,7 @@ def naar_excel(pad_json: Path):
     info.append(['Veld', 'Waarde'])
     for c in info[1]:
         c.fill, c.font = PAARS, WIT_VET
-    for k in ('titel', 'prijspeil', 'bron', 'bron_url', 'bronbestand', 'opgehaald', 'let_op', 'uitleg'):
+    for k in ('titel', 'prijspeil', 'bron', 'bron_url', 'bronbestand', 'bron_release', 'opgehaald', 'let_op', 'uitleg'):
         info.append([k, d.get(k, '')])
     info.column_dimensions['A'].width = 14
     info.column_dimensions['B'].width = 110

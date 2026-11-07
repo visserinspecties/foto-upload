@@ -54,7 +54,7 @@ code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;backgrou
   <div id="melding"></div>
   <div class="card">
     <h2>Wat doet dit</h2>
-    <p class="uitleg">Zet een kopie van je GitHub-repo's in OneDrive, in <code>Scripts/GitHub archief/&lt;naam repo&gt;</code>, met dezelfde mappen en bestanden als op GitHub. Klik je later opnieuw, dan worden alleen gewijzigde en nieuwe bestanden bijgewerkt. Bestanden die op GitHub zijn verwijderd blijven in het archief staan.</p>
+    <p class="uitleg">Zet een kopie van je GitHub-repo's in OneDrive, in <code>Scripts/GitHub archief/&lt;naam repo&gt;</code>, met dezelfde mappen en bestanden als op GitHub. Bijlagen van releases (zoals het RVO-origineel van de kostenkentallen) komen in <code>_releases/&lt;naam release&gt;</code>. Klik je later opnieuw, dan worden alleen gewijzigde en nieuwe bestanden bijgewerkt. Bestanden die op GitHub zijn verwijderd blijven in het archief staan.</p>
   </div>
   <div class="card">
     <h2>Repo's</h2>
@@ -67,6 +67,9 @@ const GH_EIGENAAR = 'visserinspecties';
 const DOEL = 'Scripts/GitHub archief';
 const INFO_BESTAND = '_archief-info.json';   // per repo: datum, commit en welke versie van elk bestand er staat
 const TEGELIJK = 4;                          // zoveel bestanden tegelijk
+/* release-bijlagen (bv. RVO-originelen) lopen via de eigen Cloudflare-worker: GitHub staat downloaden vanuit een website niet toe */
+const WORKER_STD = 'https://ep-labels.falling-brook-4828.workers.dev/';
+const worker = () => { const w = LS.get('ee_label_api') || WORKER_STD; return w.endsWith('/') ? w : w + '/'; };
 
 /* ══════════ Microsoft-inlog: hergebruikt de inlog van Nieuwe projectmap of Factuur versturen ══════════ */
 const CLIENT_ID = 'fdf237c9-bf46-47fa-ab3d-a8834a73e284';
@@ -184,7 +187,13 @@ async function archiveer(i) {
   const map = `${DOEL}/${repo.name}`;
   const vorige = (await leesJson(`${map}/${INFO_BESTAND}`))?.bestanden || {};
   const teDoen = bestanden.filter(b => vorige[b.path] !== b.sha);
-  if (!teDoen.length) { balk.style.width = '100%'; zet('✓ Al bijgewerkt, niets veranderd', 'ok'); return { nieuw:0, totaal:bestanden.length }; }
+  /* bijlagen van releases → _releases/<tag>/<bestand> (niet in de repo zelf, dus apart bijhouden) */
+  const vorigeRel = (await leesJson(`${map}/${INFO_BESTAND}`))?.releases || {};
+  let releases = [];
+  try { releases = await gh(`repos/${GH_EIGENAAR}/${repo.name}/releases?per_page=100`); } catch(e) {}
+  const bijlagen = releases.flatMap(rel => (rel.assets || []).map(a => ({ pad:`_releases/${rel.tag_name}/${a.name}`, sleutel:`${a.id}:${a.updated_at}`, url:a.browser_download_url })))
+    .filter(a => vorigeRel[a.pad] !== a.sleutel);
+  if (!teDoen.length && !bijlagen.length) { balk.style.width = '100%'; zet('✓ Al bijgewerkt, niets veranderd', 'ok'); return { nieuw:0, totaal:bestanden.length }; }
 
   let klaar = 0, fouten = [];
   const nu = { ...vorige };
@@ -204,12 +213,23 @@ async function archiveer(i) {
   }
   await Promise.all(Array.from({ length:TEGELIJK }, werker));
 
+  const nuRel = { ...vorigeRel };
+  for (const a of bijlagen) {
+    zet(`Release-bijlage ${a.pad.split('/').pop()}…`);
+    try {
+      const r = await fetch(worker() + 'gh-release?u=' + encodeURIComponent(a.url));
+      if (!r.ok) throw new Error(r.status === 404 ? 'worker kent /gh-release nog niet (nieuwe worker.js plaatsen)' : 'worker gaf ' + r.status);
+      await upload(`${map}/${a.pad}`, await r.blob());
+      nuRel[a.pad] = a.sleutel;
+    } catch(e) { fouten.push(`${a.pad.split('/').pop()}: ${e.message}`); }
+  }
+
   const info = { repo:repo.name, github:repo.html_url, tak, commit:commit.sha, commitBericht:commit.commit?.message?.split('\n')[0] || '',
-    bijgewerkt:new Date().toISOString(), bestanden:nu };
+    bijgewerkt:new Date().toISOString(), bestanden:nu, releases:nuRel };
   await upload(`${map}/${INFO_BESTAND}`, new Blob([JSON.stringify(info, null, 2)], { type:'application/json' }));
   if (fouten.length) { zet(`⚠️ ${teDoen.length - fouten.length} bijgewerkt, ${fouten.length} mislukt: ${fouten.slice(0, 2).join('; ')}`, 'err'); }
-  else zet(`✓ ${teDoen.length} bestand(en) bijgewerkt (van ${bestanden.length})`, 'ok');
-  return { nieuw:teDoen.length - fouten.length, fouten:fouten.length, totaal:bestanden.length };
+  else zet(`✓ ${teDoen.length} bestand(en) bijgewerkt (van ${bestanden.length})${bijlagen.length ? ` + ${bijlagen.length} release-bijlage(n)` : ''}`, 'ok');
+  return { nieuw:teDoen.length + bijlagen.length - fouten.length, fouten:fouten.length, totaal:bestanden.length };
 }
 
 $('start').onclick = async () => {

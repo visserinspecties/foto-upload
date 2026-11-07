@@ -19,6 +19,12 @@ Dezelfde worker zoekt ook kwaliteitsverklaringen in de BCRG-databank (`/bcrg`) e
 Cloudflare Workers AI (`/herken`). Daarvoor één keer: worker → **Settings** → **Bindings** → **Add binding** →
 **Workers AI** → naam `AI` → **Deploy**.
 
+## Release-bijlagen voor het GitHub-archief
+
+De tool **GitHub archief** haalt ook de bijlagen van GitHub-releases op (bijvoorbeeld het RVO-origineel van de
+kostenkentallen) via `/gh-release`. Dat werkt zodra de nieuwste `worker.js` in Cloudflare staat (stap 3 hierboven
+opnieuw: Edit code → alles vervangen → Deploy). Alleen bijlagen van `github.com/visserinspecties/…` worden doorgegeven.
+
 ## Aanrader: officiële EP-Online-sleutel
 
 Zonder sleutel leest de server het openbare zoekscherm van ep-online.nl. Met een (gratis) API-sleutel

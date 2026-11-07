@@ -2,6 +2,7 @@ name: Kostenkentallen RVO controleren
 
 # Haalt wekelijks de RVO-kostenkentallen woningbouw op. Alleen als de prijzen of de peildatum
 # veranderd zijn, worden nieuwe bestanden in data/ gezet en gaat de Pand Analyse ze gebruiken.
+# Het RVO-origineel (10 MB) komt als bijlage bij een release, niet in de repo.
 # Handmatig starten: tabblad Actions -> "Kostenkentallen RVO controleren" -> Run workflow.
 
 on:
@@ -56,6 +57,18 @@ jobs:
           $(cat /tmp/rvo/log.txt)
           EOF
           git push
+
+      - name: RVO-origineel als bijlage bij een release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # ook als de prijzen ongewijzigd zijn maar de release van de huidige set nog ontbreekt
+          if gh release view "${{ steps.kk.outputs.tag }}" >/dev/null 2>&1; then
+            echo "Release ${{ steps.kk.outputs.tag }} bestaat al"; exit 0
+          fi
+          cp /tmp/rvo/woningbouw.xlsx "/tmp/rvo/${{ steps.kk.outputs.bronnaam }}"
+          gh release create "${{ steps.kk.outputs.tag }}" "/tmp/rvo/${{ steps.kk.outputs.bronnaam }}" \
+            --title "Kostenkentallen RVO ${{ steps.kk.outputs.peil }}" --notes-file /tmp/rvo/log.txt --latest=false
 
       - name: Website opnieuw laten bouwen
         if: steps.kk.outputs.gewijzigd == 'true'
