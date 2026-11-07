@@ -12,7 +12,7 @@ en draait 'uit-rvo'; alleen bij een wijziging worden nieuwe bestanden gemaakt.
 Gebruik:
   python scripts/kostenkentallen.py uit-rvo <woningbouw.xlsx> [--url URL]
       RVO-Excel omzetten. Bij een wijziging t.o.v. data/kostenkentallen.json:
-        data/bron/rvo-woningbouw-<peil>.xlsx      (origineel, ongewijzigd)
+        data/bron/rvo-woningbouw-<peil>.xlsx      (origineel, ongewijzigd; het vorige wordt opgeruimd)
         data/kostenkentallen-<peil>.json / .xlsx  (omgezet, leesbaar met oranje balken)
         data/kostenkentallen.json                 (actueel, wat de tool gebruikt)
       Schrijft 'gewijzigd=true/false' naar $GITHUB_OUTPUT als die bestaat.
@@ -136,6 +136,12 @@ def uit_rvo(pad: Path, url: str):
             d['bronbestand'] = f'data/bron/{bronnaam}'
         (DATA / 'bron').mkdir(parents=True, exist_ok=True)
         shutil.copyfile(pad, DATA / 'bron' / bronnaam)
+        # alleen het nieuwste RVO-origineel (10 MB) in de repo houden; oudere staan in het
+        # OneDrive-archief (GitHub archief verwijdert daar niets) en in de git-geschiedenis
+        for oud_bestand in (DATA / 'bron').glob('rvo-woningbouw-*.xlsx'):
+            if oud_bestand.name != bronnaam:
+                oud_bestand.unlink()
+                print('  oud RVO-origineel opgeruimd:', oud_bestand.name)
         tekst = json.dumps(d, ensure_ascii=False, separators=(',', ':'))
         (DATA / f'{naam}.json').write_text(tekst, encoding='utf-8')
         ACTUEEL.write_text(tekst, encoding='utf-8')
