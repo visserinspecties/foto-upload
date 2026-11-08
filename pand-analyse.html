@@ -199,6 +199,15 @@ body.tab-bag .wrap{max-width:1180px}
 .bag-heeltab th{text-align:left;font-weight:500;color:var(--grijs);border-bottom:1px solid var(--lijn);padding:3px 6px 3px 0}
 .bag-heeltab td{padding:3px 6px 3px 0;border-bottom:1px solid var(--lijn)}
 .bag-heeltab tfoot td{font-weight:700;border-bottom:0}
+#bag-verd-d{border-top:1px solid var(--lijn);margin-top:4px}
+.bag-pvin{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:.85rem;margin:4px 0 8px}
+.bag-pvin input{width:110px;font-size:16px;padding:5px 8px;border:1px solid var(--lijn);border-radius:6px;background:var(--kaart);color:var(--tekst)}
+.bag-verdwrap{max-height:420px;overflow:auto}
+.bag-verdtab td:nth-child(n+4),.bag-verdtab th:nth-child(n+4){text-align:right;white-space:nowrap}
+.bag-verdtab td:first-child{width:24px}
+.bag-verdtab input[type=checkbox]{width:18px;height:18px;margin:0}
+.bag-verdtab tr.uit td:not(:first-child){color:var(--grijs);text-decoration:line-through}
+.bag-verdknop{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 10px}
 .bag-meta{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:.85rem}
 .bag-meta b{color:var(--grijs);font-weight:500}
 .bag-sub{display:flex;gap:6px;margin:0 0 12px}
@@ -1403,7 +1412,11 @@ async function haalHeelPand(b){
     const g={};mee.forEach(p=>{const d=doelen(p.gebruiksdoel).join(' + ')||'onbekend',o=+p.oppervlakte||0;
       (g[d]=g[d]||{doel:d,n:0,m2:0,min:Infinity,max:0});g[d].n++;g[d].m2+=o;if(o){g[d].min=Math.min(g[d].min,o);g[d].max=Math.max(g[d].max,o)}});
     const tel=re=>{const t={};alle.filter(p=>re.test(p.status||'')).forEach(p=>{const s=String(p.status).replace(/^verblijfsobject\s*/i,'');t[s]=(t[s]||0)+1});return Object.entries(t)};
-    return heelPandCache[b.id]={ok:true,n:mee.length,m2:mee.reduce((s,p)=>s+(+p.oppervlakte||0),0),
+    const eenheden=mee.map(p=>({id:String(p.identificatie||vboZoek(p)),adres:adrTxt(p),postcode:p.postcode||'',straat:p.openbare_ruimte||'',
+        hn:+p.huisnummer||0,rest:`${p.huisletter||''}${p.toevoeging||''}`,doel:doelen(p.gebruiksdoel).join(', '),opp:+p.oppervlakte||0,
+        status:String(p.status||'').replace(/^verblijfsobject\s*/i,'')}))
+      .sort((a,c)=>a.straat.localeCompare(c.straat,'nl')||a.hn-c.hn||a.rest.localeCompare(c.rest,'nl',{numeric:true}));
+    return heelPandCache[b.id]={ok:true,eenheden,n:mee.length,m2:mee.reduce((s,p)=>s+(+p.oppervlakte||0),0),
       groepen:Object.values(g).sort((a,c)=>(/woon/.test(c.doel)-/woon/.test(a.doel))||c.n-a.n),
       weg:tel(HP_WEG),nietInGebruik:tel(HP_NIETINGEBRUIK),afgekapt:ff.length>=MAX};
   }catch(e){return heelPandCache[b.id]={fout:String(e.message||e)}}
@@ -1431,8 +1444,101 @@ function renderHeelPand(b){
     <table class="bag-heeltab"><thead><tr><th>Gebruiksdoel</th><th>Aantal</th><th>Oppervlak</th><th>Kleinste – grootste</th></tr></thead>
     <tbody>${hp.groepen.map(rij).join('')}</tbody>
     ${hp.groepen.length>1?`<tfoot><tr><td>Totaal</td><td>${hp.n}</td><td>${fmt(hp.m2,0)} m²</td><td></td></tr></tfoot>`:''}</table>
-    <p class="klein">Gebruiksoppervlakte volgens de BAG, alle verblijfsobjecten van dit pand opgeteld.${noot.length?' '+esc(noot.join(' ')):''}</p></details>`;
+    <p class="klein">Gebruiksoppervlakte volgens de BAG, alle verblijfsobjecten van dit pand opgeteld.${noot.length?' '+esc(noot.join(' ')):''}</p>
+    <details id="bag-verd-d"${hpLijstOpen()?' open':''}><summary>Lijst per adres + verdeling PV (${hp.n})</summary>
+      <label class="bag-pvin">PV-panelen op het pand, totaal <input type="number" id="bag-pvm2" min="0" step="0.01" inputmode="decimal" value="${esc(pvLees(b.id))}"> m²</label>
+      <div class="bag-verdwrap"><table class="bag-heeltab bag-verdtab"><thead><tr><th title="Meetellen in de verdeling">✓</th><th>Adres</th><th>Gebruiksdoel</th><th>m²</th><th>Aandeel</th><th>PV m²</th></tr></thead>
+      <tbody id="bag-verd-tb"></tbody><tfoot id="bag-verd-tf"></tfoot></table></div>
+      <p class="klein">Aandeel = gebruiksoppervlakte van het adres ÷ totaal van de aangevinkte adressen. Vink een adres uit om het buiten de verdeling te laten (bijv. een winkel die niet meedeelt in de PV).</p>
+      <div class="bag-verdknop"><button type="button" class="actie licht" id="bag-verd-xlsx">⬇️ Excel</button>${window.opslaanInProject?'<button type="button" class="actie licht" id="bag-verd-od">📁 Excel naar projectmap</button>':''}<span class="klein" id="bag-verd-msg"></span></div>
+    </details></details>`;
   const d=$('bag-heel-d');if(d)d.addEventListener('toggle',()=>{try{localStorage.setItem('pa_heelpand_open',d.open?'1':'0')}catch(e){}});
+  const d2=$('bag-verd-d');if(d2)d2.addEventListener('toggle',()=>{try{localStorage.setItem('pa_heelpand_lijst',d2.open?'1':'0')}catch(e){}});
+  vulVerdeling(b,hp);
+  $('bag-pvm2').addEventListener('input',()=>{pvBewaar(b.id,$('bag-pvm2').value);vulVerdeling(b,hp,true)});
+  $('bag-verd-tb').addEventListener('change',e=>{const c=e.target.closest('[data-vid]');if(!c)return;const uit=new Set(uitLees(b.id));
+    c.checked?uit.delete(c.dataset.vid):uit.add(c.dataset.vid);uitBewaar(b.id,[...uit]);vulVerdeling(b,hp,true)});
+  $('bag-verd-xlsx').onclick=()=>verdelingExcel(b,hp,false);
+  const od=$('bag-verd-od');if(od)od.onclick=()=>verdelingExcel(b,hp,true);
+}
+
+/* ── verdeling per adres: aandeel in de gebruiksoppervlakte en toedeling van PV-m² ── */
+const hpLijstOpen=()=>{try{return localStorage.getItem('pa_heelpand_lijst')==='1'}catch(e){return false}};
+const lsGet=(k,d)=>{try{const v=localStorage.getItem(k);return v==null?d:v}catch(e){return d}};
+const lsSet=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
+const pvLees=id=>lsGet('pa_pv_'+id,'');
+const pvBewaar=(id,v)=>lsSet('pa_pv_'+id,v);
+const uitLees=id=>{try{return JSON.parse(lsGet('pa_pvuit_'+id,'[]'))||[]}catch(e){return[]}};
+const uitBewaar=(id,a)=>lsSet('pa_pvuit_'+id,JSON.stringify(a));
+const pvGetal=v=>{const n=parseFloat(String(v).replace(',','.'));return isFinite(n)&&n>0?n:0};
+/* verdelen in honderdsten zodat de afgeronde getallen precies optellen tot het totaal (grootste rest) */
+function verdeelAfgerond(totaal,gewichten){
+  const som=gewichten.reduce((s,w)=>s+w,0),cent=Math.round(totaal*100);
+  if(!som||!cent)return gewichten.map(()=>0);
+  const ruw=gewichten.map(w=>w/som*cent),af=ruw.map(Math.floor);let rest=cent-af.reduce((s,x)=>s+x,0);
+  ruw.map((r,i)=>[r-af[i],i]).sort((a,c)=>c[0]-a[0]).slice(0,rest).forEach(([,i])=>af[i]++);
+  return af.map(x=>x/100);
+}
+function verdeling(b,hp){
+  const uit=new Set(uitLees(b.id)),pv=pvGetal(pvLees(b.id));
+  const mee=hp.eenheden.map(u=>uit.has(u.id)?0:u.opp),som=mee.reduce((s,x)=>s+x,0);
+  const pct=verdeelAfgerond(100,mee),pvm=verdeelAfgerond(pv,mee);
+  return{pv,som,rijen:hp.eenheden.map((u,i)=>({...u,mee:!uit.has(u.id),aandeel:som?mee[i]/som:0,pct:pct[i],pvm2:pvm[i]}))};
+}
+function vulVerdeling(b,hp,alleenGetallen){
+  const tb=$('bag-verd-tb');if(!tb)return;const v=verdeling(b,hp);
+  if(!alleenGetallen)tb.innerHTML=v.rijen.map(r=>`<tr data-r="${esc(r.id)}"><td><input type="checkbox" data-vid="${esc(r.id)}"${r.mee?' checked':''}></td>
+    <td>${esc(r.adres)}${r.status&&!/^in gebruik/i.test(r.status)?` <span class="klein">(${esc(r.status)})</span>`:''}</td><td>${esc(r.doel)}</td><td>${fmt(r.opp,0)}</td><td class="pct"></td><td class="pvm"></td></tr>`).join('');
+  v.rijen.forEach((r,i)=>{const tr=tb.children[i];if(!tr)return;tr.classList.toggle('uit',!r.mee);
+    tr.querySelector('.pct').textContent=r.mee?fmt(r.pct,2)+' %':'–';tr.querySelector('.pvm').textContent=r.mee&&v.pv?fmt(r.pvm2,2):'–'});
+  const n=v.rijen.filter(r=>r.mee).length;
+  $('bag-verd-tf').innerHTML=`<tr><td></td><td>Totaal (${n} van ${v.rijen.length})</td><td></td><td>${fmt(v.som,0)}</td><td>${v.som?'100,00 %':'–'}</td><td>${v.pv?fmt(v.pv,2):'–'}</td></tr>`;
+}
+let xlsxLaden=null;
+function laadXlsx(){
+  if(window.XLSX&&XLSX.utils)return Promise.resolve(XLSX);
+  return xlsxLaden||(xlsxLaden=new Promise((ok,nee)=>{const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';s.onload=()=>ok(window.XLSX);s.onerror=()=>{xlsxLaden=null;nee(new Error('Excel-bibliotheek niet te laden (geen internet?)'))};document.head.appendChild(s)}));
+}
+async function verdelingExcel(b,hp,naarProject){
+  const msg=$('bag-verd-msg');const meld=t=>{if(msg)msg.textContent=t};
+  try{
+    meld('Excel maken…');const X=await laadXlsx(),v=verdeling(b,hp);
+    const P='432D6A',kop={font:{bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:P}},alignment:{vertical:'center',wrapText:true}};
+    const vet={font:{bold:true}},geel={fill:{fgColor:{rgb:'FFF2CC'}},font:{bold:true}},titel={font:{bold:true,sz:14,color:{rgb:P}}};
+    const ws={},zet=(ref,c)=>{ws[ref]=c};
+    const tel={};hp.eenheden.forEach(u=>{tel[u.straat]=(tel[u.straat]||0)+1});
+    const hoofd=Object.keys(tel).sort((a,c)=>tel[c]-tel[a])[0]||'',adres=(hoofd?hoofd+' ':'')+'(pand '+b.id+')';
+    zet('A1',{t:'s',v:'Verdeling per adres — '+adres,s:titel});
+    zet('A2',{t:'s',v:'Pand-ID'});zet('B2',{t:'s',v:b.id});
+    zet('A3',{t:'s',v:'Bouwjaar'});zet('B3',{t:'n',v:+b.bouwjaar||0});
+    zet('A4',{t:'s',v:'PV-panelen totaal (m²)',s:vet});zet('B4',{t:'n',v:v.pv,z:'0.00',s:geel});
+    zet('C4',{t:'s',v:'← pas hier aan; aandeel en PV rekenen mee. Kolom "Meetellen" op nee = buiten de verdeling.'});
+    const k=6,kol=['Adres','Postcode','Gebruiksdoel','Status','BAG-ID verblijfsobject','Gebruiksoppervlakte (m²)','Meetellen','Aandeel','PV (m²)'];
+    kol.forEach((t,i)=>zet(X.utils.encode_cell({r:k-1,c:i}),{t:'s',v:t,s:kop}));
+    const r0=k+1,r1=k+v.rijen.length;
+    v.rijen.forEach((r,i)=>{const n=r0+i,c=(col,cel)=>zet(col+n,cel);
+      c('A',{t:'s',v:r.adres});c('B',{t:'s',v:r.postcode});c('C',{t:'s',v:r.doel});c('D',{t:'s',v:r.status});c('E',{t:'s',v:r.id});
+      c('F',{t:'n',v:r.opp,z:'#,##0'});c('G',{t:'s',v:r.mee?'ja':'nee'});
+      c('H',{t:'n',f:`IF(G${n}="ja",F${n}/SUMIF($G$${r0}:$G$${r1},"ja",$F$${r0}:$F$${r1}),0)`,v:r.aandeel,z:'0.00%'});
+      c('I',{t:'n',f:`H${n}*$B$4`,v:r.mee?r.aandeel*v.pv:0,z:'0.00'})});
+    const t=r1+1;
+    zet('A'+t,{t:'s',v:'Totaal',s:vet});
+    zet('F'+t,{t:'n',f:`SUM(F${r0}:F${r1})`,v:hp.m2,z:'#,##0',s:vet});
+    zet('G'+t,{t:'s',f:`COUNTIF(G${r0}:G${r1},"ja")&" mee"`,v:v.rijen.filter(r=>r.mee).length+' mee',s:vet});
+    zet('H'+t,{t:'n',f:`SUM(H${r0}:H${r1})`,v:v.som?1:0,z:'0.00%',s:vet});
+    zet('I'+t,{t:'n',f:`SUM(I${r0}:I${r1})`,v:v.pv,z:'0.00',s:vet});
+    zet('A'+(t+2),{t:'s',v:'Bron: BAG (PDOK), gebruiksoppervlakte per verblijfsobject. Ingetrokken objecten zijn weggelaten. Gemaakt met de Pand Analyse van Visser Inspecties, '+new Date().toLocaleDateString('nl-NL')+'.'});
+    ws['!ref']=X.utils.encode_range({s:{r:0,c:0},e:{r:t+1,c:8}});
+    ws['!cols']=[{wch:30},{wch:9},{wch:24},{wch:16},{wch:18},{wch:14},{wch:10},{wch:10},{wch:10}];
+    ws['!autofilter']={ref:`A${k}:I${r1}`};
+    const wb=X.utils.book_new();X.utils.book_append_sheet(wb,ws,'Verdeling');
+    const naam=('Verdeling oppervlak en PV - '+adres).replace(/[\\/:*?"<>|]/g,'-').slice(0,120)+'.xlsx';
+    const buf=X.write(wb,{bookType:'xlsx',type:'array'}),blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    if(naarProject&&window.opslaanInProject){const n=await window.opslaanInProject(naam,blob,blob.type);meld(n?'✅ Opgeslagen: '+n:'Niet opgeslagen (geen project gekozen).');return}
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=naam;document.body.appendChild(a);a.click();
+    setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},4000);meld('✅ Gedownload: '+naam);
+  }catch(e){console.error(e);meld('❌ '+(e.message||e))}
 }
 const metaScherm=b=>metaRows(b).filter(r=>!SCHERM_WEG.includes(r[0])).map(metaHtml).join('');
 function renderId(b){
@@ -2495,6 +2601,12 @@ async function opslaanInOneDrive(){
   }
 }
 function toonMelding(soort, tekst){ $('opslagmelding').innerHTML = `<div class="melding ${soort}">${esc(tekst)}</div>`; }
+/* voor andere onderdelen (bv. verdeling per adres): één bestand in 020 AANTEKENINGEN van het gekozen project */
+window.opslaanInProject = async (naam, inhoud, type) => {
+  if(!odProject){ await kiesProject(); if(!odProject) return null; }
+  const map = await doelMapId();
+  return (await upload(map, naam, inhoud, type)) + ' (' + odProject.naam + ' / ' + cfg.sub + ')';
+};
 
 try{ VELDEN.forEach(v => $(v).value = localStorage.getItem('ee_bs_'+v)||''); }catch(e){}
 ['projnr','project'].forEach(v => $(v).addEventListener('change', () => { renderLog(); bewaarLokaal(); }));
