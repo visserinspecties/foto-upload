@@ -190,6 +190,15 @@ body.tab-bag .wrap{max-width:1180px}
 #bag-id div{background:var(--paars-licht);border-radius:8px;padding:8px 10px;font-size:.72rem;color:var(--grijs)}
 #bag-id b{display:block;font-size:1.2rem;color:var(--paars)}
 #bag-id .bag-idmix{display:block;margin-top:2px;font-size:.72rem;color:var(--grijs)}
+/* hele pand (woongebouw): in te klappen blok onder de maten */
+#bag-heel{margin-bottom:8px}
+#bag-heel:empty{display:none}
+#bag-heel details{border:1px solid var(--lijn);border-radius:8px;padding:0 10px}
+#bag-heel summary{padding:8px 0}
+.bag-heeltab{width:100%;border-collapse:collapse;font-size:.82rem;margin:2px 0 6px}
+.bag-heeltab th{text-align:left;font-weight:500;color:var(--grijs);border-bottom:1px solid var(--lijn);padding:3px 6px 3px 0}
+.bag-heeltab td{padding:3px 6px 3px 0;border-bottom:1px solid var(--lijn)}
+.bag-heeltab tfoot td{font-weight:700;border-bottom:0}
 .bag-meta{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:.85rem}
 .bag-meta b{color:var(--grijs);font-weight:500}
 .bag-sub{display:flex;gap:6px;margin:0 0 12px}
@@ -430,6 +439,7 @@ body.tab-bag .wrap{max-width:1180px}
         <h2>Pand</h2>
         <div id="bag-id"></div>
         <div id="bag-kpis"></div>
+        <div id="bag-heel"></div>
         <div id="bag-vbo"></div>
         <div class="bag-meta" id="bag-meta"><b>Adres</b><span class="klein">Zoek een adres of klik op de kaart</span></div>
       </div>
@@ -1353,7 +1363,9 @@ function metaRows(b){const v=vboOf(b)||{};const rows=[['Adres',addrOf(b)],['Pand
   {const k=v.identificatie||(v.huisnummer?vboZoek(v):null),c=k&&labelCache[k];if(c&&!c.then&&!c.fout)rows.push(['Bestaand energielabel',c.label?labelTekst(c.label)+(c.label.ep2!=null?` · EP2 ${fmt(c.label.ep2,1)} kWh/m²·jr`:''):'geen geregistreerd label (EP-Online)'])}
   if(v.postcode&&verwCache[v.postcode])rows.push(['Verwarming (indicatie)',verwCache[v.postcode].tekst+' — bron: '+verwCache[v.postcode].bron+' open data']);
   rows.push(['Footprint pand',fmt(S.area,0)+' m²']);
-  if(b.vbos.length>1)rows.push(['Verblijfsobjecten in pand',b.vbos.length]);
+  {const hp=heelPandCache[b.id];
+   if(hp&&hp.ok&&hp.n>1)rows.push(['Hele pand (BAG)',heelPandSamenvatting(hp)]);
+   else if(b.vbos.length>1)rows.push(['Verblijfsobjecten in pand',b.vbos.length]);}
   rows.push(['Daktype',heights(b).dak]);if(heights(b).bron)rows.push(['Bron hoogte',bronLabel(heights(b).route)]);return rows}
 /* dakhelling in graden: grootste hellende vlak, met bereik als vlakken verschillen */
 function dakHelling(b){if(!b||!b.geo)return null;const vl=vlakkenVan(b);if(!vl.length)return null;
@@ -1365,7 +1377,63 @@ const metaHtml=r=>/^COLLECTIEVE VERWARMING/.test(String(r[1]))?`<b class="verw-r
 /* BAG-gebruiksdoel(en) netjes: "woonfunctie,winkelfunctie" → "Woonfunctie + winkelfunctie" */
 const doelen=g=>(Array.isArray(g)?g:String(g||'').split(/\s*,\s*/)).map(s=>String(s).trim()).filter(Boolean);
 const doelTekst=g=>{const d=doelen(g);return d.length?d.map((s,i)=>i?s:s[0].toUpperCase()+s.slice(1)).join(' + '):''};
-const SCHERM_WEG=['Bouwjaar','Gebruiksdoel'];   // staan al bovenaan in #bag-id
+const SCHERM_WEG=['Bouwjaar','Gebruiksdoel','Hele pand (BAG)'];   // staan al bovenaan in #bag-id / #bag-heel
+
+/* ── Hele pand: alle verblijfsobjecten van dít pand opgeteld (woongebouwen) ──
+   Eigen opvraging op het omhullende kader van het pand, zodat een groot gebouw dat buiten de zoekstraal
+   valt toch compleet is. Alleen tonen bij meer dan één verblijfsobject; in te klappen. */
+const heelPandCache={};
+const HP_WEG=/ingetrokken|niet gerealiseerd|ten onrechte/i;          // telt niet mee
+const HP_NIETINGEBRUIK=/gevormd|buiten gebruik|verbouwing/i;          // telt mee, wel melden
+const hpOpen=()=>{try{return localStorage.getItem('pa_heelpand_open')==='1'}catch(e){return false}};
+function heelPandSamenvatting(hp){
+  const won=hp.groepen.filter(g=>/woon/.test(g.doel)).reduce((s,g)=>s+g.n,0);
+  return (won?`${won} ${won===1?'woning':'woningen'}`+(hp.n>won?` + ${hp.n-won} overig`:''):`${hp.n} verblijfsobjecten`)+
+    ` · ${fmt(hp.m2,0)} m² gebruiksoppervlak`;
+}
+async function haalHeelPand(b){
+  if(heelPandCache[b.id])return heelPandCache[b.id];
+  heelPandCache[b.id]={bezig:true};
+  try{
+    let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;b.ring.forEach(([x,y])=>{x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y)});
+    const MAX=1000,ff=await wfs('verblijfsobject',(x0+x1)/2,(y0+y1)/2,Math.max(x1-x0,y1-y0)/2+1,MAX);
+    const eigen=ff.map(f=>f.properties).filter(p=>String(p.pandidentificatie||'').split(',').some(k=>k.trim().replace('NL.IMBAG.Pand.','')===b.id));
+    const uniek={};eigen.forEach(p=>{uniek[p.identificatie||vboZoek(p)]=p});
+    const alle=Object.values(uniek),mee=alle.filter(p=>!HP_WEG.test(p.status||''));
+    const g={};mee.forEach(p=>{const d=doelen(p.gebruiksdoel).join(' + ')||'onbekend',o=+p.oppervlakte||0;
+      (g[d]=g[d]||{doel:d,n:0,m2:0,min:Infinity,max:0});g[d].n++;g[d].m2+=o;if(o){g[d].min=Math.min(g[d].min,o);g[d].max=Math.max(g[d].max,o)}});
+    const tel=re=>{const t={};alle.filter(p=>re.test(p.status||'')).forEach(p=>{const s=String(p.status).replace(/^verblijfsobject\s*/i,'');t[s]=(t[s]||0)+1});return Object.entries(t)};
+    return heelPandCache[b.id]={ok:true,n:mee.length,m2:mee.reduce((s,p)=>s+(+p.oppervlakte||0),0),
+      groepen:Object.values(g).sort((a,c)=>(/woon/.test(c.doel)-/woon/.test(a.doel))||c.n-a.n),
+      weg:tel(HP_WEG),nietInGebruik:tel(HP_NIETINGEBRUIK),afgekapt:ff.length>=MAX};
+  }catch(e){return heelPandCache[b.id]={fout:String(e.message||e)}}
+}
+function renderHeelPand(b){
+  const el=$('bag-heel');if(!el)return;
+  if(!b){el.innerHTML='';return}
+  const hp=heelPandCache[b.id];
+  // eengezinswoning: niets tonen. Bij twijfel (pand groter dan het zoekgebied) toch even navragen.
+  if(!hp){
+    if(b.vbos.length>1){el.innerHTML='<div class="klein">Hele pand: verblijfsobjecten optellen…</div>';
+      haalHeelPand(b).then(()=>{if(selB()===b){renderHeelPand(b);$('bag-meta').innerHTML=metaScherm(b);changed()}})}
+    else el.innerHTML='';
+    return}
+  if(hp.bezig){el.innerHTML='<div class="klein">Hele pand: verblijfsobjecten optellen…</div>';return}
+  if(hp.fout){el.innerHTML=`<div class="klein">Hele pand: ophalen mislukt (${esc(hp.fout)}).</div>`;return}
+  if(hp.n<2){el.innerHTML='';return}
+  const rij=g=>`<tr><td>${esc(doelTekst(g.doel))}</td><td>${g.n}</td><td>${fmt(g.m2,0)} m²</td><td>${g.n>1&&g.max?`${fmt(g.min,0)} – ${fmt(g.max,0)} m²`:g.max?fmt(g.max,0)+' m²':'–'}</td></tr>`;
+  const noot=[
+    hp.nietInGebruik.length&&`Meegeteld, maar nog niet of niet in gebruik: ${hp.nietInGebruik.map(([s,n])=>n+'× '+s).join(', ')}.`,
+    hp.weg.length&&`Niet meegeteld: ${hp.weg.map(([s,n])=>n+'× '+s).join(', ')}.`,
+    hp.afgekapt&&'Let op: de BAG gaf het maximum aantal objecten terug; mogelijk niet compleet.'
+  ].filter(Boolean);
+  el.innerHTML=`<details id="bag-heel-d"${hpOpen()?' open':''}><summary>🏢 Hele pand: ${esc(heelPandSamenvatting(hp))}</summary>
+    <table class="bag-heeltab"><thead><tr><th>Gebruiksdoel</th><th>Aantal</th><th>Oppervlak</th><th>Kleinste – grootste</th></tr></thead>
+    <tbody>${hp.groepen.map(rij).join('')}</tbody>
+    ${hp.groepen.length>1?`<tfoot><tr><td>Totaal</td><td>${hp.n}</td><td>${fmt(hp.m2,0)} m²</td><td></td></tr></tfoot>`:''}</table>
+    <p class="klein">Gebruiksoppervlakte volgens de BAG, alle verblijfsobjecten van dit pand opgeteld.${noot.length?' '+esc(noot.join(' ')):''}</p></details>`;
+  const d=$('bag-heel-d');if(d)d.addEventListener('toggle',()=>{try{localStorage.setItem('pa_heelpand_open',d.open?'1':'0')}catch(e){}});
+}
 const metaScherm=b=>metaRows(b).filter(r=>!SCHERM_WEG.includes(r[0])).map(metaHtml).join('');
 function renderId(b){
   const el=$('bag-id');if(!el)return;if(!b){el.innerHTML='';return}
@@ -1378,8 +1446,8 @@ function renderId(b){
     `<div>Functie${b.vbos.length>1?' (gekozen woning)':''}<b${fn.length>22?' style="font-size:1rem"':''}>${esc(fn||(b.vbos.length?'–':'geen verblijfsobject in BAG'))}</b>${mix?`<span class="bag-idmix">${esc(mix)}</span>`:''}</div>`;
 }
 function renderPand(){
-  const b=selB();if(!b){$('bag-kpis').innerHTML='';renderId(null);return}
-  renderId(b);
+  const b=selB();if(!b){$('bag-kpis').innerHTML='';renderId(null);renderHeelPand(null);return}
+  renderId(b);renderHeelPand(b);
   const h=heights(b);
   $('bag-kpis').innerHTML=`<div>Nokhoogte<b>${fm(h.hmax)}</b></div><div>Hoogte (70%)<b>${fm(h.h70)}</b></div>
     <div>Dakhelling<b>${dakHelling(b)?.tekst??(b.geo===undefined&&b.h===undefined?'…':'–')}</b></div><div>Bouwlagen${h.lagenEst?' (schatting)':''}<b>${h.lagen??'–'}</b></div><div>Footprint<b>${fmt(S.area,0)} m²</b></div>`;
