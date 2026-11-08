@@ -184,6 +184,12 @@ body.tab-bag .wrap{max-width:1180px}
 @media(min-width:620px){#bag-kpis{grid-template-columns:repeat(5,1fr)}}
 #bag-kpis div{background:var(--bg);border-radius:8px;padding:8px 10px;font-size:.72rem;color:var(--grijs)}
 #bag-kpis b{display:block;font-size:1.2rem;color:var(--tekst)}
+/* bouwjaar + functie: eigen regel boven de maten */
+#bag-id{display:grid;grid-template-columns:minmax(96px,1fr) 3fr;gap:8px;margin-bottom:8px}
+#bag-id:empty{display:none}
+#bag-id div{background:var(--paars-licht);border-radius:8px;padding:8px 10px;font-size:.72rem;color:var(--grijs)}
+#bag-id b{display:block;font-size:1.2rem;color:var(--paars)}
+#bag-id .bag-idmix{display:block;margin-top:2px;font-size:.72rem;color:var(--grijs)}
 .bag-meta{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:.85rem}
 .bag-meta b{color:var(--grijs);font-weight:500}
 .bag-sub{display:flex;gap:6px;margin:0 0 12px}
@@ -422,6 +428,7 @@ body.tab-bag .wrap{max-width:1180px}
 
       <div class="kaart">
         <h2>Pand</h2>
+        <div id="bag-id"></div>
         <div id="bag-kpis"></div>
         <div id="bag-vbo"></div>
         <div class="bag-meta" id="bag-meta"><b>Adres</b><span class="klein">Zoek een adres of klik op de kaart</span></div>
@@ -1355,12 +1362,28 @@ function dakHelling(b){if(!b||!b.geo)return null;const vl=vlakkenVan(b);if(!vl.l
   const t=Math.round(g.helling)+'°'+(Math.round(mx)-Math.round(mn)>=3?` (${Math.round(mn)}–${Math.round(mx)}°)`:'');
   return{tekst:t,hoofd:g.helling,plat:false,mn,mx}}
 const metaHtml=r=>/^COLLECTIEVE VERWARMING/.test(String(r[1]))?`<b class="verw-rood">${esc(r[0])}</b><span class="verw-rood">${esc(r[1])}</span>`:`<b>${esc(r[0])}</b><span>${esc(r[1])}</span>`;
+/* BAG-gebruiksdoel(en) netjes: "woonfunctie,winkelfunctie" → "Woonfunctie + winkelfunctie" */
+const doelen=g=>(Array.isArray(g)?g:String(g||'').split(/\s*,\s*/)).map(s=>String(s).trim()).filter(Boolean);
+const doelTekst=g=>{const d=doelen(g);return d.length?d.map((s,i)=>i?s:s[0].toUpperCase()+s.slice(1)).join(' + '):''};
+const SCHERM_WEG=['Bouwjaar','Gebruiksdoel'];   // staan al bovenaan in #bag-id
+const metaScherm=b=>metaRows(b).filter(r=>!SCHERM_WEG.includes(r[0])).map(metaHtml).join('');
+function renderId(b){
+  const el=$('bag-id');if(!el)return;if(!b){el.innerHTML='';return}
+  const v=vboOf(b)||{},fn=doelTekst(v.gebruiksdoel);
+  /* pand met meerdere verblijfsobjecten en verschillende functies: telling eronder */
+  let mix='';
+  if(b.vbos.length>1){const n={};b.vbos.forEach(x=>doelen(x.p.gebruiksdoel).forEach(d=>n[d]=(n[d]||0)+1));
+    const k=Object.keys(n);if(k.length>1||!fn)mix='In dit pand: '+k.sort((a,c)=>n[c]-n[a]).map(d=>n[d]+'× '+d).join(', ')}
+  el.innerHTML=`<div>Bouwjaar (BAG)<b>${esc(String(b.bouwjaar||'–'))}</b></div>`+
+    `<div>Functie${b.vbos.length>1?' (gekozen woning)':''}<b${fn.length>22?' style="font-size:1rem"':''}>${esc(fn||(b.vbos.length?'–':'geen verblijfsobject in BAG'))}</b>${mix?`<span class="bag-idmix">${esc(mix)}</span>`:''}</div>`;
+}
 function renderPand(){
-  const b=selB();if(!b){$('bag-kpis').innerHTML='';return}
+  const b=selB();if(!b){$('bag-kpis').innerHTML='';renderId(null);return}
+  renderId(b);
   const h=heights(b);
   $('bag-kpis').innerHTML=`<div>Nokhoogte<b>${fm(h.hmax)}</b></div><div>Hoogte (70%)<b>${fm(h.h70)}</b></div>
     <div>Dakhelling<b>${dakHelling(b)?.tekst??(b.geo===undefined&&b.h===undefined?'…':'–')}</b></div><div>Bouwlagen${h.lagenEst?' (schatting)':''}<b>${h.lagen??'–'}</b></div><div>Footprint<b>${fmt(S.area,0)} m²</b></div>`;
-  $('bag-meta').innerHTML=metaRows(b).map(metaHtml).join('');
+  $('bag-meta').innerHTML=metaScherm(b);
   renderVbo(b);
 }
 /* bestaand energielabel uit EP-Online via de label-server (Cloudflare Worker) */
@@ -1409,7 +1432,7 @@ function renderVbo(b){
   const cp=$('bag-epcopy');if(cp)cp.onclick=async()=>{const t=vboZoek(cur);try{await navigator.clipboard.writeText(t);cp.textContent='Gekopieerd: '+t}catch(e){cp.textContent=t}setTimeout(()=>{if($('bag-epcopy'))$('bag-epcopy').textContent='Kopieer postcode + huisnr'},2500)};
   const st=$('bag-epset');if(st)st.onclick=()=>{const u=prompt('Adres van de label-server (Cloudflare Worker), bv. https://ep-label.visserinspecties.workers.dev',labelApi()||'https://');if(u&&/^https:\/\//.test(u.trim())){try{localStorage.setItem('ee_label_api',u.trim())}catch(e){}renderVbo(b)}};
   const rt=$('bag-epretry');if(rt)rt.onclick=()=>{delete labelCache[k];renderVbo(b)};
-  if(cur&&cur.postcode&&window.VERW&&verwCache[cur.postcode]===undefined){verwCache[cur.postcode]=null;VERW.voor(cur.postcode).then(d=>{verwCache[cur.postcode]=d;if(selB()===b){renderVbo(b);$('bag-meta').innerHTML=metaRows(b).map(metaHtml).join('');changed()}})}
+  if(cur&&cur.postcode&&window.VERW&&verwCache[cur.postcode]===undefined){verwCache[cur.postcode]=null;VERW.voor(cur.postcode).then(d=>{verwCache[cur.postcode]=d;if(selB()===b){renderVbo(b);$('bag-meta').innerHTML=metaScherm(b);changed()}})}
   if(cur&&labelApi()&&!res){haalLabel(cur).then(()=>{if(selB()===b&&vboOf(b)===cur){renderVbo(b);changed()}})}
 }
 function renderTable(){
