@@ -208,6 +208,9 @@ body.tab-bag .wrap{max-width:1180px}
 .bag-verdtab input[type=checkbox]{width:18px;height:18px;margin:0}
 .bag-verdtab tr.uit td:not(:first-child){color:var(--grijs);text-decoration:line-through}
 .bag-verdknop{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 10px}
+.bag-verdtab th.sorteer{cursor:pointer;user-select:none;-webkit-user-select:none;padding-top:8px;padding-bottom:8px}
+.bag-verdtab th.sorteer.aan{color:var(--paars);font-weight:700}
+.bag-verdtab thead th{position:sticky;top:0;z-index:1}
 .bag-meta{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:.85rem}
 .bag-meta b{color:var(--grijs);font-weight:500}
 .bag-sub{display:flex;gap:6px;margin:0 0 12px}
@@ -1447,7 +1450,7 @@ function renderHeelPand(b){
     <p class="klein">Gebruiksoppervlakte volgens de BAG, alle verblijfsobjecten van dit pand opgeteld.${noot.length?' '+esc(noot.join(' ')):''}</p>
     <details id="bag-verd-d"${hpLijstOpen()?' open':''}><summary>Lijst per adres + verdeling PV (${hp.n})</summary>
       <label class="bag-pvin">PV-panelen op het pand, totaal <input type="number" id="bag-pvm2" min="0" step="0.01" inputmode="decimal" value="${esc(pvLees(b.id))}"> m²</label>
-      <div class="bag-verdwrap"><table class="bag-heeltab bag-verdtab"><thead><tr><th title="Meetellen in de verdeling">✓</th><th>Adres</th><th>Gebruiksdoel</th><th>m²</th><th>Aandeel</th><th>PV m²</th></tr></thead>
+      <div class="bag-verdwrap"><table class="bag-heeltab bag-verdtab"><thead id="bag-verd-th"><tr><th title="Meetellen in de verdeling">✓</th>${[['adres','Adres'],['doel','Gebruiksdoel'],['opp','m²'],['pct','Aandeel'],['pvm','PV m²']].map(([k,t])=>`<th class="sorteer" data-sort="${k}" title="Tik om te sorteren">${t}<span class="pijl"></span></th>`).join('')}</tr></thead>
       <tbody id="bag-verd-tb"></tbody><tfoot id="bag-verd-tf"></tfoot></table></div>
       <p class="klein">Aandeel = gebruiksoppervlakte van het adres ÷ totaal van de aangevinkte adressen. Vink een adres uit om het buiten de verdeling te laten (bijv. een winkel die niet meedeelt in de PV).</p>
       <div class="bag-verdknop"><button type="button" class="actie licht" id="bag-verd-xlsx">⬇️ Excel</button>${window.opslaanInProject?'<button type="button" class="actie licht" id="bag-verd-od">📁 Excel naar projectmap</button>':''}<span class="klein" id="bag-verd-msg"></span></div>
@@ -1485,11 +1488,29 @@ function verdeling(b,hp){
   const pct=verdeelAfgerond(100,mee),pvm=verdeelAfgerond(pv,mee);
   return{pv,som,rijen:hp.eenheden.map((u,i)=>({...u,mee:!uit.has(u.id),aandeel:som?mee[i]/som:0,pct:pct[i],pvm2:pvm[i]}))};
 }
+/* sorteren: tik op een kolomkop; nog een keer tikken = omgekeerd. Keuze wordt onthouden. */
+let verdSort=(()=>{try{return JSON.parse(localStorage.getItem('pa_verd_sort'))||{k:'adres',op:1}}catch(e){return{k:'adres',op:1}}})();
+function sorteerRijen(rijen){
+  const k=verdSort.k,op=verdSort.op,idx=new Map(rijen.map((r,i)=>[r,i]));
+  const waarde=r=>k==='adres'?idx.get(r):k==='doel'?r.doel:k==='opp'?r.opp:k==='pct'?(r.mee?r.aandeel:-1):(r.mee?r.pvm2:-1);
+  return rijen.slice().sort((a,c)=>{
+    if((k==='pct'||k==='pvm')&&a.mee!==c.mee)return a.mee?-1:1;          // uitgevinkte adressen altijd onderaan
+    const x=waarde(a),y=waarde(c);
+    return (typeof x==='string'?x.localeCompare(y,'nl'):x-y)*op||idx.get(a)-idx.get(c)});
+}
+function toonSortPijlen(){const th=$('bag-verd-th');if(!th)return;
+  th.querySelectorAll('[data-sort]').forEach(h=>{const aan=h.dataset.sort===verdSort.k;h.classList.toggle('aan',aan);h.querySelector('.pijl').textContent=aan?(verdSort.op>0?' ▲':' ▼'):''})}
 function vulVerdeling(b,hp,alleenGetallen){
   const tb=$('bag-verd-tb');if(!tb)return;const v=verdeling(b,hp);
-  if(!alleenGetallen)tb.innerHTML=v.rijen.map(r=>`<tr data-r="${esc(r.id)}"><td><input type="checkbox" data-vid="${esc(r.id)}"${r.mee?' checked':''}></td>
+  if(!alleenGetallen){tb.innerHTML=sorteerRijen(v.rijen).map(r=>`<tr data-r="${esc(r.id)}"><td><input type="checkbox" data-vid="${esc(r.id)}"${r.mee?' checked':''}></td>
     <td>${esc(r.adres)}${r.status&&!/^in gebruik/i.test(r.status)?` <span class="klein">(${esc(r.status)})</span>`:''}</td><td>${esc(r.doel)}</td><td>${fmt(r.opp,0)}</td><td class="pct"></td><td class="pvm"></td></tr>`).join('');
-  v.rijen.forEach((r,i)=>{const tr=tb.children[i];if(!tr)return;tr.classList.toggle('uit',!r.mee);
+    toonSortPijlen();
+    const th=$('bag-verd-th');if(th&&!th.dataset.klaar){th.dataset.klaar='1';th.addEventListener('click',e=>{const h=e.target.closest('[data-sort]');if(!h)return;
+      const k=h.dataset.sort;verdSort=verdSort.k===k?{k,op:-verdSort.op}:{k,op:k==='adres'||k==='doel'?1:-1};   // getallen: eerst groot → klein
+      try{localStorage.setItem('pa_verd_sort',JSON.stringify(verdSort))}catch(e){}vulVerdeling(b,hp)})}}
+  // getallen bijwerken zonder de volgorde te veranderen (rijen springen dan niet weg onder je vinger)
+  const perId=new Map([...tb.children].map(tr=>[tr.dataset.r,tr]));
+  v.rijen.forEach(r=>{const tr=perId.get(r.id);if(!tr)return;tr.classList.toggle('uit',!r.mee);
     tr.querySelector('.pct').textContent=r.mee?fmt(r.pct,2)+' %':'–';tr.querySelector('.pvm').textContent=r.mee&&v.pv?fmt(r.pvm2,2):'–'});
   const n=v.rijen.filter(r=>r.mee).length;
   $('bag-verd-tf').innerHTML=`<tr><td></td><td>Totaal (${n} van ${v.rijen.length})</td><td></td><td>${fmt(v.som,0)}</td><td>${v.som?'100,00 %':'–'}</td><td>${v.pv?fmt(v.pv,2):'–'}</td></tr>`;
@@ -1503,7 +1524,7 @@ function laadXlsx(){
 async function verdelingExcel(b,hp,naarProject){
   const msg=$('bag-verd-msg');const meld=t=>{if(msg)msg.textContent=t};
   try{
-    meld('Excel maken…');const X=await laadXlsx(),v=verdeling(b,hp);
+    meld('Excel maken…');const X=await laadXlsx(),v=verdeling(b,hp);v.rijen=sorteerRijen(v.rijen);   // Excel in dezelfde volgorde als op het scherm
     const P='432D6A',kop={font:{bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:P}},alignment:{vertical:'center',wrapText:true}};
     const vet={font:{bold:true}},geel={fill:{fgColor:{rgb:'FFF2CC'}},font:{bold:true}},titel={font:{bold:true,sz:14,color:{rgb:P}}};
     const ws={},zet=(ref,c)=>{ws[ref]=c};
