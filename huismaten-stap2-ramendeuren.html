@@ -4552,11 +4552,11 @@ function toggleRaamDeurVelden(id){
   const zonWrap = document.getElementById('rd-zonwrap-'+id);
   const glasLabel = document.getElementById('rd-glaslabel-'+id);
   if(raamVeldenWrap) raamVeldenWrap.style.display = (type==='deurmetraam') ? 'flex' : 'none';
-  if(glasWrap) glasWrap.style.display = (type==='deur' || type==='paneel') ? 'none' : 'flex';
+  if(glasWrap) glasWrap.style.display = (type==='deur' || type==='paneel') ? 'none' : '';
   if(zonWrap) zonWrap.style.display = (type==='deur' || type==='paneel') ? 'none' : 'flex';
   if((type==='deur' || type==='paneel')){ const zc = document.getElementById('rd-zonwering-'+id); if(zc) zc.checked = false; }
   rdZonUI(id);
-  if(isoWrap) isoWrap.style.display = (type==='deur' || type==='deurmetraam') ? 'flex' : 'none';
+  if(isoWrap) isoWrap.style.display = (type==='deur' || type==='deurmetraam') ? '' : 'none';
   if(glasLabel) glasLabel.textContent = (type==='deurmetraam') ? 'Glastype raam-in-deur' : 'Glastype';
   // Dakkoepel: ligt horizontaal in een plat dak — geen oriëntatie/plaats, maten = lengte × breedte van het glas (dagmaat)
   const isKoepel = type==='dakkoepel';
@@ -4664,7 +4664,7 @@ function voegRaamDeurToe(kopieerVan){
         <label for="rd-opp-${id}">óf oppervlakte (m²)</label>
         <input type="text" inputmode="decimal" class="numeric-input" id="rd-opp-${id}" placeholder="bv. 1,8" title="Vul je hier een oppervlakte in, dan worden breedte en hoogte genegeerd">
       </div>
-      <div class="field" id="rd-glaswrap-${id}">
+      <div class="field" id="rd-glaswrap-${id}" style="min-width:130px;">
         <label id="rd-glaslabel-${id}">Glastype</label>
         <select id="rd-glastype-${id}">${glasOptiesHtml}</select>
       </div>
@@ -4677,7 +4677,7 @@ function voegRaamDeurToe(kopieerVan){
         <label for="rd-zonwering-${id}" style="margin:0;">Zonwering</label>
         <span class="rd-zon-uitroep" id="rd-zonuitroep-${id}" style="display:none;">!</span>
       </div>
-      <div class="field" id="rd-zontypewrap-${id}" style="display:none;">
+      <div class="field" id="rd-zontypewrap-${id}" style="display:none; min-width:150px;">
         <label>Type zonwering</label>
         <select id="rd-zonweringtype-${id}">
           <option value="">— kies type —</option>
@@ -4990,7 +4990,7 @@ function rdZonTekst(zonwering, type){
 function rdZonUI(id){
   const aan = !!document.getElementById('rd-zonwering-'+id)?.checked;
   const w = document.getElementById('rd-zontypewrap-'+id);
-  if(w) w.style.display = aan ? 'flex' : 'none';
+  if(w) w.style.display = aan ? '' : 'none';
   ['rd-zonuitroep-','rd-kopuitroep-'].forEach(p=>{ const el = document.getElementById(p+id); if(el) el.style.display = aan ? 'inline-block' : 'none'; });
 }
 function rdTypeNaam(r){
@@ -6017,7 +6017,9 @@ function rdCode(d, zonderGlas){
   const m = /(\d+)\s*$/.exec(d.naam||'');
   const pre = ({deur:'D', deurmetraam:'DR', paneel:'P', dakraam:'DK', dakkoepel:'KP'})[d.type] || 'R';
   const glas = (!zonderGlas && d.raamOppStuk > 0 && typeof rdGlasKort === 'function') ? rdGlasKort(d.glastype) : '';
-  return pre + (m ? m[1] : '') + (glas ? ' '+glas : '');   // bv. "R1 ++"
+  const zonKort = {uitvalscherm:'uitval', knikarm:'knikarm', screen:'screen', rolluik:'rolluik'};
+  const zon = (!zonderGlas && d.zonwering) ? (zonKort[d.zonweringType] || 'zonw.') : '';
+  return pre + (m ? m[1] : '') + (glas ? ' '+glas : '') + (zon ? ' '+zon : '');   // bv. "R1 ++ screen"
 }
 // Oppervlaktetekst: bij een deur met raam deur en glas apart (zoals in de tabel)
 function rdOppTekst(d){
@@ -6318,7 +6320,7 @@ function rdLabelKeuze(st){
   const pw = st.b*SCALE, ph = st.h*SCALE;
   const code = rdCode(st.d), opp = rdOppTekst(st.d);
   if(pw >= tw(code+' '+opp) && ph >= fs*1.3) return 'een';
-  if(pw >= tw(opp) && ph >= fs*2.6) return 'twee';
+  if(pw >= tw(opp) && pw >= tw(code) && ph >= fs*2.6) return 'twee';
   return 'zij';
 }
 function rdZijLabels(plan){
@@ -6357,6 +6359,8 @@ function rdTekenElementen(svg, plan, x0, yBase, alleenHoofd){
     st.px = px; st.py = py; st.pw = pw; st.ph = ph;
     const lw = PRINT_MODE ? 0.25 : 1;
     svg.appendChild(svgEl('rect', {x:px, y:py, width:pw, height:ph, fill:k.vul, stroke:k.lijn, 'stroke-width':lw}));
+    // zonwering: donkere balk (kast) bovenop het raam
+    if(d.zonwering){ const kh = Math.max(0.12*S, 1.5); svg.appendChild(svgEl('rect', {x:px, y:py-kh, width:pw, height:kh, fill:'#5a5a5a', stroke:'#5a5a5a', 'stroke-width':lw})); }
     let codeY = py+ph/2+fs*0.35;
     if(d.type==='deurmetraam' && d.raamBreedte>0 && d.raamHoogte>0){
       const rb = Math.min(d.raamBreedte, d.breedte*0.9)*S, rh = Math.min(d.raamHoogte, st.h*0.85)*S;
