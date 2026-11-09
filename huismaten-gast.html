@@ -153,6 +153,7 @@
   .rd-blok.dicht .rd-body{display:none;}
   .rd-blok:not(.dicht) .rd-samenvatting{display:none;}
   .rd-blok.leeg .rd-samenvatting{color:#b5651d;}
+  .rd-zon-uitroep{color:#fff;background:#c0392b;font-weight:800;border-radius:50%;width:20px;height:20px;line-height:20px;text-align:center;font-size:0.85rem;flex:0 0 auto;}
   .rd-sticky{position:sticky;bottom:0;z-index:20;background:white;margin:8px -16px 14px !important;padding:10px 16px;border-top:1px solid var(--line);box-shadow:0 -4px 10px rgba(0,0,0,0.06);}
   .canvas-wrap{
     border:1px solid var(--line);
@@ -2476,6 +2477,11 @@ function berekenWoon(dak, schild, mans){
   // Uitbouwen: tellen mee op de bouwlagen die ze beslaan (vanaf de begane grond).
   const nietZolder = vloeren.filter(v=>v.id !== 'zolder');
   alleUitbouwData().filter(d=>d.geldig).forEach(d=>{
+    if(d.buiten){
+      const doel = nietZolder[0];
+      if(doel) doel.items.push({label: `${d.naam} (buiten thermische zone)`, opp:0, detail:`grenst aan ${d.zoneNaam} — telt niet mee`, formule:'0 (buiten thermische zone)'});
+      return;
+    }
     for(let i=0; i<d.lagen; i++){
       let doel = nietZolder[i];
       if(!doel){
@@ -2612,10 +2618,17 @@ function berekenSchil(dak, schild, mans){
       }
     }
     add('gevel', code, GEVEL_NAAM[code] + ' hoofdgebouw', opp, detail, formule);
+    if(spec.opp > 0 && opp !== null && !(kant && buurKanten.includes(kant) && zijState[kant].volledig)){
+      uitbouwenOpGevel(code).filter(d=>d.buiten).forEach(d=>{
+        const hA = Math.min(d.hoogte, spec.cap);
+        if(d.breedte*hA > 0) add('aor', code, `${GEVEL_NAAM[code]} achter ${d.naam} — grenst aan ${d.zoneNaam}`, d.breedte*hA,
+          `deel hoofdgevel achter de uitbouw (uitbouw buiten de thermische zone)`, `${n2(d.breedte)} × ${n2(hA)}`);
+      });
+    }
   });
 
   // --- Uitbouwen ---
-  const ubData = alleUitbouwData().filter(d=>d.geldig);
+  const ubData = alleUitbouwData().filter(d=>d.geldig && !d.buiten);
   ubData.forEach(d=>{
     const [z1, z2] = perpendiculairePaar(d.gevel);
     const fFront = d.daktype==='zadel'
@@ -2788,7 +2801,7 @@ function berekenSchil(dak, schild, mans){
   R.filter(r=>r.groep==='gevel' && !r.uit).forEach(r=>{ perOrient[r.orient] += (r.opp || 0); });
   const som = g => R.filter(r=>r.groep===g && !r.uit).reduce((s,r)=>s+(r.opp||0), 0);
   res.perOrient = perOrient;
-  res.totalen = {gevel: som('gevel'), vloer: som('vloer'), schuin: som('schuin'), plat: som('plat')};
+  res.totalen = {gevel: som('gevel'), vloer: som('vloer'), schuin: som('schuin'), plat: som('plat'), aor: som('aor')};
   return res;
 }
 
@@ -2802,6 +2815,15 @@ function berekenAlles(){
   if(dak && !dak.geldig && dak.fout && /nok valt buiten/i.test(dak.fout)) melding(dak.fout);
   const woon = berekenWoon(dak, schild, mans);
   const schil = berekenSchil(dak, schild, mans);
+  let rdLijst = [];
+  try { rdLijst = alleRamenDeurenData(); } catch(_) { /* tijdens het opstarten bestaat de lijst nog niet */ }
+  rdLijst.filter(d=>d.geldig).forEach(d=>{
+    if(d.zonwering && !d.zonweringType) melding(`${d.naam}: zonwering aangevinkt — kies nog het type (uitvalscherm, knikarm, screen of rolluik).`);
+    if(d.plaatsInfo && d.plaatsInfo.soort === 'ub'){
+      const ub = alleUitbouwData().find(u=>u.id === d.plaatsInfo.id);
+      if(ub && ub.buiten) melding(`${d.naam} zit in ${ub.naam}, die buiten de thermische zone ligt — telt in Vabi niet mee als schil.`);
+    }
+  });
   // plausibiliteit dakkapellen
   alleDakkapelData().filter(d=>d.geldig).forEach(d=>{
     const t = Math.tan(deg2rad(dakvlakHellingGraden(d.dakvlak)));
@@ -2893,7 +2915,7 @@ function markeerHoofdUit(svg, titel){
   if(!code || !UITGEZET.has(`gevel|${code}|${GEVEL_NAAM[code]} hoofdgebouw`)) return;
   svg.querySelectorAll('[data-hoofd]').forEach(el=>{ el.setAttribute('stroke', KLEUR.uit); el.setAttribute('stroke-dasharray', '5,3'); });
 }
-function kleurGroep(groep){ return groep==='gevel' ? 'gevel' : (groep==='schuin' || groep==='plat' || groep==='dak') ? 'dak' : 'vloer'; }
+function kleurGroep(groep){ return (groep==='gevel' || groep==='aor') ? 'gevel' : (groep==='schuin' || groep==='plat' || groep==='dak') ? 'dak' : 'vloer'; }
 
 function fm(x){ return (x==null || isNaN(x)) ? '—' : x.toFixed(2); }
 function schilLabelHtml(r){
@@ -2988,7 +3010,7 @@ function renderAlles(R){
       rij.forEach(r=> h += regelHtml(schilLabelHtml(r), r.opp==null ? '—' : fm(r.opp)+' m²', {detail:r.detail, formule:r.formule, kleur:r.uit?'uit':'gevel'}));
       h += regelHtml(`Σ ${GEVEL_NAAM[code]} (${gevelCodeMetOrient(code)})`, fm(S.perOrient[code])+' m²', {sub:true, kleur:'gevel'});
     });
-    [['vloer','Vloeren (grond / kruipruimte)','Totaal vloeren'],['schuin','Schuine daken','Totaal schuine daken'],['plat','Platte daken','Totaal platte daken']].forEach(([g, kop, tot])=>{
+    [['aor','Gevel grenzend aan AOR / SGvR (geen buitenlucht)','Totaal grenzend aan AOR / SGvR'],['vloer','Vloeren (grond / kruipruimte)','Totaal vloeren'],['schuin','Schuine daken','Totaal schuine daken'],['plat','Platte daken','Totaal platte daken']].forEach(([g, kop, tot])=>{
       const rij = S.regels.filter(r=>r.groep===g);
       if(!rij.length) return;
       h += `<div style="font-weight:600;margin:14px 0 4px;">${kop}</div>`;
@@ -3388,9 +3410,12 @@ function berekenUitbouwData(u){
   const gevel = document.getElementById('ub-gevel-'+u.id)?.value || 'VG';
   const daktype = document.getElementById('ub-daktype-'+u.id)?.value || 'plat';
   const hoek = document.getElementById('ub-plaats-'+u.id)?.value || '';
+  const zone = document.getElementById('ub-zone-'+u.id)?.value || 'binnen';
+  const buiten = zone !== 'binnen';
+  const zoneNaam = zone === 'sgvr' ? 'SGvR' : zone === 'aor' ? 'AOR' : '';
 
   if(isNaN(breedte) || isNaN(diepte) || isNaN(hoogte) || breedte<=0 || diepte<=0 || hoogte<=0){
-    return {id:u.id, naam:u.naam, gevel, breedte, diepte, hoogte, lagen, daktype, hoek, geldig:false};
+    return {id:u.id, naam:u.naam, gevel, breedte, diepte, hoogte, lagen, daktype, hoek, zone, buiten, zoneNaam, geldig:false};
   }
 
   const hellingRaw = parseFloat(document.getElementById('ub-hellingshoek-'+u.id)?.value);
@@ -3415,7 +3440,7 @@ function berekenUitbouwData(u){
   const gevelTotaal = front + 2*zijkant + dakRows.reduce((s,r)=>s+r.opp,0);
 
   return {
-    id:u.id, naam:u.naam, gevel, breedte, diepte, hoogte, lagen, daktype, hoek, hellingshoek, hellingDefault,
+    id:u.id, naam:u.naam, gevel, breedte, diepte, hoogte, lagen, daktype, hoek, hellingshoek, hellingDefault, zone, buiten, zoneNaam,
     driehoekHoogte, front, zijkant, dakRows, vloerOpp, gevelTotaal, geldig:true
   };
 }
@@ -3426,14 +3451,14 @@ function blokkageOpGevel(gevelCode, mainHoogte){
   return uitbouwenOpGevel(gevelCode).reduce((sum,d)=> sum + d.breedte*Math.min(d.hoogte, mainHoogte), 0);
 }
 function totaalUitbouwVloeroppervlak(){
-  return alleUitbouwData().reduce((sum,d)=> sum + (d.geldig ? d.vloerOpp : 0), 0);
+  return alleUitbouwData().reduce((sum,d)=> sum + (d.geldig && !d.buiten ? d.vloerOpp : 0), 0);
 }
 
 function updateUitbouwUitkomst(u){
   const d = berekenUitbouwData(u);
   const elResultaten = document.getElementById('ub-resultaten-'+u.id);
   const elVloer = document.getElementById('ub-vloer-uitkomst-'+u.id);
-  if(elVloer) elVloer.textContent = d.geldig ? d.vloerOpp.toFixed(2) : '—';
+  if(elVloer) elVloer.textContent = d.geldig ? (d.buiten ? '0.00' : d.vloerOpp.toFixed(2)) : '—';
   if(!elResultaten) return;
   if(!d.geldig){
     elResultaten.innerHTML = '<p class="hint">Vul breedte en diepte in (hoogte volgt automatisch uit de gevelhoogtes).</p>';
@@ -3533,6 +3558,17 @@ function voegUitbouwToe(){
         <input type="text" inputmode="decimal" class="numeric-input" id="ub-hellingshoek-${id}" step="0.1" placeholder="bv. 30">
       </div>
     </div>
+    <div class="row">
+      <div class="field">
+        <label>Thermische zone</label>
+        <select id="ub-zone-${id}">
+          <option value="binnen">Binnen de thermische zone — telt mee</option>
+          <option value="aor">Buiten — hoofdgevel grenst aan AOR (onverwarmde ruimte)</option>
+          <option value="sgvr">Buiten — hoofdgevel grenst aan SGvR (sterk geventileerd)</option>
+        </select>
+      </div>
+    </div>
+    <p class="hint" id="ub-zonehint-${id}" style="display:none;color:#a8472e;">Buiten de thermische zone: telt niet mee in het woonoppervlak; de vlakken hieronder vallen buiten de schil. Het stuk hoofdgevel erachter staat bij de schil apart als scheiding naar AOR/SGvR.</p>
     <p class="hint" id="ub-zadelhint-${id}" style="display:none;">Zadeldak-uitbouw: nok loodrecht op de gevel — driehoek op de vrijstaande voorzijde van de uitbouw.</p>
     <div id="ub-resultaten-${id}"></div>
     <div class="result" style="font-size:1.1rem;background:var(--accent-soft);margin-top:6px;">
@@ -3545,6 +3581,10 @@ function voegUitbouwToe(){
   blok.querySelector('button[data-ubid]').addEventListener('click', ()=>verwijderUitbouw(id));
   document.getElementById('ub-gevel-'+id).addEventListener('change', ()=>{ updatePlaatsOpties(id); renumberUitbouwen(); onUitbouwWijziging(); });
   document.getElementById('ub-plaats-'+id).addEventListener('change', onUitbouwWijziging);
+  document.getElementById('ub-zone-'+id).addEventListener('change', ()=>{
+    document.getElementById('ub-zonehint-'+id).style.display = document.getElementById('ub-zone-'+id).value === 'binnen' ? 'none' : 'block';
+    onUitbouwWijziging();
+  });
   updatePlaatsOpties(id);
   document.getElementById('ub-breedte-'+id).addEventListener('input', onUitbouwWijziging);
   document.getElementById('ub-diepte-'+id).addEventListener('input', onUitbouwWijziging);
@@ -4285,7 +4325,7 @@ function rdSamenvattingTekst(rd){
   if(d.type === 'deur' || d.type === 'deurmetraam') delen.push(d.isolatie === 'iso' ? 'geïsoleerd' : 'ongeïsoleerd');
   if(d.type !== 'deur' && d.type !== 'paneel' && d.glastype) delen.push(RD_GLAS_KORT[d.glastype] || d.glastype);
   if(d.aantal > 1) delen.push(d.aantal + '×');
-  if(d.zonwering) delen.push('zonwering');
+  if(d.zonwering) delen.push('zonwering' + (RD_ZONWERING_TYPES[d.zonweringType] ? ' ' + RD_ZONWERING_TYPES[d.zonweringType].toLowerCase() : ''));
   return {tekst: delen.join(' · '), leeg:false};
 }
 function rdSamenvattingenBijwerken(){
@@ -4342,10 +4382,11 @@ function toggleRaamDeurVelden(id){
   const zonWrap = document.getElementById('rd-zonwrap-'+id);
   const glasLabel = document.getElementById('rd-glaslabel-'+id);
   if(raamVeldenWrap) raamVeldenWrap.style.display = (type==='deurmetraam') ? 'flex' : 'none';
-  if(glasWrap) glasWrap.style.display = (type==='deur' || type==='paneel') ? 'none' : 'flex';
+  if(glasWrap) glasWrap.style.display = (type==='deur' || type==='paneel') ? 'none' : '';
   if(zonWrap) zonWrap.style.display = (type==='deur' || type==='paneel') ? 'none' : 'flex';
   if((type==='deur' || type==='paneel')){ const zc = document.getElementById('rd-zonwering-'+id); if(zc) zc.checked = false; }
-  if(isoWrap) isoWrap.style.display = (type==='deur' || type==='deurmetraam') ? 'flex' : 'none';
+  rdZonUI(id);
+  if(isoWrap) isoWrap.style.display = (type==='deur' || type==='deurmetraam') ? '' : 'none';
   if(glasLabel) glasLabel.textContent = (type==='deurmetraam') ? 'Glastype raam-in-deur' : 'Glastype';
   // Dakkoepel: ligt horizontaal in een plat dak — geen oriëntatie/plaats, maten = lengte × breedte van het glas (dagmaat)
   const isKoepel = type==='dakkoepel';
@@ -4398,6 +4439,7 @@ function voegRaamDeurToe(kopieerVan){
     <div class="rd-kop" id="rd-kop-${id}" title="Tik om open of dicht te klappen">
       <span class="rd-pijl">▾</span>
       <div style="font-weight:600;white-space:nowrap;" id="rd-titel-${id}">Element</div>
+      <span class="rd-zon-uitroep" id="rd-kopuitroep-${id}" title="Zonwering" style="display:none;">!</span>
       <div class="rd-samenvatting" id="rd-sam-${id}"></div>
       <button class="btn-secondary" data-rdid="${id}" style="padding:4px 10px;font-size:0.78rem;margin-left:auto;flex:0 0 auto;">− verwijderen</button>
     </div>
@@ -4448,7 +4490,7 @@ function voegRaamDeurToe(kopieerVan){
         <label id="rd-hoogtelabel-${id}">Hoogte (cm)</label>
         <input type="text" inputmode="numeric" class="numeric-input" id="rd-hoogte-${id}" step="1" data-eenheid="cm" placeholder="bv. 150">
       </div>
-      <div class="field" id="rd-glaswrap-${id}">
+      <div class="field" id="rd-glaswrap-${id}" style="min-width:130px;">
         <label id="rd-glaslabel-${id}">Glastype</label>
         <select id="rd-glastype-${id}">${glasOptiesHtml}</select>
       </div>
@@ -4456,9 +4498,20 @@ function voegRaamDeurToe(kopieerVan){
         <label>Deur</label>
         <select id="rd-isolatie-${id}">${isoOptiesHtml}</select>
       </div>
-      <div class="field" id="rd-zonwrap-${id}" style="flex:0 0 130px; flex-direction:row; align-items:flex-end; gap:8px; padding-bottom:10px;">
+      <div class="field" id="rd-zonwrap-${id}" style="flex:0 0 150px; flex-direction:row; align-items:flex-end; gap:8px; padding-bottom:10px;">
         <input type="checkbox" id="rd-zonwering-${id}" style="width:auto; margin:0;">
         <label for="rd-zonwering-${id}" style="margin:0;">Zonwering</label>
+        <span class="rd-zon-uitroep" id="rd-zonuitroep-${id}" style="display:none;">!</span>
+      </div>
+      <div class="field" id="rd-zontypewrap-${id}" style="display:none; min-width:150px;">
+        <label>Type zonwering</label>
+        <select id="rd-zonweringtype-${id}">
+          <option value="">— kies type —</option>
+          <option value="uitvalscherm">Uitvalscherm</option>
+          <option value="knikarm">Knikarm</option>
+          <option value="screen">Screen</option>
+          <option value="rolluik">Rolluik</option>
+        </select>
       </div>
     </div>
     <div class="row" id="rd-raamvelden-wrap-${id}" style="display:none;">
@@ -4485,8 +4538,9 @@ function voegRaamDeurToe(kopieerVan){
     if(confirm(`${rd.naam} verwijderen?`)) verwijderRaamDeur(id);
   });
   document.getElementById('rd-kop-'+id).addEventListener('click', ()=>rdKopKlik(id));
+  document.getElementById('rd-zonwering-'+id).addEventListener('change', ()=>rdZonUI(id));
   document.getElementById('rd-type-'+id).addEventListener('change', ()=>{ toggleRaamDeurVelden(id); onRamenDeurenWijziging(); });
-  ['rd-orientatie-','rd-verdieping-','rd-aantal-','rd-breedte-','rd-hoogte-','rd-isolatie-','rd-raambreedte-','rd-raamhoogte-','rd-zonwering-'].forEach(pref=>{
+  ['rd-orientatie-','rd-verdieping-','rd-aantal-','rd-breedte-','rd-hoogte-','rd-isolatie-','rd-raambreedte-','rd-raamhoogte-','rd-zonwering-','rd-zonweringtype-'].forEach(pref=>{
     const el = document.getElementById(pref+id);
     if(el){ el.addEventListener('input', onRamenDeurenWijziging); el.addEventListener('change', onRamenDeurenWijziging); }
   });
@@ -4503,7 +4557,7 @@ function voegRaamDeurToe(kopieerVan){
 
   // Nieuw element = kopie van het vorige (incl. type, gevel, verdieping, maten, glas, zonwering).
   if(kopieerVan && kopieerVan.id){
-    ['type','verdieping','orientatie','plaats','koepelop','aantal','breedte','hoogte','glastype','isolatie','raambreedte','raamhoogte'].forEach(v=>{
+    ['type','verdieping','orientatie','plaats','koepelop','aantal','breedte','hoogte','glastype','isolatie','raambreedte','raamhoogte','zonweringtype'].forEach(v=>{
       const van = document.getElementById('rd-'+v+'-'+kopieerVan.id);
       const naar = document.getElementById('rd-'+v+'-'+id);
       if(van && naar) naar.value = van.value;
@@ -4554,6 +4608,7 @@ function berekenRaamDeurData(rd){
   const glastype = document.getElementById('rd-glastype-'+rd.id)?.value || rdStandaardGlas() || '';
   const isolatie = document.getElementById('rd-isolatie-'+rd.id)?.value || 'on';
   const zonweringAan = !!document.getElementById('rd-zonwering-'+rd.id)?.checked;
+  const zonweringType = zonweringAan ? (document.getElementById('rd-zonweringtype-'+rd.id)?.value || '') : '';
 
   if(isNaN(breedte) || isNaN(hoogte) || breedte<=0 || hoogte<=0){
     return {id:rd.id, naam:rd.naam, type, geldig:false};
@@ -4587,7 +4642,7 @@ function berekenRaamDeurData(rd){
     koepelOp: isKoepelOp.op, koepelOpLabel: isKoepelOp.label, koepelOpZadel: isKoepelOp.zadel,
     raamOpp: raamOppStuk*aantal, deurOpp: deurOppStuk*aantal, paneelOpp: paneelOppStuk*aantal,
     raamOppStuk, deurOppStuk, paneelOppStuk,
-    zonwering: zonweringAan && raamOppStuk>0,
+    zonwering: zonweringAan && raamOppStuk>0, zonweringType,
     oppStuk: (raamOppStuk+deurOppStuk+paneelOppStuk), geldig:true
   };
 }
@@ -4654,8 +4709,8 @@ function rdItemRegels(d){
     if(d.raamOppStuk>0){
       const formule = isDR ? `${n2l(d.raamBreedte)} × ${n2l(d.raamHoogte)}` : `${n2l(d.breedte)} × ${n2l(d.hoogte)}`;
       uit.push({soort:'raam', opp:d.raamOppStuk, glastype:d.glastype, gevelKey:d.gevelKey,
-        zonwering:d.zonwering,
-        label:`${d.naam}${nr}${isDR?' — raam in deur':''}${rdGlasKort(d.glastype) ? ' ('+rdGlasKort(d.glastype)+')' : ''} — ${orient}`, detail: rdGlasLabel(d.glastype) + (d.zonwering ? ', met zonwering' : ''), formule});
+        zonwering:d.zonwering, zonweringType:d.zonweringType,
+        label:`${d.naam}${nr}${isDR?' — raam in deur':''}${rdGlasKort(d.glastype) ? ' ('+rdGlasKort(d.glastype)+')' : ''} — ${orient}`, detail: rdGlasLabel(d.glastype) + (d.zonwering ? ', ' + rdZonTekst(true, d.zonweringType) : ''), formule});
     }
     if(d.deurOppStuk>0){
       const formule = isDR
@@ -4684,7 +4739,7 @@ function renderRamenDeurenResultaten(){
     if(d.raamOpp>0) delen.push(`raam ${d.raamOpp.toFixed(2)} m²`);
     if(d.deurOpp>0) delen.push(`deur ${d.deurOpp.toFixed(2)} m²`);
     if(d.paneelOpp>0) delen.push(`paneel ${d.paneelOpp.toFixed(2)} m²`);
-    if(d.zonwering) delen.push('met zonwering');
+    if(d.zonwering) delen.push(rdZonTekst(true, d.zonweringType));
     el.textContent = `${delen.join(' + ')} — ${d.gevelKey===RD_PLATDAK_KEY ? 'plat dak '+d.koepelOpLabel : ramenDeurenOrientatieLabel(d.gevelKey)}, ${ramenDeurenVerdiepingLabel(d.verdieping)}${d.aantal>1 ? ' (×'+d.aantal+')' : ''}`;
   });
 
@@ -4731,8 +4786,20 @@ function renderRamenDeurenResultaten(){
 // Regels voor de samenvatting (scherm / PDF / Excel-output), zelfde formaat als de rest
 // Ramen & deuren direct onder een gevel (of onder de schuine daken): per stuk + Σ per type.
 // Deze regels hebben los:true — ze tellen niet mee in de gevel-/daktotalen (ook niet in Excel-formules).
+const RD_ZONWERING_TYPES = {uitvalscherm:'Uitvalscherm', knikarm:'Knikarm', screen:'Screen', rolluik:'Rolluik'};
+function rdZonTekst(zonwering, type){
+  if(!zonwering) return '';
+  return 'met zonwering' + (RD_ZONWERING_TYPES[type] ? ' (' + RD_ZONWERING_TYPES[type].toLowerCase() + ')' : ' (type nog kiezen)');
+}
+// Rood uitroepteken + typekeuze tonen zodra zonwering is aangevinkt
+function rdZonUI(id){
+  const aan = !!document.getElementById('rd-zonwering-'+id)?.checked;
+  const w = document.getElementById('rd-zontypewrap-'+id);
+  if(w) w.style.display = aan ? '' : 'none';
+  ['rd-zonuitroep-','rd-kopuitroep-'].forEach(p=>{ const el = document.getElementById(p+id); if(el) el.style.display = aan ? 'inline-block' : 'none'; });
+}
 function rdTypeNaam(r){
-  return r.soort==='raam' ? `ramen ${r.glastype ? rdGlasLabel(r.glastype).toLowerCase() : 'zonder glastype'}${r.zonwering ? ', met zonwering' : ''}`
+  return r.soort==='raam' ? `ramen ${r.glastype ? rdGlasLabel(r.glastype).toLowerCase() : 'zonder glastype'}${r.zonwering ? ', ' + rdZonTekst(true, r.zonweringType) : ''}`
        : r.soort==='paneel' ? 'panelen'
        : `deuren ${(RD_ISOLATIE_LABELS[r.isolatie]||r.isolatie).toLowerCase()}`;
 }
@@ -4745,7 +4812,7 @@ function rdLosRegels(regels, filter, naam){
     data.filter(d=>d.verdieping===v).forEach(d=> rdItemRegels(d).forEach(r=>{
       regels.push({soort:'item', los:true, label:`↳ ${ramenDeurenVerdiepingLabel(v)}: ${r.label}`, opp:r.opp, detail:r.detail, formule:r.formule,
                    kleur: r.soort==='deur' ? 'deur' : r.soort==='paneel' ? 'paneel' : 'gevel'});
-      const sleutel = r.soort==='raam' ? 'raam|'+(r.glastype||'')+'|'+(r.zonwering?'zon':'') : r.soort==='paneel' ? 'paneel' : 'deur|'+(r.isolatie||'on');
+      const sleutel = r.soort==='raam' ? 'raam|'+(r.glastype||'')+'|'+(r.zonwering?'zon:'+(r.zonweringType||''):'') : r.soort==='paneel' ? 'paneel' : 'deur|'+(r.isolatie||'on');
       if(!groepen[sleutel]) groepen[sleutel] = Object.assign({}, r, {opp:0});
       groepen[sleutel].opp += r.opp;
     }));
@@ -5624,7 +5691,9 @@ function rdCode(d, zonderGlas){
   const m = /(\d+)\s*$/.exec(d.naam||'');
   const pre = ({deur:'D', deurmetraam:'DR', paneel:'P', dakraam:'DK', dakkoepel:'KP'})[d.type] || 'R';
   const glas = (!zonderGlas && d.raamOppStuk > 0 && typeof rdGlasKort === 'function') ? rdGlasKort(d.glastype) : '';
-  return pre + (m ? m[1] : '') + (glas ? ' '+glas : '');   // bv. "R1 ++"
+  const zonKort = {uitvalscherm:'uitval', knikarm:'knikarm', screen:'screen', rolluik:'rolluik'};
+  const zon = (!zonderGlas && d.zonwering) ? (zonKort[d.zonweringType] || 'zonw.') : '';
+  return pre + (m ? m[1] : '') + (glas ? ' '+glas : '') + (zon ? ' '+zon : '');   // bv. "R1 ++ screen"
 }
 // Oppervlaktetekst: bij een deur met raam deur en glas apart (zoals in de tabel)
 function rdOppTekst(d){
@@ -5925,7 +5994,7 @@ function rdLabelKeuze(st){
   const pw = st.b*SCALE, ph = st.h*SCALE;
   const code = rdCode(st.d), opp = rdOppTekst(st.d);
   if(pw >= tw(code+' '+opp) && ph >= fs*1.3) return 'een';
-  if(pw >= tw(opp) && ph >= fs*2.6) return 'twee';
+  if(pw >= tw(opp) && pw >= tw(code) && ph >= fs*2.6) return 'twee';
   return 'zij';
 }
 function rdZijLabels(plan){
@@ -5964,6 +6033,8 @@ function rdTekenElementen(svg, plan, x0, yBase, alleenHoofd){
     st.px = px; st.py = py; st.pw = pw; st.ph = ph;
     const lw = PRINT_MODE ? 0.25 : 1;
     svg.appendChild(svgEl('rect', {x:px, y:py, width:pw, height:ph, fill:k.vul, stroke:k.lijn, 'stroke-width':lw}));
+    // zonwering: donkere balk (kast) bovenop het raam
+    if(d.zonwering){ const kh = Math.max(0.12*S, 1.5); svg.appendChild(svgEl('rect', {x:px, y:py-kh, width:pw, height:kh, fill:'#5a5a5a', stroke:'#5a5a5a', 'stroke-width':lw})); }
     let codeY = py+ph/2+fs*0.35;
     if(d.type==='deurmetraam' && d.raamBreedte>0 && d.raamHoogte>0){
       const rb = Math.min(d.raamBreedte, d.breedte*0.9)*S, rh = Math.min(d.raamHoogte, st.h*0.85)*S;
@@ -6824,7 +6895,8 @@ function samenvattingRegelsVerzamelen(){
     rdLosRegels(regels, d=>d.gevelKey===code && d.type!=='dakraam', GEVEL_NAAM[code].toLowerCase());
   });
   eind('Totaal gevels', S.totalen.gevel, 'gevel');
-  [['vloer','Schil — vloeren (grond / kruipruimte)','Totaal vloeren'],
+  [['aor','Schil — gevel grenzend aan AOR / SGvR (geen buitenlucht)','Totaal grenzend aan AOR / SGvR'],
+   ['vloer','Schil — vloeren (grond / kruipruimte)','Totaal vloeren'],
    ['schuin','Schil — schuine daken','Totaal schuine daken'],
    ['plat','Schil — platte daken','Totaal platte daken']].forEach(([g, k, t])=>{
     const rij = S.regels.filter(r=>r.groep===g);
@@ -7642,6 +7714,7 @@ function verzamelInvoerData(){
   uitbouwen.forEach((u,i)=>{
     push('Uitbouw', i+1, 'gevel', veldWaarde('ub-gevel-'+u.id));
     push('Uitbouw', i+1, 'plaatsing', veldWaarde('ub-plaats-'+u.id));
+    push('Uitbouw', i+1, 'zone', veldWaarde('ub-zone-'+u.id) || 'binnen');
     push('Uitbouw', i+1, 'breedte', veldWaarde('ub-breedte-'+u.id));
     push('Uitbouw', i+1, 'diepte', veldWaarde('ub-diepte-'+u.id));
     push('Uitbouw', i+1, 'lagen', veldWaarde('ub-lagen-'+u.id));
@@ -7673,6 +7746,7 @@ function verzamelInvoerData(){
     push('RaamDeur', i+1, 'raambreedte', veldWaarde('rd-raambreedte-'+rd.id));
     push('RaamDeur', i+1, 'raamhoogte', veldWaarde('rd-raamhoogte-'+rd.id));
     push('RaamDeur', i+1, 'zonwering', document.getElementById('rd-zonwering-'+rd.id)?.checked ? '1' : '0');
+    push('RaamDeur', i+1, 'zonwering-type', veldWaarde('rd-zonweringtype-'+rd.id));
     if(veldWaarde('rd-type-'+rd.id)==='dakkoepel') push('RaamDeur', i+1, 'koepelop', rdKoepelOpNaarExcel(veldWaarde('rd-koepelop-'+rd.id)));
   });
 
@@ -7784,6 +7858,8 @@ function vulInvoerDataIn(rows){
       veldZetten('ub-gevel-'+u.id, g.velden.gevel);
       updatePlaatsOpties(u.id);
       { const pl = document.getElementById('ub-plaats-'+u.id); if(pl && g.velden.plaatsing !== undefined) pl.value = g.velden.plaatsing || ''; }
+      { const zs = document.getElementById('ub-zone-'+u.id);
+        if(zs){ zs.value = ['binnen','aor','sgvr'].includes(g.velden.zone) ? g.velden.zone : 'binnen'; zs.dispatchEvent(new Event('change', {bubbles:true})); } }
       veldZetten('ub-breedte-'+u.id, g.velden.breedte);
       veldZetten('ub-diepte-'+u.id, g.velden.diepte);
       veldZetten('ub-lagen-'+u.id, g.velden.lagen);
@@ -7830,6 +7906,7 @@ function vulInvoerDataIn(rows){
       veldZetten('rd-raamhoogte-'+rd.id, g.velden.raamhoogte);
       const zwCb = document.getElementById('rd-zonwering-'+rd.id);
       if(zwCb) zwCb.checked = isEen(g.velden.zonwering);
+      { const zt = document.getElementById('rd-zonweringtype-'+rd.id); if(zt) zt.value = RD_ZONWERING_TYPES[g.velden['zonwering-type']] ? g.velden['zonwering-type'] : ''; }
       { const ko = document.getElementById('rd-koepelop-'+rd.id); if(ko){ rdKoepelOpVerversen(ko); ko.value = rdKoepelOpVanExcel(g.velden.koepelop); } }
       toggleRaamDeurVelden(rd.id);
     });
