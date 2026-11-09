@@ -2398,10 +2398,30 @@ function berekenWoon(dak, schild, mans){
     const vloer = {id, naam, breedte:b, diepte:d, niveau:F, verdiepingshoogte:hv, basis:null, items:[], dakInfo:null, detail:'', formule:''};
     if(!isNaN(b) && !isNaN(d) && b > 0 && d > 0){
       vloer.formule = `${n2(b)} × ${n2(d)}`;
-      if(isNaN(hv) || hv <= 0){
+      const ids = bouwlaagIds();
+      const isBovenste = ids[ids.length-1] === id;
+      const openKapHier = document.getElementById('gs-geen-zoldervloer')?.checked || false;
+      if((isNaN(hv) || hv <= 0) && isBovenste && dakGeom && openKapHier){
+        // Bovenste laag onder een open kap: geen plafond, de hoogte volgt uit het dak.
+        // 1,50m-regel dus rekenen vanaf deze vloer met de dakhelling.
+        const info = dakInfo(F, b, d);
+        if(info && info.opp < b*d - 1e-9){
+          vloer.basis = info.opp;
+          vloer.dakInfo = info;
+          vloer.detail = 'open kap, geen plafond — 1,50m-regel toegepast vanaf de dakhelling';
+          vloer.formule = vloerFormule(b, d, info);
+        } else {
+          vloer.basis = b*d;
+          vloer.detail = 'open kap, geen plafond — dak overal hoger dan 1,50 m';
+        }
+      } else if(isNaN(hv) || hv <= 0){
         vloer.basis = b*d;
         vloer.detail = 'vrije hoogte ontbreekt';
-        melding(`Vrije hoogte ${naam.toLowerCase()} is leeg — vloer volledig meegeteld, 1,50m-regel niet gecontroleerd.`);
+        if(isBovenste && dakGeom && !openKapHier){
+          melding(`Vrije hoogte ${naam.toLowerCase()} is leeg — vloer volledig meegeteld. Loopt deze laag door tot in de kap? Vink dan "Geen zoldervloer aanwezig" aan, dan rekent de tool de 1,50m-lijn vanaf het dak.`);
+        } else {
+          melding(`Vrije hoogte ${naam.toLowerCase()} is leeg — vloer volledig meegeteld, 1,50m-regel niet gecontroleerd.`);
+        }
       } else if(hv < MIN_HOOGTE_WOON){
         vloer.basis = 0;
         vloer.detail = 'vrije hoogte < 1,50 m — telt niet mee';
