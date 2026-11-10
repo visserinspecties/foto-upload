@@ -468,7 +468,11 @@ function vulGegevens(){
   const a=F.aanhef||'';
   // titel: EP-Sys zet er vaak standaard 'mevrouw' in; daarom niet overnemen. Neutraal 'heer/mevrouw',
   // tenzij voor deze achternaam eerder een titel is gekozen (onthouden bij het maken van de concepten)
-  const achter=(a.match(/\b(?:heer|mevrouw|familie)\s+([^,]+)/i)||[])[1]||(F.klant.find(k=>/^T\.?a\.?v\.?/i.test(k))||'').replace(/^T\.?a\.?v\.?\s*/i,'').replace(/^([A-Z]\.\s*)+/,'').trim();
+  // Achternaam uit de EP-Sys-aanhef, anders uit "T.a.v." of een adresregel die met een titel begint.
+  // EP-Sys zet de titel soms dubbel ("Geachte heer/mevrouw mevrouw de Looze"): alle titels en voorletters eraf.
+  const tavRegel=(F.klant.find(k=>/^T\.?a\.?v\.?/i.test(k))||'').replace(/^T\.?a\.?v\.?\s*/i,'');
+  const titelRegel=F.klant.find(k=>/^(?:de\s+heer|heer|mevrouw|mevr\.?|mw\.?|dhr\.?|fam\.?|familie)(?=\s)/i.test(k))||'';
+  const achter=naamZonderTitel((a.match(/\b(?:heer|mevrouw|familie)\s+([^,]+)/i)||[])[1]||tavRegel||titelRegel);
   const voor=(a.match(/\bBeste\s+([^,\s]+)\s*,?/i)||[])[1]||'';
   $('a-voor').value=voor&&!/^(heer|mevrouw|familie)$/i.test(voor)?voor:'';
   $('a-achter').value=achter.trim();
@@ -495,6 +499,18 @@ function renderRegels(){
 const bestandsnaam=()=>`Factuur ${F?F.nr:''}.pdf`;
 
 /* ══════════ Stap 3: aanhef ══════════ */
+// "mevrouw de Looze", "heer/mevrouw A. de Looze", "Dhr. J. Jansen", "fam. Bakker" → "de Looze", "Jansen", "Bakker"
+function naamZonderTitel(s){
+  const titel=/^(?:heer\s*\/\s*mevrouw|mevrouw\s*\/\s*heer|de\s+heer|heer|mevrouw|mevr\.?|mw\.?|mej\.?|dhr\.?|hr\.?|familie|fam\.?)(?=\s|$)\s*/i;
+  let t=String(s||'').trim(), vorige;
+  do{
+    vorige=t;
+    const nieuw=t.replace(titel,'').replace(/^(?:[A-Z]\.\s*)+/,'').trim();
+    if(!nieuw) break;          // nooit de hele naam wegpoetsen (bv. iemand die "de Heer" heet)
+    t=nieuw;
+  }while(t!==vorige);
+  return t;
+}
 const A={groet:'Geachte',titel:'heer/mevrouw',naam:'achter'};
 function hoofdletter(achter){
   // "van der Berg" zonder voornaam/voorletters → "Van der Berg"
