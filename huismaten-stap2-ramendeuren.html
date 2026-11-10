@@ -6723,9 +6723,24 @@ function rdExtraBreedte(plan){
   const fs = tekstGrootte();
   return Math.max(...zij.map(z=> rdZijTekst(z).length*fs*0.55)) + fs*2.5;
 }
+// Glastype (2e woord van de code, bv. "R1 ++ screen" of "R1 ++: 1,68 m²") rood en vet, voor de leesbaarheid.
+const RD_GLAS_KORT_SET = new Set(['e','D','Hr','+','++','Vz','+++']);
+const RD_GLAS_KLEUR = '#d0021b';
 function rdTekst(svg, x, y, t, kleur, anchor){
-  svg.appendChild(svgEl('text', {x, y, 'text-anchor':anchor||'middle', 'font-size':tekstGrootte(), fill:kleur}));
-  svg.lastChild.textContent = t;
+  const el = svgEl('text', {x, y, 'text-anchor':anchor||'middle', 'font-size':tekstGrootte(), fill:kleur});
+  const m = /^((?:R|D|DR|P|DK|KP)\d*) (\S+)(.*)$/.exec(String(t));
+  const glas = m ? m[2].replace(/:$/, '') : '';
+  if(m && RD_GLAS_KORT_SET.has(glas)){
+    const NS = 'http://www.w3.org/2000/svg';
+    const deel = (tekst, rood) => { const ts = document.createElementNS(NS, 'tspan'); ts.textContent = tekst;
+      if(rood){ ts.setAttribute('fill', RD_GLAS_KLEUR); ts.setAttribute('font-weight', '700'); } el.appendChild(ts); };
+    deel(m[1] + ' ', false);
+    deel(glas, true);
+    deel((m[2].endsWith(':') ? ':' : '') + m[3], false);
+  } else {
+    el.textContent = t;
+  }
+  svg.appendChild(el);
 }
 // Rechthoeken + codes. alleenHoofd: true = alleen hoofdgebouw (vóór de uitbouwen getekend),
 // false = alleen uitbouw/dakkapel (ná de silhouetten, anders vallen ze erachter).
@@ -7648,7 +7663,24 @@ function tekenSvgElementOpCanvas(ctx, el){
       ctx.rotate(deg*Math.PI/180);
       ctx.fillText(el.textContent, x-cx, y-cy);
     } else {
-      ctx.fillText(el.textContent, x, y);
+      const delen = Array.from(el.children || []).filter(c=>c.tagName && c.tagName.toLowerCase()==='tspan');
+      if(delen.length){
+        // tekst in stukken (bv. rood glastype): breedtes meten, dan na elkaar tekenen
+        const fontVan = c => `${c.getAttribute('font-weight')==='700' ? 'bold ' : ''}${fontSize}px Arial, sans-serif`;
+        const breedtes = delen.map(c=>{ ctx.font = fontVan(c); return ctx.measureText(c.textContent).width; });
+        const totaal = breedtes.reduce((a,b)=>a+b, 0);
+        let cx = anchor==='middle' ? x - totaal/2 : anchor==='end' ? x - totaal : x;
+        ctx.textAlign = 'left';
+        delen.forEach((c,i)=>{
+          ctx.font = fontVan(c);
+          const f = c.getAttribute('fill');
+          ctx.fillStyle = (f && f!=='none') ? f : ((fill && fill!=='none') ? fill : 'black');
+          ctx.fillText(c.textContent, cx, y);
+          cx += breedtes[i];
+        });
+      } else {
+        ctx.fillText(el.textContent, x, y);
+      }
     }
   }
   ctx.restore();
@@ -7808,7 +7840,7 @@ function samenvattingRegelsVerzamelen(){
     sub(`Σ ${GEVEL_NAAM[code]} (${gevelCodeMetOrient(code)})`, S.perOrient[code], 'gevel');
     rdLosRegels(regels, d=>d.gevelKey===code && d.type!=='dakraam', GEVEL_NAAM[code].toLowerCase());
   });
-  eind('Totaal gevels', S.totalen.gevel, 'gevel');
+  const totaalBlok = [['Totaal gevels', S.totalen.gevel, 'gevel']];
   [['aor','Schil — gevel grenzend aan AOR / SGvR (geen buitenlucht)','Totaal grenzend aan AOR / SGvR'],
    ['vloer','Schil — vloeren (grond / kruipruimte)','Totaal vloeren'],
    ['vloerbuiten','Schil — vloeren boven buitenlucht','Totaal vloeren boven buitenlucht'],
@@ -7819,7 +7851,7 @@ function samenvattingRegelsVerzamelen(){
     const kl = kleurGroep(g);
     kop(k, kl);
     rij.forEach(r=> schilItem(r, kl));
-    sub(t, S.totalen[g], kl);
+    totaalBlok.push([t, S.totalen[g], kl]);
     if(g === 'schuin') ['VG','AG','LG','RG'].forEach(code=>
       rdLosRegels(regels, d=>d.gevelKey===code && d.type==='dakraam', `dakramen dakvlak ${GEVEL_NAAM[code].toLowerCase()}`));
     if(g === 'plat'){
@@ -7834,6 +7866,10 @@ function samenvattingRegelsVerzamelen(){
 
   // ---------- Ramen & deuren (informatief) ----------
   if(typeof ramenDeurenSamenvattingRegels === 'function') ramenDeurenSamenvattingRegels(regels);
+
+  // ---------- Totalen schil (één blok aan het eind, niet meer tussen de lijsten) ----------
+  kop('Schil — totalen');
+  totaalBlok.forEach(([t, v, kl])=> sub(t, v, kl));
   return regels;
 }
 
