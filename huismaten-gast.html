@@ -429,6 +429,13 @@
     <button class="btn-secondary" id="btn-toevoegen-uitbouw">+ Uitbouw toevoegen</button>
   </div>
 
+  <div style="font-weight:600;margin:18px 0 4px;">Inhammen (loggia)</div>
+  <p class="hint" style="margin-top:-2px;">Een inham is een stuk gevel dat naar binnen springt (loggia, inpandig balkon of portiek). Breedte = langs de gevel, diepte = hoe ver hij naar binnen gaat. Woonoppervlak gaat eraf; de wangen, de vloer (plat dak boven de laag eronder) en het plafond (vloer boven buitenlucht) worden schil. In een hoek is er maar één wang.</p>
+  <div id="inhammen-container"></div>
+  <div class="btn-row" style="margin:8px 0 14px;">
+    <button class="btn-secondary" id="btn-toevoegen-inham">+ Inham toevoegen</button>
+  </div>
+
   <div id="gs-resultaten"></div>
 </div>
 
@@ -1480,6 +1487,67 @@ function huidigeBasisbestandsnaam() {
   return huismatenVersie > 1 ? `${basis}_v${huismatenVersie}` : basis;
 }
 
+// ── Doorlopende versienummers bij export ─────────────────────
+// Bestaat "Huismaten <project>.pdf" / "_v2.pdf" al in de projectmap, dan wordt de volgende
+// export _v3 (nooit overschrijven, geen "(1)"-kopieën). PDF en Excel van dezelfde export
+// krijgen hetzelfde nummer.
+let exportVersieSessie = null;
+function hmBasisZonderVersie(){
+  const naam = actiefProjectNaam();
+  return naam ? `Huismaten ${naam}` : 'huismaten-tekening';
+}
+async function bestaandeNamenInProjectmap(){
+  const pad = actiefProjectPad();
+  if (!pad) return null;
+  try {
+    const token = await graphRefreshToken();
+    let url = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(pad)}:/children?$select=name&$top=999`;
+    const namen = [];
+    while (url) {
+      const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+      if (!r.ok) return null;
+      const j = await r.json();
+      (j.value || []).forEach(x => namen.push(x.name));
+      url = j['@odata.nextLink'] || null;
+    }
+    return namen;
+  } catch (_) { return null; }
+}
+async function bestaandeNamenInMap(mapHandle){
+  try { const namen = []; for await (const [naam] of mapHandle.entries()) namen.push(naam); return namen; }
+  catch (_) { return null; }
+}
+// ext = '.pdf' of '.xlsx'; namen = bestandsnamen in de doelmap (null = onbekend → oude naamgeving)
+function volgendeExportNaam(ext, namen){
+  if (!namen) return huidigeBasisbestandsnaam() + ext;
+  const basis = hmBasisZonderVersie();
+  const esc = basis.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp('^' + esc + '(?:_v(\\d+))?(?: \\(\\d+\\))?(\\.pdf|\\.xlsx)$', 'i');
+  const per = {};
+  let max = 0;
+  namen.forEach(n => {
+    const m = String(n).match(re);
+    if (!m) return;
+    const v = m[1] ? parseInt(m[1], 10) : 1;
+    max = Math.max(max, v);
+    (per[v] = per[v] || new Set()).add(m[2].toLowerCase());
+  });
+  let v;
+  if (exportVersieSessie && exportVersieSessie >= max && !(per[exportVersieSessie] && per[exportVersieSessie].has(ext))) {
+    v = exportVersieSessie;                       // andere helft (PDF/Excel) van dezelfde export
+  } else {
+    v = Math.max(huismatenVersie, max + 1);
+    exportVersieSessie = v;
+  }
+  return (v > 1 ? `${basis}_v${v}` : basis) + ext;
+}
+async function exportNaam(ext, opties = {}){
+  let namen = null;
+  if (opties.doelMap) namen = await bestaandeNamenInMap(opties.doelMap);
+  else if (projectGekoppeld() && navigator.onLine) namen = await bestaandeNamenInProjectmap();
+  return volgendeExportNaam(ext, namen);
+}
+
 async function uploadBestandNaarProjectmap(blob, bestandsnaam, padOverride) {
   const pad = padOverride || actiefProjectPad();
   if (!pad) throw new Error('Er is nog geen project gekozen.');
@@ -2493,6 +2561,16 @@ function berekenWoon(dak, schild, mans){
     }
   });
 
+  // Inhammen (loggia): breedte × diepte gaat af op elke bouwlaag die de inham beslaat.
+  alleInhamData().filter(d=>d.geldig).forEach(d=>{
+    for(let i=d.van; i<=d.tot; i++){
+      const doel = nietZolder[i];
+      if(!doel) continue;
+      if(doel.dakInfo) melding(`${d.naam}: ${doel.naam.toLowerCase()} valt deels onder het dak (1,50m-regel) — de inham is volledig als breedte × diepte afgetrokken, controleer dit.`);
+      doel.items.push({label:`${d.naam} (buitenruimte)`, opp:-d.opp, detail:'inham/loggia — geen woonoppervlak', formule:`− ${n2(d.breedte)} × ${n2(d.diepte)}`});
+    }
+  });
+
   // Uitbouwdak dat doorloopt in het hoofddak: onder de kilgoten wordt het hoofdhuis hoger,
   // net als bij een dakkapel. Extra = deel dat nu ≥ 1,50 m is, maar onder het hoofddak < 1,50 m was.
   vloeren.filter(v=>v.dakInfo && v.dakInfo.type === 'strook').forEach(v=>{
@@ -2638,6 +2716,9 @@ function berekenSchil(dak, schild, mans){
 
   const buurKanten = type === 'halfvrijstaand' ? [document.getElementById('gs-buurzijde')?.value || 'links']
                    : type === 'tussenwoning' ? ['links','rechts'] : [];
+  const ihData = alleInhamData().filter(d=>d.geldig);
+  alleInhamData().filter(d=>!d.geldig && d.fout).forEach(d=> melding(`${d.naam}: ${d.fout}.`));
+  const isBuurmuur = code => { const k = code==='LG' ? 'links' : code==='RG' ? 'rechts' : null; return !!(k && buurKanten.includes(k)); };
   ['VG','AG','LG','RG'].forEach(code=>{
     const spec = gevelSpec(code);
     const kant = code==='LG' ? 'links' : code==='RG' ? 'rechts' : null;
@@ -2664,6 +2745,19 @@ function berekenSchil(dak, schild, mans){
         formule = `(${formule}) − ` + ub.map(d=>uitbouwAchterGevelFormule(d, spec.cap)).join(' − ');
       }
     }
+    // inham in de hoek tegen deze gevel: dit stuk gevel valt weg (de wang van de inham neemt het over)
+    ihData.filter(d=>d.hoek===code).forEach(d=>{
+      if(!(opp > 0)) return;
+      if(isBuurmuur(code)){
+        if(!(kant && zijState[kant].volledig)) melding(`${d.naam} staat in de hoek tegen de ${GEVEL_LABELS[code]}, die deels aan de buren grenst — controleer het stuk ${GEVEL_LABELS[code]} zelf.`);
+        return;
+      }
+      const af = Math.min(d.diepte*d.hoogte, opp);
+      opp -= af;
+      detail += ` − hoek ${d.naam}`;
+      formule = `(${formule}) − ${n2(d.diepte)} × ${n2(d.hoogte)} (${d.naam})`;
+    });
+    if(ihData.some(d=>d.gevel===code) && opp > 0) detail += ' (achterwand inham vervangt het weggevallen stuk — gelijk)';
     add('gevel', code, GEVEL_NAAM[code] + ' hoofdgebouw', opp, detail, formule);
     if(spec.opp > 0 && opp !== null && !(kant && buurKanten.includes(kant) && zijState[kant].volledig)){
       uitbouwenOpGevel(code).filter(d=>d.buiten).forEach(d=>{
@@ -2694,6 +2788,13 @@ function berekenSchil(dak, schild, mans){
     }
   });
 
+  // --- Inhammen: wangen ---
+  ihData.forEach(d=>{
+    if(isBuurmuur(d.gevel)){ melding(`${d.naam} zit in de ${GEVEL_LABELS[d.gevel]}, maar die grenst aan de buren — kies een andere gevel.`); return; }
+    d.wangen.forEach(w=> add('gevel', w.orient, `${d.naam} — wang (${w.orient})`, d.diepte*d.hoogte,
+      `zijwand inham aan de ${GEVEL_LABELS[w.naast]}kant, kijkt naar ${w.orient}`, `${n2(d.diepte)} × ${n2(d.hoogte)}`));
+  });
+
   // --- Dakkapellen ---
   const dkData = alleDakkapelData().filter(d=>d.geldig);
   dkData.forEach(d=>{
@@ -2705,7 +2806,13 @@ function berekenSchil(dak, schild, mans){
   });
 
   // --- Vloeren (grond / kruipruimte) ---
-  add('vloer', null, 'Vloer begane grond hoofdgebouw', bS*diepte, cm.trim(), `${n2(bS)} × ${n2(diepte)}`);
+  {
+    const ihBG = ihData.filter(d=>d.eronder==='grond' && !isBuurmuur(d.gevel));
+    let o = bS*diepte, f = `${n2(bS)} × ${n2(diepte)}`, dt = cm.trim();
+    ihBG.forEach(d=>{ o -= d.opp; f += ` − ${n2(d.breedte)} × ${n2(d.diepte)} (${d.naam})`; });
+    if(ihBG.length) dt = (dt ? dt + ', ' : '') + 'minus inham(men)';
+    add('vloer', null, 'Vloer begane grond hoofdgebouw', Math.max(o, 0), dt, f);
+  }
   ubData.forEach(d=> add('vloer', null, `${d.naam} — vloer`, d.breedte*d.diepte, '', `${n2(d.breedte)} × ${n2(d.diepte)}`));
 
   // --- Perimeter P van de begane grondvloer ---
@@ -2736,6 +2843,16 @@ function berekenSchil(dak, schild, mans){
       if(d.breedte > randen[d.gevel] + 0.001) melding(`${d.naam} (${n2(d.breedte)} m) is breder dan de ${GEVEL_LABELS[d.gevel]} (${n2(randen[d.gevel])} m).`);
       P += 2*d.diepte;
       delen.push(`2 × ${n2(d.diepte)} (zijkanten ${d.naam})`);
+    });
+    // Inham op de BG: midden → de inham komt erbij met 2 × diepte (zijkanten), de achterwand vervangt
+    // het stuk gevel. In de hoek tegen een gevel: geen verschil. Tegen een scheidingsmuur: + 1 × diepte.
+    ihData.filter(d=>d.eronder==='grond').forEach(d=>{
+      if(!(randen[d.gevel] > 0)) return;
+      if(!d.hoek){ P += 2*d.diepte; delen.push(`2 × ${n2(d.diepte)} (zijkanten ${d.naam})`); return; }
+      const vol = (d.hoek==='VG' || d.hoek==='AG') ? bS : diepte;
+      if(randen[d.hoek] >= vol - 1e-6) return;
+      if(!(randen[d.hoek] > 0)){ P += d.diepte; delen.push(`${n2(d.diepte)} (zijkant ${d.naam})`); return; }
+      melding(`${d.naam}: in de hoek tegen een gedeeltelijk blootgestelde ${GEVEL_LABELS[d.hoek]} — perimeter niet aangepast, controleer.`);
     });
     res.perimeter = {waarde: P, formule: delen.join(' + ') || '0'};
   }
@@ -2841,6 +2958,19 @@ function berekenSchil(dak, schild, mans){
     }
   }
 
+  // --- Inhammen: vloer (plat dak boven de laag eronder), plafond (vloer boven buitenlucht), dak ---
+  ihData.filter(d=>!isBuurmuur(d.gevel)).forEach(d=>{
+    const f = `${n2(d.breedte)} × ${n2(d.diepte)}`;
+    if(d.eronder === 'verdieping') add('plat', null, `${d.naam} — vloer (plat dak boven ${ihLaagNaam(d.van-1)})`, d.opp, 'buitenruimte boven een warme laag', f);
+    if(d.erboven === 'verdieping' || d.erboven === 'zoldervloer')
+      add('vloerbuiten', null, `${d.naam} — plafond (vloer boven buitenlucht)`, d.opp, d.erboven === 'zoldervloer' ? 'onder de zoldervloer' : `onder ${ihLaagNaam(d.tot+1)}`, f);
+    if(d.erboven === 'platdak'){
+      const r = R.find(x=>x.groep==='plat' && x.label==='Plat dak hoofdgebouw');
+      if(r){ r.opp = Math.max((r.opp||0) - d.opp, 0); r.formule = `(${r.formule}) − ${f} (${d.naam})`; r.detail = (r.detail ? r.detail + ', ' : '') + `minus ${d.naam} (dak boven de inham is buiten)`; }
+    }
+    if(d.erboven === 'kap') melding(`${d.naam} ligt in de bovenste laag direct onder het schuine dak (open kap) — het plafond/dakvlak boven de inham zelf invullen.`);
+  });
+
   // --- Daken uitbouwen en dakkapellen ---
   ubData.forEach(d=>{
     if(d.daktype === 'zadel'){
@@ -2864,7 +2994,7 @@ function berekenSchil(dak, schild, mans){
   R.filter(r=>r.groep==='gevel' && !r.uit).forEach(r=>{ perOrient[r.orient] += (r.opp || 0); });
   const som = g => R.filter(r=>r.groep===g && !r.uit).reduce((s,r)=>s+(r.opp||0), 0);
   res.perOrient = perOrient;
-  res.totalen = {gevel: som('gevel'), vloer: som('vloer'), schuin: som('schuin'), plat: som('plat'), aor: som('aor')};
+  res.totalen = {gevel: som('gevel'), vloer: som('vloer'), schuin: som('schuin'), plat: som('plat'), aor: som('aor'), vloerbuiten: som('vloerbuiten')};
   return res;
 }
 
@@ -2872,12 +3002,14 @@ function berekenSchil(dak, schild, mans){
 function berekenAlles(){
   rekenMeldingen = [];
   zetAutoWaarden();
+  ihSyncLaagOpties();
   const dak = berekenDakprofiel();
   const schild = berekenSchilddakData();
   const mans = berekenMansardeData();
   if(dak && !dak.geldig && dak.fout && /nok valt buiten/i.test(dak.fout)) melding(dak.fout);
   const woon = berekenWoon(dak, schild, mans);
   const schil = berekenSchil(dak, schild, mans);
+  alleInhamData().forEach(ihToonUitkomst);
   let rdLijst = [];
   try { rdLijst = alleRamenDeurenData(); } catch(_) { /* tijdens het opstarten bestaat de lijst nog niet */ }
   rdLijst.filter(d=>d.geldig).forEach(d=>{
@@ -3073,7 +3205,7 @@ function renderAlles(R){
       rij.forEach(r=> h += regelHtml(schilLabelHtml(r), r.opp==null ? '—' : fm(r.opp)+' m²', {detail:r.detail, formule:r.formule, kleur:r.uit?'uit':'gevel'}));
       h += regelHtml(`Σ ${GEVEL_NAAM[code]} (${gevelCodeMetOrient(code)})`, fm(S.perOrient[code])+' m²', {sub:true, kleur:'gevel'});
     });
-    [['aor','Gevel grenzend aan AOR / SGvR (geen buitenlucht)','Totaal grenzend aan AOR / SGvR'],['vloer','Vloeren (grond / kruipruimte)','Totaal vloeren'],['schuin','Schuine daken','Totaal schuine daken'],['plat','Platte daken','Totaal platte daken']].forEach(([g, kop, tot])=>{
+    [['aor','Gevel grenzend aan AOR / SGvR (geen buitenlucht)','Totaal grenzend aan AOR / SGvR'],['vloer','Vloeren (grond / kruipruimte)','Totaal vloeren'],['vloerbuiten','Vloeren boven buitenlucht','Totaal vloeren boven buitenlucht'],['schuin','Schuine daken','Totaal schuine daken'],['plat','Platte daken','Totaal platte daken']].forEach(([g, kop, tot])=>{
       const rij = S.regels.filter(r=>r.groep===g);
       if(!rij.length) return;
       h += `<div style="font-weight:600;margin:14px 0 4px;">${kop}</div>`;
@@ -3810,6 +3942,250 @@ function verwijderUitbouw(id){
 }
 
 btnToevoegenUitbouw.addEventListener('click', voegUitbouwToe);
+
+// ---------- INHAMMEN (loggia) ----------
+// Een inham springt naar binnen in een gevel, over één of meer bouwlagen (van … t/m …).
+//  - achterwand vervangt het weggevallen stuk gevel (Σ van die gevel blijft gelijk)
+//  - twee wangen (diepte × hoogte) met omgekeerde oriëntatie: de wang aan de LG-kant kijkt naar RG
+//    en andersom. In een hoek is die kant open: daar geen wang, en de aangrenzende gevel wordt
+//    diepte × hoogte korter (tenzij dat een scheidingsmuur is).
+//  - woonoppervlak −breedte × diepte op elke bouwlaag van de inham
+//  - onderzijde: BG → BG-vloer kleiner (perimeter volgt de inham); hoger → plat dak boven de laag eronder
+//  - bovenzijde: verdieping/zoldervloer erboven → vloer boven buitenlucht; plat dak → dak hoofdhuis kleiner
+const inhammenContainer = document.getElementById('inhammen-container');
+var inhammen = [];   // var: bestaat al (leeg) als er tijdens het opstarten gerekend wordt
+var volgendInhamId = 1;
+const IH_AANZICHT_LINKS  = { VG:'LG', AG:'RG', LG:'AG', RG:'VG' };
+const IH_AANZICHT_RECHTS = { VG:'RG', AG:'LG', LG:'VG', RG:'AG' };
+
+function ihLaagNaam(i){ return i === 0 ? 'begane grond' : 'verdieping ' + i; }
+function ihLaagOptiesHtml(){ return bouwlaagIds().map((id,i)=>`<option value="${i}">${i===0 ? 'Begane grond' : 'Verdieping ' + i}</option>`).join(''); }
+// Houdt de bouwlaag-keuzes gelijk met het aantal verdiepingen (zonder de keuze te verliezen)
+function ihSyncLaagOpties(){
+  const n = bouwlaagIds().length;
+  (inhammen || []).forEach(ih=>{
+    ['van','tot'].forEach(k=>{
+      const sel = document.getElementById(`ih-${k}-${ih.id}`);
+      if(!sel || sel.options.length === n) return;
+      const v = Math.min(Math.max(parseInt(sel.value,10) || 0, 0), n-1);
+      sel.innerHTML = ihLaagOptiesHtml();
+      sel.value = String(v);
+    });
+  });
+}
+function ihUpdatePlaatsOpties(id){
+  const sel = document.getElementById('ih-plaats-'+id);
+  if(!sel) return;
+  const gevel = document.getElementById('ih-gevel-'+id)?.value || 'VG';
+  const huidig = sel.value;
+  const hoeken = (gevel==='VG'||gevel==='AG') ? [['LG','Hoek LG (HL)'],['RG','Hoek RG (HR)']] : [['VG','Hoek VG'],['AG','Hoek AG']];
+  sel.innerHTML = `<option value="${hoeken[0][0]}">${hoeken[0][1]}</option><option value="">Midden</option><option value="${hoeken[1][0]}">${hoeken[1][1]}</option>`;
+  sel.value = [hoeken[0][0], '', hoeken[1][0]].includes(huidig) ? huidig : '';
+}
+function renumberInhammen(){
+  const tellers = {VG:0, AG:0, LG:0, RG:0};
+  inhammen.forEach(ih=>{
+    const gevel = document.getElementById('ih-gevel-'+ih.id)?.value || 'VG';
+    tellers[gevel] = (tellers[gevel]||0) + 1;
+    ih.naam = `Inham ${gevel}-${tellers[gevel]}`;
+    const t = document.getElementById('ih-titel-'+ih.id);
+    if(t) t.textContent = ih.naam;
+  });
+}
+function berekenInhamData(ih){
+  const el = id => document.getElementById(id);
+  const gevel = el('ih-gevel-'+ih.id)?.value || 'VG';
+  const breedte = parseFloat(el('ih-breedte-'+ih.id)?.value);
+  const diepte = parseFloat(el('ih-diepte-'+ih.id)?.value);
+  const hoek = el('ih-plaats-'+ih.id)?.value || '';
+  const ids = bouwlaagIds();
+  let van = parseInt(el('ih-van-'+ih.id)?.value, 10), tot = parseInt(el('ih-tot-'+ih.id)?.value, 10);
+  if(isNaN(van)) van = 0;
+  if(isNaN(tot)) tot = van;
+  const basis = {id:ih.id, naam:ih.naam, gevel, breedte, diepte, hoek, van, tot, geldig:false};
+  if(isNaN(breedte) || isNaN(diepte) || breedte <= 0 || diepte <= 0) return basis;
+  if(van > tot) return Object.assign(basis, {fout:'"van" ligt boven "t/m" — kies de bouwlagen opnieuw'});
+  if(tot >= ids.length) return Object.assign(basis, {fout:'die bouwlaag bestaat niet (meer)'});
+  const daktype = huidigDaktype();
+  let zijde = null;
+  if(daktype === 'asymmetrisch'){ const c = dakvlakGevelCodes(); zijde = gevel===c.A ? 'voor' : gevel===c.B ? 'achter' : 'min'; }
+  const gh = id => zijde==='min' ? Math.min(getGevelhoogte(id,'voor'), getGevelhoogte(id,'achter')) : getGevelhoogte(id, zijde);
+  let z0 = 0, hoogte = 0;
+  ids.forEach((id,i)=>{ const h = gh(id) || 0; if(i < van) z0 += h; else if(i <= tot) hoogte += h; });
+  if(!(hoogte > 0)) return Object.assign(basis, {fout:'de gevelhoogte van de bouwla(a)g(en) ontbreekt'});
+  const isBovenste = tot === ids.length - 1;
+  const erboven = !isBovenste ? 'verdieping'
+                : daktype === 'plat' ? 'platdak'
+                : daktype === 'geen' ? 'geen'
+                : heeftZolder() ? 'zoldervloer' : 'kap';
+  const eronder = van === 0 ? 'grond' : 'verdieping';
+  const [p0, p1] = perpendiculairePaar(gevel);
+  const wangen = [];
+  if(hoek !== p0) wangen.push({orient:p1, naast:p0});   // wang aan de p0-kant kijkt naar p1
+  if(hoek !== p1) wangen.push({orient:p0, naast:p1});
+  return {id:ih.id, naam:ih.naam, gevel, breedte, diepte, hoek, van, tot, z0, hoogte, isBovenste,
+          erboven, eronder, wangen, opp: breedte*diepte, geldig:true};
+}
+function alleInhamData(){ return (inhammen || []).map(berekenInhamData); }
+function ihToonUitkomst(d){
+  const el = document.getElementById('ih-uitkomst-'+d.id);
+  if(!el) return;
+  if(!d.geldig){ el.textContent = d.fout ? d.fout + '.' : 'Vul breedte en diepte in.'; return; }
+  const lagen = d.van === d.tot ? ihLaagNaam(d.van) : `${ihLaagNaam(d.van)} t/m ${ihLaagNaam(d.tot)}`;
+  const onder = d.eronder === 'grond' ? 'BG-vloer kleiner' : `plat dak boven ${ihLaagNaam(d.van-1)}`;
+  const boven = d.erboven === 'verdieping' ? 'vloer boven buitenlucht' : d.erboven === 'zoldervloer' ? 'vloer boven buitenlucht (zoldervloer)'
+              : d.erboven === 'platdak' ? 'plat dak hoofdhuis kleiner' : d.erboven === 'kap' ? 'in de kap — zelf invullen' : 'geen vlak (bovenburen)';
+  el.textContent = `${lagen}, hoogte ${n2(d.hoogte)} m · woonoppervlak −${n2(d.opp)} m² per laag · ${d.wangen.length} wang${d.wangen.length===1?'':'en'} (${d.wangen.map(w=>w.orient).join(' + ')}) à ${n2(d.diepte*d.hoogte)} m² · onder: ${onder} · boven: ${boven}`;
+}
+function onInhamWijziging(){ herbereken(); }
+function voegInhamToe(){
+  const id = volgendInhamId++;
+  const ih = {id, naam:'Inham'};
+  inhammen.push(ih);
+  const blok = document.createElement('div');
+  blok.className = 'panel';
+  blok.id = 'ih-blok-'+id;
+  blok.style.background = '#f7f8f4';
+  blok.style.marginTop = '10px';
+  blok.innerHTML = `
+    <div class="btn-row" style="justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <div style="font-weight:600;" id="ih-titel-${id}">Inham</div>
+      <button class="btn-secondary" data-ihid="${id}" style="padding:4px 10px;font-size:0.78rem;">− verwijderen</button>
+    </div>
+    <div class="row">
+      <div class="field" style="flex:0 0 140px;">
+        <label>Gevel</label>
+        <select id="ih-gevel-${id}">
+          <option value="VG">VG — voorgevel</option>
+          <option value="AG">AG — achtergevel</option>
+          <option value="LG">LG — linkergevel</option>
+          <option value="RG">RG — rechtergevel</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Breedte (cm)</label>
+        <input type="text" inputmode="numeric" class="numeric-input" id="ih-breedte-${id}" step="1" data-eenheid="cm" placeholder="bv. 300">
+      </div>
+      <div class="field">
+        <label>Diepte naar binnen (cm)</label>
+        <input type="text" inputmode="numeric" class="numeric-input" id="ih-diepte-${id}" step="1" data-eenheid="cm" placeholder="bv. 150">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field" style="flex:0 0 190px;">
+        <label>Plaatsing langs de gevel</label>
+        <select id="ih-plaats-${id}"></select>
+      </div>
+      <div class="field">
+        <label>Van bouwlaag</label>
+        <select id="ih-van-${id}">${ihLaagOptiesHtml()}</select>
+      </div>
+      <div class="field">
+        <label>T/m bouwlaag</label>
+        <select id="ih-tot-${id}">${ihLaagOptiesHtml()}</select>
+      </div>
+    </div>
+    <p class="hint" id="ih-uitkomst-${id}" style="margin:4px 0 0;">Vul breedte en diepte in.</p>
+  `;
+  inhammenContainer.appendChild(blok);
+  blok.querySelector('button[data-ihid]').addEventListener('click', ()=>verwijderInham(id));
+  document.getElementById('ih-gevel-'+id).addEventListener('change', ()=>{ ihUpdatePlaatsOpties(id); renumberInhammen(); onInhamWijziging(); });
+  ['ih-plaats-','ih-van-','ih-tot-'].forEach(p=> document.getElementById(p+id).addEventListener('change', onInhamWijziging));
+  // "van" hoger gezet dan "t/m": t/m schuift mee
+  document.getElementById('ih-van-'+id).addEventListener('change', ()=>{
+    const v = document.getElementById('ih-van-'+id), t = document.getElementById('ih-tot-'+id);
+    if(parseInt(t.value,10) < parseInt(v.value,10)){ t.value = v.value; onInhamWijziging(); }
+  });
+  ['ih-breedte-','ih-diepte-'].forEach(p=> document.getElementById(p+id).addEventListener('input', onInhamWijziging));
+  ihUpdatePlaatsOpties(id);
+  renumberInhammen();
+  onInhamWijziging();
+}
+function verwijderInham(id){
+  const idx = inhammen.findIndex(x=>x.id===id);
+  if(idx === -1) return;
+  inhammen.splice(idx, 1);
+  document.getElementById('ih-blok-'+id)?.remove();
+  renumberInhammen();
+  onInhamWijziging();
+}
+document.getElementById('btn-toevoegen-inham').addEventListener('click', voegInhamToe);
+
+// Plattegrond: inkeping (open kant gestippeld = oorspronkelijke gevellijn)
+function ihTekenInPlattegrond(svg, x0, y0, w, h, lijst){
+  const gap = 0.15*SCALE, fs = tekstGrootte();
+  ['VG','AG','LG','RG'].forEach(code=>{
+    const eigen = lijst.filter(d=>d.gevel===code);
+    if(!eigen.length) return;
+    const vaVg = code==='VG' || code==='AG';
+    const plan = vaVg ? ['LG','RG'] : ['AG','VG'];
+    positioneerMetHoek(verdeelHoekGroepen(eigen, plan[0], plan[1]), vaVg ? w : h, 'breedte', gap).forEach(({item:d, pos, bPx})=>{
+      const dPx = Math.min(d.diepte*SCALE, vaVg ? h : w);
+      const r = code==='VG' ? {x:x0+pos, y:y0+h-dPx, w:bPx, h:dPx}
+              : code==='AG' ? {x:x0+pos, y:y0, w:bPx, h:dPx}
+              : code==='LG' ? {x:x0, y:y0+pos, w:dPx, h:bPx}
+              :               {x:x0+w-dPx, y:y0+pos, w:dPx, h:bPx};
+      const e = 1.6;   // gevellijn wegpoetsen
+      const wis = code==='VG' ? {x:r.x, y:r.y, w:r.w, h:r.h+e} : code==='AG' ? {x:r.x, y:r.y-e, w:r.w, h:r.h+e}
+                : code==='LG' ? {x:r.x-e, y:r.y, w:r.w+e, h:r.h} : {x:r.x, y:r.y, w:r.w+e, h:r.h};
+      svg.appendChild(svgEl('rect', {x:wis.x, y:wis.y, width:wis.w, height:wis.h, fill:'#f3f1ea', stroke:'none'}));
+      const L = (x1,y1,x2,y2,stip) => svg.appendChild(svgEl('line', Object.assign({x1,y1,x2,y2,stroke:'black','stroke-width':stip?0.7:1.5}, stip?{'stroke-dasharray':'3,2'}:{})));
+      const X1 = r.x, X2 = r.x+r.w, Y1 = r.y, Y2 = r.y+r.h;
+      if(code==='VG'){ L(X1,Y1,X2,Y1); if(d.hoek!=='LG') L(X1,Y1,X1,Y2); if(d.hoek!=='RG') L(X2,Y1,X2,Y2); L(X1,Y2,X2,Y2,true); }
+      if(code==='AG'){ L(X1,Y2,X2,Y2); if(d.hoek!=='LG') L(X1,Y1,X1,Y2); if(d.hoek!=='RG') L(X2,Y1,X2,Y2); L(X1,Y1,X2,Y1,true); }
+      if(code==='LG'){ L(X2,Y1,X2,Y2); if(d.hoek!=='AG') L(X1,Y1,X2,Y1); if(d.hoek!=='VG') L(X1,Y2,X2,Y2); L(X1,Y1,X1,Y2,true); }
+      if(code==='RG'){ L(X1,Y1,X1,Y2); if(d.hoek!=='AG') L(X1,Y1,X2,Y1); if(d.hoek!=='VG') L(X1,Y2,X2,Y2); L(X2,Y1,X2,Y2,true); }
+      const t = svgEl('text', {x:r.x+r.w/2, y:r.y+r.h/2+fs*0.35, 'text-anchor':'middle', 'font-size':fs*0.85, fill:'black'});
+      t.textContent = d.naam;
+      svg.appendChild(t);
+    });
+  });
+}
+// Plattegrond van de laag BOVEN de inham: het stuk vloer boven de inham grenst aan buitenlucht.
+// Zelfde plek als de inkeping, gearceerd en gestippeld, met de oppervlakte erin.
+function ihTekenVloerBuitenInPlattegrond(svg, x0, y0, w, h, lijst){
+  const gap = 0.15*SCALE, fs = tekstGrootte();
+  ['VG','AG','LG','RG'].forEach(code=>{
+    const eigen = lijst.filter(d=>d.gevel===code);
+    if(!eigen.length) return;
+    const vaVg = code==='VG' || code==='AG';
+    const plan = vaVg ? ['LG','RG'] : ['AG','VG'];
+    positioneerMetHoek(verdeelHoekGroepen(eigen, plan[0], plan[1]), vaVg ? w : h, 'breedte', gap).forEach(({item:d, pos, bPx})=>{
+      const dPx = Math.min(d.diepte*SCALE, vaVg ? h : w);
+      const r = code==='VG' ? {x:x0+pos, y:y0+h-dPx, w:bPx, h:dPx}
+              : code==='AG' ? {x:x0+pos, y:y0, w:bPx, h:dPx}
+              : code==='LG' ? {x:x0, y:y0+pos, w:dPx, h:bPx}
+              :               {x:x0+w-dPx, y:y0+pos, w:dPx, h:bPx};
+      svg.appendChild(svgEl('rect', {x:r.x, y:r.y, width:r.w, height:r.h, fill:'#eef1f6', stroke:'black', 'stroke-width':0.9, 'stroke-dasharray':'4,2'}));
+      for(let k=-r.h; k<r.w; k+=7){   // arcering 45°
+        const xa = r.x + Math.max(k, 0), ya = r.y + Math.max(-k, 0);
+        const len = Math.min(r.w - Math.max(k,0), r.h - Math.max(-k,0));
+        if(len > 0) svg.appendChild(svgEl('line', {x1:xa, y1:ya, x2:xa+len, y2:ya+len, stroke:'#9aa6b8', 'stroke-width':0.5}));
+      }
+      const T = (y, tekst, schaal, kleur) => { const t = svgEl('text', {x:r.x+r.w/2, y, 'text-anchor':'middle', 'font-size':fs*schaal, fill:kleur||'black', 'font-weight':schaal>0.8?'600':'400', stroke:'#eef1f6', 'stroke-width':2.5, 'paint-order':'stroke'}); t.textContent = tekst; svg.appendChild(t); };
+      const midden = r.y + r.h/2;
+      T(midden - fs*0.15, `${n2(d.opp)} m²`, 0.9);
+      T(midden + fs*0.85, 'vloer boven buitenlucht', 0.62, '#333');
+    });
+  });
+}
+// Gevelaanzicht: gestippelde rechthoek waar de gevel naar binnen springt
+function ihTekenInAanzicht(svg, code, x0, yBase, wPx){
+  if(!code) return;
+  const eigen = alleInhamData().filter(d=>d.geldig && d.gevel===code);
+  if(!eigen.length) return;
+  const fs = tekstGrootte();
+  positioneerMetHoek(verdeelHoekGroepen(eigen, IH_AANZICHT_LINKS[code], IH_AANZICHT_RECHTS[code]), wPx, 'breedte', 0.15*SCALE).forEach(({item:d, pos, bPx})=>{
+    const yTop = yBase - (d.z0 + d.hoogte)*SCALE;
+    svg.appendChild(svgEl('rect', {x:x0+pos, y:yTop, width:bPx, height:d.hoogte*SCALE, fill:'#f3f1ea', stroke:'black', 'stroke-width':0.9, 'stroke-dasharray':'4,2'}));
+    const t = svgEl('text', {x:x0+pos+bPx/2, y:yTop+fs*1.2, 'text-anchor':'middle', 'font-size':fs*0.8, fill:'black'});
+    t.textContent = d.naam;
+    svg.appendChild(t);
+    const t2 = svgEl('text', {x:x0+pos+bPx/2, y:yTop+fs*2.2, 'text-anchor':'middle', 'font-size':fs*0.75, fill:'#555'});
+    t2.textContent = `${n2(d.diepte)} m diep`;
+    svg.appendChild(t2);
+  });
+}
 
 // ---------- GEVEL STANDAARD ----------
 const gsType = document.getElementById('gs-type');
@@ -5189,7 +5565,7 @@ function tekenUitbouwProtrusiesPlattegrond(svg, x0, y0, w, h, uitbouwLijst){
   });
 }
 
-function tekenPlattegrondVerdieping(titel, breedte, diepte, hatchLinks, hatchRechts, uitbouwLijst, dakInfo, oppWeergave, extraLabel){
+function tekenPlattegrondVerdieping(titel, breedte, diepte, hatchLinks, hatchRechts, uitbouwLijst, dakInfo, oppWeergave, extraLabel, inhamLijst, vloerBuitenLijst){
   if(isNaN(breedte) || isNaN(diepte) || breedte<=0 || diepte<=0) return null;
   uitbouwLijst = uitbouwLijst || [];
   const {wrap, canvasWrap} = tekeningBlok(titel);
@@ -5226,6 +5602,7 @@ function tekenPlattegrondVerdieping(titel, breedte, diepte, hatchLinks, hatchRec
   }
 
   tekenUitbouwProtrusiesPlattegrond(svg, x0, y0, w, h, uitbouwLijst);
+  if(inhamLijst && inhamLijst.length) ihTekenInPlattegrond(svg, x0, y0, w, h, inhamLijst);
 
   // Strook(en) onder 1,50 m gestippeld. Conventie plattegrond: voorgevel (VG) = ONDERRAND,
   // achtergevel = bovenrand, linkergevel = links, rechtergevel = rechts.
@@ -5256,6 +5633,9 @@ function tekenPlattegrondVerdieping(titel, breedte, diepte, hatchLinks, hatchRec
     t.textContent = '≥1,50m binnen stippellijn';
     svg.appendChild(t);
   }
+
+  // vloer boven buitenlucht (boven een inham) over de strook heen tekenen, zodat het label leesbaar blijft
+  if(vloerBuitenLijst && vloerBuitenLijst.length) ihTekenVloerBuitenInPlattegrond(svg, x0, y0, w, h, vloerBuitenLijst);
 
   const opp = (oppWeergave!=null && !isNaN(oppWeergave)) ? oppWeergave : breedte*diepte;
   svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h/2-2,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
@@ -6726,6 +7106,7 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
       svg.appendChild(svgEl('line', {x1:x0, y1:yVloer, x2:x0+w, y2:yVloer, stroke:'black', 'stroke-width':0.7, 'stroke-dasharray':'4,2.5'}));
     });
 
+    ihTekenInAanzicht(svg, rdGevel, x0, yBase, w);
     rdTekenElementen(svg, rdPlan, x0, yBase, true);
     const eigenGroepen = weergaveGroepen.eigen || {links:[],geen:[],rechts:[]};
     const eigenHeeft = eigenGroepen.links.length || eigenGroepen.geen.length || eigenGroepen.rechts.length;
@@ -6907,7 +7288,8 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
     vloerPeilen.push(niveau);
   });
 
-  // ramen & deuren in het aanzicht (met labels/lijntjes naast de gevel waar het niet past)
+  // inhammen (gestippeld) en ramen & deuren in het aanzicht (met labels/lijntjes naast de gevel waar het niet past)
+  ihTekenInAanzicht(svg, rdGevel, x0, yBase, w);
   rdTekenElementen(svg, rdPlan, x0, yBase, true);
 
   // eigen uitbouwen: sluiten aan op deze gevel zelf, dus overlappend getekend binnen de eigen breedte
@@ -7066,10 +7448,13 @@ function renderTekening(targetContainerId){
       let blok;
       if(v.id === 'zolder'){
         blok = tekenPlattegrondVerdieping(`${v.naam} (plattegrond)`, v.breedte, v.diepte, hatchL, hatchR, [], v.dakInfo, v.basis,
-          `zoldervloer op ${v.niveau.toFixed(2)} m`);
+          `zoldervloer op ${v.niveau.toFixed(2)} m`, undefined, alleInhamData().filter(d=>d.geldig && d.erboven==='zoldervloer'));
       } else {
         const titel = v.id==='bg' ? 'Begane grond (plattegrond)' : `${v.naam} (plattegrond)`;
-        blok = tekenPlattegrondVerdieping(titel, v.breedte, v.diepte, hatchL, hatchR, uitbouwLijstAlle.filter(d=>d.lagen>i), v.dakInfo, v.basis);
+        const ihAf = v.items.filter(it=>/\(buitenruimte\)$/.test(it.label)).reduce((t,it)=>t + it.opp, 0);
+        blok = tekenPlattegrondVerdieping(titel, v.breedte, v.diepte, hatchL, hatchR, uitbouwLijstAlle.filter(d=>d.lagen>i), v.dakInfo, v.basis + ihAf, ihAf ? 'na aftrek inham' : undefined,
+          alleInhamData().filter(d=>d.geldig && d.van <= i && d.tot >= i),
+          alleInhamData().filter(d=>d.geldig && d.erboven==='verdieping' && d.tot === i-1));
       }
       if(blok) container.appendChild(blok);
     });
@@ -7448,6 +7833,7 @@ function samenvattingRegelsVerzamelen(){
   eind('Totaal gevels', S.totalen.gevel, 'gevel');
   [['aor','Schil — gevel grenzend aan AOR / SGvR (geen buitenlucht)','Totaal grenzend aan AOR / SGvR'],
    ['vloer','Schil — vloeren (grond / kruipruimte)','Totaal vloeren'],
+   ['vloerbuiten','Schil — vloeren boven buitenlucht','Totaal vloeren boven buitenlucht'],
    ['schuin','Schil — schuine daken','Totaal schuine daken'],
    ['plat','Schil — platte daken','Totaal platte daken']].forEach(([g, k, t])=>{
     const rij = S.regels.filter(r=>r.groep===g);
@@ -8023,7 +8409,7 @@ async function exporteerPDF(opties = {}){
     if (GASTVERSIE) pdf.setProperties({creator:'Huismaten-tool - Visser Inspecties', author:'Visser Inspecties'});
     const blob = pdf.output('blob');
     const stempel = (()=>{ const d = new Date(), z = n => String(n).padStart(2,'0'); return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())} ${z(d.getHours())}${z(d.getMinutes())}`; })();
-    const pdfNaam = huidigeBasisbestandsnaam() + (opties.controle ? ` controle ${stempel}` : '') + '.pdf';
+    const pdfNaam = opties.controle ? `${huidigeBasisbestandsnaam()} controle ${stempel}.pdf` : await exportNaam('.pdf', opties);
     const statusEl = document.getElementById('upload-status');
     const meldingen = [];
     const toonStatus = (extra) => {
@@ -8277,6 +8663,15 @@ function verzamelInvoerData(){
     push('Uitbouw', i+1, 'wolfseind-hoek', veldWaarde('ub-wolfseind-hoek-'+u.id));
   });
 
+  inhammen.forEach((ih,i)=>{
+    push('Inham', i+1, 'gevel', veldWaarde('ih-gevel-'+ih.id));
+    push('Inham', i+1, 'plaatsing', veldWaarde('ih-plaats-'+ih.id));
+    push('Inham', i+1, 'breedte', veldWaarde('ih-breedte-'+ih.id));
+    push('Inham', i+1, 'diepte', veldWaarde('ih-diepte-'+ih.id));
+    push('Inham', i+1, 'van-laag', veldWaarde('ih-van-'+ih.id));
+    push('Inham', i+1, 'tot-laag', veldWaarde('ih-tot-'+ih.id));
+  });
+
   dakkapellen.forEach((dk,i)=>{
     { const vl = veldWaarde('dk-dakvlak-'+dk.id);
       push('Dakkapel', i+1, 'dakvlak', vl === 'SV' ? 'VG-schuin' : vl === 'SA' ? 'AG-schuin' : dakvlakNaarGevelcode(vl)); }
@@ -8427,6 +8822,22 @@ function vulInvoerDataIn(rows){
       u.hoogteTouched = false;
     });
     renumberUitbouwen();
+
+    [...inhammen].forEach(ih=>verwijderInham(ih.id));
+    groepen.filter(g=>g.sectie==='Inham').sort((a,b)=>a.index-b.index).forEach(g=>{
+      voegInhamToe();
+      const ih = inhammen[inhammen.length-1];
+      veldZetten('ih-gevel-'+ih.id, g.velden.gevel);
+      ihUpdatePlaatsOpties(ih.id);
+      { const pl = document.getElementById('ih-plaats-'+ih.id); if(pl && g.velden.plaatsing !== undefined) pl.value = g.velden.plaatsing || ''; }
+      veldZetten('ih-breedte-'+ih.id, g.velden.breedte);
+      veldZetten('ih-diepte-'+ih.id, g.velden.diepte);
+      ['van','tot'].forEach(k=>{
+        const sel = document.getElementById(`ih-${k}-${ih.id}`), v = g.velden[k+'-laag'];
+        if(sel && v !== undefined && v !== '' && sel.querySelector(`option[value="${v}"]`)) sel.value = String(v);
+      });
+    });
+    renumberInhammen();
 
     [...dakkapellen].forEach(dk=>verwijderDakkapel(dk.id));
     const dkGroepen = groepen.filter(g=>g.sectie==='Dakkapel').sort((a,b)=>a.index-b.index);
@@ -8728,7 +9139,7 @@ async function exporteerExcel(opties = {}){
   const wb = bouwWerkboek();
   const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
   const blob = new Blob([wbout], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-  const bestandsnaam = huidigeBasisbestandsnaam() + '.xlsx';
+  const bestandsnaam = await exportNaam('.xlsx', opties);
 
   const MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -8823,6 +9234,7 @@ async function verwerkExcelBestand(file){
     }
     vulInvoerDataIn(rows);
     huismatenVersie += 1;
+    exportVersieSessie = null;
     excelDropzoneTekst.textContent = `✅ "${file.name}" ingelezen — velden zijn bijgewerkt. Volgende export wordt versie ${huismatenVersie} (bestandsnaam krijgt _v${huismatenVersie}).`;
   }catch(err){
     console.error(err);
