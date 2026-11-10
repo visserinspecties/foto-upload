@@ -347,6 +347,11 @@ const SUBMAPPEN = [
   "099 VERVALLEN"
 ];
 
+// Submappen binnen een submap (pad relatief aan de projectmap)
+const SUBSUBMAPPEN = {
+  "020 AANTEKENINGEN": ["025 TUSSENSTAPPEN"]
+};
+
 // Map binnen het project waar de BAG-screenshot terechtkomt
 const SCREENSHOT_SUBMAP = "020 AANTEKENINGEN";
 
@@ -1649,6 +1654,12 @@ async function voerProjectmapUit(g) {
   for (const sub of SUBMAPPEN) {
     try { await maakMap(projectPad, sub); }
     catch(e) { if (!e.conflict) throw e; /* anders: bestaat al, geen probleem */ }
+  }
+  for (const [ouder, kinderen] of Object.entries(SUBSUBMAPPEN)) {
+    for (const kind of kinderen) {
+      try { await maakMap(`${projectPad}/${ouder}`, kind); }
+      catch(e) { if (!e.conflict) throw e; }
+    }
   }
 
   setStatus(`<span class="spinner"></span> Sjabloonbestanden kopiëren: ${naam}...`, 'loading');
