@@ -1471,6 +1471,67 @@ function huidigeBasisbestandsnaam() {
   return huismatenVersie > 1 ? `${basis}_v${huismatenVersie}` : basis;
 }
 
+// ── Doorlopende versienummers bij export ─────────────────────
+// Bestaat "Huismaten <project>.pdf" / "_v2.pdf" al in de projectmap, dan wordt de volgende
+// export _v3 (nooit overschrijven, geen "(1)"-kopieën). PDF en Excel van dezelfde export
+// krijgen hetzelfde nummer.
+let exportVersieSessie = null;
+function hmBasisZonderVersie(){
+  const naam = actiefProjectNaam();
+  return naam ? `Huismaten ${naam}` : 'huismaten-tekening';
+}
+async function bestaandeNamenInProjectmap(){
+  const pad = actiefProjectPad();
+  if (!pad) return null;
+  try {
+    const token = await graphRefreshToken();
+    let url = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(pad)}:/children?$select=name&$top=999`;
+    const namen = [];
+    while (url) {
+      const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+      if (!r.ok) return null;
+      const j = await r.json();
+      (j.value || []).forEach(x => namen.push(x.name));
+      url = j['@odata.nextLink'] || null;
+    }
+    return namen;
+  } catch (_) { return null; }
+}
+async function bestaandeNamenInMap(mapHandle){
+  try { const namen = []; for await (const [naam] of mapHandle.entries()) namen.push(naam); return namen; }
+  catch (_) { return null; }
+}
+// ext = '.pdf' of '.xlsx'; namen = bestandsnamen in de doelmap (null = onbekend → oude naamgeving)
+function volgendeExportNaam(ext, namen){
+  if (!namen) return huidigeBasisbestandsnaam() + ext;
+  const basis = hmBasisZonderVersie();
+  const esc = basis.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp('^' + esc + '(?:_v(\\d+))?(?: \\(\\d+\\))?(\\.pdf|\\.xlsx)$', 'i');
+  const per = {};
+  let max = 0;
+  namen.forEach(n => {
+    const m = String(n).match(re);
+    if (!m) return;
+    const v = m[1] ? parseInt(m[1], 10) : 1;
+    max = Math.max(max, v);
+    (per[v] = per[v] || new Set()).add(m[2].toLowerCase());
+  });
+  let v;
+  if (exportVersieSessie && exportVersieSessie >= max && !(per[exportVersieSessie] && per[exportVersieSessie].has(ext))) {
+    v = exportVersieSessie;                       // andere helft (PDF/Excel) van dezelfde export
+  } else {
+    v = Math.max(huismatenVersie, max + 1);
+    exportVersieSessie = v;
+  }
+  return (v > 1 ? `${basis}_v${v}` : basis) + ext;
+}
+async function exportNaam(ext, opties = {}){
+  let namen = null;
+  if (opties.doelMap) namen = await bestaandeNamenInMap(opties.doelMap);
+  else if (projectGekoppeld() && navigator.onLine) namen = await bestaandeNamenInProjectmap();
+  return volgendeExportNaam(ext, namen);
+}
+
 async function uploadBestandNaarProjectmap(blob, bestandsnaam, padOverride) {
   const pad = padOverride || actiefProjectPad();
   if (!pad) throw new Error('Er is nog geen project gekozen.');
@@ -8321,7 +8382,7 @@ async function exporteerPDF(opties = {}){
 
     const blob = pdf.output('blob');
     const stempel = (()=>{ const d = new Date(), z = n => String(n).padStart(2,'0'); return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())} ${z(d.getHours())}${z(d.getMinutes())}`; })();
-    const pdfNaam = huidigeBasisbestandsnaam() + (opties.controle ? ` controle ${stempel}` : '') + '.pdf';
+    const pdfNaam = opties.controle ? `${huidigeBasisbestandsnaam()} controle ${stempel}.pdf` : await exportNaam('.pdf', opties);
     const statusEl = document.getElementById('upload-status');
     const meldingen = [];
     const toonStatus = (extra) => {
@@ -9051,7 +9112,7 @@ async function exporteerExcel(opties = {}){
   const wb = bouwWerkboek();
   const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
   const blob = new Blob([wbout], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-  const bestandsnaam = huidigeBasisbestandsnaam() + '.xlsx';
+  const bestandsnaam = await exportNaam('.xlsx', opties);
 
   const MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -9146,6 +9207,7 @@ async function verwerkExcelBestand(file){
     }
     vulInvoerDataIn(rows);
     huismatenVersie += 1;
+    exportVersieSessie = null;
     excelDropzoneTekst.textContent = `✅ "${file.name}" ingelezen — velden zijn bijgewerkt. Volgende export wordt versie ${huismatenVersie} (bestandsnaam krijgt _v${huismatenVersie}).`;
   }catch(err){
     console.error(err);
