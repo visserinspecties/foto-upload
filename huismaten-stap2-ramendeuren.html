@@ -4058,6 +4058,34 @@ function ihTekenInPlattegrond(svg, x0, y0, w, h, lijst){
     });
   });
 }
+// Plattegrond van de laag BOVEN de inham: het stuk vloer boven de inham grenst aan buitenlucht.
+// Zelfde plek als de inkeping, gearceerd en gestippeld, met de oppervlakte erin.
+function ihTekenVloerBuitenInPlattegrond(svg, x0, y0, w, h, lijst){
+  const gap = 0.15*SCALE, fs = tekstGrootte();
+  ['VG','AG','LG','RG'].forEach(code=>{
+    const eigen = lijst.filter(d=>d.gevel===code);
+    if(!eigen.length) return;
+    const vaVg = code==='VG' || code==='AG';
+    const plan = vaVg ? ['LG','RG'] : ['AG','VG'];
+    positioneerMetHoek(verdeelHoekGroepen(eigen, plan[0], plan[1]), vaVg ? w : h, 'breedte', gap).forEach(({item:d, pos, bPx})=>{
+      const dPx = Math.min(d.diepte*SCALE, vaVg ? h : w);
+      const r = code==='VG' ? {x:x0+pos, y:y0+h-dPx, w:bPx, h:dPx}
+              : code==='AG' ? {x:x0+pos, y:y0, w:bPx, h:dPx}
+              : code==='LG' ? {x:x0, y:y0+pos, w:dPx, h:bPx}
+              :               {x:x0+w-dPx, y:y0+pos, w:dPx, h:bPx};
+      svg.appendChild(svgEl('rect', {x:r.x, y:r.y, width:r.w, height:r.h, fill:'#eef1f6', stroke:'black', 'stroke-width':0.9, 'stroke-dasharray':'4,2'}));
+      for(let k=-r.h; k<r.w; k+=7){   // arcering 45°
+        const xa = r.x + Math.max(k, 0), ya = r.y + Math.max(-k, 0);
+        const len = Math.min(r.w - Math.max(k,0), r.h - Math.max(-k,0));
+        if(len > 0) svg.appendChild(svgEl('line', {x1:xa, y1:ya, x2:xa+len, y2:ya+len, stroke:'#9aa6b8', 'stroke-width':0.5}));
+      }
+      const T = (y, tekst, schaal, kleur) => { const t = svgEl('text', {x:r.x+r.w/2, y, 'text-anchor':'middle', 'font-size':fs*schaal, fill:kleur||'black', 'font-weight':schaal>0.8?'600':'400', stroke:'#eef1f6', 'stroke-width':2.5, 'paint-order':'stroke'}); t.textContent = tekst; svg.appendChild(t); };
+      const midden = r.y + r.h/2;
+      T(midden - fs*0.15, `${n2(d.opp)} m²`, 0.9);
+      T(midden + fs*0.85, 'vloer boven buitenlucht', 0.62, '#333');
+    });
+  });
+}
 // Gevelaanzicht: gestippelde rechthoek waar de gevel naar binnen springt
 function ihTekenInAanzicht(svg, code, x0, yBase, wPx){
   if(!code) return;
@@ -5454,7 +5482,7 @@ function tekenUitbouwProtrusiesPlattegrond(svg, x0, y0, w, h, uitbouwLijst){
   });
 }
 
-function tekenPlattegrondVerdieping(titel, breedte, diepte, hatchLinks, hatchRechts, uitbouwLijst, dakInfo, oppWeergave, extraLabel, inhamLijst){
+function tekenPlattegrondVerdieping(titel, breedte, diepte, hatchLinks, hatchRechts, uitbouwLijst, dakInfo, oppWeergave, extraLabel, inhamLijst, vloerBuitenLijst){
   if(isNaN(breedte) || isNaN(diepte) || breedte<=0 || diepte<=0) return null;
   uitbouwLijst = uitbouwLijst || [];
   const {wrap, canvasWrap} = tekeningBlok(titel);
@@ -5522,6 +5550,9 @@ function tekenPlattegrondVerdieping(titel, breedte, diepte, hatchLinks, hatchRec
     t.textContent = '≥1,50m binnen stippellijn';
     svg.appendChild(t);
   }
+
+  // vloer boven buitenlucht (boven een inham) over de strook heen tekenen, zodat het label leesbaar blijft
+  if(vloerBuitenLijst && vloerBuitenLijst.length) ihTekenVloerBuitenInPlattegrond(svg, x0, y0, w, h, vloerBuitenLijst);
 
   const opp = (oppWeergave!=null && !isNaN(oppWeergave)) ? oppWeergave : breedte*diepte;
   svg.appendChild(svgEl('text', {x:x0+w/2,y:y0+h/2-2,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
@@ -7334,12 +7365,13 @@ function renderTekening(targetContainerId){
       let blok;
       if(v.id === 'zolder'){
         blok = tekenPlattegrondVerdieping(`${v.naam} (plattegrond)`, v.breedte, v.diepte, hatchL, hatchR, [], v.dakInfo, v.basis,
-          `zoldervloer op ${v.niveau.toFixed(2)} m`);
+          `zoldervloer op ${v.niveau.toFixed(2)} m`, undefined, alleInhamData().filter(d=>d.geldig && d.erboven==='zoldervloer'));
       } else {
         const titel = v.id==='bg' ? 'Begane grond (plattegrond)' : `${v.naam} (plattegrond)`;
         const ihAf = v.items.filter(it=>/\(buitenruimte\)$/.test(it.label)).reduce((t,it)=>t + it.opp, 0);
         blok = tekenPlattegrondVerdieping(titel, v.breedte, v.diepte, hatchL, hatchR, uitbouwLijstAlle.filter(d=>d.lagen>i), v.dakInfo, v.basis + ihAf, ihAf ? 'na aftrek inham' : undefined,
-          alleInhamData().filter(d=>d.geldig && d.van <= i && d.tot >= i));
+          alleInhamData().filter(d=>d.geldig && d.van <= i && d.tot >= i),
+          alleInhamData().filter(d=>d.geldig && d.erboven==='verdieping' && d.tot === i-1));
       }
       if(blok) container.appendChild(blok);
     });
