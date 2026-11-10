@@ -63,6 +63,9 @@ label.l{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px}
 .spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px;margin-right:6px}
 @keyframes sp{to{transform:rotate(360deg)}}
 input[type=file]{display:none}
+.txt-drop{border:2px dashed var(--line);border-radius:var(--r);padding:14px 12px;text-align:center;cursor:pointer;margin-bottom:8px;font-size:14px;background:#fff;transition:background .15s,border-color .15s}
+.txt-drop span{font-size:12px;color:#6b6578}
+.txt-drop.over{border-color:var(--brand);background:var(--lila-soft)}
 </style>
 <script src="assets/login.js"></script>
 </head>
@@ -77,7 +80,7 @@ input[type=file]{display:none}
   <div id="status"></div>
   <div class="card">
     <h2><span class="stap">1</span>Project</h2>
-    <button class="btn sec" id="b-txt" style="margin-bottom:8px">📄 Projectgegevens (.txt) inlezen</button>
+    <div id="txt-drop" class="txt-drop" role="button" tabindex="0">📄 <b>Sleep hier het .txt-bestand</b> uit de projectmap<br><span>of klik om het te kiezen</span></div>
     <input type="file" id="f-txt" accept=".txt,text/plain">
     <div class="hint" style="margin:0 0 8px">Kom je vanuit Nieuwe projectmap, dan staat alles al ingevuld. Anders: kies het .txt-bestand uit de projectmap; naam, e-mail, datum, prijs en soort opname worden dan ingevuld.</div>
     <select id="project"></select>
@@ -165,18 +168,32 @@ const sel=$('project');
 PROJECTEN.forEach((p,i)=>sel.add(new Option(p[0]+', '+p[1],i)));
 sel.add(new Option('Ander adres…','anders'));
 
-/* ══════════ Microsoft-inlog: hergebruikt de inlog van Factuur versturen (zelfde site) ══════════ */
+/* ══════════ Microsoft-inlog: de centrale inlog van het dashboard (inloggen.html, localStorage 'rt'), net als de andere tools ══════════ */
 const CLIENT_ID='fdf237c9-bf46-47fa-ab3d-a8834a73e284';
 const TENANT_ID='984fd1fb-3d68-4c94-aff2-47f699fb5dae';
 const SCOPE='https://graph.microsoft.com/Files.ReadWrite https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/User.Read offline_access';
-const RT_KEY='rt_factuur';
+const RT_KEY='rt';
 let token=null;
 async function vernieuw(){
+  // oude losse inlog nog aanwezig en geen centrale? eenmalig overnemen
+  if(!LS.get(RT_KEY)&&LS.get('rt_factuur'))LS.set(RT_KEY,LS.get('rt_factuur'));
   const rt=LS.get(RT_KEY);if(!rt)throw new Error('NIET_INGELOGD');
-  const r=await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
-    body:new URLSearchParams({client_id:CLIENT_ID,scope:SCOPE,grant_type:'refresh_token',refresh_token:rt})});
-  const d=await r.json();if(!d.access_token)throw new Error('NIET_INGELOGD');
+  let d={};
+  try{
+    const r=await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:new URLSearchParams({client_id:CLIENT_ID,scope:SCOPE,grant_type:'refresh_token',refresh_token:rt})});
+    d=await r.json();
+  }catch(e){throw new Error('Geen verbinding met Microsoft — controleer je internet en probeer opnieuw.')}
+  if(!d.access_token){
+    if(d.error==='invalid_grant'||d.error==='interaction_required'){try{localStorage.removeItem(RT_KEY)}catch(e){}}
+    throw new Error('NIET_INGELOGD');
+  }
   token=d.access_token;if(d.refresh_token)LS.set(RT_KEY,d.refresh_token);
+}
+// Inlogstatus rechtsboven (zoals bij Factuur versturen); de tool werkt ook zonder inlog (voorbeeld/downloaden)
+async function toonInlogStatus(){
+  try{await vernieuw();const d=await graphJSON('me?$select=displayName');$('who').innerHTML=`<b>${esc(d.displayName||'Ingelogd')}</b>Visser Inspecties`}
+  catch(e){$('who').innerHTML=e.message==='NIET_INGELOGD'?VILogin.inlogLink('🔐 Inloggen'):'Visser Inspecties'}
 }
 const G='https://graph.microsoft.com/v1.0/';
 const ENC=p=>p.split('/').map(encodeURIComponent).join('/');
@@ -191,6 +208,18 @@ async function graphJSON(url,opts){const r=await graph(url,opts);let d={};try{d=
 const b64=u8=>{let s='';for(let i=0;i<u8.length;i+=0x8000)s+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000));return btoa(s)};
 
 /* aanhef */
+// "mevrouw de Looze", "heer/mevrouw A. de Looze", "Dhr. J. Jansen", "fam. Bakker" → "de Looze", "Jansen", "Bakker"
+function naamZonderTitel(s){
+  const titel=/^(?:heer\s*\/\s*mevrouw|mevrouw\s*\/\s*heer|de\s+heer|heer|mevrouw|mevr\.?|mw\.?|mej\.?|dhr\.?|hr\.?|familie|fam\.?)(?=\s|$)\s*/i;
+  let t=String(s||'').trim(), vorige;
+  do{
+    vorige=t;
+    const nieuw=t.replace(titel,'').replace(/^(?:[A-Z]\.\s*)+/,'').trim();
+    if(!nieuw) break;          // nooit de hele naam wegpoetsen (bv. iemand die "de Heer" heet)
+    t=nieuw;
+  }while(t!==vorige);
+  return t;
+}
 const A={groet:'Geachte',titel:'heer'};
 function aanhefTekst(){
   const n=$('aanhefnaam').value.trim();
@@ -224,9 +253,15 @@ function vulFormulier(v){
   }
   if(v.naam)$('adresnaam').value=v.naam;
   if(v.mail)$('mail').value=v.mail;
-  if(v.achternaam)$('aanhefnaam').value=v.achternaam;
-  const ah=v.aanhef||'';
-  if(/familie/i.test(ah))A.titel='familie';else if(/mevrouw/i.test(ah))A.titel='mevrouw';else if(/heer/i.test(ah))A.titel='heer';
+  // naam in de aanhef: achternaam, of anders de naam op het adres — zonder titels en voorletters
+  const achter=naamZonderTitel(v.achternaam||'')||naamZonderTitel(v.naam||'');
+  if(achter)$('aanhefnaam').value=achter;
+  // titel uit de aanhef; anders uit de naam ("Mevrouw de Looze"); "heer/mevrouw" zegt niets
+  const ah=String(v.aanhef||'').replace(/heer\s*\/\s*mevrouw|mevrouw\s*\/\s*heer/ig,'');
+  const titelBron=ah+' '+(v.achternaam||'')+' '+(v.naam||'');
+  if(/\b(familie|fam\.)/i.test(titelBron))A.titel='familie';
+  else if(/\b(mevrouw|mevr\.|mw\.)/i.test(titelBron))A.titel='mevrouw';
+  else if(/\b(heer|dhr\.)/i.test(titelBron))A.titel='heer';
   if(v.datum)$('datum').value=v.datum;
   if(v.tijd){$('metTijd').checked=true;$('tijd').value=v.tijd}
   if(v.prijs!==null&&v.prijs!==undefined){$('metPrijs').checked=true;
@@ -238,9 +273,17 @@ function toonOpslagplek(){
   $('opslagplek').textContent=projectPadBekend?'In de projectmap '+projectPadBekend.split('/').pop():'In 0_In Behandeling, map met deze postcode';
 }
 
-$('b-txt').onclick=()=>$('f-txt').click();
-$('f-txt').onchange=async()=>{
-  const f=$('f-txt').files[0];if(!f)return;
+const drop=$('txt-drop');
+drop.onclick=()=>$('f-txt').click();
+drop.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('f-txt').click()}};
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over')}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over')}));
+drop.addEventListener('drop',e=>{const f=[...(e.dataTransfer.files||[])].find(x=>/\.txt$/i.test(x.name)||x.type==='text/plain');
+  if(f)leesTxtBestand(f);else say('warn','Dat is geen .txt-bestand. Sleep het tekstbestand met de projectgegevens uit de projectmap.')});
+// voorkomen dat de browser een losgelaten bestand naast het vak opent
+['dragover','drop'].forEach(ev=>window.addEventListener(ev,e=>{if(!drop.contains(e.target))e.preventDefault()}));
+$('f-txt').onchange=()=>{const f=$('f-txt').files[0];if(f)leesTxtBestand(f);$('f-txt').value=''};
+async function leesTxtBestand(f){
   try{
     const t=await f.text();
     const veld=re=>{const m=t.match(re);return m?m[1].trim():''};
@@ -258,10 +301,9 @@ $('f-txt').onchange=async()=>{
     const tm=afspraak.match(/(\d{1,2})[:.](\d{2})/);if(tm)v.tijd=tm[1].padStart(2,'0')+':'+tm[2];
     const pm=veld(/^Afgesproken prijs:\s*(.+)$/m).match(/\d[\d.,]*/);v.prijs=pm?prijsGetal(pm[0]):null;
     projectPadBekend=null;vulFormulier(v);toonOpslagplek();
-    render();voorbeeld();say('ok','✓ Projectgegevens ingelezen. Controleer de aanhef'+(tm?'':' en vul de tijd in')+'.');
+    render();voorbeeld();say('ok','✓ '+esc(f.name)+' ingelezen. Controleer de aanhef'+(tm?'':' en vul de tijd in')+'.');
   }catch(e){say('err','Inlezen mislukt: '+esc(e.message))}
-  $('f-txt').value='';
-};
+}
 
 /* Doorgegeven door Nieuwe projectmap: opdrachtbevestiging.html#project=<gegevens> */
 function leesOverdracht(){
@@ -533,7 +575,7 @@ $('b-pdf').onclick=async()=>{
   b.disabled=false;
 };
 if(!leesOverdracht())say('info','<span class="spin"></span>Briefpapier en lettertypes laden…');
-render();voorbeeld();
+render();voorbeeld();toonInlogStatus();
 </script>
 </body>
 </html>
