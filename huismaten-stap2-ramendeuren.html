@@ -7352,6 +7352,41 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
   return wrap;
 }
 
+// Glastype tussen haakjes in een regel, bv. "Raam 5 (D)" of "raam in deur (e)" → rood en vet
+const GLAS_IN_LABEL_RE = /\((e|D|Hr|\+|\+\+|Vz|\+\+\+)\)/g;
+function glasRoodHtml(label){
+  return String(label == null ? '' : label).replace(GLAS_IN_LABEL_RE, '(<span style="color:#d0021b;font-weight:700;">$1</span>)');
+}
+// PDF: tekstregels tekenen met het glastype in rood (rest in de huidige kleur)
+function pdfTekstMetRoodGlas(pdf, regels, x, y, fontSize){
+  const lijst = Array.isArray(regels) ? regels : [regels];
+  if(!lijst.some(t => new RegExp(GLAS_IN_LABEL_RE.source).test(t))){ pdf.text(lijst, x, y); return; }
+  const lh = fontSize * (pdf.getLineHeightFactor ? pdf.getLineHeightFactor() : 1.15) / pdf.internal.scaleFactor;
+  const basisKleur = pdf.getTextColor ? pdf.getTextColor() : '#2d2d2d';
+  const basisFont = pdf.getFont ? pdf.getFont() : null;
+  lijst.forEach((regel, i)=>{
+    const yy = y + i*lh;
+    let cx = x, laatste = 0;
+    const re = new RegExp(GLAS_IN_LABEL_RE.source, 'g');
+    let m;
+    const stuk = (t, rood) => {
+      if(!t) return;
+      if(rood){ pdf.setTextColor(208, 2, 27); pdf.setFont(undefined, 'bold'); }
+      else { pdf.setTextColor(basisKleur); pdf.setFont(undefined, basisFont ? basisFont.fontStyle : 'normal'); }
+      pdf.text(t, cx, yy);
+      cx += pdf.getTextWidth(t);
+    };
+    while((m = re.exec(regel))){
+      stuk(regel.slice(laatste, m.index) + '(', false);
+      stuk(m[1], true);
+      laatste = m.index + m[0].length - 1;   // ')' hoort bij de normale tekst
+    }
+    stuk(regel.slice(laatste), false);
+  });
+  pdf.setTextColor(basisKleur);
+  if(basisFont) pdf.setFont(undefined, basisFont.fontStyle);
+}
+
 function renderTekeningResultatenTabel(){
   const container = document.getElementById('tekening-resultaten-tabel');
   if(!container) return;
@@ -7371,7 +7406,7 @@ function renderTekeningResultatenTabel(){
     if(r.kop){ html += `<tr class="kop"><td colspan="5" style="${kleur(r)}">${r.kop}</td></tr>`; return; }
     if(r.soort === 'item'){
       const keuze = r.sleutel ? uitKeuzeHtml(r.sleutel) : '';
-      html += `<tr style="${kleur(r)}${r.uit?'font-style:italic;':''}"><td>${r.label}${formule(r.formule)}</td><td class="waarde">${r.opp==null ? '—' : (r.uit ? `<s>${r.opp.toFixed(2)}</s>` : r.opp.toFixed(2))}</td><td></td><td>m²</td><td class="copy-cel">${r.uit ? '' : knop(r.opp, r)}${keuze}</td></tr>`;
+      html += `<tr style="${kleur(r)}${r.uit?'font-style:italic;':''}"><td>${glasRoodHtml(r.label)}${formule(r.formule)}</td><td class="waarde">${r.opp==null ? '—' : (r.uit ? `<s>${r.opp.toFixed(2)}</s>` : r.opp.toFixed(2))}</td><td></td><td>m²</td><td class="copy-cel">${r.uit ? '' : knop(r.opp, r)}${keuze}</td></tr>`;
     } else if(r.soort === 'sub' || r.soort === 'eind'){
       html += `<tr style="font-weight:700;${kleur(r)}background:${r.soort==='eind' ? '#e7e3d8' : '#f5f2ea'};"><td>${r.label}</td><td></td><td class="waarde">${r.opp==null ? '—' : r.opp.toFixed(2)}</td><td>m²</td><td class="copy-cel">${knop(r.opp, r)}</td></tr>`;
     } else if(r.getal != null){
@@ -7967,7 +8002,7 @@ function samenvattingTekenen(pdfEcht, x, y, breedteMm, regels, maxY, schaal, met
       pdf.setFillColor(r.soort==='eind' ? 222 : 243, r.soort==='eind' ? 216 : 240, r.soort==='eind' ? 200 : 232);
       pdf.rect(kolX-1.5, cy-3.2*schaal, breedteMm+3, lineH*n+0.4*schaal, 'F');
     }
-    pdf.text(labelRegels, kolX, cy);
+    pdfTekstMetRoodGlas(pdf, labelRegels, kolX, cy, FONT_BODY);
     if(r.soort === 'item'){
       pdf.setFont(undefined,'normal');
       pdf.text(r.opp==null ? '—' : r.opp.toFixed(2), kolX+breedteMm-22, cy, {align:'right'});
