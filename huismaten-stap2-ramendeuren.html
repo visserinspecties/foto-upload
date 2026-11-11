@@ -8242,6 +8242,10 @@ function kiesOnedrive({ titel, knopTekst, bestandExt, startPad } = {}){
 // opties.doelMap = een map op deze computer (van showDirectoryPicker).
 //   Is die gezet, dan schrijven we daar rechtstreeks naartoe in plaats van
 //   te downloaden, en slaan we de OneDrive-vraag over.
+// Schets-PNG: zelfde naam als de PDF (incl. _v-nummer), met ' - schets' erachter
+function schetsPngNaam(pdfNaam){ return String(pdfNaam).replace(/\.pdf$/i, '') + ' - schets.png'; }
+function schetsPngBlob(schets){ return new Promise((ok, fout) => schets.canvas.toBlob(b => b ? ok(b) : fout(new Error('PNG maken mislukt')), 'image/png')); }
+
 async function exporteerPDF(opties = {}){
   const btn = document.getElementById(opties.controle ? 'btn-controle-pdf' : 'btn-tekening-pdf');
   PDF_CONTROLE = opties.controle ? {tijd: tijdNL()} : null;
@@ -8439,6 +8443,20 @@ async function exporteerPDF(opties = {}){
       laatsteRij = {y, xEind: x - gap};
     }
 
+    // Schets (niet op schaal) als laatste pagina, als er bij dit project een schets is gemaakt
+    let schetsPagina = 0, schets = null;
+    try { schets = typeof window.schetsVoorExport === 'function' ? window.schetsVoorExport() : null; } catch(e){ console.warn('schets: niet meegenomen', e); }
+    if(schets){
+      pdf.addPage(); schetsPagina = pdf.internal.getNumberOfPages();
+      pdf.setFont(undefined,'bold'); pdf.setFontSize(11); pdf.setTextColor(0,0,0);
+      const pn = (typeof actiefProjectNaam === 'function' && actiefProjectNaam()) || '';
+      pdf.text('Schets' + (pn ? ' — ' + pn : '') + ' (niet op schaal)', margin, margin + 4);
+      const vakB = pageW - 2*margin, vakH = pageH - 2*margin - 10 - 4;
+      const f = Math.min(vakB / schets.breedte, vakH / schets.hoogte);
+      const iw = schets.breedte * f, ih = schets.hoogte * f;
+      pdf.addImage(schets.canvas.toDataURL('image/png'), 'PNG', margin + (vakB - iw)/2, margin + 10, iw, ih);
+    }
+
     // Logo Visser Inspecties + schaal-aanduiding, samen in de onderrand van elke pagina (vast, niet verwijderbaar)
     const logoBreedte = 24, logoHoogte = logoBreedte/LOGO_ASPECT;
     const logoY = pageH - margin + (margin-logoHoogte)/2;
@@ -8447,7 +8465,7 @@ async function exporteerPDF(opties = {}){
       pdf.setPage(p);
       pdf.setFont(undefined,'normal');
       pdf.setFontSize(8);
-      pdf.text('schaal 1:100', pageW-margin-logoBreedte-3, pageH-margin+5.5, {align:'right'});
+      pdf.text(p === schetsPagina ? 'niet op schaal' : 'schaal 1:100', pageW-margin-logoBreedte-3, pageH-margin+5.5, {align:'right'});
       pdf.addImage(LOGO_VISSER_B64, 'PNG', pageW-margin-logoBreedte, logoY, logoBreedte, logoHoogte);
     }
 
@@ -8470,6 +8488,10 @@ async function exporteerPDF(opties = {}){
     if (opties.doelMap) {
       await schrijfNaarMap(opties.doelMap, pdfNaam, blob);
       meldingen.push(`💾 "${pdfNaam}" in de gekozen map gezet`);
+      if (schets && !opties.controle) {
+        try { await schrijfNaarMap(opties.doelMap, schetsPngNaam(pdfNaam), await schetsPngBlob(schets)); meldingen.push('✏️ schets als PNG erbij'); }
+        catch(e){ meldingen.push('⚠️ schets-PNG niet opgeslagen: ' + (e.message || e)); }
+      }
       toonStatus();
     } else {
       // 2. Eerst proberen recht in de projectmap te zetten. Dát is de plek waar
@@ -8482,6 +8504,10 @@ async function exporteerPDF(opties = {}){
           pdfStaatGoed = true;
           await zetExportStatus(pdfRec, 'ok');
           meldingen.push(`📁 PDF opgeslagen in 020 AANTEKENINGEN van "${actiefProjectNaam()}"`);
+          if (schets && !opties.controle) {
+            try { await uploadBestandNaarProjectmap(await schetsPngBlob(schets), schetsPngNaam(pdfNaam)); meldingen.push('✏️ schets als PNG erbij gezet'); }
+            catch(e){ meldingen.push('⚠️ schets-PNG niet in de projectmap: ' + (e.message || e)); }
+          }
         } catch(uploadErr){
           await zetExportStatus(pdfRec, 'mislukt', uploadErr && uploadErr.message ? uploadErr.message : String(uploadErr));
           meldingen.push(`⚠️ projectmap mislukt: ${uploadErr.message}`);
@@ -9598,6 +9624,489 @@ try { autosaveToonBanner(); } catch(e) { console.warn('autosave-banner', e); }
   document.getElementById('bs-klaar').addEventListener('click', sluit);
   document.addEventListener('keydown', e=>{ if(e.key==='Escape' && !laag.hidden) sluit(); });
   window.addEventListener('message', e=>{ if(e.origin===location.origin && e.data && e.data.type==='bs-sluit') sluit(); });
+})();
+</script>
+<!-- ============================================================
+     SCHETS — vrije, niet op schaal getekende schets per project (keuken, ketel, badkamer...)
+     Knopje linksonder (altijd zichtbaar) opent een tekenvlak over Huismaten heen.
+     Pencil tekent, twee vingers schuiven/zoomen, tik met twee vingers = ongedaan maken.
+     Bewaard op dit apparaat per projectmap; komt als laatste pagina in de A3-PDF
+     en als los PNG-bestand in 020 AANTEKENINGEN.
+     ============================================================ -->
+<style>
+  #sk-knop{ position:fixed; left:14px; bottom:max(14px, env(safe-area-inset-bottom)); z-index:9001;
+    background:#2a2340; color:#fff; border:none; border-radius:24px; padding:11px 16px; font-size:0.9rem; font-weight:600;
+    box-shadow:0 6px 20px rgba(30,20,60,.28); cursor:pointer; display:flex; align-items:center; gap:6px; touch-action:manipulation; }
+  #sk-knop .sk-stip{ width:8px; height:8px; border-radius:50%; background:#e3a21a; display:none; }
+  #sk-knop.heeft .sk-stip{ display:inline-block; }
+  @media print{ #sk-knop, #sk-laag{ display:none !important; } }
+  #sk-laag{ position:fixed; inset:0; z-index:10001; background:rgba(15,12,25,.55); display:flex;
+    padding:max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); }
+  #sk-laag[hidden]{ display:none; }
+  .sk-venster{ flex:1; display:flex; flex-direction:column; background:#e9e6df; border-radius:12px; overflow:hidden; box-shadow:0 10px 40px rgba(0,0,0,.35); min-width:0; }
+  .sk-kop{ display:flex; align-items:center; gap:10px; background:#2a2340; color:#fff; padding:8px 10px 8px 14px; }
+  .sk-kop b{ font-size:0.9rem; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sk-kop small{ font-weight:400; opacity:.75; }
+  .sk-klaar{ background:#fff; color:#2a2340; border:none; border-radius:7px; padding:8px 14px; font-weight:700; font-size:0.85rem; cursor:pointer; white-space:nowrap; touch-action:manipulation; }
+  .sk-balk{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding:7px 8px; background:#f7f5f0; border-bottom:1px solid #d8d2c4; }
+  .sk-balk .sk-groep{ display:flex; gap:4px; align-items:center; padding-right:6px; margin-right:2px; border-right:1px solid #ddd6c8; }
+  .sk-balk .sk-groep:last-child{ border-right:0; }
+  .sk-b{ min-width:40px; height:40px; padding:0 9px; border-radius:8px; border:1px solid #d8d2c4; background:#fff; color:#2a2340;
+    font-size:0.85rem; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:4px; touch-action:manipulation;
+    -webkit-user-select:none; user-select:none; }
+  .sk-b.aan{ background:#2a2340; color:#fff; border-color:#2a2340; }
+  .sk-b:disabled{ opacity:.4; }
+  .sk-kleur{ width:30px; height:30px; min-width:30px; padding:0; border-radius:50%; border:3px solid #fff; box-shadow:0 0 0 1px #c9c2b2; }
+  .sk-kleur.aan{ box-shadow:0 0 0 3px #2a2340; }
+  .sk-stempel b{ font-size:0.78rem; }
+  .sk-vlak{ flex:1; position:relative; min-height:0; overflow:hidden; background:#d9d5cc; }
+  #sk-canvas{ position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none;
+    -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+  .sk-hint{ position:absolute; left:10px; bottom:8px; font-size:0.72rem; color:#5a5446; background:rgba(255,255,255,.8);
+    padding:4px 8px; border-radius:6px; pointer-events:none; }
+</style>
+
+<div aria-hidden="true" style="height:70px"></div><!-- ruimte zodat het schetsknopje onderaan niets afdekt -->
+<button type="button" id="sk-knop" title="Schets maken bij dit project (niet op schaal)"><span>✏️ Schets</span><span class="sk-stip"></span></button>
+
+<div id="sk-laag" hidden role="dialog" aria-modal="true" aria-label="Schets">
+  <div class="sk-venster">
+    <div class="sk-kop"><b>✏️ Schets <small id="sk-project">— niet op schaal</small></b>
+      <button type="button" class="sk-klaar" id="sk-klaar">✓ Klaar — terug naar Huismaten</button></div>
+    <div class="sk-balk" id="sk-balk">
+      <div class="sk-groep">
+        <button type="button" class="sk-b aan" data-gereedschap="pen" title="Tekenen">✏️</button>
+        <button type="button" class="sk-b" data-gereedschap="gum" title="Gum: veeg over een lijn, stempel of tekst om hem weg te halen">🧽</button>
+        <button type="button" class="sk-b" data-gereedschap="tekst" title="Tekst: tik op de plek en typ een woord"><b>T</b></button>
+      </div>
+      <div class="sk-groep">
+        <button type="button" class="sk-b sk-kleur aan" data-kleur="#1c1c1e" style="background:#1c1c1e" title="Zwart"></button>
+        <button type="button" class="sk-b sk-kleur" data-kleur="#c0392b" style="background:#c0392b" title="Rood"></button>
+        <button type="button" class="sk-b sk-kleur" data-kleur="#1f4e9c" style="background:#1f4e9c" title="Blauw"></button>
+        <button type="button" class="sk-b" id="sk-dikte" title="Lijndikte">━ dun</button>
+      </div>
+      <div class="sk-groep" id="sk-stempels"></div>
+      <div class="sk-groep">
+        <button type="button" class="sk-b" id="sk-terug" title="Ongedaan maken (of tik met twee vingers)">↶</button>
+        <button type="button" class="sk-b" id="sk-wis" title="Hele schets wissen">🗑</button>
+        <button type="button" class="sk-b" id="sk-vinger" title="Aan: ook met je vinger tekenen. Uit: alleen de Pencil tekent, zodat je hand op het scherm kan rusten.">✋ vinger</button>
+      </div>
+    </div>
+    <div class="sk-vlak" id="sk-vlak">
+      <canvas id="sk-canvas"></canvas>
+      <div class="sk-hint" id="sk-hint">Pencil tekent · twee vingers schuiven en zoomen · tik met twee vingers = ongedaan maken</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ---------- vaste gegevens ----------
+  const PAGINA_B = 1200, PAGINA_H = 1700;            // tekenvel in 'wereld'-eenheden (staand, A-verhouding)
+  const SLEUTEL = pad => 'huismaten-schets-v1:' + (pad || '-');
+  const STEMPELS = {
+    k:   { ico:'🍳', a:'K',   n:'keuken',                  c:'#b5482a' },
+    b:   { ico:'🛁', a:'B',   n:'badkamer',                c:'#1f4e9c' },
+    cv:  { ico:'🔥', a:'CV',  n:'cv-ketel',                c:'#c0392b' },
+    bo:  { ico:'💧', a:'BO',  n:'boiler',                  c:'#2f8fbf' },
+    wtw: { ico:'🌀', a:'WTW', n:'wtw / mech. ventilatie',  c:'#3aa776' },
+    kp:  { ico:null, a:'KP',  n:'lichtkoepel',             c:'#7d4ea3' }   // icoon wordt getekend (koepeltje)
+  };
+  const DIKTES = [{w:3, t:'━ dun'}, {w:7, t:'━ dik'}];
+
+  const knop = document.getElementById('sk-knop'), laag = document.getElementById('sk-laag');
+  const vlak = document.getElementById('sk-vlak'), cv = document.getElementById('sk-canvas'), ctx = cv.getContext('2d');
+  if(!knop || !laag || !cv) return;
+
+  // ---------- toestand ----------
+  let items = [];          // {t:'l',c,w,p:[x,y,...]} | {t:'s',k,x,y} | {t:'x',x,y,s,c}
+  let hist = [];           // voor ongedaan maken: {op:'add'|'del'|'clear', ...}
+  let geladenPad = null;   // van welk project 'items' nu is
+  let gereedschap = 'pen', kleur = '#1c1c1e', dikteIdx = 0, stempelKeuze = null;
+  let vingerTekent = false;
+  try { vingerTekent = localStorage.getItem('huismaten-schets-vinger') === '1'; } catch(_) {}
+  let view = { s: 1, ox: 0, oy: 0 }, viewKlaar = false, dpr = 1;
+
+  function projectPad(){ try { return (typeof actiefProjectPad === 'function' && actiefProjectPad()) || null; } catch(_) { return null; } }
+  function projectNaam(){ try { return (typeof actiefProjectNaam === 'function' && actiefProjectNaam()) || ''; } catch(_) { return ''; } }
+
+  // ---------- bewaren / laden (per projectmap, op dit apparaat) ----------
+  function lees(pad){
+    try { const r = JSON.parse(localStorage.getItem(SLEUTEL(pad)) || 'null'); return r && Array.isArray(r.items) ? r.items : []; }
+    catch(_) { return []; }
+  }
+  function laad(){
+    const pad = projectPad();
+    items = lees(pad);
+    // Geschetst voordat er een project gekozen was? Dan die schets meenemen naar dit project.
+    if(pad && !items.length){
+      const los = lees(null);
+      if(los.length){ items = los; try { localStorage.removeItem(SLEUTEL(null)); } catch(_) {} bewaarNu(pad); }
+    }
+    geladenPad = pad; hist = [];
+  }
+  let bewaarTimer = null;
+  function bewaarNu(pad){
+    clearTimeout(bewaarTimer); bewaarTimer = null;
+    const p = pad === undefined ? geladenPad : pad;
+    try {
+      if(items.length) localStorage.setItem(SLEUTEL(p), JSON.stringify({ v:1, tijd: Date.now(), project: projectNaam(), items }));
+      else localStorage.removeItem(SLEUTEL(p));
+    } catch(e) { alert('Schets kon niet op dit apparaat bewaard worden (opslag vol?). Exporteer de PDF om hem veilig te stellen.'); }
+    werkKnopBij();
+  }
+  function bewaarStraks(){ clearTimeout(bewaarTimer); bewaarTimer = setTimeout(() => bewaarNu(), 400); }
+  function werkKnopBij(){
+    const heeft = lees(projectPad()).length > 0;
+    knop.classList.toggle('heeft', heeft);
+    knop.title = heeft ? 'Schets bij dit project openen (er staat al iets in)' : 'Schets maken bij dit project (niet op schaal)';
+  }
+  window.addEventListener('pagehide', () => { if(bewaarTimer) bewaarNu(); });
+  document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'hidden' && bewaarTimer) bewaarNu(); });
+  setInterval(() => { if(laag.hidden) werkKnopBij(); }, 3000);
+
+  // ---------- tekenen ----------
+  function zetTransform(c, s, ox, oy, schaal){ c.setTransform(schaal*s, 0, 0, schaal*s, schaal*ox, schaal*oy); }
+
+  function tekenKoepel(c, x, y, r, kl){
+    c.save(); c.strokeStyle = kl; c.lineWidth = 3; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(x - r, y + r*0.45); c.lineTo(x + r, y + r*0.45); c.stroke();
+    c.beginPath(); c.arc(x, y + r*0.45, r*0.78, Math.PI, 0); c.stroke();
+    c.beginPath(); c.moveTo(x - r*0.25, y - r*0.15); c.lineTo(x + r*0.15, y - r*0.15); c.stroke();
+    c.restore();
+  }
+  function stempelMaat(c, st){
+    c.font = '700 26px -apple-system, "Segoe UI", Arial, sans-serif';
+    const tw = c.measureText(st.a).width;
+    return { w: 14 + 34 + 6 + tw + 14, h: 50 };
+  }
+  function tekenStempel(c, it){
+    const st = STEMPELS[it.k]; if(!st) return;
+    const m = stempelMaat(c, st), x0 = it.x - m.w/2, y0 = it.y - m.h/2;
+    c.save();
+    c.fillStyle = '#ffffff'; c.strokeStyle = st.c; c.lineWidth = 3;
+    const r = 12;
+    c.beginPath();
+    c.moveTo(x0 + r, y0); c.lineTo(x0 + m.w - r, y0); c.quadraticCurveTo(x0 + m.w, y0, x0 + m.w, y0 + r);
+    c.lineTo(x0 + m.w, y0 + m.h - r); c.quadraticCurveTo(x0 + m.w, y0 + m.h, x0 + m.w - r, y0 + m.h);
+    c.lineTo(x0 + r, y0 + m.h); c.quadraticCurveTo(x0, y0 + m.h, x0, y0 + m.h - r);
+    c.lineTo(x0, y0 + r); c.quadraticCurveTo(x0, y0, x0 + r, y0); c.closePath();
+    c.fill(); c.stroke();
+    const icx = x0 + 14 + 17, icy = it.y;
+    if(st.ico){
+      c.font = '28px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+      c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#000';
+      c.fillText(st.ico, icx, icy + 1);
+    } else tekenKoepel(c, icx, icy, 15, st.c);
+    c.font = '700 26px -apple-system, "Segoe UI", Arial, sans-serif';
+    c.textAlign = 'left'; c.textBaseline = 'middle'; c.fillStyle = st.c;
+    c.fillText(st.a, x0 + 14 + 34 + 6, it.y + 1);
+    c.restore();
+  }
+  function tekstFont(){ return '600 28px -apple-system, "Segoe UI", Arial, sans-serif'; }
+  function tekenTekst(c, it){
+    c.save(); c.font = tekstFont(); c.fillStyle = it.c || '#1c1c1e'; c.textAlign = 'left'; c.textBaseline = 'middle';
+    c.fillText(it.s, it.x, it.y); c.restore();
+  }
+  function tekenLijn(c, it){
+    const p = it.p; if(p.length < 2) return;
+    c.save(); c.strokeStyle = it.c; c.lineWidth = it.w; c.lineCap = 'round'; c.lineJoin = 'round';
+    c.beginPath(); c.moveTo(p[0], p[1]);
+    if(p.length === 2) c.lineTo(p[0] + 0.01, p[1]);
+    for(let i = 2; i < p.length; i += 2) c.lineTo(p[i], p[i+1]);
+    c.stroke(); c.restore();
+  }
+  function tekenItem(c, it){ if(it.t === 'l') tekenLijn(c, it); else if(it.t === 's') tekenStempel(c, it); else if(it.t === 'x') tekenTekst(c, it); }
+
+  function tekenAlles(){
+    const W = cv.width, H = cv.height;
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.fillStyle = '#d9d5cc'; ctx.fillRect(0, 0, W, H);
+    zetTransform(ctx, view.s, view.ox, view.oy, dpr);
+    // het vel
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.18)'; ctx.shadowBlur = 12; ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, PAGINA_B, PAGINA_H); ctx.restore();
+    // stippenraster als hulp (komt niet in de export)
+    ctx.fillStyle = '#cfcabe';
+    const st = 40, r = Math.max(1.2, 1.6 / view.s);
+    for(let y = st; y < PAGINA_H; y += st) for(let x = st; x < PAGINA_B; x += st) { ctx.fillRect(x - r/2, y - r/2, r, r); }
+    items.forEach(it => tekenItem(ctx, it));
+    if(actief && actief.lijn) tekenLijn(ctx, actief.lijn);
+  }
+
+  function pasGrootteAan(){
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = vlak.clientWidth, h = vlak.clientHeight;
+    if(!w || !h) return;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    if(!viewKlaar){
+      const s = Math.min((w - 30) / PAGINA_B, 1.4);
+      view = { s, ox: (w - PAGINA_B*s) / 2, oy: 15 };
+      viewKlaar = true;
+    }
+    tekenAlles();
+  }
+  if(window.ResizeObserver) new ResizeObserver(() => { if(!laag.hidden) pasGrootteAan(); }).observe(vlak);
+  window.addEventListener('resize', () => { if(!laag.hidden) pasGrootteAan(); });
+
+  function naarWereld(e){
+    const r = cv.getBoundingClientRect();
+    return { x: (e.clientX - r.left - view.ox) / view.s, y: (e.clientY - r.top - view.oy) / view.s };
+  }
+
+  // ---------- handelingen + ongedaan maken ----------
+  function voegToe(it){ items.push(it); hist.push({ op:'add', it }); bewaarStraks(); werkTerugknopBij(); }
+  function ongedaan(){
+    const h = hist.pop(); if(!h) return;
+    if(h.op === 'add'){ const i = items.lastIndexOf(h.it); if(i >= 0) items.splice(i, 1); }
+    else if(h.op === 'del'){ for(let j = h.weg.length - 1; j >= 0; j--) items.splice(h.weg[j][0], 0, h.weg[j][1]); }   // precies omgekeerd terugzetten
+    else if(h.op === 'clear'){ items = h.items.slice(); }
+    bewaarStraks(); tekenAlles(); werkTerugknopBij();
+  }
+  function werkTerugknopBij(){ document.getElementById('sk-terug').disabled = !hist.length; }
+
+  // gum: wat ligt er onder dit punt?
+  function raakt(it, x, y, tol){
+    if(it.t === 'l'){
+      const p = it.p, t = tol + it.w/2;
+      if(p.length === 2) return Math.hypot(p[0]-x, p[1]-y) <= t;
+      for(let i = 2; i < p.length; i += 2){
+        const ax = p[i-2], ay = p[i-1], bx = p[i], by = p[i+1];
+        const dx = bx-ax, dy = by-ay, l2 = dx*dx + dy*dy;
+        let u = l2 ? ((x-ax)*dx + (y-ay)*dy) / l2 : 0; u = Math.max(0, Math.min(1, u));
+        if(Math.hypot(ax + u*dx - x, ay + u*dy - y) <= t) return true;
+      }
+      return false;
+    }
+    if(it.t === 's'){ const m = stempelMaat(ctx, STEMPELS[it.k] || {a:''}); return Math.abs(x-it.x) <= m.w/2 + tol && Math.abs(y-it.y) <= m.h/2 + tol; }
+    if(it.t === 'x'){ ctx.save(); ctx.font = tekstFont(); const w = ctx.measureText(it.s).width; ctx.restore();
+      return x >= it.x - tol && x <= it.x + w + tol && Math.abs(y-it.y) <= 18 + tol; }
+    return false;
+  }
+  function gumOp(pt, weg){
+    const tol = 10 / view.s;
+    let iets = false;
+    for(let i = items.length - 1; i >= 0; i--){
+      if(raakt(items[i], pt.x, pt.y, tol)){
+        weg.push([i, items[i]]); items.splice(i, 1); iets = true;
+      }
+    }
+    if(iets) tekenAlles();
+  }
+
+  // ---------- aanwijzer: Pencil, vinger, muis ----------
+  let actief = null;                 // {id, soort, lijn?, weg?}
+  const vingers = new Map();         // touch-aanwijzers: id -> {x,y,x0,y0}
+  let gebaar = null;                 // twee vingers: {mx,my,afst,view}
+  let tik = null;                    // twee-vingertik-detectie: {t0, max, bewogen}
+
+  function begin(e, pt){
+    if(gereedschap === 'pen'){
+      actief = { id: e.pointerId, soort: e.pointerType, lijn: { t:'l', c: kleur, w: DIKTES[dikteIdx].w, p: [Math.round(pt.x), Math.round(pt.y)] } };
+      tekenAlles();
+    } else if(gereedschap === 'gum'){
+      actief = { id: e.pointerId, soort: e.pointerType, weg: [] };
+      gumOp(pt, actief.weg);
+    } else if(gereedschap === 'stempel' && stempelKeuze){
+      voegToe({ t:'s', k: stempelKeuze, x: Math.round(pt.x), y: Math.round(pt.y) });
+      tekenAlles(); kiesGereedschap('pen');
+    } else if(gereedschap === 'tekst'){
+      const s = (prompt('Tekst op de schets:') || '').trim();
+      if(s){ voegToe({ t:'x', x: Math.round(pt.x), y: Math.round(pt.y), s, c: kleur }); tekenAlles(); }
+      kiesGereedschap('pen');
+    }
+  }
+  function verder(e){
+    const evs = (e.getCoalescedEvents && e.getCoalescedEvents().length) ? e.getCoalescedEvents() : [e];
+    for(const ev of evs){
+      const pt = naarWereld(ev);
+      if(actief.lijn){
+        const p = actief.lijn.p, lx = p[p.length-2], ly = p[p.length-1];
+        if(Math.hypot(pt.x - lx, pt.y - ly) * view.s < 1.2) continue;   // te dicht bij elkaar: overslaan
+        p.push(Math.round(pt.x), Math.round(pt.y));
+        // alleen het nieuwe stukje tekenen (snel)
+        zetTransform(ctx, view.s, view.ox, view.oy, dpr);
+        ctx.save(); ctx.strokeStyle = actief.lijn.c; ctx.lineWidth = actief.lijn.w; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(pt.x, pt.y); ctx.stroke(); ctx.restore();
+      } else if(actief.weg) gumOp(pt, actief.weg);
+    }
+  }
+  function eind(annuleer){
+    if(!actief) return;
+    if(actief.lijn && !annuleer) voegToe(actief.lijn);
+    else if(actief.weg && actief.weg.length){ hist.push({ op:'del', weg: actief.weg }); bewaarStraks(); werkTerugknopBij(); }
+    actief = null; tekenAlles();
+  }
+
+  cv.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    try { cv.setPointerCapture(e.pointerId); } catch(_) {}
+    if(e.pointerType === 'touch'){
+      vingers.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY });
+      if(vingers.size === 1){
+        tik = { t0: Date.now(), max: 1, bewogen: false };
+        if(vingerTekent && !actief) begin(e, naarWereld(e));
+      } else {
+        if(actief && actief.soort === 'pen'){ tik = null; return; }   // Pencil is bezig: handpalm op het scherm, niet schuiven
+        if(tik) tik.max = Math.max(tik.max, vingers.size);
+        if(actief && actief.soort === 'touch') eind(true);       // eerste vinger was aan het tekenen: dat was geen tekenen
+        startGebaar();
+      }
+      return;
+    }
+    if(e.pointerType === 'mouse' && e.button !== 0) return;
+    if(actief && actief.soort === 'touch' && e.pointerType === 'pen') eind(true);   // Pencil gaat voor op een vinger
+    if(actief) return;
+    gebaar = null; tik = null;
+    begin(e, naarWereld(e));
+  }, { passive:false });
+
+  function startGebaar(){
+    const v = [...vingers.values()].slice(0, 2);
+    gebaar = { mx: (v[0].x + v[1].x)/2, my: (v[0].y + v[1].y)/2, afst: Math.hypot(v[0].x - v[1].x, v[0].y - v[1].y) || 1, view: { ...view } };
+  }
+
+  cv.addEventListener('pointermove', e => {
+    if(e.pointerType === 'touch' && vingers.has(e.pointerId)){
+      const f = vingers.get(e.pointerId); f.x = e.clientX; f.y = e.clientY;
+      if(tik && Math.hypot(f.x - f.x0, f.y - f.y0) > 12) tik.bewogen = true;
+      if(vingers.size >= 2 && gebaar && !(actief && actief.soort === 'pen')){
+        const v = [...vingers.values()].slice(0, 2), r = cv.getBoundingClientRect();
+        const mx = (v[0].x + v[1].x)/2, my = (v[0].y + v[1].y)/2, afst = Math.hypot(v[0].x - v[1].x, v[0].y - v[1].y) || 1;
+        const g = gebaar.view;
+        const s = Math.max(0.25, Math.min(4, g.s * afst / gebaar.afst));
+        // het wereldpunt onder het begin-midden blijft onder de vingers
+        const wx = (gebaar.mx - r.left - g.ox) / g.s, wy = (gebaar.my - r.top - g.oy) / g.s;
+        view = { s, ox: mx - r.left - wx*s, oy: my - r.top - wy*s };
+        tekenAlles();
+        return;
+      }
+    }
+    if(actief && e.pointerId === actief.id) verder(e);
+  });
+
+  function loslaten(e){
+    if(e.pointerType === 'touch' && vingers.has(e.pointerId)){
+      vingers.delete(e.pointerId);
+      if(vingers.size < 2) gebaar = null;
+      if(vingers.size === 0 && tik){
+        const tweeVingerTik = tik.max === 2 && !tik.bewogen && (Date.now() - tik.t0) < 400;
+        tik = null;
+        if(tweeVingerTik){ if(actief) eind(true); ongedaan(); return; }
+      }
+    }
+    if(actief && e.pointerId === actief.id) eind(e.type === 'pointercancel' && actief.soort === 'touch');
+  }
+  cv.addEventListener('pointerup', loslaten);
+  cv.addEventListener('pointercancel', loslaten);
+  // muiswiel / trackpad op de pc: schuiven, met ctrl zoomen
+  cv.addEventListener('wheel', e => {
+    e.preventDefault();
+    const r = cv.getBoundingClientRect();
+    if(e.ctrlKey){
+      const s = Math.max(0.25, Math.min(4, view.s * Math.exp(-e.deltaY * 0.01)));
+      const wx = (e.clientX - r.left - view.ox) / view.s, wy = (e.clientY - r.top - view.oy) / view.s;
+      view = { s, ox: e.clientX - r.left - wx*s, oy: e.clientY - r.top - wy*s };
+    } else { view.ox -= e.deltaX; view.oy -= e.deltaY; }
+    tekenAlles();
+  }, { passive:false });
+  // iOS: voorkom dat Safari zelf gaat zoomen/scrollen in het tekenvlak
+  ['gesturestart','gesturechange','touchmove'].forEach(t => cv.addEventListener(t, e => e.preventDefault(), { passive:false }));
+
+  // ---------- werkbalk ----------
+  const stempelGroep = document.getElementById('sk-stempels');
+  Object.entries(STEMPELS).forEach(([k, st]) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'sk-b sk-stempel'; b.dataset.stempel = k; b.title = 'Stempel: ' + st.n + ' — tik daarna op de plek';
+    b.innerHTML = (st.ico ? st.ico : '<svg width="18" height="14" viewBox="0 0 30 22" style="display:block;width:18px!important;height:14px!important;max-width:none!important;flex:0 0 18px"><path d="M2 18h26M5 18a10 10 0 0 1 20 0" fill="none" stroke="' + st.c + '" stroke-width="3" stroke-linecap="round"/></svg>') + '<b style="color:' + st.c + '">' + st.a + '</b>';
+    stempelGroep.appendChild(b);
+  });
+  function kiesGereedschap(g, stempel){
+    gereedschap = g; stempelKeuze = g === 'stempel' ? stempel : null;
+    document.querySelectorAll('#sk-balk [data-gereedschap]').forEach(b => b.classList.toggle('aan', b.dataset.gereedschap === g));
+    document.querySelectorAll('#sk-balk [data-stempel]').forEach(b => b.classList.toggle('aan', g === 'stempel' && b.dataset.stempel === stempel));
+    const hint = document.getElementById('sk-hint');
+    hint.textContent = g === 'stempel' ? 'Tik op de plek voor ' + STEMPELS[stempel].n
+      : g === 'tekst' ? 'Tik op de plek waar de tekst moet komen'
+      : g === 'gum' ? 'Veeg over wat weg moet'
+      : (vingerTekent ? 'Pencil of vinger tekent' : 'Pencil tekent') + ' · twee vingers schuiven en zoomen · tik met twee vingers = ongedaan maken';
+  }
+  document.getElementById('sk-balk').addEventListener('click', e => {
+    const b = e.target.closest('button'); if(!b) return;
+    if(b.dataset.gereedschap) kiesGereedschap(b.dataset.gereedschap);
+    else if(b.dataset.stempel) kiesGereedschap(stempelKeuze === b.dataset.stempel ? 'pen' : 'stempel', b.dataset.stempel);
+    else if(b.dataset.kleur){
+      kleur = b.dataset.kleur;
+      document.querySelectorAll('#sk-balk [data-kleur]').forEach(x => x.classList.toggle('aan', x === b));
+      if(gereedschap !== 'pen' && gereedschap !== 'tekst') kiesGereedschap('pen');
+    }
+  });
+  document.getElementById('sk-dikte').addEventListener('click', e => {
+    dikteIdx = (dikteIdx + 1) % DIKTES.length; e.currentTarget.textContent = DIKTES[dikteIdx].t; kiesGereedschap('pen');
+  });
+  document.getElementById('sk-terug').addEventListener('click', ongedaan);
+  document.getElementById('sk-wis').addEventListener('click', () => {
+    if(!items.length) return;
+    if(!confirm('Hele schets wissen? (Met ↶ kun je het nog terugzetten zolang dit venster open is.)')) return;
+    hist.push({ op:'clear', items: items.slice() }); items = []; bewaarStraks(); tekenAlles(); werkTerugknopBij();
+  });
+  const vingerKnop = document.getElementById('sk-vinger');
+  function werkVingerBij(){ vingerKnop.classList.toggle('aan', vingerTekent); vingerKnop.textContent = vingerTekent ? '✋ vinger aan' : '✋ vinger'; kiesGereedschap(gereedschap, stempelKeuze); }
+  vingerKnop.addEventListener('click', () => {
+    vingerTekent = !vingerTekent;
+    try { localStorage.setItem('huismaten-schets-vinger', vingerTekent ? '1' : '0'); } catch(_) {}
+    werkVingerBij();
+  });
+
+  // ---------- openen / sluiten ----------
+  function open(){
+    if(projectPad() !== geladenPad || !items.length) laad();
+    const pn = projectNaam();
+    document.getElementById('sk-project').textContent = (pn ? '— ' + pn + ' · ' : '— ') + 'niet op schaal';
+    laag.hidden = false; document.documentElement.style.overflow = 'hidden';
+    werkTerugknopBij(); werkVingerBij();
+    requestAnimationFrame(pasGrootteAan);
+  }
+  function sluit(){
+    if(actief) eind(false);
+    bewaarNu();
+    laag.hidden = true; document.documentElement.style.overflow = '';
+  }
+  knop.addEventListener('click', open);
+  document.getElementById('sk-klaar').addEventListener('click', sluit);
+  document.addEventListener('keydown', e => {
+    if(laag.hidden) return;
+    if(e.key === 'Escape') sluit();
+    else if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z'){ e.preventDefault(); ongedaan(); }
+  });
+
+  // ---------- voor de export ----------
+  // Geeft de schets van het actieve project als losse afbeelding (bijgesneden op de inhoud), of null als er niets staat.
+  window.schetsVoorExport = function(){
+    if(bewaarTimer) bewaarNu();
+    const lijst = lees(projectPad());
+    if(!lijst.length) return null;
+    const meet = document.createElement('canvas').getContext('2d');
+    let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+    const neem = (a, b, c, d) => { x1 = Math.min(x1, a); y1 = Math.min(y1, b); x2 = Math.max(x2, c); y2 = Math.max(y2, d); };
+    lijst.forEach(it => {
+      if(it.t === 'l'){ for(let i = 0; i < it.p.length; i += 2) neem(it.p[i] - it.w, it.p[i+1] - it.w, it.p[i] + it.w, it.p[i+1] + it.w); }
+      else if(it.t === 's'){ const m = stempelMaat(meet, STEMPELS[it.k] || {a:''}); neem(it.x - m.w/2 - 3, it.y - m.h/2 - 3, it.x + m.w/2 + 3, it.y + m.h/2 + 3); }
+      else if(it.t === 'x'){ meet.font = tekstFont(); const w = meet.measureText(it.s).width; neem(it.x, it.y - 20, it.x + w, it.y + 20); }
+    });
+    const pad = 40; x1 -= pad; y1 -= pad; x2 += pad; y2 += pad;
+    const bw = x2 - x1, bh = y2 - y1;
+    const schaal = Math.min(2, 3200 / Math.max(bw, bh));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(bw * schaal)); c.height = Math.max(1, Math.round(bh * schaal));
+    const g = c.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+    g.setTransform(schaal, 0, 0, schaal, -x1 * schaal, -y1 * schaal);
+    lijst.forEach(it => tekenItem(g, it));
+    return { canvas: c, breedte: c.width, hoogte: c.height };
+  };
+
+  werkKnopBij();
 })();
 </script>
 </body>
