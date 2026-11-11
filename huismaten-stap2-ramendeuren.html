@@ -1455,7 +1455,16 @@ async function controleerOneDrive() {
     try { resp = await fetch(`https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(pad)}`, { headers: { Authorization: 'Bearer ' + token } }); }
     catch (_) { zetOdBalk('let', '⚠️ OneDrive verbonden, maar de projectmap kon niet gecontroleerd worden (geen bereik).', [opnieuw]); return; }
     if (resp.ok) zetOdBalk('ok', `✅ OneDrive verbonden · exports gaan naar: ${pad}${leeftijd}`, [opnieuw]);
-    else if (resp.status === 404) zetOdBalk('fout', `❌ Projectmap niet gevonden in OneDrive: ${pad}`, [['Kies project', kiesProjectDialoog], opnieuw]);
+    else if (resp.status === 404) {
+      // Bestaat de projectmap wel, maar zonder 020 AANTEKENINGEN? Dan die submap meteen aanmaken.
+      const ouder = pad.replace(/\/020 AANTEKENINGEN$/, '');
+      const ouderBestaat = ouder !== pad ? await onedriveMapBestaat(ouder) : false;
+      if (ouderBestaat && await onedriveMaakSubmap(ouder, '020 AANTEKENINGEN')) {
+        zetOdBalk('ok', `✅ OneDrive verbonden · submap 020 AANTEKENINGEN aangemaakt · exports gaan naar: ${pad}${leeftijd}`, [opnieuw]);
+      } else {
+        zetOdBalk('fout', `❌ Projectmap niet gevonden in OneDrive: ${pad}`, [['Kies project', kiesProjectDialoog], opnieuw]);
+      }
+    }
     else zetOdBalk('fout', `❌ OneDrive gaf een fout (${resp.status}) bij het controleren van de projectmap.`, [inloggen, opnieuw]);
   } finally {
     odControleLoopt = false;
@@ -1794,6 +1803,33 @@ function initProjectBanner() {
 }
 
 // Laat de projectmappen onder "0_In Behandeling" zien en onthoudt je keuze.
+// true = map bestaat, false = bestaat niet (404), null = kon niet gecontroleerd worden
+async function onedriveMapBestaat(pad) {
+  try {
+    const token = await graphRefreshToken();
+    const r = await fetch(`https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(pad)}?$select=id,folder`, { headers: { Authorization: 'Bearer ' + token } });
+    if (r.ok) return true;
+    if (r.status === 404) return false;
+    return null;
+  } catch (_) { return null; }
+}
+// Maakt een submap aan in een bestaande map. true = gelukt (of bestond al), false = mislukt.
+async function onedriveMaakSubmap(ouderPad, naam) {
+  try {
+    const token = await graphRefreshToken();
+    const r = await fetch(`https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(ouderPad)}:/children`, {
+      method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: naam, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' })
+    });
+    return r.ok || r.status === 409;   // 409 = bestaat al
+  } catch (_) { return false; }
+}
+// "020 AANTEKENINGEN van <project>" of "de map <naam>" — voor de meldingen na het opslaan
+function opslagplekTekst() {
+  const pad = actiefProjectPad() || '';
+  return /\/020 AANTEKENINGEN$/.test(pad) ? `020 AANTEKENINGEN van "${actiefProjectNaam()}"` : `de map "${pad.split('/').pop()}"`;
+}
+
 async function kiesProjectDialoog() {
   if (!(await onedriveBeschikbaar())) {
     alert('Geen verbinding met OneDrive.\n\nJe hebt nu geen internet, óf je bent niet (meer) ingelogd. Tik bovenaan op "Inloggen" (of "Controleer") en probeer het opnieuw.\n\nKies je project even wanneer je wél verbinding hebt — daarna onthoudt de tool het en werkt het ook offline.');
@@ -1808,6 +1844,8 @@ async function kiesProjectDialoog() {
 
   // Het écht gekozen pad gebruiken (niet alleen de laatste mapnaam). Je mag de projectmap kiezen
   // óf direct de submap 020 AANTEKENINGEN: in beide gevallen gaan de bestanden naar die submap.
+  // Heeft de gekozen map géén 020 AANTEKENINGEN (een map met een eigen indeling), dan maakt de
+  // tool die submap meteen aan. Lukt dat niet, dan gaan de bestanden in de gekozen map zelf.
   const SUBMAP = '020 AANTEKENINGEN';
   const delen = String(keuze.pad || '').replace(/^OneDrive( \/ )?/, '').split(' / ').filter(Boolean);
   if (!delen.length) { alert('Kies een projectmap, niet de hoofdmap van OneDrive.'); return; }
@@ -1817,7 +1855,13 @@ async function kiesProjectDialoog() {
     doelDelen = delen;
   } else {
     projectnaam = delen[delen.length - 1];
-    doelDelen = [...delen, SUBMAP];
+    const heeftSubmap = await onedriveMapBestaat([...delen, SUBMAP].join('/'));
+    if (heeftSubmap === false && !(await onedriveMaakSubmap(delen.join('/'), SUBMAP))) {
+      doelDelen = delen;
+      alert(`De submap "${SUBMAP}" kon niet worden aangemaakt.\n\nDe PDF en Excel worden direct opgeslagen in:\n${delen.join(' / ')}`);
+    } else {
+      doelDelen = [...delen, SUBMAP];   // bestond al, is net aangemaakt, of kon niet gecontroleerd worden
+    }
   }
   gekozenProject = { naam: projectnaam, pad: doelDelen.join('/') };
   bewaarGekozenProject(gekozenProject);
@@ -8503,7 +8547,7 @@ async function exporteerPDF(opties = {}){
           await uploadBestandNaarProjectmap(blob, pdfNaam);
           pdfStaatGoed = true;
           await zetExportStatus(pdfRec, 'ok');
-          meldingen.push(`📁 PDF opgeslagen in 020 AANTEKENINGEN van "${actiefProjectNaam()}"`);
+          meldingen.push(`📁 PDF opgeslagen in ${opslagplekTekst()}`);
           if (schets && !opties.controle) {
             try { await uploadBestandNaarProjectmap(await schetsPngBlob(schets), schetsPngNaam(pdfNaam)); meldingen.push('✏️ schets als PNG erbij gezet'); }
             catch(e){ meldingen.push('⚠️ schets-PNG niet in de projectmap: ' + (e.message || e)); }
@@ -9236,7 +9280,7 @@ document.getElementById('btn-tekening-excel').addEventListener('click', ()=>{
   document.getElementById('upload-status').textContent = '';
   exporteerExcel().then(async r=>{
     document.getElementById('upload-status').textContent = r.inProjectmap
-      ? `📁 Excel opgeslagen in 020 AANTEKENINGEN van "${actiefProjectNaam()}"`
+      ? `📁 Excel opgeslagen in ${opslagplekTekst()}`
       : `📊 Excel gemaakt: "${r.bestandsnaam}"`;
     await toonLaatstGemaakt();
     toonExportBanner([r.rec]);
