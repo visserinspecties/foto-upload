@@ -7,23 +7,26 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
 <style>
-  :root { --blauw:#1f4e79; --blauw-licht:#e8f0f8; --grijs:#5b6670; --rand:#cfd8e0; --oranje:#e07a10; }
+  :root { --paars:#432d6a; --lila-soft:#e8e6ed; --grijs:#6b6584; --rand:#d9d5e1; --oranje:#e07a10; }
   * { box-sizing:border-box; }
-  body { margin:0; font-family:'Merriweather', Georgia, serif; font-size:14px; color:#1b2733; background:#f5f7fa; }
-  header { background:var(--blauw); color:#fff; padding:10px 16px; display:flex; align-items:center; gap:12px; }
+  body { margin:0; font-family:'Merriweather', Georgia, serif; font-size:14px; color:#1d1833; background:#f4f2f6; }
+  header { background:var(--paars); color:#fff; padding:10px 16px; display:flex; align-items:center; gap:12px; position:relative; margin-bottom:5px; }
+  header::after { content:""; position:absolute; left:0; right:0; bottom:-5px; height:5px; background:linear-gradient(90deg,#019541 0 16.6%,#54ae32 0 33.3%,#c6d500 0 50%,#ffee02 0 66.6%,#faba00 0 83.3%,#ec670a 0); }
   header h1 { margin:0; font-size:17px; font-weight:700; flex:1; }
-  header a { color:#fff; font-size:12px; }
-  .wrap { display:flex; gap:12px; padding:12px; height:calc(100vh - 86px); }
+  header .merk { text-align:right; font-size:12px; font-weight:700; color:#fff; }
+  header .merk span { display:block; font-weight:400; font-size:10.5px; color:#cfc8e6; }
+  header a { color:#fff; font-size:12px; text-decoration:none; background:rgba(255,255,255,.14); border-radius:8px; padding:6px 10px; }
+  .wrap { display:flex; gap:12px; padding:12px; height:calc(100vh - 91px); }
   .zijkant { width:360px; flex:none; overflow:auto; background:#fff; border:1px solid var(--rand); border-radius:6px; padding:12px; }
-  .beeld { flex:1; position:relative; border:1px solid var(--rand); border-radius:6px; overflow:hidden; background:linear-gradient(#eef3f8, #fdfdfd); }
+  .beeld { flex:1; position:relative; border:1px solid var(--rand); border-radius:6px; overflow:hidden; background:linear-gradient(#f1eff5, #fdfdfd); }
   #c3d { position:absolute; inset:0; }
   #c3d canvas { display:block; touch-action:none; }
   #labels { position:absolute; inset:0; pointer-events:none; overflow:hidden; }
-  .lbl { position:absolute; left:0; top:0; white-space:nowrap; font-size:11px; padding:1px 5px; border-radius:3px; background:rgba(255,255,255,.92); border:1px solid #333; color:#1b2733; }
-  .lbl.maat { border-color:#1b2733; }
-  .lbl.maat-vg { background:var(--blauw); color:#fff; border-color:var(--blauw); }
+  .lbl { position:absolute; left:0; top:0; white-space:nowrap; font-size:11px; padding:1px 5px; border-radius:3px; background:rgba(255,255,255,.92); border:1px solid #333; color:#1d1833; }
+  .lbl.maat { border-color:#1d1833; }
+  .lbl.maat-vg { background:var(--paars); color:#fff; border-color:var(--paars); }
   .lbl.dak { border-color:#b5543c; color:#7a2e1d; }
-  .lbl.hoogte { background:#1f4e79; color:#fff; border-color:#1f4e79; }
+  .lbl.hoogte { background:#432d6a; color:#fff; border-color:#432d6a; }
   .lbl.vrij { background:#fff3e3; border-color:var(--oranje); color:#7a3d00; }
   .lbl.verdieping { background:#f3ecff; border-color:#7c3aed; color:#4b1d95; }
   .lbl.notitie { background:#fff8c5; border-color:#a38600; color:#3d3200; white-space:pre; }
@@ -31,13 +34,13 @@
   .lbl.achter { opacity:.3; }
   label { display:block; font-size:12px; color:var(--grijs); margin-bottom:4px; }
   input[type=text], input[type=number], select { width:100%; padding:7px; border:1px solid var(--rand); border-radius:4px; font:inherit; }
-  button { font:inherit; padding:8px 12px; border:0; border-radius:4px; background:var(--blauw); color:#fff; cursor:pointer; }
-  button.licht { background:var(--blauw-licht); color:var(--blauw); }
+  button { font:inherit; padding:8px 12px; border:0; border-radius:4px; background:var(--paars); color:#fff; cursor:pointer; }
+  button.licht { background:var(--lila-soft); color:var(--paars); }
   button:disabled { opacity:.5; cursor:default; }
   .rij { display:flex; gap:8px; margin-top:8px; } .rij > * { flex:1; }
   .rij3 { display:flex; gap:8px; }
   .rij3 > div:nth-child(1) { flex:2; } .rij3 > div:nth-child(2) { flex:1.3; } .rij3 > div:nth-child(3) { flex:1; }
-  h2 { font-size:13px; margin:16px 0 6px; color:var(--blauw); }
+  h2 { font-size:13px; margin:16px 0 6px; color:var(--paars); }
   #status { margin-top:10px; font-size:12px; color:var(--grijs); min-height:16px; line-height:1.5; }
   #status.fout { color:#b00020; }
   table { width:100%; border-collapse:collapse; font-size:12px; }
@@ -45,19 +48,19 @@
   td:last-child { text-align:right; white-space:nowrap; }
   .klein { font-size:11px; color:var(--grijs); margin-top:8px; line-height:1.5; }
   .waarschuwing { color:#9a5b00; font-size:11px; margin-top:6px; }
-  .vink { display:flex; align-items:center; gap:6px; font-size:12px; color:#1b2733; margin:4px 0; cursor:pointer; }
+  .vink { display:flex; align-items:center; gap:6px; font-size:12px; color:#1d1833; margin:4px 0; cursor:pointer; }
   .vink input { margin:0; }
-  .vak { margin-top:8px; padding:10px; border:1px solid var(--rand); border-radius:6px; background:var(--blauw-licht); }
+  .vak { margin-top:8px; padding:10px; border:1px solid var(--rand); border-radius:6px; background:var(--lila-soft); }
   .twee { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
   /* gereedschap over het 3D-beeld */
   .balk { position:absolute; z-index:5; display:flex; flex-wrap:wrap; gap:4px; background:rgba(255,255,255,.94); border:1px solid var(--rand); border-radius:6px; padding:4px; }
   #gereedschap { top:8px; left:8px; right:70px; }
   #aanzichten { bottom:8px; left:8px; }
-  .balk button { padding:5px 9px; font-size:12px; background:#fff; color:#1b2733; border:1px solid var(--rand); }
-  .balk button.aan { background:var(--blauw); color:#fff; border-color:var(--blauw); }
+  .balk button { padding:5px 9px; font-size:12px; background:#fff; color:#1d1833; border:1px solid var(--rand); }
+  .balk button.aan { background:var(--paars); color:#fff; border-color:var(--paars); }
   .balk .scheid { width:1px; background:var(--rand); margin:0 3px; }
   .kleur { width:24px; height:24px; padding:0 !important; border-radius:50% !important; }
-  .kleur.aan { outline:3px solid var(--blauw); outline-offset:1px; }
+  .kleur.aan { outline:3px solid var(--paars); outline-offset:1px; }
   .noordpijl { position:absolute; top:8px; right:8px; z-index:5; width:52px; height:52px; background:rgba(255,255,255,.94); border:1px solid var(--rand); border-radius:50%; display:flex; align-items:center; justify-content:center; }
   #noordpijl { transform-origin:50% 50%; }
   #tip { position:absolute; bottom:8px; right:8px; z-index:5; font-size:11px; color:var(--grijs); background:rgba(255,255,255,.9); border-radius:4px; padding:3px 7px; max-width:55%; text-align:right; }
@@ -66,17 +69,27 @@
   #od-status button { padding:4px 12px; font-size:12px; font-weight:700; border:1px solid currentColor; background:#fff; color:inherit; border-radius:5px; }
   #pj-scherm { position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; padding:12px; }
   #pj-doos { background:#fff; border-radius:8px; width:min(520px,100%); max-height:85vh; display:flex; flex-direction:column; padding:14px; gap:8px; }
-  #pj-doos h3 { margin:0; font-size:15px; color:var(--blauw); }
+  #pj-doos h3 { margin:0; font-size:15px; color:var(--paars); }
   #pj-lijst { overflow:auto; border:1px solid var(--rand); border-radius:4px; flex:1; min-height:120px; }
-  #pj-lijst button { display:block; width:100%; text-align:left; background:#fff; color:#1b2733; border-bottom:1px solid var(--rand); border-radius:0; padding:10px; }
-  #pj-lijst button:hover { background:var(--blauw-licht); }
+  #pj-lijst button { display:block; width:100%; text-align:left; background:#fff; color:#1d1833; border-bottom:1px solid var(--rand); border-radius:0; padding:10px; }
+  #pj-lijst button:hover { background:var(--lila-soft); }
+  .mk-scherm { position:fixed; inset:0; z-index:9999; background:rgba(29,24,51,.45); display:none; align-items:center; justify-content:center; padding:12px; }
+  .mk-doos { background:#fff; border-radius:10px; width:min(560px,100%); max-height:88vh; display:flex; flex-direction:column; padding:14px; gap:8px; }
+  .mk-doos h3 { margin:0; font-size:15px; color:var(--paars); }
+  .mk-snel { display:flex; flex-wrap:wrap; gap:6px; } .mk-snel button { padding:5px 10px; font-size:12px; }
+  .mk-pad { font-size:12px; background:var(--lila-soft); border-radius:6px; padding:6px 8px; line-height:1.7; word-break:break-word; }
+  .mk-pad a { color:var(--paars); cursor:pointer; text-decoration:underline; } .mk-pad b { color:var(--paars); }
+  .mk-lijst { overflow:auto; border:1px solid var(--rand); border-radius:6px; flex:1; min-height:160px; }
+  .mk-lijst button { display:block; width:100%; text-align:left; background:#fff; color:#1d1833; border-bottom:1px solid var(--rand); border-radius:0; padding:9px 10px; }
+  .mk-lijst button:hover { background:var(--lila-soft); }
+  .mk-lijst .leeg { padding:10px; font-size:12px; color:var(--grijs); }
   @media (max-width: 800px) { .wrap { flex-direction:column; height:auto; } .zijkant { width:auto; } .beeld { height:75vh; } }
 </style>
 <script src="assets/home-knop.js" defer></script>
 <script src="assets/richting-kleuren.js"></script>
 </head>
 <body>
-<header><h1>Pand in 3D</h1><a href="pand-orientatie.html">← Pand-oriëntatie</a></header>
+<header><h1>Pand in 3D</h1><a href="pand-orientatie.html">← Pand-oriëntatie</a><div class="merk">Visser Inspecties<span>EnergiePrestatie-advies</span></div></header>
 <div id="od-status">☁️ OneDrive: controleren…</div>
 <div id="pj-let" style="display:none; background:#fbe3dc; color:#8f2410; padding:6px 16px; font-size:13px; font-weight:700; border-bottom:1px solid #f0c2b5;"></div>
 <div id="pj-scherm"><div id="pj-doos">
@@ -84,6 +97,16 @@
   <input type="text" id="pj-zoek" placeholder="Zoek op adres of projectnaam" autocomplete="off">
   <div id="pj-lijst"></div>
   <div class="rij"><button class="licht" id="pj-sluit">Annuleren</button></div>
+</div></div>
+<div id="mk-scherm" class="mk-scherm"><div id="mk-doos" class="mk-doos">
+  <h3>In welke map opslaan?</h3>
+  <div class="mk-snel"><button class="licht" type="button" data-start="">☁️ OneDrive</button><button class="licht" type="button" data-start="0_In Behandeling">0_In Behandeling</button><button class="licht" type="button" id="mk-laatst" style="display:none">↺ Laatst gebruikt</button></div>
+  <div id="mk-pad" class="mk-pad"></div>
+  <input type="text" id="mk-zoek" placeholder="Filter in deze map" autocomplete="off">
+  <div id="mk-lijst" class="mk-lijst"></div>
+  <div class="rij"><button class="licht" type="button" id="mk-nieuw">＋ Nieuwe map hier</button></div>
+  <div class="klein" id="mk-uitleg">Klik op een map om erin te gaan. Opslaan gebeurt in de map die bovenaan staat. Bestandsnamen krijgen het adres erin, zodat meerdere panden in dezelfde map kunnen.</div>
+  <div class="rij"><button class="licht" type="button" id="mk-sluit">Annuleren</button><button type="button" id="mk-ok">💾 Opslaan in deze map</button></div>
 </div></div>
 <div class="wrap">
   <div class="zijkant">
@@ -135,7 +158,10 @@
       <div class="klein" style="margin-top:4px">Aanzichten: de vier gevels altijd op schaal 1:100, met maatlijnen tot de nok, dakhellingen en een tabel met breedte, diepte en hoogtes. Past het niet op één A3, dan komen er meer bladen; is één gevel groter dan A3, dan wordt het blad groter (A2 of A1). Afdrukken op ware grootte (100%). Wijs eerst de voorgevel goed aan.</div>
       <div class="vak">
         <button id="opslaan" style="width:100%">Opslaan in project</button>
-        <div class="klein" id="opslaanInfo">Zet 3d-model.png (huidig aanzicht met maten en schetsen), 3d-aanzichten.pdf (vier gevels op 1:100), 3d-draaibaar.html (om te delen) en 3d-schets.json (de schetsen, om later verder te gaan) in 020 AANTEKENINGEN van het gekozen project.</div>
+        <div class="klein">Zet 3d-model.png (huidig aanzicht met maten en schetsen), 3d-aanzichten.pdf (vier gevels op 1:100), 3d-draaibaar.html (om te delen) en 3d-schets.json (de schetsen, om later verder te gaan) in 020 AANTEKENINGEN van het gekozen project.</div>
+        <button class="licht" id="opslaanMap" style="width:100%; margin-top:10px">📁 Opslaan in een map naar keuze…</button>
+        <div class="klein">Elke OneDrive-map, ook buiten een project. Dezelfde vier bestanden, met het adres in de naam (bijv. "3D-model Straat_12_Plaats.png"). Bouw je dit pand later opnieuw, dan komen de schetsen uit de laatst gebruikte map terug.</div>
+        <div class="klein" id="opslaanInfo"></div>
       </div>
     </div>
     <div class="klein">Bron: 3DBAG (3DGI / TU Delft, CC BY 4.0), gemaakt uit de AHN-hoogtemeting, en BAG via PDOK. Het model is een vorm-idee: geen ramen of deuren, kleine dakkapellen en overstekken ontbreken vaak, en het is zo oud als de AHN-meting. Maten van de contour zijn BAG-maten (bovenaanzicht, inclusief overstek).</div>
@@ -165,7 +191,7 @@
       <button data-aanzicht="achter">Achtergevel</button>
       <button data-aanzicht="boven">Bovenaanzicht</button>
     </div>
-    <div class="noordpijl" title="Noord"><svg id="noordpijl" width="30" height="40" viewBox="0 0 30 40"><path d="M15 2 L26 32 L15 25 L4 32 Z" fill="#1f4e79"/><text x="15" y="39" font-size="9" text-anchor="middle" fill="#1f4e79" font-family="Merriweather">N</text></svg></div>
+    <div class="noordpijl" title="Noord"><svg id="noordpijl" width="30" height="40" viewBox="0 0 30 40"><path d="M15 2 L26 32 L15 25 L4 32 Z" fill="#432d6a"/><text x="15" y="39" font-size="9" text-anchor="middle" fill="#432d6a" font-family="Merriweather">N</text></svg></div>
     <div id="tip"></div>
   </div>
 </div>
@@ -622,8 +648,8 @@ function tekenHoogtes() {
   if (!M.dakPunten.length) return;
   const hoog = M.dakPunten.reduce((m, p) => p[2] > m[2] ? p : m), laag = M.dakPunten.reduce((m, p) => p[2] < m[2] ? p : m);
   const zet = (p, tekst) => {
-    lijn([new V3(p[0], p[1], 0), new V3(p[0], p[1], p[2])], 0x1f4e79, 1, 'hoogte', { streep: true });
-    const bol = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 8), new THREE.MeshBasicMaterial({ color: 0x1f4e79 }));
+    lijn([new V3(p[0], p[1], 0), new V3(p[0], p[1], p[2])], 0x432d6a, 1, 'hoogte', { streep: true });
+    const bol = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 8), new THREE.MeshBasicMaterial({ color: 0x432d6a }));
     bol.position.set(p[0], p[1], p[2]); groep.hoogte.add(bol);
     maakLabel(new V3(p[0], p[1], p[2] + 0.7), tekst, 'hoogte', 'hoogte');
   };
@@ -914,6 +940,11 @@ $('wisAlles').addEventListener('click', () => {
 });
 
 // ================= afbeelding maken =================
+// Huisstijl Visser Inspecties (zelfde als factuur en opdrachtbevestiging): paars, lila en de energielabel-kleurstreep.
+const HS = { paars: '#432d6a', lila: '#8e81a6', lilaZacht: '#e8e6ed', inkt: '#1d1833', grijs: '#6b6584', lijn: '#d9d5e1',
+  streep: ['#019541', '#54ae32', '#c6d500', '#ffee02', '#faba00', '#ec670a'],
+  naam: 'John Visser', functie: 'EnergiePrestatie-adviseur', bedrijf: 'Visser Inspecties', dienst: 'EnergiePrestatie-advies', web: 'visserinspecties.nl' };
+function kleurStreep(ctx, x, y, w, h) { const d = w / HS.streep.length; HS.streep.forEach((k, i) => { ctx.fillStyle = k; ctx.fillRect(x + i * d, y, d + 1, h); }); }
 function ronde(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
 async function maakPngBlob() {
   const oudeRatio = renderer.getPixelRatio();
@@ -923,17 +954,23 @@ async function maakPngBlob() {
 async function maakPngBlobBinnen() {
   controls.update(); renderer.render(scene, camera); laatsteOcclusie = 0; updateLabels();
   const bron = renderer.domElement, W = bron.width, H = bron.height, k = W / houder.clientWidth;
-  const kop = Math.round(46 * k), c = document.createElement('canvas');
-  c.width = W; c.height = H + kop;
+  const band = Math.round(46 * k), streep = Math.round(5 * k), kop = band + streep, voet = Math.round(24 * k), c = document.createElement('canvas');
+  c.width = W; c.height = H + kop + voet;
   const ctx = c.getContext('2d');
+  try { await Promise.all([document.fonts.load('700 15px Merriweather'), document.fonts.load('15px Merriweather')]); } catch (_) {}
   ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, c.width, c.height);
   ctx.drawImage(bron, 0, kop);
-  ctx.fillStyle = '#1f4e79'; ctx.fillRect(0, 0, W, kop);
+  ctx.fillStyle = HS.paars; ctx.fillRect(0, 0, W, band);
+  kleurStreep(ctx, 0, band, W, streep);
   ctx.fillStyle = '#fff'; ctx.textBaseline = 'middle';
   ctx.font = '700 ' + Math.round(15 * k) + 'px Merriweather, Georgia, serif';
-  ctx.fillText((M.doc && M.doc.weergavenaam) || M.pand.id, 12 * k, kop * 0.36);
+  ctx.fillText((M.doc && M.doc.weergavenaam) || M.pand.id, 12 * k, band * 0.36);
   ctx.font = Math.round(10.5 * k) + 'px Merriweather, Georgia, serif';
-  ctx.fillText('3D-vormmodel uit 3DBAG (indicatief) · hoogste punt ' + nl(M.hMax) + ' m boven maaiveld · ' + new Date().toLocaleDateString('nl-NL'), 12 * k, kop * 0.75);
+  ctx.fillText('3D-vormmodel uit 3DBAG (indicatief) · hoogste punt ' + nl(M.hMax) + ' m boven maaiveld · ' + new Date().toLocaleDateString('nl-NL'), 12 * k, band * 0.75);
+  ctx.textAlign = 'right';
+  ctx.font = '700 ' + Math.round(13 * k) + 'px Merriweather, Georgia, serif'; ctx.fillText(HS.bedrijf, W - 12 * k, band * 0.36);
+  ctx.fillStyle = '#cfc8e6'; ctx.font = Math.round(10 * k) + 'px Merriweather, Georgia, serif'; ctx.fillText(HS.dienst, W - 12 * k, band * 0.75);
+  ctx.textAlign = 'left';
   // labels
   ctx.font = Math.round(11 * k) + 'px Merriweather, Georgia, serif';
   for (const l of labels) {
@@ -956,15 +993,23 @@ async function maakPngBlobBinnen() {
   if (a && b) {
     const hoek = Math.atan2(b.x - a.x, -(b.y - a.y)), cx = W - 34 * k, cy = kop + 34 * k;
     ctx.save(); ctx.translate(cx, cy);
-    ctx.beginPath(); ctx.arc(0, 0, 24 * k, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,255,255,.94)'; ctx.fill(); ctx.strokeStyle = '#cfd8e0'; ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, 24 * k, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,255,255,.94)'; ctx.fill(); ctx.strokeStyle = '#d9d5e1'; ctx.stroke();
     ctx.rotate(hoek);
-    ctx.beginPath(); ctx.moveTo(0, -17 * k); ctx.lineTo(9 * k, 12 * k); ctx.lineTo(0, 6 * k); ctx.lineTo(-9 * k, 12 * k); ctx.closePath(); ctx.fillStyle = '#1f4e79'; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(0, -17 * k); ctx.lineTo(9 * k, 12 * k); ctx.lineTo(0, 6 * k); ctx.lineTo(-9 * k, 12 * k); ctx.closePath(); ctx.fillStyle = '#432d6a'; ctx.fill();
     ctx.restore();
-    ctx.fillStyle = '#1f4e79'; ctx.font = '700 ' + Math.round(10 * k) + 'px Merriweather, Georgia, serif'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#432d6a'; ctx.font = '700 ' + Math.round(10 * k) + 'px Merriweather, Georgia, serif'; ctx.textAlign = 'center';
     ctx.fillText('N', cx, cy + 32 * k); ctx.textAlign = 'left';
   }
-  ctx.fillStyle = '#5b6670'; ctx.font = Math.round(9 * k) + 'px Merriweather, Georgia, serif';
-  ctx.fillText('Bron: 3DBAG (3DGI / TU Delft, CC BY 4.0) · Visser Inspecties', 10 * k, c.height - 10 * k);
+  // voetregel in huisstijl
+  const vy = H + kop;
+  ctx.fillStyle = HS.lilaZacht; ctx.fillRect(0, vy, W, voet);
+  ctx.fillStyle = HS.paars; ctx.fillRect(0, vy, W, Math.max(1, Math.round(k)));
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = HS.paars; ctx.font = '700 ' + Math.round(9.5 * k) + 'px Merriweather, Georgia, serif';
+  ctx.fillText(HS.naam + ' · ' + HS.functie, 10 * k, vy + voet / 2);
+  ctx.fillStyle = HS.grijs; ctx.font = Math.round(9 * k) + 'px Merriweather, Georgia, serif'; ctx.textAlign = 'right';
+  ctx.fillText('Bron: 3DBAG (3DGI / TU Delft, CC BY 4.0) · ' + HS.web, W - 10 * k, vy + voet / 2);
+  ctx.textAlign = 'left';
   return new Promise((ok, nok) => c.toBlob(b => b ? ok(b) : nok(new Error('geen afbeelding')), 'image/png'));
 }
 $('png').addEventListener('click', async () => {
@@ -1052,7 +1097,7 @@ function metTekenScene(fn) {
 function maatlijn(ctx, x1, y1, x2, y2, tekst, kant) {
   // kant: -1 = tekst links/boven de lijn, +1 = rechts/onder
   ctx.save();
-  ctx.strokeStyle = '#1b2733'; ctx.fillStyle = '#1b2733'; ctx.lineWidth = P(0.18);
+  ctx.strokeStyle = '#1d1833'; ctx.fillStyle = '#1d1833'; ctx.lineWidth = P(0.18);
   ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
   const t = P(1.3);
   [[x1, y1], [x2, y2]].forEach(([x, y]) => { ctx.beginPath(); ctx.moveTo(x - t, y + t); ctx.lineTo(x + t, y - t); ctx.lineWidth = P(0.35); ctx.stroke(); });
@@ -1076,17 +1121,17 @@ function kaderTekst(ctx, x, y, tekst, opties) {
   ctx.font = (opties.vet ? '700 ' : '') + P(opties.mm || 2.5) + 'px ' + LETTER;
   const w = ctx.measureText(tekst).width + P(2), h = P((opties.mm || 2.5) + 1.6);
   ctx.fillStyle = opties.bg || 'rgba(255,255,255,.92)'; ctx.fillRect(x - w / 2, y - h / 2, w, h);
-  ctx.strokeStyle = opties.rand || '#1b2733'; ctx.lineWidth = P(0.15); ctx.strokeRect(x - w / 2, y - h / 2, w, h);
-  ctx.fillStyle = opties.kleur || '#1b2733'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(tekst, x, y + P(0.1));
+  ctx.strokeStyle = opties.rand || '#1d1833'; ctx.lineWidth = P(0.15); ctx.strokeRect(x - w / 2, y - h / 2, w, h);
+  ctx.fillStyle = opties.kleur || '#1d1833'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(tekst, x, y + P(0.1));
   ctx.restore();
 }
 function tekenAanzicht(ctx, a, x0, y0, cel, marge, s) {
-  ctx.strokeStyle = '#cfd8e0'; ctx.lineWidth = P(0.2); ctx.strokeRect(P(x0), P(y0), P(cel.w), P(cel.h));
-  ctx.fillStyle = '#1f4e79'; ctx.font = '700 ' + P(3.2) + 'px ' + LETTER; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.strokeStyle = '#d9d5e1'; ctx.lineWidth = P(0.2); ctx.strokeRect(P(x0), P(y0), P(cel.w), P(cel.h));
+  ctx.fillStyle = '#432d6a'; ctx.font = '700 ' + P(3.2) + 'px ' + LETTER; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   const titel = a.naam + ' (' + a.k + ')';
   ctx.fillText(titel, P(x0 + 4), P(y0 + 6.5));
   const tb = ctx.measureText(titel).width;
-  ctx.fillStyle = '#5b6670'; ctx.font = P(2.5) + 'px ' + LETTER;
+  ctx.fillStyle = '#6b6584'; ctx.font = P(2.5) + 'px ' + LETTER;
   ctx.fillText('kijkt naar ' + compass(a.az) + ' (' + Math.round(a.az) + '°)', P(x0 + 4) + tb + P(3), P(y0 + 6.5));
 
   const ax = P(x0 + marge.l), ay = P(y0 + marge.t), aw = P(cel.w - marge.l - marge.r), ah = P(cel.h - marge.t - marge.o);
@@ -1101,7 +1146,7 @@ function tekenAanzicht(ctx, a, x0, y0, cel, marge, s) {
   ctx.drawImage(img, rx, ry);
 
   // maaiveld
-  ctx.strokeStyle = '#1b2733'; ctx.lineWidth = P(0.5);
+  ctx.strokeStyle = '#1d1833'; ctx.lineWidth = P(0.5);
   ctx.beginPath(); ctx.moveTo(X(a.uMin) - P(5), Y(0)); ctx.lineTo(X(a.uMax) + P(5), Y(0)); ctx.stroke();
   ctx.lineWidth = P(0.12);
   for (let x = X(a.uMin) - P(5); x < X(a.uMax) + P(5); x += P(2)) { ctx.beginPath(); ctx.moveTo(x, Y(0)); ctx.lineTo(x - P(1.5), Y(0) + P(1.5)); ctx.stroke(); }
@@ -1124,7 +1169,7 @@ function tekenAanzicht(ctx, a, x0, y0, cel, marge, s) {
   // peilmaten rechts
   const peil = (z, tekst) => {
     const x = X(a.uMax) + P(3), y = Y(z);
-    ctx.save(); ctx.fillStyle = '#1f4e79';
+    ctx.save(); ctx.fillStyle = '#432d6a';
     ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + P(1.6), y - P(1.6)); ctx.lineTo(x - P(1.6), y - P(1.6)); ctx.closePath(); ctx.fill();
     ctx.font = P(2.5) + 'px ' + LETTER; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
     ctx.fillText(tekst, x + P(2.2), y - P(0.2)); ctx.restore();
@@ -1151,15 +1196,15 @@ function tekenAanzicht(ctx, a, x0, y0, cel, marge, s) {
 function tekenBladTabel(ctx, A, R, N, tx, fmt) {
   const x = P(tx), w = P(TABEL_B);
   let y = P(30);
-  const kop = t => { ctx.fillStyle = '#1f4e79'; ctx.font = '700 ' + P(3) + 'px ' + LETTER; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.fillText(t, x, y); y += P(1.6); ctx.strokeStyle = '#1f4e79'; ctx.lineWidth = P(0.25); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.stroke(); y += P(4); };
+  const kop = t => { ctx.fillStyle = '#432d6a'; ctx.font = '700 ' + P(3) + 'px ' + LETTER; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.fillText(t, x, y); y += P(1.6); ctx.strokeStyle = '#432d6a'; ctx.lineWidth = P(0.25); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.stroke(); y += P(4); };
   const rij = (cellen, kolommen, opties) => {
-    ctx.fillStyle = (opties && opties.grijs) ? '#5b6670' : '#1b2733';
+    ctx.fillStyle = (opties && opties.grijs) ? '#6b6584' : '#1d1833';
     ctx.font = ((opties && opties.vet) ? '700 ' : '') + P(2.5) + 'px ' + LETTER; ctx.textBaseline = 'alphabetic';
     cellen.forEach((c, i) => { const [kx, uitl] = kolommen[i]; ctx.textAlign = uitl; ctx.fillText(String(c), x + P(kx), y); });
-    y += P(1.4); ctx.strokeStyle = '#e1e6eb'; ctx.lineWidth = P(0.12); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.stroke(); y += P(3.4);
+    y += P(1.4); ctx.strokeStyle = '#e8e6ed'; ctx.lineWidth = P(0.12); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.stroke(); y += P(3.4);
   };
   const regel = (t, mm) => {   // tekst met afbreken
-    ctx.fillStyle = '#5b6670'; ctx.font = P(mm || 2.3) + 'px ' + LETTER; ctx.textAlign = 'left';
+    ctx.fillStyle = '#6b6584'; ctx.font = P(mm || 2.3) + 'px ' + LETTER; ctx.textAlign = 'left';
     let lijn = '';
     t.split(' ').forEach(woord => { const test = lijn ? lijn + ' ' + woord : woord; if (ctx.measureText(test).width > w && lijn) { ctx.fillText(lijn, x, y); y += P(3.3); lijn = woord; } else lijn = test; });
     if (lijn) { ctx.fillText(lijn, x, y); y += P(3.3); }
@@ -1240,26 +1285,27 @@ async function maakAanzichtenPaginas() {
     const ctx = c.getContext('2d');
     ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
     // kop
-    ctx.fillStyle = '#1f4e79'; ctx.fillRect(0, 0, c.width, P(20));
+    ctx.fillStyle = HS.paars; ctx.fillRect(0, 0, c.width, P(20));
+    kleurStreep(ctx, 0, P(20), c.width, P(1.6));
     ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
     ctx.font = '700 ' + P(5.5) + 'px ' + LETTER; ctx.fillText(titel, P(8), P(9.5));
     ctx.font = P(3) + 'px ' + LETTER;
     ctx.fillText('Aanzichten uit 3DBAG · indicatief vormmodel · schaal 1:' + N + ' op ' + F.naam + ' (afdrukken op 100%)' + (bladen.length > 1 ? ' · blad ' + (i + 1) + ' van ' + bladen.length : '') + ' · ' + datum, P(8), P(16));
-    ctx.textAlign = 'right'; ctx.font = '700 ' + P(3.6) + 'px ' + LETTER; ctx.fillText('Visser Inspecties', P(F.w - 8), P(9.5));
-    ctx.font = P(2.6) + 'px ' + LETTER; ctx.fillText('EnergiePrestatie-advies', P(F.w - 8), P(16));
+    ctx.textAlign = 'right'; ctx.font = '700 ' + P(3.6) + 'px ' + LETTER; ctx.fillText(HS.bedrijf, P(F.w - 8), P(9.5));
+    ctx.fillStyle = '#cfc8e6'; ctx.font = P(2.6) + 'px ' + LETTER; ctx.fillText(HS.naam + ' · ' + HS.functie, P(F.w - 8), P(16));
     // gevels
     metTekenScene(() => plekken.forEach(({ a, x, y }) => tekenAanzicht(ctx, a, x, y, { w: a.cw, h: ch }, marge, s)));
     // tabel (blad 1) en schaalstok rechtsonder
     const tx = F.w - L - TABEL_B;
     if (i === 0) tekenBladTabel(ctx, A, R, N, tx, F.naam);
     const sx = P(tx), sy = P(F.h - 12), stap = [1, 2, 5, 10].find(m => m * s >= P(8)) || 10;
-    for (let j = 0; j < 5; j++) { ctx.fillStyle = j % 2 ? '#fff' : '#1b2733'; ctx.fillRect(sx + j * stap * s, sy, stap * s, P(1.4)); }
-    ctx.strokeStyle = '#1b2733'; ctx.lineWidth = P(0.15); ctx.strokeRect(sx, sy, 5 * stap * s, P(1.4));
-    ctx.fillStyle = '#1b2733'; ctx.font = P(2.3) + 'px ' + LETTER; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    for (let j = 0; j < 5; j++) { ctx.fillStyle = j % 2 ? '#fff' : '#1d1833'; ctx.fillRect(sx + j * stap * s, sy, stap * s, P(1.4)); }
+    ctx.strokeStyle = '#1d1833'; ctx.lineWidth = P(0.15); ctx.strokeRect(sx, sy, 5 * stap * s, P(1.4));
+    ctx.fillStyle = '#1d1833'; ctx.font = P(2.3) + 'px ' + LETTER; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     ctx.fillText('0', sx, sy + P(2)); ctx.textAlign = 'right'; ctx.fillText(5 * stap + ' m', sx + 5 * stap * s, sy + P(2));
     ctx.textAlign = 'left'; ctx.fillText('schaal 1:' + N, sx + 5 * stap * s + P(4), sy - P(0.3));
-    ctx.fillStyle = '#5b6670'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.font = P(2.2) + 'px ' + LETTER;
-    ctx.fillText('Bron: 3DBAG (3DGI / TU Delft, CC BY 4.0) en BAG via PDOK · gemaakt met Pand in 3D', P(6), P(F.h - 2.5));
+    ctx.fillStyle = '#6b6584'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.font = P(2.2) + 'px ' + LETTER;
+    ctx.fillText('Bron: 3DBAG (3DGI / TU Delft, CC BY 4.0) en BAG via PDOK · ' + HS.bedrijf + ' · ' + HS.web, P(6), P(F.h - 2.5));
     return c;
   });
   laatsteAanzichten = { bladen: paginas.length, formaat: F.naam };
@@ -1270,6 +1316,7 @@ async function maakAanzichtenPdf() {
   await laadScript(JSPDF_URL);
   const fmt = F.naam.toLowerCase();
   const doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: fmt });
+  doc.setProperties({ title: 'Aanzichten ' + ((M.doc && M.doc.weergavenaam) || M.pand.id), author: HS.naam + ' – ' + HS.bedrijf, creator: HS.bedrijf + ' – Pand in 3D' });
   paginas.forEach((c, i) => {
     if (i) doc.addPage(fmt, 'landscape');
     doc.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, F.w, F.h);
@@ -1481,27 +1528,29 @@ function maakDeelHtml() {
   const rijen = [...$('pandTabel').rows].map(tr => '<tr>' + [...tr.cells].map(td => '<td>' + esc(td.textContent) + '</td>').join('') + '</tr>').join('');
   const SL = '</' + 'script>';
   const css = [
-    ':root{--blauw:#1f4e79;--rand:#cfd8e0;--oranje:#e07a10}', '*{box-sizing:border-box}', 'html,body{margin:0;height:100%}',
-    "body{font-family:'Merriweather',Georgia,serif;color:#1b2733;background:#f5f7fa;display:flex;flex-direction:column}",
-    'header{background:var(--blauw);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:12px}',
+    ':root{--paars:#432d6a;--lila-soft:#e8e6ed;--rand:#d9d5e1;--oranje:#e07a10}', '*{box-sizing:border-box}', 'html,body{margin:0;height:100%}',
+    "body{font-family:'Merriweather',Georgia,serif;color:#1d1833;background:#f4f2f6;display:flex;flex-direction:column}",
+    'header{background:var(--paars);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:12px;position:relative;margin-bottom:5px}',
+    'header::after{content:"";position:absolute;left:0;right:0;bottom:-5px;height:5px;background:linear-gradient(90deg,#019541 0 16.6%,#54ae32 0 33.3%,#c6d500 0 50%,#ffee02 0 66.6%,#faba00 0 83.3%,#ec670a 0)}',
+    'footer{background:var(--lila-soft);border-top:1px solid var(--paars);color:#6b6584;font-size:11px;padding:5px 16px;display:flex;justify-content:space-between;gap:12px}', 'footer b{color:var(--paars)}',
     'header h1{margin:0;font-size:17px}', 'header .sub{font-size:11px;opacity:.85;margin-top:3px}', 'header .tekst{flex:1;min-width:0}',
     'header .merk{text-align:right;font-weight:700;font-size:13px;white-space:nowrap}', 'header .merk span{display:block;font-weight:400;font-size:11px}',
-    '.beeld{flex:1;position:relative;overflow:hidden;background:linear-gradient(#eef3f8,#fdfdfd)}',
+    '.beeld{flex:1;position:relative;overflow:hidden;background:linear-gradient(#f1eff5,#fdfdfd)}',
     '#c3d,#labels{position:absolute;inset:0}', '#labels{pointer-events:none;overflow:hidden}', '#c3d canvas{display:block;touch-action:none}',
-    '#laden{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;color:#5b6670;font-size:13px}',
-    '.lbl{position:absolute;left:0;top:0;white-space:nowrap;font-size:11px;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,.92);border:1px solid #333;color:#1b2733}',
-    '.lbl.maat{border-color:#1b2733}', '.lbl.maat-vg{background:var(--blauw);color:#fff;border-color:var(--blauw)}', '.lbl.dak{border-color:#b5543c;color:#7a2e1d}',
-    '.lbl.hoogte{background:#1f4e79;color:#fff;border-color:#1f4e79}', '.lbl.vrij{background:#fff3e3;border-color:var(--oranje);color:#7a3d00}',
+    '#laden{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;color:#6b6584;font-size:13px}',
+    '.lbl{position:absolute;left:0;top:0;white-space:nowrap;font-size:11px;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,.92);border:1px solid #333;color:#1d1833}',
+    '.lbl.maat{border-color:#1d1833}', '.lbl.maat-vg{background:var(--paars);color:#fff;border-color:var(--paars)}', '.lbl.dak{border-color:#b5543c;color:#7a2e1d}',
+    '.lbl.hoogte{background:#432d6a;color:#fff;border-color:#432d6a}', '.lbl.vrij{background:#fff3e3;border-color:var(--oranje);color:#7a3d00}',
     '.lbl.verdieping{background:#f3ecff;border-color:#7c3aed;color:#4b1d95}', '.lbl.notitie{background:#fff8c5;border-color:#a38600;color:#3d3200;white-space:pre}',
     '.lbl.schetsmaat{background:#fff;font-weight:700}', '.lbl.achter{opacity:.3}',
     '.balk{position:absolute;z-index:5;display:flex;flex-wrap:wrap;gap:4px;background:rgba(255,255,255,.94);border:1px solid var(--rand);border-radius:6px;padding:4px}',
-    '#aanzichten{bottom:8px;left:8px}', '.balk button{font:inherit;padding:5px 9px;font-size:12px;background:#fff;color:#1b2733;border:1px solid var(--rand);border-radius:4px;cursor:pointer}',
+    '#aanzichten{bottom:8px;left:8px}', '.balk button{font:inherit;padding:5px 9px;font-size:12px;background:#fff;color:#1d1833;border:1px solid var(--rand);border-radius:4px;cursor:pointer}',
     '.noordpijl{position:absolute;top:8px;right:8px;z-index:5;width:52px;height:52px;background:rgba(255,255,255,.94);border:1px solid var(--rand);border-radius:50%;display:flex;align-items:center;justify-content:center}',
     '#noordpijl{transform-origin:50% 50%}',
     '#info{position:absolute;top:8px;left:8px;z-index:5;background:rgba(255,255,255,.95);border:1px solid var(--rand);border-radius:6px;padding:6px 10px;font-size:12px;max-width:min(330px,calc(100% - 80px))}',
-    '#info summary{cursor:pointer;font-weight:700;color:var(--blauw)}', '#info table{border-collapse:collapse;width:100%;margin-top:6px}',
-    '#info td{padding:3px 4px;border-bottom:1px solid var(--rand)}', '#info td:last-child{text-align:right;white-space:nowrap}', '#info p{font-size:10.5px;color:#5b6670;line-height:1.5;margin:6px 0 0}',
-    '#tip{position:absolute;bottom:8px;right:8px;z-index:5;font-size:11px;color:#5b6670;background:rgba(255,255,255,.9);border-radius:4px;padding:3px 7px;max-width:50%;text-align:right}',
+    '#info summary{cursor:pointer;font-weight:700;color:var(--paars)}', '#info table{border-collapse:collapse;width:100%;margin-top:6px}',
+    '#info td{padding:3px 4px;border-bottom:1px solid var(--rand)}', '#info td:last-child{text-align:right;white-space:nowrap}', '#info p{font-size:10.5px;color:#6b6584;line-height:1.5;margin:6px 0 0}',
+    '#tip{position:absolute;bottom:8px;right:8px;z-index:5;font-size:11px;color:#6b6584;background:rgba(255,255,255,.9);border-radius:4px;padding:3px 7px;max-width:50%;text-align:right}',
     '@media (max-width:640px){#tip{display:none}header .merk span{display:none}}'
   ].join('\n');
   return '<!doctype html>\n<html lang="nl">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n' +
@@ -1515,9 +1564,10 @@ function maakDeelHtml() {
     '<div class="beeld"><div id="laden">Model laden…</div><div id="c3d"></div><div id="labels"></div>\n' +
     '<details id="info"><summary>Pandgegevens</summary><table>' + rijen + '</table>' +
     '<p>Indicatief vormmodel uit 3DBAG (3DGI / TU Delft, CC BY 4.0), gemaakt uit de AHN-hoogtemeting, en BAG via PDOK. Geen ramen of deuren; kleine dakkapellen en overstekken ontbreken vaak.</p></details>\n' +
-    '<div class="noordpijl" title="Noord"><svg id="noordpijl" width="30" height="40" viewBox="0 0 30 40"><path d="M15 2 L26 32 L15 25 L4 32 Z" fill="#1f4e79"/><text x="15" y="39" font-size="9" text-anchor="middle" fill="#1f4e79" font-family="Merriweather">N</text></svg></div>\n' +
+    '<div class="noordpijl" title="Noord"><svg id="noordpijl" width="30" height="40" viewBox="0 0 30 40"><path d="M15 2 L26 32 L15 25 L4 32 Z" fill="#432d6a"/><text x="15" y="39" font-size="9" text-anchor="middle" fill="#432d6a" font-family="Merriweather">N</text></svg></div>\n' +
     '<div class="balk" id="aanzichten"><button data-aanzicht="schuin">3D schuin</button><button data-aanzicht="voor">Voorgevel</button><button data-aanzicht="achter">Achtergevel</button><button data-aanzicht="boven">Bovenaanzicht</button></div>\n' +
     '<div id="tip">Slepen = draaien · rechts slepen of twee vingers = schuiven · scrollen of knijpen = zoomen</div>\n</div>\n' +
+    '<footer><span><b>' + HS.naam + '</b> · ' + HS.functie + ' · ' + HS.bedrijf + '</span><span>' + HS.web + '</span></footer>\n' +
     '<script type="application/json" id="data">' + JSON.stringify(D).replace(/</g, '\\u003c') + SL + '\n' +
     '<script type="module">(' + deelViewer.toString() + ')();\n' + SL + '\n</body>\n</html>\n';
 }
@@ -1624,7 +1674,7 @@ async function verwerkLoginCallback() {
   if (p.get('state') !== LOGIN_STATE || !(p.get('code') || p.get('error'))) return false;
   const popupModus = (localStorage.getItem(LOGIN_MODUS) || '').startsWith('popup');
   const scherm = document.createElement('div');
-  scherm.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#fff;color:#1b2733;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font:700 18px Merriweather,Georgia,serif;padding:24px;gap:16px;';
+  scherm.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#fff;color:#1d1833;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font:700 18px Merriweather,Georgia,serif;padding:24px;gap:16px;';
   scherm.textContent = 'Inloggen afronden…';
   document.body.appendChild(scherm);
   try {
@@ -1757,31 +1807,187 @@ function toonProjectWaarschuwing(past, pg) {
 }
 
 // Na het bouwen: voorgevel uit projectgegevens.json en eerdere schetsen uit 3d-schets.json terugzetten (zelfde pand).
+// Staat er in het project niets voor dit pand, dan kijken we in de laatst gebruikte vrije map (3D-schets <adres>.json).
+function zetSchetsTerug(sch) {
+  if (sch.vg && isFinite(sch.vg.hoek)) zetVgOpHoek(sch.vg.hoek, sch.vg.bron || 'opgeslagen');
+  (sch.schetsen || []).forEach(s => { if (s && Array.isArray(s.punten) && s.punten.length) { const n = { soort: s.soort, kleur: s.kleur || '#d00000', punten: s.punten, tekst: s.tekst || '' }; M.schetsen.push(n); tekenSchets(n); } });
+  if (sch.verdieping) {
+    const v = sch.verdieping;
+    $('vdAan').checked = !!v.aan; $('vdLagen').value = v.lagen; $('vdHoogte').value = v.hoogte; $('vdVan').value = v.van; $('vdTm').value = v.tm;
+    tekenVerdieping();
+  }
+}
 async function herstelUitProject() {
   toonProjectWaarschuwing('onbekend');
-  if (!gekozenProject || !(await onedriveBeschikbaar())) return;
+  if (!(gekozenProject || gekozenMap) || !(await onedriveBeschikbaar())) return;
   try {
     const token = await graphRefreshToken();
-    const [pg, sch] = await Promise.all([leesBestand(gekozenProject.pad, 'projectgegevens.json', token).catch(() => null), leesBestand(gekozenProject.pad, '3d-schets.json', token).catch(() => null)]);
-    const past = (sch && sch.pandId === M.pand.id) ? 'ja' : pandPastBijProject(pg);   // eerder voor dít pand opgeslagen = klopt
-    toonProjectWaarschuwing(past, pg);
-    if (past === 'nee') return;   // ander adres: niets uit dit project overnemen
-    let tekst = '';
-    if (sch && sch.pandId === M.pand.id) {
-      if (sch.vg && isFinite(sch.vg.hoek)) zetVgOpHoek(sch.vg.hoek, sch.vg.bron || 'opgeslagen');
-      (sch.schetsen || []).forEach(s => { if (s && Array.isArray(s.punten) && s.punten.length) { const n = { soort: s.soort, kleur: s.kleur || '#d00000', punten: s.punten, tekst: s.tekst || '' }; M.schetsen.push(n); tekenSchets(n); } });
-      if (sch.verdieping) {
-        const v = sch.verdieping;
-        $('vdAan').checked = !!v.aan; $('vdLagen').value = v.lagen; $('vdHoogte').value = v.hoogte; $('vdVan').value = v.van; $('vdTm').value = v.tm;
-        tekenVerdieping();
+    let tekst = '', klaar = false;
+    if (gekozenProject) {
+      const [pg, sch] = await Promise.all([leesBestand(gekozenProject.pad, 'projectgegevens.json', token).catch(() => null), leesBestand(gekozenProject.pad, '3d-schets.json', token).catch(() => null)]);
+      const past = (sch && sch.pandId === M.pand.id) ? 'ja' : pandPastBijProject(pg);   // eerder voor dít pand opgeslagen = klopt
+      toonProjectWaarschuwing(past, pg);
+      if (past !== 'nee') {
+        if (sch && sch.pandId === M.pand.id) {
+          zetSchetsTerug(sch); klaar = true;
+          tekst = ' Eerdere schetsen uit ' + gekozenProject.naam + ' teruggezet (' + M.schetsen.length + ').';
+        } else if (M.vgBron !== 'oriëntatie tool' && pg && isFinite(pg.orientatieHoek)) {
+          if (zetVgOpHoek(pg.orientatieHoek, 'projectgegevens')) tekst = ' Voorgevel overgenomen uit het project.';
+        }
       }
-      tekst = ' Eerdere schetsen uit ' + gekozenProject.naam + ' teruggezet (' + M.schetsen.length + ').';
-    } else if (M.vgBron !== 'oriëntatie tool' && pg && isFinite(pg.orientatieHoek)) {
-      if (zetVgOpHoek(pg.orientatieHoek, 'projectgegevens')) tekst = ' Voorgevel overgenomen uit het project.';
+    }
+    if (!klaar && gekozenMap) {
+      const r = await fetch(inhoudUrl(gekozenMap.pad, bestandsnaam('3D-schets', 'json')), { headers: { Authorization: 'Bearer ' + token } }).catch(() => null);
+      if (r && r.ok) {
+        let sch = null; try { sch = JSON.parse((await r.text()).replace(/^\uFEFF/, '')); } catch (_) {}
+        if (sch && sch.pandId === M.pand.id) { zetSchetsTerug(sch); tekst = ' Eerdere schetsen uit map ' + mapNaam(gekozenMap.pad) + ' teruggezet (' + M.schetsen.length + ').'; }
+      }
     }
     if (tekst) { tekenMaten(); $('status').textContent += tekst; }
   } catch (_) { /* geen project of geen verbinding: gewoon zonder */ }
 }
+// ---- gedeeld: de vier bestanden wegschrijven in een OneDrive-map (pad '' = hoofdmap van OneDrive) ----
+const inhoudUrl = (pad, naam) => GRAPH + '/root:/' + gp(pad ? pad + '/' + naam : naam) + ':/content';
+function schetsGegevens() {
+  return {
+    versie: 1, pandId: M.pand.id, adres: (M.doc && M.doc.weergavenaam) || '', opgeslagen: new Date().toISOString(),
+    hoogte: { hoogstePuntBovenMaaiveld: +M.hMax.toFixed(2), laagsteDakrandBovenMaaiveld: +M.hMin.toFixed(2), maaiveldNAP: +M.O[2].toFixed(2) },
+    vg: M.vg == null ? null : { hoek: Math.round(M.edges[M.vg].az), bron: M.vgBron },
+    verdieping: { aan: $('vdAan').checked, lagen: +$('vdLagen').value, hoogte: +$('vdHoogte').value, van: +$('vdVan').value, tm: +$('vdTm').value },
+    camera: { positie: naarAbs(camera.position), doel: naarAbs(controls.target) },
+    schetsen: M.schetsen.map(s => ({ soort: s.soort, kleur: s.kleur, punten: s.punten, tekst: s.tekst || undefined }))
+  };
+}
+async function schrijfBestanden(pad, namen, H) {
+  const zet = (naam, type, body) => fetch(inhoudUrl(pad, naam), { method: 'PUT', headers: Object.assign({ 'Content-Type': type }, H), body });
+  const png = await maakPngBlob();
+  const p1 = await zet(namen.png, 'image/png', png);
+  if (!p1.ok) throw new Error('afbeelding opslaan mislukt (' + p1.status + ')');
+  let tekst = namen.png;
+  if (M.vg != null) {
+    try {
+      const p3 = await zet(namen.pdf, 'application/pdf', await maakAanzichtenPdf());
+      tekst += p3.ok ? ', ' + namen.pdf + ' (' + aanzichtenOmschrijving() + ')' : ' (aanzichten-PDF mislukt: ' + p3.status + ')';
+    } catch (e) { tekst += ' (aanzichten-PDF mislukt: ' + e.message + ')'; }
+  } else tekst += ' (geen aanzichten-PDF: wijs eerst de voorgevel aan)';
+  try {
+    const p4 = await zet(namen.html, 'text/html', maakDeelHtml());
+    tekst += p4.ok ? ', ' + namen.html : ' (draaibaar HTML mislukt: ' + p4.status + ')';
+  } catch (e) { tekst += ' (draaibaar HTML mislukt: ' + e.message + ')'; }
+  const p2 = await zet(namen.json, 'application/json', JSON.stringify(schetsGegevens(), null, 2));
+  if (!p2.ok) throw new Error('afbeelding staat er, maar ' + namen.json + ' niet (' + p2.status + ')');
+  return tekst + ' en ' + namen.json + ' (' + M.schetsen.length + ' schetsen)';
+}
+
+// ---- vrije map kiezen (niet per se een project) ----
+const MAP_SLEUTEL = 'pand3d_map';
+let gekozenMap = null;   // { naam, pad } — laatst gebruikte vrije map
+function laadMap() { try { const m = JSON.parse(localStorage.getItem(MAP_SLEUTEL) || 'null'); return (m && typeof m.pad === 'string') ? m : null; } catch (_) { return null; } }
+function bewaarMap() { try { localStorage.setItem(MAP_SLEUTEL, JSON.stringify(gekozenMap)); } catch (_) {} }
+const mapNaam = pad => pad ? pad.split('/').pop() : 'OneDrive (hoofdmap)';
+const vrijeNamen = () => ({ png: bestandsnaam('3D-model', 'png'), pdf: bestandsnaam('3D-aanzichten', 'pdf'), html: bestandsnaam('3D-draaibaar', 'html'), json: bestandsnaam('3D-schets', 'json') });
+let mkPad = '', mkItems = [];
+async function mkSubmappen(pad) {
+  const token = await graphRefreshToken();
+  let url = (pad ? GRAPH + '/root:/' + gp(pad) + ':/children' : GRAPH + '/root/children') + '?$top=200&$select=name,folder';
+  const uit = [];
+  for (let n = 0; url && n < 10; n++) {
+    const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+    if (r.status === 404) throw new Error('map niet gevonden');
+    if (!r.ok) throw new Error('mappen ophalen mislukt (' + r.status + ')');
+    const j = await r.json();
+    (j.value || []).forEach(i => { if (i.folder) uit.push(i.name); });
+    url = j['@odata.nextLink'] || null;
+  }
+  return uit.sort((a, b) => a.localeCompare(b, 'nl', { numeric: true }));
+}
+function mkToonPad() {
+  const el = $('mk-pad'); el.innerHTML = '';
+  const delen = mkPad ? mkPad.split('/') : [];
+  const stuk = (t, pad, laatste) => {
+    const e = document.createElement(laatste ? 'b' : 'a'); e.textContent = t;
+    if (!laatste) e.addEventListener('click', () => mkGaNaar(pad));
+    el.appendChild(e);
+  };
+  stuk('OneDrive', '', !delen.length);
+  delen.forEach((d, i) => { el.appendChild(document.createTextNode(' › ')); stuk(d, delen.slice(0, i + 1).join('/'), i === delen.length - 1); });
+}
+function mkToonLijst() {
+  const lijst = $('mk-lijst'), q = $('mk-zoek').value.trim().toLowerCase();
+  lijst.innerHTML = '';
+  if (mkPad) {
+    const op = document.createElement('button'); op.type = 'button'; op.textContent = '⬆ Map omhoog';
+    op.addEventListener('click', () => mkGaNaar(mkPad.split('/').slice(0, -1).join('/'))); lijst.appendChild(op);
+  }
+  const sel = mkItems.filter(n => !q || n.toLowerCase().includes(q));
+  if (!sel.length) { const d = document.createElement('div'); d.className = 'leeg'; d.textContent = mkItems.length ? 'Geen map met deze tekst.' : 'Geen submappen. Je kunt hier opslaan of een nieuwe map maken.'; lijst.appendChild(d); }
+  sel.forEach(n => { const b = document.createElement('button'); b.type = 'button'; b.textContent = '📁 ' + n; b.addEventListener('click', () => mkGaNaar(mkPad ? mkPad + '/' + n : n)); lijst.appendChild(b); });
+}
+async function mkGaNaar(pad) {
+  mkPad = pad; $('mk-zoek').value = ''; mkToonPad();
+  $('mk-lijst').innerHTML = '<div class="leeg">Mappen ophalen…</div>';
+  try { mkItems = await mkSubmappen(pad); mkToonLijst(); }
+  catch (e) {
+    mkItems = [];
+    $('mk-lijst').innerHTML = '';
+    const d = document.createElement('div'); d.className = 'leeg'; d.textContent = '❌ ' + e.message + (pad ? ' — ga een map omhoog of kies hierboven een startpunt.' : '');
+    $('mk-lijst').appendChild(d);
+  }
+}
+async function kiesVrijeMap() {
+  if (!M) return;
+  if (!(await onedriveBeschikbaar())) { alert('Geen verbinding met OneDrive. Klik bovenaan op "Inloggen" en probeer opnieuw.'); return; }
+  rondLijnAf();
+  $('mk-scherm').style.display = 'flex';
+  const laatst = $('mk-laatst');
+  laatst.style.display = gekozenMap ? '' : 'none';
+  if (gekozenMap) laatst.textContent = '↺ ' + mapNaam(gekozenMap.pad);
+  // start in de laatst gebruikte map, anders in de projectmap als die er is, anders in de hoofdmap
+  await mkGaNaar(gekozenMap ? gekozenMap.pad : (gekozenProject ? gekozenProject.pad.split('/').slice(0, -1).join('/') : ''));
+  $('mk-zoek').focus();
+}
+async function mkNieuweMap() {
+  const naam = (prompt('Naam van de nieuwe map in "' + mapNaam(mkPad) + '":') || '').trim();
+  if (!naam) return;
+  if (/[\\/:*?"<>|]/.test(naam)) { alert('Deze tekens mogen niet in een mapnaam: \\ / : * ? " < > |'); return; }
+  try {
+    const token = await graphRefreshToken();
+    const url = mkPad ? GRAPH + '/root:/' + gp(mkPad) + ':/children' : GRAPH + '/root/children';
+    const r = await fetch(url, { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: naam, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' }) });
+    if (r.status === 409) throw new Error('die map bestaat al');
+    if (!r.ok) throw new Error('fout ' + r.status);
+    await mkGaNaar(mkPad ? mkPad + '/' + naam : naam);
+  } catch (e) { alert('Nieuwe map maken mislukt: ' + e.message); }
+}
+async function opslaanInMap() {
+  const pad = mkPad;
+  $('mk-scherm').style.display = 'none';
+  const info = $('opslaanInfo'), knop = $('opslaanMap');
+  info.style.color = '';
+  knop.disabled = true; info.textContent = 'Opslaan in ' + mapNaam(pad) + '…';
+  try {
+    const token = await graphRefreshToken();
+    const H = { Authorization: 'Bearer ' + token };
+    const namen = vrijeNamen();
+    // staan er al bestanden van dit adres? dan even vragen
+    const bestaat = await fetch(inhoudUrl(pad, namen.json).replace(/:\/content$/, ''), { headers: H });
+    if (bestaat.ok && !confirm('In "' + mapNaam(pad) + '" staat al een 3D-opslag van dit adres. Overschrijven?')) { info.textContent = 'Niet opgeslagen.'; return; }
+    const resultaat = await schrijfBestanden(pad, namen, H);
+    gekozenMap = { naam: mapNaam(pad), pad }; bewaarMap();
+    info.textContent = '✅ Opgeslagen in ' + (pad || 'OneDrive (hoofdmap)') + ': ' + resultaat + '.';
+    melding('Opgeslagen in ' + mapNaam(pad) + '.');
+  } catch (e) { info.textContent = '❌ ' + (e && e.message ? e.message : e) + ' Gebruik zo nodig "Afbeelding (PNG)" als vangnet.'; info.style.color = '#b00020'; melding('Opslaan mislukt.', true); }
+  finally { knop.disabled = false; }
+}
+$('opslaanMap').addEventListener('click', kiesVrijeMap);
+$('mk-ok').addEventListener('click', opslaanInMap);
+$('mk-nieuw').addEventListener('click', mkNieuweMap);
+$('mk-zoek').addEventListener('input', mkToonLijst);
+$('mk-sluit').addEventListener('click', () => { $('mk-scherm').style.display = 'none'; });
+$('mk-scherm').addEventListener('click', e => { if (e.target === $('mk-scherm')) $('mk-scherm').style.display = 'none'; });
+document.querySelectorAll('.mk-snel [data-start]').forEach(b => b.addEventListener('click', () => mkGaNaar(b.dataset.start)));
+$('mk-laatst').addEventListener('click', () => { if (gekozenMap) mkGaNaar(gekozenMap.pad); });
+
 async function opslaanInProject() {
   if (!M) return;
   const info = $('opslaanInfo'), knop = $('opslaan');
@@ -1803,32 +2009,8 @@ async function opslaanInProject() {
     toonProjectWaarschuwing(past, pg);
     if (past === 'nee' && !confirm('Dit pand (' + ((M.doc && M.doc.weergavenaam) || M.pand.id) + ') is niet het adres van project "' + gekozenProject.naam + '".\n\nToch in dit project opslaan?')) { info.textContent = 'Niet opgeslagen: kies eerst het juiste project.'; return; }
     if (oud && oud.pandId && oud.pandId !== M.pand.id && !confirm('In dit project staan schetsen van een ánder pand (' + oud.pandId.replace('NL.IMBAG.Pand.', '') + '). Overschrijven?')) { info.textContent = 'Niet opgeslagen.'; return; }
-    const png = await maakPngBlob();
-    const data = {
-      versie: 1, pandId: M.pand.id, adres: (M.doc && M.doc.weergavenaam) || '', opgeslagen: new Date().toISOString(),
-      hoogte: { hoogstePuntBovenMaaiveld: +M.hMax.toFixed(2), laagsteDakrandBovenMaaiveld: +M.hMin.toFixed(2), maaiveldNAP: +M.O[2].toFixed(2) },
-      vg: M.vg == null ? null : { hoek: Math.round(M.edges[M.vg].az), bron: M.vgBron },
-      verdieping: { aan: $('vdAan').checked, lagen: +$('vdLagen').value, hoogte: +$('vdHoogte').value, van: +$('vdVan').value, tm: +$('vdTm').value },
-      camera: { positie: naarAbs(camera.position), doel: naarAbs(controls.target) },
-      schetsen: M.schetsen.map(s => ({ soort: s.soort, kleur: s.kleur, punten: s.punten, tekst: s.tekst || undefined }))
-    };
-    const p1 = await fetch(GRAPH + '/root:/' + gp(pad) + '/3d-model.png:/content', { method: 'PUT', headers: Object.assign({ 'Content-Type': 'image/png' }, H), body: png });
-    if (!p1.ok) throw new Error('afbeelding opslaan mislukt (' + p1.status + ')');
-    let pdfTekst = '';
-    if (M.vg != null) {
-      try {
-        const pdf = await maakAanzichtenPdf();
-        const p3 = await fetch(GRAPH + '/root:/' + gp(pad) + '/3d-aanzichten.pdf:/content', { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/pdf' }, H), body: pdf });
-        pdfTekst = p3.ok ? ', 3d-aanzichten.pdf (' + aanzichtenOmschrijving() + ')' : ' (aanzichten-PDF mislukt: ' + p3.status + ')';
-      } catch (e) { pdfTekst = ' (aanzichten-PDF mislukt: ' + e.message + ')'; }
-    }
-    try {
-      const p4 = await fetch(GRAPH + '/root:/' + gp(pad) + '/3d-draaibaar.html:/content', { method: 'PUT', headers: Object.assign({ 'Content-Type': 'text/html' }, H), body: maakDeelHtml() });
-      pdfTekst += p4.ok ? ', 3d-draaibaar.html' : ' (draaibaar HTML mislukt: ' + p4.status + ')';
-    } catch (e) { pdfTekst += ' (draaibaar HTML mislukt: ' + e.message + ')'; }
-    const p2 = await fetch(GRAPH + '/root:/' + gp(pad) + '/3d-schets.json:/content', { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, H), body: JSON.stringify(data, null, 2) });
-    if (!p2.ok) throw new Error('afbeelding staat er, maar 3d-schets.json niet (' + p2.status + ')');
-    info.textContent = '✅ Opgeslagen in ' + gekozenProject.naam + ': 3d-model.png' + pdfTekst + ' en 3d-schets.json (' + M.schetsen.length + ' schetsen). Open je dit project later weer, dan komen de schetsen terug.';
+    const resultaat = await schrijfBestanden(pad, { png: '3d-model.png', pdf: '3d-aanzichten.pdf', html: '3d-draaibaar.html', json: '3d-schets.json' }, H);
+    info.textContent = '✅ Opgeslagen in ' + gekozenProject.naam + ': ' + resultaat + '. Open je dit project later weer, dan komen de schetsen terug.';
     melding('Opgeslagen in het project.');
   } catch (e) { fout((e && e.message ? e.message : e) + ' Gebruik zo nodig "Afbeelding (PNG)" als vangnet.'); }
   finally { knop.disabled = false; }
@@ -1840,6 +2022,7 @@ window.addEventListener('online', controleerOneDrive);
 
 (async () => {
   gekozenProject = laadProject();
+  gekozenMap = laadMap();
   const wasCallback = await verwerkLoginCallback();
   if (wasCallback && (localStorage.getItem(LOGIN_MODUS) || '').startsWith('popup')) return;
   controleerOneDrive();
