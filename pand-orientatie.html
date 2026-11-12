@@ -41,6 +41,10 @@
   tr.kies { cursor:pointer; }
   .tag { display:inline-block; min-width:26px; padding:1px 5px; border-radius:3px; background:var(--paars); color:#fff; text-align:center; font-size:11px; }
   .tag.leeg { background:#d9d5e1; color:#1d1833; }
+  .ag-balk { display:flex; flex-direction:column; background:#fff; }
+  .ag-balk .ag-knop { font-family:'Merriweather', Georgia, serif; font-size:12px; padding:5px 9px; border:0; border-bottom:1px solid var(--rand); border-radius:0; background:#fff; color:#1d1833; text-align:left; cursor:pointer; }
+  .ag-balk .ag-knop:last-child { border-bottom:0; }
+  .ag-balk .ag-knop.aan { background:var(--paars); color:#fff; font-weight:700; }
   .noordpijl { position:absolute; top:12px; right:12px; z-index:1000; background:rgba(255,255,255,.9); border:1px solid var(--rand); border-radius:6px; padding:4px 8px; text-align:center; font-size:12px; font-weight:700; }
   .gevellabel { background:rgba(255,255,255,.92); border:1px solid #333; border-radius:3px; padding:1px 4px; font-size:11px; font-family:'Merriweather',serif; white-space:nowrap; transform:translate(-50%,-50%); }
   .klein { font-size:11px; color:var(--grijs); margin-top:10px; line-height:1.5; }
@@ -231,8 +235,30 @@ if (HAS_L) {
 const brt = L.tileLayer('https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/standaard/EPSG:3857/{z}/{x}/{y}.png', { maxZoom: 21, maxNativeZoom: 19, attribution: 'Kaartgegevens © Kadaster / PDOK' });
 const lucht = L.tileLayer('https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_orthoHR/EPSG:3857/{z}/{x}/{y}.jpeg', { maxZoom: 21, maxNativeZoom: 19, attribution: 'Luchtfoto © PDOK' });
 kaart = L.map('kaart', { zoomSnap: 0.5 }).setView([52.07, 4.3], 8);
-brt.addTo(kaart);
-L.control.layers({ 'Kaart': brt, 'Luchtfoto': lucht }).addTo(kaart);
+// Achtergrondkeuze linksboven (onder de zoomknoppen), gekoppeld aan de keuzelijst bij "Kaartje".
+// Rechtsboven zou hij onder de noordpijl verdwijnen.
+const LAGEN = { kaart: brt, lucht, geen: null };
+function zetAchtergrond(k) {
+  if (!(k in LAGEN)) k = 'kaart';
+  Object.values(LAGEN).forEach(l => { if (l && kaart.hasLayer(l)) kaart.removeLayer(l); });
+  if (LAGEN[k]) LAGEN[k].addTo(kaart);
+  const sel = document.getElementById('achtergrond'); if (sel && sel.value !== k) sel.value = k;
+  document.querySelectorAll('.ag-knop').forEach(b => b.classList.toggle('aan', b.dataset.ag === k));
+  try { localStorage.setItem('orientatie_achtergrond', k); } catch (_) {}
+}
+const AgControl = L.Control.extend({ options: { position: 'topleft' }, onAdd() {
+  const d = L.DomUtil.create('div', 'leaflet-bar ag-balk');
+  [['kaart', 'Kaart'], ['lucht', 'Luchtfoto'], ['geen', 'Geen']].forEach(([k, t]) => {
+    const b = L.DomUtil.create('button', 'ag-knop', d); b.type = 'button'; b.textContent = t; b.dataset.ag = k; b.title = 'Achtergrond: ' + t.toLowerCase();
+    L.DomEvent.on(b, 'click', e => { L.DomEvent.stop(e); zetAchtergrond(k); });
+  });
+  L.DomEvent.disableClickPropagation(d);
+  return d;
+} });
+new AgControl().addTo(kaart);
+document.getElementById('achtergrond').addEventListener('change', e => zetAchtergrond(e.target.value));
+let agStart = 'kaart'; try { agStart = localStorage.getItem('orientatie_achtergrond') || 'kaart'; } catch (_) {}
+zetAchtergrond(agStart);
 L.control.scale({ imperial: false }).addTo(kaart);
 laag = L.layerGroup().addTo(kaart);
 }
