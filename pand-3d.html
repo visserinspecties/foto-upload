@@ -1725,7 +1725,7 @@ async function controleerOneDrive() {
       else zetOdBalk('fout', e.code === 'verlopen' ? '❌ OneDrive: inlog verlopen.' : '❌ OneDrive: niet ingelogd — opslaan in een project kan niet.', [inloggen]);
       return;
     }
-    if (!gekozenProject) { zetOdBalk('let', '☁️ OneDrive verbonden — nog geen project gekozen.', [['Kies project', kiesProject], opnieuw]); return; }
+    if (!gekozenProject) { zetOdBalk('neutraal', '☁️ OneDrive verbonden — geen project gekozen. Niet nodig: je kunt ook in een map naar keuze opslaan.', [['Kies project', kiesProject], opnieuw]); return; }
     let resp;
     try { resp = await fetch(GRAPH + '/root:/' + gp(gekozenProject.pad), { headers: { Authorization: 'Bearer ' + token } }); }
     catch (_) { zetOdBalk('let', '⚠️ OneDrive verbonden, maar de projectmap kon niet gecontroleerd worden.', [opnieuw]); return; }
@@ -1880,7 +1880,7 @@ async function schrijfBestanden(pad, namen, H) {
 }
 
 // ---- vrije map kiezen (niet per se een project) ----
-const MAP_SLEUTEL = 'pand3d_map';
+const MAP_SLEUTEL = 'pand_vrije_map';   // gedeeld met Pand-oriëntatie
 let gekozenMap = null;   // { naam, pad } — laatst gebruikte vrije map
 function laadMap() { try { const m = JSON.parse(localStorage.getItem(MAP_SLEUTEL) || 'null'); return (m && typeof m.pad === 'string') ? m : null; } catch (_) { return null; } }
 function bewaarMap() { try { localStorage.setItem(MAP_SLEUTEL, JSON.stringify(gekozenMap)); } catch (_) {} }
