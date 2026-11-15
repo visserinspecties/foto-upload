@@ -209,6 +209,12 @@ body.tab-bag .wrap{max-width:1180px}
 .bag-verdtab td:first-child{width:24px}
 .bag-verdtab input[type=checkbox]{width:18px;height:18px;margin:0}
 .bag-verdtab tr.uit td:not(:first-child){color:var(--grijs);text-decoration:line-through}
+.bag-verdgem{font-size:.85rem;margin:4px 0 8px}
+.bag-verdgem b{font-size:.95rem}
+.bag-verdkader{display:flex;flex-wrap:wrap;gap:6px 22px;border:1px solid var(--lijn);border-left:4px solid #432D6A;border-radius:8px;padding:8px 12px;margin:0 0 10px;font-size:.85rem;background:var(--kaart)}
+.bag-verdkader:empty{display:none}
+.bag-verdkader .kk{color:var(--zacht,#6b6b6b);font-size:.78rem;display:block}
+.bag-verdkader b{font-size:1rem}
 .bag-verdknop{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 10px}
 .bag-verdtab th.sorteer{cursor:pointer;user-select:none;-webkit-user-select:none;padding-top:8px;padding-bottom:8px}
 .bag-verdtab th.sorteer.aan{color:var(--paars);font-weight:700}
@@ -1452,7 +1458,9 @@ function renderHeelPand(b){
     <p class="klein">Gebruiksoppervlakte volgens de BAG, alle verblijfsobjecten van dit pand opgeteld.${noot.length?' '+esc(noot.join(' ')):''}</p>
     <details id="bag-verd-d"${hpLijstOpen()?' open':''}><summary>Lijst per adres + verdeling PV (${hp.n})</summary>
       <div class="bag-verdbalk"><label class="bag-pvin">PV-panelen op het pand, totaal <input type="number" id="bag-pvm2" min="0" step="0.01" inputmode="decimal" value="${esc(pvLees(b.id))}"> m²</label>
-      <label class="bag-pvin">Sorteren <select id="bag-verd-sort">${SORT_OPTIES.map(([w,t])=>`<option value="${w}">${t}</option>`).join('')}</select></label></div>
+      <label class="bag-pvin">Sorteren <select id="bag-verd-sort">${SORT_OPTIES.map(([w,t])=>`<option value="${w}">${t}</option>`).join('')}</select></label>
+      <span class="bag-verdgem" id="bag-verd-gem"></span></div>
+      <div class="bag-verdkader" id="bag-verd-kader"></div>
       <div class="bag-verdwrap"><table class="bag-heeltab bag-verdtab"><thead id="bag-verd-th"><tr><th title="Meetellen in de verdeling">✓</th>${[['adres','Adres'],['doel','Gebruiksdoel'],['opp','m²'],['pct','Aandeel'],['pvm','PV m²']].map(([k,t])=>`<th class="sorteer" data-sort="${k}" title="Tik om te sorteren">${t}<span class="pijl"></span></th>`).join('')}</tr></thead>
       <tbody id="bag-verd-tb"></tbody><tfoot id="bag-verd-tf"></tfoot></table></div>
       <p class="klein">Aandeel = gebruiksoppervlakte van het adres ÷ totaal van de aangevinkte adressen. Vink een adres uit om het buiten de verdeling te laten (bijv. een winkel die niet meedeelt in de PV).</p>
@@ -1523,7 +1531,23 @@ function vulVerdeling(b,hp,alleenGetallen){
   v.rijen.forEach(r=>{const tr=perId.get(r.id);if(!tr)return;tr.classList.toggle('uit',!r.mee);
     tr.querySelector('.pct').textContent=r.mee?fmt(r.pct,2)+' %':'–';tr.querySelector('.pvm').textContent=r.mee&&v.pv?fmt(r.pvm2,2):'–'});
   const n=v.rijen.filter(r=>r.mee).length;
+  toonGemiddeld(v);
   $('bag-verd-tf').innerHTML=`<tr><td></td><td>Totaal (${n} van ${v.rijen.length})</td><td></td><td>${fmt(v.som,0)}</td><td>${v.som?'100,00 %':'–'}</td><td>${v.pv?fmt(v.pv,2):'–'}</td></tr>`;
+}
+/* gemiddelde per appartement (aangevinkte adressen) en afwijking van grootste en kleinste t.o.v. dat gemiddelde */
+function toonGemiddeld(v){
+  const g=$('bag-verd-gem'),k=$('bag-verd-kader');if(!g||!k)return;
+  const mee=v.rijen.filter(r=>r.mee&&r.opp>0);
+  if(!mee.length){g.textContent='';k.innerHTML='';return}
+  const metPv=v.pv>0,waarde=r=>metPv?r.pvm2:r.opp,eenh=metPv?' m² PV':' m²';
+  const gem=mee.reduce((s,r)=>s+waarde(r),0)/mee.length,gemOpp=v.som/mee.length;
+  let max=mee[0],min=mee[0];mee.forEach(r=>{if(waarde(r)>waarde(max))max=r;if(waarde(r)<waarde(min))min=r});
+  const pct=r=>gem?(waarde(r)-gem)/gem*100:0,sp=x=>(x>0?'+':x<0?'−':'±')+fmt(Math.abs(x),1)+' %';
+  const nGelijk=r=>mee.filter(q=>Math.abs(waarde(q)-waarde(r))<1e-9).length;
+  const naam=r=>{const n=nGelijk(r);return esc(r.adres)+(n>1?` <span class="klein">(en ${n-1} andere${n-1===1?'':'n'} even groot)</span>`:'')};
+  g.innerHTML=`Gemiddeld per appartement: <b>${fmt(gem,2)}${eenh}</b>${metPv?` <span class="klein">(${fmt(gemOpp,0)} m² gebruiksopp.)</span>`:''} <span class="klein">over ${mee.length} adres${mee.length===1?'':'sen'}</span>`;
+  k.innerHTML=`<div><span class="kk">Grootste t.o.v. gemiddeld</span><b>${sp(pct(max))}</b> — ${naam(max)}, ${fmt(waarde(max),2)}${eenh}</div>
+    <div><span class="kk">Kleinste t.o.v. gemiddeld</span><b>${sp(pct(min))}</b> — ${naam(min)}, ${fmt(waarde(min),2)}${eenh}</div>`;
 }
 let xlsxLaden=null;
 function laadXlsx(){
