@@ -1583,8 +1583,15 @@ async function verdelingExcel(b,hp,naarProject){
     zet('G'+t,{t:'s',f:`COUNTIF(G${r0}:G${r1},"ja")&" mee"`,v:v.rijen.filter(r=>r.mee).length+' mee',s:vet});
     zet('H'+t,{t:'n',f:`SUM(H${r0}:H${r1})`,v:v.som?1:0,z:'0.00%',s:vet});
     zet('I'+t,{t:'n',f:`SUM(I${r0}:I${r1})`,v:v.pv,z:'0.00',s:vet});
-    zet('A'+(t+2),{t:'s',v:'Bron: BAG (PDOK), gebruiksoppervlakte per verblijfsobject. Ingetrokken objecten zijn weggelaten. Gemaakt met de Pand Analyse van Visser Inspecties, '+new Date().toLocaleDateString('nl-NL')+'.'});
-    ws['!ref']=X.utils.encode_range({s:{r:0,c:0},e:{r:t+1,c:8}});
+    {const mee=v.rijen.filter(r=>r.mee&&r.opp>0),n=mee.length||1,fo=mee.map(r=>r.opp),fp=mee.map(r=>r.aandeel*v.pv);
+      const gF=fo.reduce((a,c)=>a+c,0)/n,gP=fp.reduce((a,c)=>a+c,0)/n,pct='+0.0%;-0.0%;0.0%',ja=`G${r0}:G${r1},"ja"`;
+      const rij=(rr,txt,fF,vF,fI,vI,z)=>{zet('A'+rr,{t:'s',v:txt,s:vet});
+        zet('F'+rr,{t:'n',f:fF,v:vF,z,s:vet});zet('I'+rr,{t:'n',f:fI,v:vI,z,s:vet})};
+      rij(t+2,'Gemiddeld per appartement (meetellend)',`AVERAGEIF(G${r0}:G${r1},"ja",F${r0}:F${r1})`,gF,`AVERAGEIF(G${r0}:G${r1},"ja",I${r0}:I${r1})`,gP,'#,##0.00');
+      rij(t+3,'Grootste t.o.v. gemiddeld',`MAXIFS(F${r0}:F${r1},${ja})/F${t+2}-1`,gF?Math.max(...fo,0)/gF-1:0,`MAXIFS(I${r0}:I${r1},${ja})/I${t+2}-1`,gP?Math.max(...fp,0)/gP-1:0,pct);
+      rij(t+4,'Kleinste t.o.v. gemiddeld',`MINIFS(F${r0}:F${r1},${ja})/F${t+2}-1`,gF&&fo.length?Math.min(...fo)/gF-1:0,`MINIFS(I${r0}:I${r1},${ja})/I${t+2}-1`,gP&&fp.length?Math.min(...fp)/gP-1:0,pct)}
+    zet('A'+(t+6),{t:'s',v:'Bron: BAG (PDOK), gebruiksoppervlakte per verblijfsobject. Ingetrokken objecten zijn weggelaten. Gemaakt met de Pand Analyse van Visser Inspecties, '+new Date().toLocaleDateString('nl-NL')+'.'});
+    ws['!ref']=X.utils.encode_range({s:{r:0,c:0},e:{r:t+5,c:8}});
     ws['!cols']=[{wch:30},{wch:9},{wch:24},{wch:16},{wch:18},{wch:14},{wch:10},{wch:10},{wch:10}];
     ws['!autofilter']={ref:`A${k}:I${r1}`};
     const wb=X.utils.book_new();X.utils.book_append_sheet(wb,ws,'Verdeling');
