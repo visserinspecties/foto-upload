@@ -1725,10 +1725,27 @@ async function toonLaatstGemaakt() {
   if (!lijst.length) { vak.style.display = 'none'; vak.innerHTML = ''; return; }
   vak.style.display = 'block';
   vak.innerHTML = '';
-  const kop = document.createElement('div');
-  kop.style.cssText = 'font-weight:600; margin-bottom:6px;';
-  kop.textContent = 'Laatst gemaakt (bewaard in deze browser)';
-  vak.appendChild(kop);
+  // Inklapbaar: standaard dicht (keuze wordt onthouden), maar altijd open
+  // zolang er een bestand niet in OneDrive staat — dat moet je zien.
+  const nietGeupload = lijst.filter(r => r.status !== 'ok' && r.status !== 'bezig').length;
+  let openGekozen = false;
+  try { openGekozen = localStorage.getItem('huismaten-laatst-gemaakt-open') === '1'; } catch (e) {}
+  const blok = document.createElement('details');
+  blok.open = openGekozen || nietGeupload > 0;
+  const kop = document.createElement('summary');
+  kop.style.cssText = 'font-weight:600; margin-bottom:6px; cursor:pointer; user-select:none;';
+  kop.textContent = `Laatst gemaakt (${lijst.length} ${lijst.length === 1 ? 'bestand' : 'bestanden'}, bewaard in deze browser)`;
+  if (nietGeupload > 0) {
+    const w = document.createElement('span');
+    w.style.cssText = 'color:#8f2410; margin-left:6px;';
+    w.textContent = `⚠️ ${nietGeupload} niet in OneDrive`;
+    kop.appendChild(w);
+  }
+  blok.appendChild(kop);
+  blok.addEventListener('toggle', () => {
+    try { localStorage.setItem('huismaten-laatst-gemaakt-open', blok.open ? '1' : '0'); } catch (e) {}
+  });
+  vak.appendChild(blok);
   lijst.forEach(rec => {
     const rij = document.createElement('div');
     rij.style.cssText = 'border:1px solid var(--line); border-radius:8px; padding:8px 10px; margin-bottom:6px; background:#fbfaf6;';
@@ -1757,7 +1774,7 @@ async function toonLaatstGemaakt() {
     d.addEventListener('click', () => exportDelenOfBewaren(rec.id));
     knoppen.appendChild(d);
     rij.appendChild(knoppen);
-    vak.appendChild(rij);
+    blok.appendChild(rij);
   });
 }
 
