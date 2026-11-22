@@ -683,6 +683,13 @@
     </div>
   </div>
   
+  <div class="row" id="gs-schil-zoldervloer-rij" style="align-items:center;">
+    <div class="field" style="flex:0 0 100%; display:flex; align-items:center; gap:8px; margin-bottom:0;">
+      <input type="checkbox" id="gs-schil-zoldervloer" style="width:auto;">
+      <label for="gs-schil-zoldervloer" style="margin:0;">Thermische schil ligt op de zoldervloer (zoldervloer beter geïsoleerd dan het dak, geen vaste trap) — alles boven de zoldervloer wordt afgekapt</label>
+    </div>
+  </div>
+
   <div class="row" id="gs-vloeroffset-rij" style="align-items:center;">
     <div class="field" style="flex:0 0 100%;">
       <label>Dakhelling begint … cm boven de zoldervloer — leeg = automatisch (gootlijn − zoldervloer, standaard 0)</label>
@@ -2649,6 +2656,15 @@ function berekenWoon(dak, schild, mans){
     dakvloer.items.push({label: dk.naam + ' (extra vloer)', opp: x.opp, detail: x.detail, formule: f});
   });
 
+  // Thermische schil op de zoldervloer: de zolder valt buiten de thermische zone en telt niet
+  // mee in het woonoppervlak. Als negatieve regel, zodat scherm, PDF en Excel-sommen kloppen.
+  if(zolder && zolderSchilActief(daktype, dak, zolder)){
+    const som = (zolder.basis || 0) + zolder.items.reduce((s,it)=>s+it.opp, 0);
+    zolder.items.push({label:'Zolder buiten de thermische schil', opp:-som,
+      detail:'thermische schil ligt op de zoldervloer — telt niet mee in het woonoppervlak', formule:`− ${n2(som)}`});
+    zolder.buitenSchil = true;
+  }
+
   vloeren.forEach(v=>{ v.subtotaal = (v.basis || 0) + v.items.reduce((s,it)=>s+it.opp, 0); });
   const totaal = vloeren.reduce((s,v)=>s+v.subtotaal, 0);
   return {vloeren, zolder, dakvloer, dakkapelExtra, totaal, openKap, dakGeom};
@@ -2691,9 +2707,41 @@ function uitbouwKruisExtraVloer(d, F){
           formule:`${n2(opp)} (deel van het kilgootvlak binnen de strook < 1,50 m, uitbouwnok ${n2(k.Hn)} m)`};
 }
 
+// ---------- Thermische schil op de zoldervloer ----------
+// De zoldervloer is beter geïsoleerd dan het dak erboven (en er is geen vaste trap): de schil
+// wordt horizontaal afgekapt op hoogte Z van de zoldervloer (t.o.v. bovenkant BG-vloer).
+// Eerste versie: zadeldak (ook wolfseind, zolang dat boven Z begint) en asymmetrisch dak.
+function zolderSchilGevraagd(){ return document.getElementById('gs-schil-zoldervloer')?.checked || false; }
+function zolderSchilActief(daktype, dak, zolder){
+  return zolderSchilGevraagd() && !!zolder && (daktype === 'zadel' || daktype === 'asymmetrisch') && !!(dak && dak.geldig);
+}
+// Geometrie op hoogte Z. xA/xB = horizontale lengte van het dakvlak ónder Z (vanaf de goot).
+function zolderAfkapGeom(dak, Z){
+  const xA = Z > dak.hA + 1e-6 ? Math.min((Z - dak.hA) / dak.tA, dak.dA) : 0;
+  const xB = Z > dak.hB + 1e-6 ? Math.min((Z - dak.hB) / dak.tB, dak.dB) : 0;
+  // kopgevel tot Z = ∫ min(Z, dakhoogte(x)) dx, per dakhelft
+  const deel = (h, t, d, x) => x <= 0 ? Math.min(Z, h)*d : h*x + t*x*x/2 + Z*(d - x);
+  const kopOpp = deel(dak.hA, dak.tA, dak.dA, xA) + deel(dak.hB, dak.tB, dak.dB, xB);
+  // formule: rechthoek span × Z minus de driehoekjes boven het dak aan elke kant
+  let kopFormule = `${n2(dak.span)} × ${n2(Z)}`;
+  [[dak.hA, xA, dak.dA], [dak.hB, xB, dak.dB]].forEach(([h, x, d])=>{
+    if(x > 0 && x < d - 1e-9) kopFormule += ` − ½ × ${n2(x)} × ${n2(Z - h)}`;
+  });
+  return {Z, xA, xB, kopOpp, kopFormule,
+          zolderBreedte: Math.max(dak.span - xA - xB, 0),
+          dakA: dak.noklengte * xA / Math.cos(deg2rad(dak.hellA)),
+          dakB: dak.noklengte * xB / Math.cos(deg2rad(dak.hellB))};
+}
+// Ligt een dakkapel onder, boven of half boven de zoldervloer?
+function dakkapelTovZolder(d, dak, Z){
+  const goot = d.dakvlak === 'B' ? dak.hB : dak.hA;
+  const voet = goot + Math.max(0, d.afstand || 0), top = voet + (d.hoogte || 0);
+  return top <= Z + 1e-6 ? 'onder' : voet >= Z - 1e-6 ? 'boven' : 'half';
+}
+
 // ---------- Schil (EPA) ----------
-// Regels: {groep:'gevel'|'vloer'|'schuin'|'plat', orient, label, detail, formule, opp}
-function berekenSchil(dak, schild, mans){
+// Regels: {groep:'gevel'|'vloer'|'schuin'|'plat'|'zolder', orient, label, detail, formule, opp}
+function berekenSchil(dak, schild, mans, woon){
   const type = document.getElementById('gs-type').value;
   const daktype = huidigDaktype();
   const beuk = veldGetal('gs-beukmaat'), diepte = veldGetal('gs-diepte'), h = veldGetal('gs-hoogte');
@@ -2702,6 +2750,28 @@ function berekenSchil(dak, schild, mans){
   const profiel = isProfielDak(daktype);
   if(profiel && (!dak || !dak.geldig)){ res.fout = (dak && dak.fout) || 'Vul de dakgegevens in.'; return res; }
   if(!profiel && (isNaN(h) || h<=0)){ res.fout = 'Vul de gevelhoogte in (of de hoogtes per bouwlaag).'; return res; }
+
+  // Thermische schil op de zoldervloer: afkappen op hoogte Z
+  const zolderW = woon && woon.zolder;
+  const ZA = (profiel && zolderSchilActief(daktype, dak, zolderW)) ? zolderAfkapGeom(dak, zolderW.niveau) : null;
+  res.zolderAfkap = ZA;
+  if(zolderSchilGevraagd() && !ZA){
+    if(document.getElementById('gs-geen-zoldervloer')?.checked) melding('"Thermische schil ligt op de zoldervloer" is aangevinkt, maar ook "Geen zoldervloer aanwezig" — er is geen zoldervloer om af te kappen, dus er is niets afgekapt.');
+    else if(daktype === 'schilddak' || daktype === 'mansarde') melding(`"Thermische schil ligt op de zoldervloer" werkt nog niet bij een ${daktype === 'schilddak' ? 'schilddak' : 'mansardekap'} — de schil is gerekend tot aan het dak.`);
+    else if(!profiel) melding('"Thermische schil ligt op de zoldervloer" is aangevinkt, maar er is geen schuin dak — het vinkje heeft geen effect.');
+  }
+  if(ZA){
+    if(daktype === 'zadel'){
+      ['a','b'].forEach(k=>{
+        const wi = leesWolfseind(k);
+        if(wi.actief && wi.geldig && dak.hA + wi.hoogte < ZA.Z - 1e-6)
+          melding(`Wolfseind ${kopgevelNamen()[k==='a'?0:1].toLowerCase()} begint onder de zoldervloer — dat is bij de afkap op de zoldervloer niet verrekend, controleer.`);
+      });
+    }
+    if(alleUitbouwData().some(d=>d.geldig && !d.buiten && d.kruis && d.kruis.actief))
+      melding('Er loopt een uitbouwdak door in het hoofddak terwijl de schil op de zoldervloer ligt — het deel onder de kilgoten is niet afgekapt, controleer in Vabi.');
+  }
+  const dkPos = d => (ZA && !isSchuinVlak(d.dakvlak)) ? dakkapelTovZolder(d, dak, ZA.Z) : 'onder';
 
   const correctie = correctieVoorType(type);
   const bS = beuk + correctie;
@@ -2718,6 +2788,10 @@ function berekenSchil(dak, schild, mans){
     const bTekst = vaVg ? `breedte${cm}` : 'diepte';
     if(profiel){
       const kop = dak.dwars ? vaVg : !vaVg;
+      if(kop && ZA){
+        return {opp: ZA.kopOpp, cap: Math.min(dak.hNok, ZA.Z), kop:true, formule: ZA.kopFormule,
+                detail:`kopgevel tot de zoldervloer (${ZA.Z.toFixed(2)} m) — deel erboven valt buiten de thermische schil`};
+      }
       if(kop){
         if(daktype === 'zadel'){
           const kant = (code==='VG' || code==='LG') ? 'a' : 'b';
@@ -2734,6 +2808,9 @@ function berekenSchil(dak, schild, mans){
                 detail:`kopgevel: dakprofiel van gootlijnen naar nok ${dak.hNok.toFixed(2)} m`};
       }
       const hs = code === dak.codes.A ? dak.hA : dak.hB;
+      if(ZA && ZA.Z < hs - 1e-6)
+        return {opp: breedte*ZA.Z, cap: ZA.Z, formule:`${n2(breedte)} × ${n2(ZA.Z)}`,
+                detail:`${bTekst} × hoogte tot de zoldervloer (strook tot de goot valt buiten de thermische schil)`};
       return {opp: breedte*hs, cap: hs, formule:`${n2(breedte)} × ${n2(hs)}`, detail:`${bTekst} × gevelhoogte`};
     }
     if(mans && mans.geldig && mans.dwars === vaVg){
@@ -2835,7 +2912,12 @@ function berekenSchil(dak, schild, mans){
   });
 
   // --- Dakkapellen ---
-  const dkData = alleDakkapelData().filter(d=>d.geldig);
+  const dkAlle = alleDakkapelData().filter(d=>d.geldig);
+  dkAlle.filter(d=>dkPos(d) === 'boven').forEach(d=>
+    info(d.naam, null, '', 'boven de zoldervloer — valt buiten de thermische schil, telt niet mee'));
+  dkAlle.filter(d=>dkPos(d) === 'half').forEach(d=>
+    melding(`${d.naam} zit deels boven en deels onder de zoldervloer — volledig meegeteld, controleer in Vabi.`));
+  const dkData = dkAlle.filter(d=>dkPos(d) !== 'boven');
   dkData.forEach(d=>{
     const orient = dakvlakNaarGevelcode(d.dakvlak);
     const [z1, z2] = perpendiculairePaar(orient);
@@ -2853,6 +2935,14 @@ function berekenSchil(dak, schild, mans){
     add('vloer', null, 'Vloer begane grond hoofdgebouw', Math.max(o, 0), dt, f);
   }
   ubData.forEach(d=> add('vloer', null, `${d.naam} — vloer`, d.breedte*d.diepte, '', `${n2(d.breedte)} × ${n2(d.diepte)}`));
+
+  // --- Zoldervloer als thermische schil ---
+  if(ZA){
+    const smal = ZA.xA > 0 || ZA.xB > 0;
+    const f = smal ? `(${n2(dak.span)} − ${n2(ZA.xA)} − ${n2(ZA.xB)}) × ${n2(dak.noklengte)}` : `${n2(dak.span)} × ${n2(dak.noklengte)}`;
+    add('zolder', null, 'Zoldervloer (thermische schil)', ZA.zolderBreedte*dak.noklengte,
+        `op ${ZA.Z.toFixed(2)} m boven de BG-vloer` + (smal ? ', breedte tussen de dakvlakken op die hoogte' : ', hele plattegrond (dakvoet ligt hoger)'), f);
+  }
 
   // --- Perimeter P van de begane grondvloer ---
   // Som van de randen van de BG-vloer die NIET aan een ander pand grenzen (buitenwerks, zelfde
@@ -2917,6 +3007,29 @@ function berekenSchil(dak, schild, mans){
         `${n2(bS)} × (${n2(diepte)}${iV ? ' − ' + n2(iV) : ''}${iA ? ' − ' + n2(iA) : ''})`);
     } else {
       add('plat', null, 'Plat dak hoofdgebouw', bS*diepte, cm.trim(), `${n2(bS)} × ${n2(diepte)}`);
+    }
+  } else if(profiel && ZA){
+    // Alleen het deel van elk dakvlak tussen de goot en de zoldervloer hoort bij de schil.
+    ['A','B'].forEach(k=>{
+      const x = k==='A' ? ZA.xA : ZA.xB;
+      const hell = k==='A' ? dak.hellA : dak.hellB;
+      const code = dak.codes[k];
+      let netto = k==='A' ? ZA.dakA : ZA.dakB;
+      let f = `${n2(dak.noklengte)} × ${n2(x)} ÷ cos(${hk(hell)})`;
+      let detail = x > 0 ? `alleen het deel onder de zoldervloer (${ZA.Z.toFixed(2)} m)` : 'dakvlak ligt helemaal boven de zoldervloer — buiten de thermische schil';
+      if(x > 0){
+        dkData.filter(d=>d.dakvlak === k && dkPos(d) === 'onder').forEach(d=>{
+          netto -= d.gatOpp; f += ` − ${n2(d.breedte)} × √(${n2(d.hoogte)}² + ${n2(d.diepte)}²)`; detail += ', minus gat dakkapel';
+        });
+      } else f = '0';
+      add('schuin', code, `Dakvlak ${GEVEL_NAAM[code].toLowerCase().replace('gevel','zijde')} (${code})`, Math.max(netto, 0), detail, f);
+    });
+    info('Nokhoogte', dak.hNok, 'm');
+    info('Noklengte', dak.noklengte, 'm');
+    info('Thermische schil op de zoldervloer', ZA.Z, 'm', 'alles erboven is afgekapt');
+    if(daktype === 'asymmetrisch'){
+      info(`Gootlijn ${asymZijNamen().aKlein}`, dak.hA, 'm');
+      info(`Gootlijn ${asymZijNamen().bKlein}`, dak.hB, 'm');
     }
   } else if(profiel){
     let hoekAf = 0;
@@ -3033,7 +3146,7 @@ function berekenSchil(dak, schild, mans){
   R.filter(r=>r.groep==='gevel' && !r.uit).forEach(r=>{ perOrient[r.orient] += (r.opp || 0); });
   const som = g => R.filter(r=>r.groep===g && !r.uit).reduce((s,r)=>s+(r.opp||0), 0);
   res.perOrient = perOrient;
-  res.totalen = {gevel: som('gevel'), vloer: som('vloer'), schuin: som('schuin'), plat: som('plat'), aor: som('aor'), vloerbuiten: som('vloerbuiten')};
+  res.totalen = {gevel: som('gevel'), vloer: som('vloer'), schuin: som('schuin'), plat: som('plat'), aor: som('aor'), vloerbuiten: som('vloerbuiten'), zolder: som('zolder')};
   return res;
 }
 
@@ -3047,7 +3160,7 @@ function berekenAlles(){
   const mans = berekenMansardeData();
   if(dak && !dak.geldig && dak.fout && /nok valt buiten/i.test(dak.fout)) melding(dak.fout);
   const woon = berekenWoon(dak, schild, mans);
-  const schil = berekenSchil(dak, schild, mans);
+  const schil = berekenSchil(dak, schild, mans, woon);
   alleInhamData().forEach(ihToonUitkomst);
   let rdLijst = [];
   try { rdLijst = alleRamenDeurenData(); } catch(_) { /* tijdens het opstarten bestaat de lijst nog niet */ }
@@ -3195,7 +3308,8 @@ function renderAlles(R){
     const f = (R.dak && R.dak.fout) || (R.schild && R.schild.fout) || (R.mans && R.mans.fout) || 'Vul de dakgegevens in.';
     out.innerHTML = `<p class="hint">${f}</p>`;
   } else {
-    out.innerHTML = regelHtml('Zolderverdieping', fm(W.zolder.basis)+' m²', {detail: W.zolder.detail, formule: W.zolder.formule});
+    out.innerHTML = regelHtml('Zolderverdieping', fm(W.zolder.basis)+' m²', {detail: W.zolder.detail, formule: W.zolder.formule})
+      + (W.zolder.buitenSchil ? '<p class="hint">Thermische schil ligt op de zoldervloer: de zolder telt niet mee in het woonoppervlak.</p>' : '');
   }
   // overzicht per bouwlaag (zoals in de Excel)
   let html = '<div style="font-weight:600;margin:16px 0 4px;">Per bouwlaag</div><div class="lines-list" style="max-height:none;">';
@@ -3244,7 +3358,7 @@ function renderAlles(R){
       rij.forEach(r=> h += regelHtml(schilLabelHtml(r), r.opp==null ? '—' : fm(r.opp)+' m²', {detail:r.detail, formule:r.formule, kleur:r.uit?'uit':'gevel'}));
       h += regelHtml(`Σ ${GEVEL_NAAM[code]} (${gevelCodeMetOrient(code)})`, fm(S.perOrient[code])+' m²', {sub:true, kleur:'gevel'});
     });
-    [['aor','Gevel grenzend aan AOR / SGvR (geen buitenlucht)','Totaal grenzend aan AOR / SGvR'],['vloer','Vloeren (grond / kruipruimte)','Totaal vloeren'],['vloerbuiten','Vloeren boven buitenlucht','Totaal vloeren boven buitenlucht'],['schuin','Schuine daken','Totaal schuine daken'],['plat','Platte daken','Totaal platte daken']].forEach(([g, kop, tot])=>{
+    [['aor','Gevel grenzend aan AOR / SGvR (geen buitenlucht)','Totaal grenzend aan AOR / SGvR'],['vloer','Vloeren (grond / kruipruimte)','Totaal vloeren'],['vloerbuiten','Vloeren boven buitenlucht','Totaal vloeren boven buitenlucht'],['zolder','Zoldervloer — thermische schil op de zoldervloer','Totaal zoldervloer'],['schuin','Schuine daken','Totaal schuine daken'],['plat','Platte daken','Totaal platte daken']].forEach(([g, kop, tot])=>{
       const rij = S.regels.filter(r=>r.groep===g);
       if(!rij.length) return;
       h += `<div style="font-weight:600;margin:14px 0 4px;">${kop}</div>`;
@@ -3533,6 +3647,10 @@ if(vloerGevelhoogAchter) vloerGevelhoogAchter.addEventListener('input', ()=>{ up
 document.getElementById('vloer-tussenvloer').addEventListener('input', ()=>herbereken());
 document.getElementById('gs-vloeroffset').addEventListener('input', ()=>{ updateAutoGevelhoogte(); renderDakverdiepingEnTotaal(); });
 document.getElementById('gs-geen-zoldervloer').addEventListener('change', renderDakverdiepingEnTotaal);
+document.getElementById('gs-schil-zoldervloer').addEventListener('change', ()=>{
+  herbereken();
+  if(typeof renderTekening === 'function' && document.getElementById('tekening-resultaten-tabel')) renderTekening();
+});
 
 // ---------- UITBOUWEN ----------
 const uitbouwenContainer = document.getElementById('uitbouwen-container');
@@ -6458,6 +6576,166 @@ function tekenDwarsdoorsnede(m){
   return wrap;
 }
 
+// ---------- Tweede doorsnede: thermische schil op de zoldervloer ----------
+// Zelfde snede als de dwarsdoorsnede, maar alles boven de zoldervloer is afgekapt: grijs gearceerd
+// en "buiten thermische schil". Wat wél meetelt is gekleurd (gevel groen, dak rood, zoldervloer zwart).
+// Alleen rect/line/polygon/polyline/text, zodat het ook in de A3-PDF komt.
+function tekenZolderSchilDoorsnede(){
+  const R = laatsteResultaat || herbereken();
+  if(!R || !R.schil || !R.schil.zolderAfkap || !R.dak || !R.dak.geldig) return null;
+  const ZA = R.schil.zolderAfkap, d = R.dak, Z = ZA.Z;
+  const W = d.span, links = d.codes.A, rechts = d.codes.B;
+  const hL = d.hA, hR = d.hB, nokX = d.dA, nokH = d.hNok;
+  const vd = getVloerdikte();
+  const fs = tekstGrootte(), S = SCALE;
+  const margeL = TK_MARGIN + maatRuimte().links, margeR = TK_MARGIN + fs*3;
+  const viewW = W*S + margeL + margeR;
+  const viewH = nokH*S + TK_MARGIN*2 + fs*9;
+  const {wrap, canvasWrap} = tekeningBlok(`Doorsnede thermische schil — schil op de zoldervloer (${GEVEL_NAAM[links]} links, ${GEVEL_NAAM[rechts].toLowerCase()} rechts)`);
+  const svg = nieuweSvg(viewW, viewH);
+  const x0 = margeL, yBase = viewH - TK_MARGIN - fs*5.5;
+  const X = x => x0 + x*S, Y = h => yBase - h*S;
+  const tekst = (x, y, t, opt) => {
+    opt = opt || {};
+    const el = svgEl('text', {x, y, 'text-anchor': opt.anchor || 'middle', 'font-size': fs*(opt.schaal||1), fill: opt.kleur || 'black'});
+    el.textContent = t; svg.appendChild(el); return el;
+  };
+  const dakH = x => x <= nokX ? hL + x*d.tA : hR + (W - x)*d.tB;
+  const regel = (groep, test) => R.schil.regels.find(r=>r.groep===groep && test(r));
+
+  // peil
+  svg.appendChild(svgEl('line', {x1:X(0)-fs*2, y1:yBase, x2:X(W)+fs*2, y2:yBase, stroke:'#777', 'stroke-width':0.6}));
+
+  // tussenvloeren (licht)
+  R.woon.vloeren.filter(v=>v.id!=='zolder').forEach((v, i)=>{
+    if(i > 0) svg.appendChild(svgEl('rect', {x:X(0), y:Y(v.niveau), width:W*S, height:vd*S, fill:'#eeeeee', stroke:'#999', 'stroke-width':0.4}));
+  });
+
+  // deel boven de zoldervloer: gearceerd (horizontale lijnen binnen het dakprofiel)
+  const stap = Math.max(2.2, 0.1*S);
+  for(let h = Z + stap/S; h < nokH; h += stap/S){
+    const a = h > hL ? Math.min((h - hL)/d.tA, nokX) : 0;
+    const b = h > hR ? W - Math.min((h - hR)/d.tB, W - nokX) : W;
+    if(b - a > 0.01) svg.appendChild(svgEl('line', {x1:X(a), y1:Y(h), x2:X(b), y2:Y(h), stroke:KLEUR.uit, 'stroke-width':0.45}));
+  }
+  // volledige omtrek boven de zoldervloer: grijs gestippeld (telt niet mee)
+  const omtrek = (hL > Z ? [[0, Z], [0, hL]] : [[ZA.xA, Z]])
+    .concat([[nokX, nokH]])
+    .concat(hR > Z ? [[W, hR], [W, Z]] : [[W - ZA.xB, Z]]);
+  svg.appendChild(svgEl('polyline', {points: omtrek.map(([x,h])=>`${X(x)},${Y(h)}`).join(' '), fill:'none', stroke:KLEUR.uit, 'stroke-width':0.7, 'stroke-dasharray':'5,3'}));
+  {
+    const hMid = Z + (nokH - Z)*0.38;
+    const tw = 'buiten thermische schil'.length*fs*0.48;
+    svg.appendChild(svgEl('rect', {x:X(nokX) - tw/2 - 3, y:Y(hMid) - fs*0.95, width:tw + 6, height:fs*1.3, fill:'white', stroke:'none'}));
+    tekst(X(nokX), Y(hMid), 'buiten thermische schil', {kleur:'#666', schaal:0.9});
+  }
+
+  // gevels (groen) tot de zoldervloer of de goot
+  const gL = Math.min(hL, Z), gR = Math.min(hR, Z);
+  svg.appendChild(svgEl('line', {x1:X(0), y1:Y(0), x2:X(0), y2:Y(gL), stroke:KLEUR.gevel, 'stroke-width':1.6}));
+  svg.appendChild(svgEl('line', {x1:X(W), y1:Y(0), x2:X(W), y2:Y(gR), stroke:KLEUR.gevel, 'stroke-width':1.6}));
+  // dak onder de zoldervloer (rood)
+  if(ZA.xA > 0) svg.appendChild(svgEl('line', {x1:X(0), y1:Y(hL), x2:X(ZA.xA), y2:Y(dakH(ZA.xA)), stroke:KLEUR.dak, 'stroke-width':1.8}));
+  if(ZA.xB > 0) svg.appendChild(svgEl('line', {x1:X(W), y1:Y(hR), x2:X(W - ZA.xB), y2:Y(dakH(W - ZA.xB)), stroke:KLEUR.dak, 'stroke-width':1.8}));
+  [['A', ZA.xA, 0, 1], ['B', ZA.xB, W, -1]].forEach(([k, x, xg, r])=>{
+    if(!(x > 0)) return;
+    const rg = regel('schuin', q=>q.orient === d.codes[k] && /^Dakvlak/.test(q.label));
+    if(!rg) return;
+    const xm = xg + r*x*0.5, hm = dakH(xm);
+    tekst(X(xm) + r*fs*0.5, Y(hm) + fs*1.0, `${n2(rg.opp)} m²`, {kleur:KLEUR.dak, anchor: r > 0 ? 'start' : 'end', schaal:0.85});
+  });
+
+  // zoldervloer = thermische schil (dikke zwarte lijn)
+  const za = ZA.xA, zb = W - ZA.xB;
+  svg.appendChild(svgEl('rect', {x:X(za), y:Y(Z), width:(zb - za)*S, height:vd*S, fill:'#d9d9d9', stroke:'none'}));
+  svg.appendChild(svgEl('line', {x1:X(za), y1:Y(Z), x2:X(zb), y2:Y(Z), stroke:'black', 'stroke-width':2.4}));
+  {
+    const rz = regel('zolder', ()=>true);
+    tekst(X((za+zb)/2), Y(Z) + fs*1.5, `zoldervloer = thermische schil${rz ? ': ' + n2(rz.opp) + ' m²' : ''}`, {schaal:0.9});
+  }
+
+  // dakkapellen: boven de zoldervloer grijs gestippeld, anders gewoon
+  alleDakkapelData().filter(q=>q.geldig && !isSchuinVlak(q.dakvlak)).forEach(q=>{
+    const opA = q.dakvlak === 'A', t = opA ? d.tA : d.tB, hP = opA ? hL : hR;
+    const voet = Math.max(0, q.afstand || 0);
+    const xVoet = opA ? voet/t : W - voet/t, hVoet = hP + voet, hTop = hVoet + q.hoogte;
+    const xAchter = opA ? xVoet + q.diepte : xVoet - q.diepte;
+    const boven = dakkapelTovZolder(q, d, Z) === 'boven';
+    svg.appendChild(svgEl('polygon', {points:`${X(xVoet)},${Y(hVoet)} ${X(xVoet)},${Y(hTop)} ${X(xAchter)},${Y(hTop)}`, fill:'white',
+      stroke: boven ? KLEUR.uit : KLEUR.gevel, 'stroke-width':1, 'stroke-dasharray': boven ? '4,2' : ''}));
+    tekst(X((xVoet+xAchter)/2), Y(hTop) - fs*0.5, q.naam + (boven ? ' (buiten schil)' : ''), {schaal:0.8, kleur: boven ? '#777' : 'black'});
+  });
+
+  tekst(X(nokX), Y(nokH) - fs*0.7, `nok ${n2(nokH)} m`, {kleur:'#777', schaal:0.9});
+
+  // maten: peilmaten links, breedtes onder (en de zoldervloerbreedte als die smaller is)
+  {
+    const lv = [{h:0, naam:'peil'}, {h:Z, naam:'zoldervloer (schil)'}, {h:hL, naam:`goot ${links}`}, {h:hR, naam:`goot ${rechts}`}, {h:nokH, naam:'nok'}];
+    R.woon.vloeren.filter(v=>v.id!=='zolder').forEach((v, i)=>{ if(i > 0) lv.push({h:v.niveau, naam:'vloer'}); });
+    const xRand = X(0);
+    tekenHoogteketting(svg, xRand - fs*2.2, yBase, maatNiveaus(lv), xRand);
+    tekenKetting(svg, 'x', yBase + fs*2.0, [{p:X(0), van:yBase}, {p:X(W), van:yBase}]);
+    if(za > 0.01 || zb < W - 0.01){
+      const yM = Y(Z) - fs*0.9;
+      tekenBreedtemaat(svg, X(za), X(zb), yM, yM, n2(zb - za));
+    }
+  }
+
+  canvasWrap.appendChild(svg);
+  return wrap;
+}
+
+// Gevelaanzicht: deel boven de zoldervloer arceren. Werkt op de hoofdomtrek ([data-hoofd]) van het
+// aanzicht, dus voor elke vorm (rechthoek, punt, asymmetrisch profiel, wolfseind).
+let TK_ZOLDER = null;   // {Z, opp:{VG,AG,LG,RG}} — gezet door renderTekening als de schil op de zoldervloer ligt
+function tkZolderGevelOpp(code){
+  return (TK_ZOLDER && code && TK_ZOLDER.opp[code] != null) ? TK_ZOLDER.opp[code] : null;
+}
+function tekenZolderAfkapInAanzicht(svg, yBase){
+  if(!TK_ZOLDER) return;
+  const yZ = yBase - TK_ZOLDER.Z*SCALE;
+  const polys = [];
+  svg.querySelectorAll('[data-hoofd]').forEach(el=>{
+    if(el.tagName.toLowerCase() === 'rect'){
+      const x = +el.getAttribute('x'), y = +el.getAttribute('y'), w = +el.getAttribute('width'), h = +el.getAttribute('height');
+      polys.push([[x,y],[x+w,y],[x+w,y+h],[x,y+h]]);
+    } else if(el.getAttribute('points')){
+      polys.push(el.getAttribute('points').trim().split(/\s+/).map(p=>p.split(',').map(Number)));
+    }
+  });
+  if(!polys.length) return;
+  const minY = Math.min(...polys.flat().map(p=>p[1]));
+  if(!(minY < yZ - 0.5)) return;   // niets boven de zoldervloer
+  const snij = y => {
+    const uit = [];
+    polys.forEach(P=>{
+      const xs = [];
+      for(let i=0; i<P.length; i++){
+        const [x1,y1] = P[i], [x2,y2] = P[(i+1) % P.length];
+        if((y1 <= y && y2 > y) || (y2 <= y && y1 > y)) xs.push(x1 + (y - y1)*(x2 - x1)/(y2 - y1));
+      }
+      xs.sort((a,b)=>a-b);
+      for(let i=0; i+1<xs.length; i+=2) uit.push([xs[i], xs[i+1]]);
+    });
+    return uit;
+  };
+  const stap = Math.max(2.2, 0.1*SCALE);
+  for(let y = yZ - stap; y > minY; y -= stap)
+    snij(y).forEach(([a,b])=> svg.appendChild(svgEl('line', {x1:a, y1:y, x2:b, y2:y, stroke:KLEUR.uit, 'stroke-width':0.45})));
+  const breed = snij(yZ - 0.05).concat(snij(yZ + 0.05));
+  if(!breed.length) return;
+  const a = Math.min(...breed.map(s=>s[0])), b = Math.max(...breed.map(s=>s[1]));
+  svg.appendChild(svgEl('line', {x1:a, y1:yZ, x2:b, y2:yZ, stroke:'black', 'stroke-width':2.2}));
+  const fs = tekstGrootte(), t = 'boven zoldervloer: buiten thermische schil';
+  const yT = Math.max(yZ - fs*0.6, minY + fs);
+  if(yZ - minY > fs*1.6 && (b - a) > t.length*fs*0.42){
+    const tw = t.length*fs*0.42;
+    svg.appendChild(svgEl('rect', {x:(a+b)/2 - tw/2 - 2, y:yT - fs*0.75, width:tw + 4, height:fs*1.05, fill:'white', stroke:'none'}));
+    const el = svgEl('text', {x:(a+b)/2, y:yT, 'text-anchor':'middle', 'font-size':fs*0.8, fill:'#666'});
+    el.textContent = t; svg.appendChild(el);
+  }
+}
+
 // ============================================================
 // RAMEN & DEUREN IN DE GEVELAANZICHTEN (testversie)
 // Per gevel en per verdieping worden de elementen gelijk verdeeld over de breedte, met
@@ -7212,8 +7490,9 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
     const oppAchter2D = ((asymProfiel.hAchter+asymProfiel.h_nok)/2) * asymProfiel.d_achter;
     const oppTotaal = Math.max(oppVoor2D + oppAchter2D - blokkage, 0);
     {
-      const t = blokkage>0 ? `${oppTotaal.toFixed(2)} m² (− uitbouw)` : `${oppTotaal.toFixed(2)} m²`;
-      const hMax = Math.min(hLinksPx,hRechtsPx);
+      const zOpp = tkZolderGevelOpp(rdGevel);
+      const t = zOpp != null ? `${zOpp.toFixed(2)} m² (tot zoldervloer)` : blokkage>0 ? `${oppTotaal.toFixed(2)} m² (− uitbouw)` : `${oppTotaal.toFixed(2)} m²`;
+      const hMax = TK_ZOLDER ? Math.min(hLinksPx, hRechtsPx, TK_ZOLDER.Z*SCALE) : Math.min(hLinksPx,hRechtsPx);
       const p = hoofdLabelPlek(hMax/2, t, hMax);
       svg.appendChild(svgEl('text', {x:x0+p.dx,y:yBase-p.h+fs*0.35,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
       svg.lastChild.textContent = p.tekst;
@@ -7224,6 +7503,7 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
     {
       const code = nm => ({voorgevel:'VG', achtergevel:'AG', linkergevel:'LG', rechtergevel:'RG'})[String(nm).toLowerCase()] || nm;
       const lv = [{h:0, naam:'peil'}, {h:linksData.h, naam:`goot ${code(linksData.naam)}`}, {h:rechtsData.h, naam:`goot ${code(rechtsData.naam)}`}, {h:asymProfiel.h_nok, naam:'nok'}];
+      if(TK_ZOLDER) lv.push({h:TK_ZOLDER.Z, naam:'zoldervloer (schil)'});
       verdiepingsvloerHoogtes().forEach(n=>{ if(n > 0 && n < asymProfiel.h_nok) lv.push({h:n, naam:vloerNiveauNaam(n)}); });
       uitbouwNiveaus(weergaveGroepen).forEach(n=>lv.push(n));
       const xRand = x0 - extraLinks;
@@ -7233,6 +7513,7 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
 
     rdTekenElementen(svg, rdPlan, x0, yBase, false);
     rdTekenLabels(svg, rdPlan, x0, yBase, x0+w+extraRechts+7+fs*1.6, fs, viewH-4, x0+w+3);
+    tekenZolderAfkapInAanzicht(svg, yBase);
     markeerHoofdUit(svg, titel);
     canvasWrap.appendChild(svg);
     return wrap;
@@ -7400,8 +7681,9 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
   const oppTotaal = oppRectNetto + oppDriehoek;
 
   {
-    const t = blokkage>0 ? `${oppTotaal.toFixed(2)} m² (− uitbouw)` : `${oppTotaal.toFixed(2)} m²`;
-    const hLabelMax = sFront ? sFront.hStart*SCALE : hRect;
+    const zOpp = tkZolderGevelOpp(rdGevel);
+    const t = zOpp != null ? `${zOpp.toFixed(2)} m² (tot zoldervloer)` : blokkage>0 ? `${oppTotaal.toFixed(2)} m² (− uitbouw)` : `${oppTotaal.toFixed(2)} m²`;
+    const hLabelMax = TK_ZOLDER ? Math.min(sFront ? sFront.hStart*SCALE : hRect, TK_ZOLDER.Z*SCALE) : (sFront ? sFront.hStart*SCALE : hRect);
     const p = hoofdLabelPlek(hLabelMax/2, t, hLabelMax);
     svg.appendChild(svgEl('text', {x:x0+p.dx,y:yBase-p.h+fs*0.35,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
     svg.lastChild.textContent = p.tekst;
@@ -7412,6 +7694,7 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
   {
     const heeftDak = (heeftDriehoek && driehoekHoogte > 0) || (MP && hTri > 0) || hStippel > 0;
     const lv = [{h:0, naam:'peil'}, {h:gevelhoogte, naam: heeftDak ? 'goot' : 'bovenkant gevel'}];
+    if(TK_ZOLDER) lv.push({h:TK_ZOLDER.Z, naam:'zoldervloer (schil)'});
     if(heeftDak) lv.push({h:totaalHoogte, naam:'nok'});
     if(MP && hTri > 0) lv.push({h:MP.knikhoogte, naam:'knik'});
     if(heeftDriehoek && heeftWolfseind) lv.push({h:gevelhoogte + driehoekHoogte - wolfseind.restHoogte, naam:'wolfseind'});
@@ -7438,12 +7721,15 @@ function tekenGevelaanzicht(titel, breedte, gevelhoogte, heeftDriehoek, hellings
 
   if(dakvlakInfo && dakvlakInfo.opp!=null){
     svg.appendChild(svgEl('text', {x:x0+w/2,y:yTop-18,'text-anchor':'middle','font-size':tekstGrootte(),fill:'black'}));
-    svg.lastChild.textContent = `dakvlak: ${dakvlakInfo.opp.toFixed(2)} m² — ${dakvlakInfo.hoek}°`;
+    svg.lastChild.textContent = dakvlakInfo.onderZolder
+      ? `dakvlak onder zoldervloer: ${dakvlakInfo.opp.toFixed(2)} m² — ${dakvlakInfo.hoek}°`
+      : `dakvlak: ${dakvlakInfo.opp.toFixed(2)} m² — ${dakvlakInfo.hoek}°`;
     svg.lastChild.setAttribute('fill', KLEUR.dak);
   }
 
   rdTekenElementen(svg, rdPlan, x0, yBase, false);
   rdTekenLabels(svg, rdPlan, x0, yBase, x0+w+extraRechts+fs*1.5, fs, viewH-4, x0+w+3);
+  tekenZolderAfkapInAanzicht(svg, yBase);
   markeerHoofdUit(svg, titel);
   canvasWrap.appendChild(svg);
   return wrap;
@@ -7561,6 +7847,12 @@ function renderTekening(targetContainerId){
 
   // Plattegronden — rechtstreeks uit het rekenresultaat (zelfde getallen als tabel/PDF/Excel)
   const R = herbereken() || laatsteResultaat;
+  TK_ZOLDER = null;
+  if(R && R.schil && R.schil.zolderAfkap){
+    const opp = {};
+    ['VG','AG','LG','RG'].forEach(c=>{ const r = R.schil.regels.find(q=>q.groep==='gevel' && q.label === GEVEL_NAAM[c] + ' hoofdgebouw'); if(r && r.opp != null) opp[c] = r.opp; });
+    TK_ZOLDER = {Z: R.schil.zolderAfkap.Z, opp};
+  }
   const buurzijdeHV = document.getElementById('gs-buurzijde')?.value || 'links';
   let hatchL = false, hatchR = false;
   if(m.type==='halfvrijstaand'){ hatchL = buurzijdeHV==='links'; hatchR = buurzijdeHV==='rechts'; }
@@ -7605,7 +7897,9 @@ function renderTekening(targetContainerId){
     const schuineZijde = (basis/2)/Math.cos(deg2rad(m.hellingshoek));
     const dakvlakOpp = noklengte*schuineZijde;
     const driehoekHoogteEcht = (basis/2)*Math.tan(deg2rad(m.hellingshoek));
-    const info = {opp: dakvlakOpp, hoek: m.hellingshoek, nokhoogte: m.hoogte + driehoekHoogteEcht};
+    const ZAt = R && R.schil && R.schil.zolderAfkap;
+    const info = ZAt ? {opp: ZAt.dakA, hoek: m.hellingshoek, nokhoogte: m.hoogte + driehoekHoogteEcht, onderZolder:true}
+                     : {opp: dakvlakOpp, hoek: m.hellingshoek, nokhoogte: m.hoogte + driehoekHoogteEcht};
     // dakvlak-info plaatsen op de gevel die GEEN driehoek draagt (de "rechthoek"-kant),
     // conform: dakvlak-oppervlak en hoek in het zijaanzicht zetten
     if(m.nokrichting==='voorachter') dakvlakInfoZij = info;
@@ -7735,6 +8029,10 @@ function renderTekening(targetContainerId){
     const blokLangs = tekenDoorsnede(m);
     if(blokLangs) container.appendChild(blokLangs);
   }
+  // tweede doorsnede: thermische schil op de zoldervloer
+  const blokZolder = tekenZolderSchilDoorsnede();
+  if(blokZolder) container.appendChild(blokZolder);
+  TK_ZOLDER = null;
 
   if(container.children.length === 0){
     container.innerHTML = '<p class="hint">Vul de Schil-tab verder in voor de tekeningen.</p>';
@@ -7976,6 +8274,7 @@ function samenvattingRegelsVerzamelen(){
   [['aor','Schil — gevel grenzend aan AOR / SGvR (geen buitenlucht)','Totaal grenzend aan AOR / SGvR'],
    ['vloer','Schil — vloeren (grond / kruipruimte)','Totaal vloeren'],
    ['vloerbuiten','Schil — vloeren boven buitenlucht','Totaal vloeren boven buitenlucht'],
+   ['zolder','Schil — zoldervloer (thermische schil op de zoldervloer)','Totaal zoldervloer'],
    ['schuin','Schil — schuine daken','Totaal schuine daken'],
    ['plat','Schil — platte daken','Totaal platte daken']].forEach(([g, k, t])=>{
     const rij = S.regels.filter(r=>r.groep===g);
@@ -8787,6 +9086,7 @@ function verzamelInvoerData(){
   push('Gevel', 1, 'vloeroffset', veldWaarde('gs-vloeroffset'));
   push('Gevel', 1, 'vloerdikte', veldWaarde('vloer-tussenvloer'));
   push('Gevel', 1, 'geen-zoldervloer', document.getElementById('gs-geen-zoldervloer')?.checked ? '1' : '0');
+  push('Gevel', 1, 'schil-zoldervloer', document.getElementById('gs-schil-zoldervloer')?.checked ? '1' : '0');
 
   // Zijgevels tegen de buurwoning (halfvrijstaand / tussenwoning)
   ['links','rechts'].forEach((kant, i)=>{
@@ -9071,6 +9371,8 @@ function vulInvoerDataIn(rows){
     veldZettenOokLeeg('gs-vloeroffset', V.vloeroffset);
     const gzCb = document.getElementById('gs-geen-zoldervloer');
     if(gzCb) gzCb.checked = isEen(V['geen-zoldervloer']);
+    const szCb = document.getElementById('gs-schil-zoldervloer');
+    if(szCb) szCb.checked = isEen(V['schil-zoldervloer']);
     ['a','b'].forEach(kant=>{
       const cb = document.getElementById(`gs-wolfseind-${kant}-actief`);
       const velden = document.getElementById(`gs-wolfseind-${kant}-velden`);
