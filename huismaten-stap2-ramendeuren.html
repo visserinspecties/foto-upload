@@ -7983,6 +7983,9 @@ function samenvattingRegelsVerzamelen(){
     const kl = kleurGroep(g);
     kop(k, kl);
     rij.forEach(r=> schilItem(r, kl));
+    // Platte daken hebben allemaal dezelfde (horizontale) oriëntatie: direct een Σ eronder.
+    // Telt alleen de vlakken op "meenemen" (uitgezette vlakken zitten niet in S.totalen).
+    if(g === 'plat') sub('Σ Platte daken (meegenomen)', S.totalen.plat, kl);
     totaalBlok.push([t, S.totalen[g], kl]);
     if(g === 'schuin') ['VG','AG','LG','RG'].forEach(code=>
       rdLosRegels(regels, d=>d.gevelKey===code && d.type==='dakraam', `dakramen dakvlak ${GEVEL_NAAM[code].toLowerCase()}`));
