@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BTW-kwartaal Noordstraat</title>
+<link rel="icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --brand:#432d6a; --lila:#8e81a6; --lila-soft:#e8e6ed;
+  --bg:#f4f2f6; --card:#fff; --ink:#1d1833; --muted:#6b6584; --line:#d9d5e1;
+  --ok:#1f7a45; --warn:#b05a00; --err:#b3261e;
+  --r:14px; --shadow:0 1px 3px rgba(67,45,106,.10);
+  --serif:'Merriweather',Georgia,'Times New Roman',serif;
+}
+*{box-sizing:border-box;margin:0}
+body{font-family:var(--serif);background:var(--bg);color:var(--ink);font-size:14.5px;line-height:1.45;min-height:100vh}
+.band{background:var(--brand);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:20}
+.band::after{content:"";position:absolute;left:0;right:0;bottom:-5px;height:5px;background:linear-gradient(90deg,#019541 0 16.6%,#54ae32 0 33.3%,#c6d500 0 50%,#ffee02 0 66.6%,#faba00 0 83.3%,#ec670a 0)}
+.band .titel{font-weight:700;font-size:15px}
+.band .who{margin-left:auto;text-align:right;font-size:11.5px;color:#cfc8e6}
+.band a{color:#fff;text-decoration:none;background:rgba(255,255,255,.14);border-radius:10px;padding:8px 12px;font-size:13px}
+main{max-width:900px;margin:0 auto;padding:22px 14px 40px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:12px;box-shadow:var(--shadow)}
+.card h2{font-weight:700;font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+.stap{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--brand);color:#fff;font-size:11px;margin-right:6px;letter-spacing:0}
+.chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chip{border:1px solid var(--line);background:var(--bg);border-radius:99px;padding:6px 14px;font-size:13px;cursor:pointer;min-height:34px;font-family:inherit;color:var(--ink)}
+.chip.on{background:var(--brand);border-color:var(--brand);color:#fff}
+input[type=text],input[type=number],select{min-height:36px;padding:6px 9px;border:1px solid var(--line);border-radius:9px;background:var(--bg);font-size:14px;font-family:inherit;color:var(--ink)}
+#jaar{width:90px}
+.drop{border:2px dashed var(--lila);border-radius:12px;padding:22px;text-align:center;color:var(--muted);cursor:pointer;background:var(--bg)}
+.drop.over{background:var(--lila-soft);border-color:var(--brand);color:var(--brand)}
+table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);text-align:left;padding:6px 5px;border-bottom:1px solid var(--line)}
+td{padding:4px 5px;border-bottom:1px solid var(--line);vertical-align:middle}
+td input[type=text]{width:100%;min-height:32px;font-size:13px}
+td input.bedrag{text-align:right;width:92px}
+td select{min-height:32px;font-size:13px}
+tr.uit td{opacity:.45}
+tr.let td{background:#fdf6ea}
+.tag{display:inline-block;font-size:10.5px;border-radius:99px;padding:2px 7px;margin-left:4px;white-space:nowrap}
+.tag.warn{background:#fdf0e1;color:var(--warn)}.tag.ok{background:#e3f3e9;color:var(--ok)}.tag.err{background:#fbe6e4;color:var(--err)}
+.x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:16px}
+.tot{margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.tot div{background:var(--bg);border-radius:10px;padding:8px 10px;font-size:13px}
+.tot b{display:block;font-size:15px}
+.doelen div{padding:7px 0;border-bottom:1px solid var(--line);font-size:13.5px;display:flex;gap:10px}
+.doelen div:last-child{border-bottom:0}
+.doelen span:first-child{width:90px;color:var(--muted);flex:0 0 auto}
+.btn{border:0;border-radius:12px;min-height:46px;padding:0 16px;font-weight:700;font-size:14.5px;cursor:pointer;background:var(--brand);color:#fff;display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;font-family:inherit}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.sec{background:var(--lila-soft);color:var(--brand)}
+.hint{font-size:12.5px;color:var(--muted);margin-top:6px}
+.msg{padding:10px 12px;border-radius:10px;font-size:13.5px;margin-top:10px}
+.msg.ok{background:#e3f3e9;color:var(--ok)}.msg.err{background:#fbe6e4;color:var(--err)}.msg.warn{background:#fdf0e1;color:var(--warn)}
+.log{margin-top:10px;font-size:13px;font-family:ui-monospace,Consolas,monospace;background:var(--bg);border-radius:10px;padding:10px;max-height:300px;overflow:auto;white-space:pre-wrap}
+.log .ok{color:var(--ok)}.log .err{color:var(--err)}.log .warn{color:var(--warn)}
+#login-screen{display:none;max-width:420px;margin:60px auto;padding:0 14px;text-align:center}
+#login-screen p{margin:10px 0 18px;color:var(--muted)}
+#app-screen{display:none}
+[hidden]{display:none!important}
+</style>
+<script src="assets/home-knop.js" defer></script>
+<script src="assets/login.js"></script>
+</head>
+<body>
+<div class="band">
+  <span class="titel">BTW-kwartaal Noordstraat</span>
+  <div class="who" id="who">Visser Inspecties</div>
+  <a href="index.html" aria-label="Terug naar het dashboard">⌂</a>
+</div>
+
+<div id="login-screen">
+  <h2 style="font-size:18px">Inloggen</h2>
+  <p id="login-tekst">Log in met je Microsoft-account van Visser Inspecties. De tool zet facturen in OneDrive, OneNote en Excel.</p>
+  <button class="btn" id="b-login">Inloggen met Microsoft</button>
+</div>
+
+<div id="app-screen">
+<main>
+  <div class="card">
+    <h2><span class="stap">1</span>Kwartaal</h2>
+    <div class="chips" id="kwartalen">
+      <button class="chip" data-q="1">Q1</button><button class="chip" data-q="2">Q2</button>
+      <button class="chip" data-q="3">Q3</button><button class="chip" data-q="4">Q4</button>
+      <input type="number" id="jaar" min="2020" max="2100" aria-label="Jaar">
+    </div>
+    <div class="hint" id="kw-uitleg"></div>
+  </div>
+
+  <div class="card">
+    <h2><span class="stap">2</span>Facturen</h2>
+    <div class="drop" id="drop">Sleep hier de PDF's van Renewi, Greenchoice, Delta en Evides<br><small>of klik om ze te kiezen</small></div>
+    <input type="file" id="bestanden" accept="application/pdf,.pdf" multiple hidden>
+    <div class="hint">Controleer de bedragen. Oranje = buiten dit kwartaal of niet zeker gelezen. Alleen aangevinkte facturen worden verwerkt.</div>
+    <table id="tabel" hidden>
+      <thead><tr><th></th><th>Leverancier</th><th>Factuurnr.</th><th>Datum</th><th>Incl. BTW</th><th>BTW</th><th></th><th></th></tr></thead>
+      <tbody id="rijen"></tbody>
+    </table>
+    <div class="tot" id="totalen"></div>
+  </div>
+
+  <div class="card">
+    <h2><span class="stap">3</span>Waar het terechtkomt</h2>
+    <div class="doelen" id="doelen"><div><span>OneDrive</span><span>—</span></div><div><span>OneNote</span><span>—</span></div><div><span>Excel</span><span>—</span></div></div>
+    <div class="hint">Al eerder verwerkte facturen (zelfde nummer) worden overgeslagen. Het Excel-tabblad wordt opnieuw berekend uit alle facturen van dit kwartaal.</div>
+  </div>
+
+  <div class="card">
+    <h2><span class="stap">4</span>Verwerken</h2>
+    <button class="btn" id="b-verwerk" disabled>Verwerken</button>
+    <div class="log" id="log" hidden></div>
+  </div>
+</main>
+</div>
+
+<script src="lib/pdf.min.js"></script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
+
+/* ── instellingen ── */
+const CLIENT_ID = 'fdf237c9-bf46-47fa-ab3d-a8834a73e284';
+const TENANT_ID = '984fd1fb-3d68-4c94-aff2-47f699fb5dae';
+const SCOPE = ['Files.ReadWrite','Notes.ReadWrite','User.Read'].map(s => 'https://graph.microsoft.com/' + s).join(' ') + ' offline_access';
+const G = 'https://graph.microsoft.com/v1.0';
+const BASISMAP = 'Verhuur Noorderlicht';                                   // OneDrive-map met de Excel-bestanden
+const EXCEL_RE = /^Facturen tbv BTW noordstraat Q\s?(\d)\s(\d{4})\.xlsx$/i;  // bv. "Facturen tbv BTW noordstraat Q3 2026.xlsx"
+const excelNaam = (q, j) => `Facturen tbv BTW noordstraat Q${q} ${j}.xlsx`;
+const tabNaam   = (q, j) => `facturen en opbrengsten Q${q}-${String(j).slice(2)}`;
+const sectieNaam = (q, j) => `${j} BTW Q${q}`;                              // OneNote-sectie, bv. "2026 BTW Q4"
+const pdfMap    = (q, j) => `${BASISMAP}/BTW ${j} Q${q}`;                     // map voor de PDF's + verwerkt.json
+const LEV = {
+  Renewi:      { re: /renewi/i,              pagina: /renewi/i,      naam: 'Renewi' },
+  Greenchoice: { re: /greenchoice|green choice/i, pagina: /greenchoice/i, naam: 'Greenchoice' },
+  Delta:       { re: /\bdelta\b|delta fiber|deltafiber/i, pagina: /delta/i, naam: 'Delta' },
+  Evides:      { re: /evides/i,              pagina: /evides/i,      naam: 'Evides' }
+};
+const MAANDEN = ['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december'];
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const encPad = p => p.split('/').map(encodeURIComponent).join('/');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const r2 = n => Math.round(n * 100) / 100;
+const euro = n => (n == null || isNaN(n)) ? '—' : '€ ' + n.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const bedrag = s => { if (typeof s === 'number') return s; const t = String(s || '').replace(/[^\d,.-]/g, ''); if (!t) return NaN;
+  return t.includes(',') ? parseFloat(t.replace(/\./g, '').replace(',', '.')) : parseFloat(t); };
+const nl2 = n => (n == null || isNaN(n)) ? '' : n.toFixed(2).replace('.', ',');
+
+/* ── inloggen: gedeelde inlog van het dashboard (refresh-token 'rt') ── */
+let accessToken = null;
+async function refresh() {
+  let rt = null; try { rt = localStorage.getItem('rt'); } catch(e) {}
+  if (!rt) throw Object.assign(new Error('Niet ingelogd'), { inlog: true });
+  const r = await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`, {
+    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ client_id: CLIENT_ID, scope: SCOPE, grant_type: 'refresh_token', refresh_token: rt }) });
+  const d = await r.json();
+  if (!d.access_token) {
+    // geen toestemming voor OneNote (Notes.ReadWrite) of verlopen inlog → opnieuw inloggen
+    throw Object.assign(new Error(d.error_description || 'Inloggen mislukt'), { inlog: true });
+  }
+  accessToken = d.access_token;
+  if (d.refresh_token) try { localStorage.setItem('rt', d.refresh_token); } catch(e) {}
+}
+async function graph(url, opts = {}, opnieuw = true) {
+  if (!accessToken) await refresh();
+  const r = await fetch(url.startsWith('http') ? url : G + url,
+    { ...opts, headers: { ...(opts.headers || {}), Authorization: 'Bearer ' + accessToken } });
+  if (r.status === 401 && opnieuw) { accessToken = null; return graph(url, opts, false); }
+  if (r.status === 429 && opnieuw) { await sleep(4000); return graph(url, opts, false); }
+  return r;
+}
+async function gjson(url, opts) {
+  const r = await graph(url, opts);
+  const t = await r.text(); let d = null; try { d = t ? JSON.parse(t) : {}; } catch(e) { d = { raw: t }; }
+  if (!r.ok) throw new Error((d && d.error && (d.error.message || d.error.code)) || `${r.status} ${r.statusText}`);
+  return d;
+}
+async function alles(url) {   // alle pagina's van een lijst ophalen
+  const uit = [];
+  while (url) { const d = await gjson(url); uit.push(...(d.value || [])); url = d['@odata.nextLink'] || null; }
+  return uit;
+}
+
+/* ── kwartaal ── */
+let Q, J;
+(function standaardKwartaal() {
+  const nu = new Date(); let q = Math.floor(nu.getMonth() / 3) + 1, j = nu.getFullYear();
+  if (nu.getMonth() % 3 === 0) { q--; if (q === 0) { q = 4; j--; } }   // eerste maand van een kwartaal → vorig kwartaal
+  Q = q; J = j;
+})();
+function kwartaalVan(d) { return d ? { q: Math.floor(d.getMonth() / 3) + 1, j: d.getFullYear() } : null; }
+function zetKwartaal(q, j) {
+  Q = q; J = j; $('jaar').value = j;
+  $('kwartalen').querySelectorAll('.chip').forEach(c => c.classList.toggle('on', +c.dataset.q === q));
+  const m = MAANDEN.slice((q - 1) * 3, q * 3);
+  $('kw-uitleg').textContent = `${m[0]} t/m ${m[2]} ${j}`;
+  facturen.forEach(f => { const kw = kwartaalVan(f.datum); f.aan = !!(kw && kw.q === q && kw.j === j); });
+  tekenTabel(); doelenTonen();
+}
+$('kwartalen').querySelectorAll('.chip').forEach(c => c.onclick = () => zetKwartaal(+c.dataset.q, J));
+$('jaar').onchange = () => { const j = parseInt($('jaar').value, 10); if (j > 2000) zetKwartaal(Q, j); };
+
+/* ── PDF lezen ── */
+let facturen = [];   // {id, bestand, bytes, lev, nr, datum(Date), incl, btw, aan, zeker}
+async function pdfTekst(bytes) {
+  const pdf = await pdfjsLib.getDocument({ data: bytes.slice(0) }).promise;
+  const regels = [];
+  for (let p = 1; p <= Math.min(pdf.numPages, 4); p++) {
+    const page = await pdf.getPage(p);
+    const tc = await page.getTextContent();
+    const items = tc.items.filter(i => i.str.trim()).map(i => ({ x: i.transform[4], y: Math.round(i.transform[5]), s: i.str.trim() }));
+    // items met (bijna) dezelfde y = één regel
+    items.sort((a, b) => b.y - a.y || a.x - b.x);
+    let huidige = null;
+    for (const it of items) {
+      if (huidige && Math.abs(huidige.y - it.y) <= 2) huidige.delen.push(it);
+      else { huidige = { y: it.y, delen: [it] }; regels.push(huidige); }
+    }
+  }
+  return regels.map(r => r.delen.sort((a, b) => a.x - b.x).map(d => d.s).join(' ').replace(/\s+/g, ' '));
+}
+const BEDRAG_RE = /-?\d{1,3}(?:\.\d{3})*,\d{2}(?!\d)|-?\d+,\d{2}(?!\d)/g;
+const bedragenIn = s => (s.match(BEDRAG_RE) || []).map(bedrag).filter(n => !isNaN(n));
+function datumUit(s) {
+  let m = s.match(/(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/);
+  if (m) return new Date(+m[3], +m[2] - 1, +m[1]);
+  m = s.match(new RegExp('(\\d{1,2})\\s+(' + MAANDEN.join('|') + '|jan|feb|mrt|apr|jun|jul|aug|sep|sept|okt|nov|dec)\\.?\\s+(\\d{4})', 'i'));
+  if (m) { const k = m[2].toLowerCase().slice(0, 3); const idx = ['jan','feb','maa','apr','mei','jun','jul','aug','sep','okt','nov','dec'].indexOf(k === 'mrt' ? 'maa' : k);
+    if (idx >= 0) return new Date(+m[3], idx, +m[1]); }
+  return null;
+}
+function leesFactuur(regels, bestandsnaam) {
+  const tekst = regels.join('\n');
+  const r = { lev: '', nr: '', datum: null, incl: NaN, btw: NaN, twijfel: [] };
+  // leverancier
+  for (const [k, v] of Object.entries(LEV)) if (v.re.test(tekst) || v.re.test(bestandsnaam)) { r.lev = k; break; }
+  if (/^Nota_GC/i.test(bestandsnaam)) r.lev = 'Greenchoice';
+  if (!r.lev) r.twijfel.push('leverancier');
+  // factuurnummer
+  const nrRegel = regels.find(s => /(factuur|nota)\s*-?\s*(nummer|nr\.?)/i.test(s));
+  let m = nrRegel && nrRegel.match(/(?:nummer|nr\.?)\s*:?\s*([A-Z]{0,4}[\-]?\d[\w\-\/]{3,})/i);
+  if (m) r.nr = m[1];
+  if (!r.nr) { m = tekst.match(/\b(GC\d{8,})\b|\b(D\d{9,})\b|\b(100\d{9})\b/); if (m) r.nr = m[1] || m[2] || m[3]; }
+  if (!r.nr) { m = bestandsnaam.match(/(GC\d{6,}|D\d{8,}|\d{9,})/i); if (m) r.nr = m[1]; }
+  if (!r.nr) r.twijfel.push('nummer');
+  // datum
+  const datumRegel = regels.find(s => /(factuur|nota)\s*datum|datum\s*(factuur|nota)/i.test(s) && datumUit(s))
+                  || regels.find(s => /^datum\b/i.test(s) && datumUit(s));
+  r.datum = datumRegel ? datumUit(datumRegel) : null;
+  if (!r.datum) { const eerste = regels.find(s => datumUit(s)); if (eerste) { r.datum = datumUit(eerste); r.twijfel.push('datum'); } else r.twijfel.push('datum'); }
+  // BTW
+  const btwRegels = regels.filter(s => /\bbtw\b/i.test(s) && !/(excl|exclusief|incl|inclusief|nummer|nr\b|id\b|btw-id|identificatie)/i.test(s) && bedragenIn(s).length);
+  const totBtw = btwRegels.find(s => /totaal\s*(aan\s*)?btw|btw\s*totaal/i.test(s));
+  const btwRegel = totBtw || btwRegels[0];
+  if (btwRegel) { const b = bedragenIn(btwRegel); r.btw = b[b.length - 1]; if (!totBtw && btwRegels.length > 1) r.twijfel.push('btw'); }
+  // totaal incl. BTW
+  const kies = re => regels.filter(s => re.test(s) && bedragenIn(s).length);
+  let kand = kies(/(totaal|bedrag|te betalen).{0,40}(incl|inclusief)/i);
+  if (!kand.length) kand = kies(/te betalen|totaalbedrag|totaal factuur|factuurbedrag/i);
+  if (!kand.length) { kand = kies(/\btotaal\b/i).filter(s => !/excl|btw/i.test(s)); }
+  if (kand.length) { const b = kand.map(s => { const a = bedragenIn(s); return a[a.length - 1]; }); r.incl = Math.max(...b); }
+  else r.twijfel.push('totaal');
+  // controle: BTW 21% ≈ 17,36% van incl.
+  const tarief = r.lev === 'Evides' ? 1.09 : 1.21;   // drinkwater: 9% BTW
+  if (!isNaN(r.incl) && isNaN(r.btw)) { r.btw = r2(r.incl - r.incl / tarief); r.twijfel.push('btw berekend'); }
+  if (!isNaN(r.incl) && !isNaN(r.btw) && (r.btw > r.incl * 0.2 || r.btw < 0)) r.twijfel.push('btw');
+  return r;
+}
+async function voegToe(files) {
+  for (const file of files) {
+    if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') continue;
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let r;
+    try { r = leesFactuur(await pdfTekst(bytes), file.name); }
+    catch (e) { r = { lev: '', nr: '', datum: null, incl: NaN, btw: NaN, twijfel: ['niet leesbaar'] }; }
+    const f = { id: Math.random().toString(36).slice(2), bestand: file.name, bytes, ...r };
+    const kw = kwartaalVan(f.datum);
+    f.aan = !!(kw && kw.q === Q && kw.j === J);
+    if (facturen.some(x => x.nr && x.nr === f.nr && x.lev === f.lev)) continue;   // dubbel gesleept
+    facturen.push(f);
+  }
+  facturen.sort((a, b) => (a.lev || 'z').localeCompare(b.lev || 'z') || ((a.datum || 0) - (b.datum || 0)));
+  tekenTabel();
+}
+
+/* ── tabel ── */
+const fmtDatum = d => d ? `${String(d.getDate()).padStart(2,'0')}-${String(d.getMonth()+1).padStart(2,'0')}-${d.getFullYear()}` : '';
+function tekenTabel() {
+  $('tabel').hidden = !facturen.length;
+  $('rijen').innerHTML = facturen.map(f => {
+    const kw = kwartaalVan(f.datum), buiten = !(kw && kw.q === Q && kw.j === J);
+    const tags = (buiten ? `<span class="tag warn">${kw ? 'Q' + kw.q + ' ' + kw.j : 'geen datum'}</span>` : '')
+               + (f.twijfel.length ? `<span class="tag warn" title="Niet zeker: ${esc(f.twijfel.join(', '))}">controleer</span>` : '');
+    return `<tr data-id="${f.id}" class="${f.aan ? '' : 'uit'} ${(buiten || f.twijfel.length) ? 'let' : ''}">
+      <td><input type="checkbox" data-v="aan" ${f.aan ? 'checked' : ''} title="Meenemen"></td>
+      <td><select data-v="lev"><option value=""></option>${Object.keys(LEV).map(k => `<option ${k === f.lev ? 'selected' : ''}>${k}</option>`).join('')}</select></td>
+      <td><input type="text" data-v="nr" value="${esc(f.nr)}"></td>
+      <td><input type="text" data-v="datum" value="${fmtDatum(f.datum)}" placeholder="dd-mm-jjjj" style="width:104px"></td>
+      <td><input type="text" class="bedrag" data-v="incl" value="${nl2(f.incl)}"></td>
+      <td><input type="text" class="bedrag" data-v="btw" value="${nl2(f.btw)}"></td>
+      <td>${tags}<div style="font-size:10.5px;color:var(--muted);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(f.bestand)}">${esc(f.bestand)}</div></td>
+      <td><button class="x" data-weg title="Verwijderen">×</button></td></tr>`;
+  }).join('');
+  tekenTotalen(); knopStatus();
+}
+$('rijen').addEventListener('change', e => {
+  const tr = e.target.closest('tr'); if (!tr) return;
+  const f = facturen.find(x => x.id === tr.dataset.id); const v = e.target.dataset.v;
+  if (v === 'aan') f.aan = e.target.checked;
+  else if (v === 'lev') f.lev = e.target.value;
+  else if (v === 'nr') f.nr = e.target.value.trim();
+  else if (v === 'datum') { f.datum = datumUit(e.target.value); const kw = kwartaalVan(f.datum); f.aan = !!(kw && kw.q === Q && kw.j === J); }
+  else if (v === 'incl' || v === 'btw') f[v] = bedrag(e.target.value);
+  if (v !== 'aan') f.twijfel = f.twijfel.filter(t => !(v === 'btw' && t.startsWith('btw')) && t !== ({ lev: 'leverancier', nr: 'nummer', datum: 'datum', incl: 'totaal' })[v]);
+  tekenTabel();
+});
+$('rijen').addEventListener('click', e => {
+  if (!e.target.matches('[data-weg]')) return;
+  const id = e.target.closest('tr').dataset.id; facturen = facturen.filter(f => f.id !== id); tekenTabel();
+});
+function tekenTotalen() {
+  const aan = facturen.filter(f => f.aan);
+  const per = {};
+  aan.forEach(f => { const k = f.lev || '?'; per[k] = per[k] || { incl: 0, btw: 0, n: 0 }; per[k].incl += f.incl || 0; per[k].btw += f.btw || 0; per[k].n++; });
+  const totaal = aan.reduce((s, f) => s + (f.btw || 0), 0);
+  $('totalen').innerHTML = !aan.length ? '' : Object.entries(per).map(([k, v]) =>
+    `<div>${esc(k)} (${v.n})<b>${euro(r2(v.btw))}</b><small>incl. ${euro(r2(v.incl))}</small></div>`).join('')
+    + `<div style="background:var(--lila-soft)">Voorbelasting nu<b>${euro(r2(totaal))}</b><small>nieuwe facturen</small></div>`;
+}
+function knopStatus() {
+  const aan = facturen.filter(f => f.aan);
+  const fout = aan.some(f => !f.lev || !f.nr || !f.datum || isNaN(f.incl) || isNaN(f.btw));
+  $('b-verwerk').disabled = !aan.length || fout || bezig;
+  $('b-verwerk').textContent = fout ? 'Vul eerst leverancier, nummer, datum en bedragen in' : `Verwerken (${aan.length} ${aan.length === 1 ? 'factuur' : 'facturen'})`;
+}
+
+/* ── slepen / kiezen ── */
+const drop = $('drop');
+drop.onclick = () => $('bestanden').click();
+$('bestanden').onchange = e => { voegToe([...e.target.files]); e.target.value = ''; };
+['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => voegToe([...e.dataTransfer.files]));
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => { if (!drop.contains(e.target)) { e.preventDefault(); voegToe([...e.dataTransfer.files]); } });
+
+/* ── log ── */
+function log(t, soort = '') { const l = $('log'); l.hidden = false; l.innerHTML += `<div class="${soort}">${esc(t)}</div>`; l.scrollTop = l.scrollHeight; }
+
+/* ══════════ OneDrive ══════════ */
+async function itemOpPad(pad) {
+  const r = await graph(`/me/drive/root:/${encPad(pad)}`);
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(`OneDrive: ${pad} niet te openen (${r.status})`);
+  return r.json();
+}
+async function leesVerwerkt() {
+  const r = await graph(`/me/drive/root:/${encPad(pdfMap(Q, J) + '/verwerkt.json')}:/content`);
+  if (r.status === 404) return { kwartaal: `Q${Q} ${J}`, facturen: [] };
+  if (!r.ok) throw new Error('verwerkt.json niet te lezen');
+  try { return await r.json(); } catch(e) { return { kwartaal: `Q${Q} ${J}`, facturen: [] }; }
+}
+async function schrijfVerwerkt(data) {
+  await gjson(`/me/drive/root:/${encPad(pdfMap(Q, J) + '/verwerkt.json')}:/content`,
+    { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data, null, 2) });
+}
+const veiligeNaam = s => String(s).replace(/[\\\/:*?"<>|#%]/g, '-').replace(/\s+/g, ' ').trim();
+const pdfNaam = f => veiligeNaam(`${f.lev} ${fmtDatum(f.datum)} ${f.nr}.pdf`);
+async function pdfNaarOneDrive(f) {
+  return gjson(`/me/drive/root:/${encPad(pdfMap(Q, J) + '/' + pdfNaam(f))}:/content?@microsoft.graph.conflictBehavior=replace`,
+    { method: 'PUT', headers: { 'Content-Type': 'application/pdf' }, body: f.bytes });
+}
+
+/* ══════════ OneNote ══════════ */
+let onenoteCache = null;
+async function vindSectie(maken) {
+  if (!onenoteCache) {
+    onenoteCache = await alles(`/me/onenote/sections?$select=id,displayName,lastModifiedDateTime&$expand=parentNotebook($select=id,displayName),parentSectionGroup($select=id,displayName)&$top=100`);
+  }
+  const doel = sectieNaam(Q, J).toLowerCase();
+  let s = onenoteCache.find(x => (x.displayName || '').trim().toLowerCase() === doel);
+  if (s || !maken) return { sectie: s || null, waar: s ? s.parentNotebook?.displayName : waarNieuweSectie()?.label };
+  const plek = waarNieuweSectie();
+  if (!plek) throw new Error('Geen OneNote-notitieblok met BTW-secties gevonden ("2026 BTW Q3" e.d.).');
+  s = await gjson(plek.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ displayName: sectieNaam(Q, J) }) });
+  onenoteCache.push({ ...s, parentNotebook: { displayName: plek.label } });
+  return { sectie: s, waar: plek.label, nieuw: true };
+}
+function waarNieuweSectie() {   // in hetzelfde notitieblok (en sectiegroep) als de meest recente BTW-sectie
+  const btw = (onenoteCache || []).filter(x => /^\d{4}\s+BTW\s+Q\d/i.test((x.displayName || '').trim()))
+    .sort((a, b) => (b.lastModifiedDateTime || '').localeCompare(a.lastModifiedDateTime || ''));
+  const v = btw[0]; if (!v) return null;
+  if (v.parentSectionGroup) return { url: `/me/onenote/sectionGroups/${v.parentSectionGroup.id}/sections`, label: `${v.parentNotebook?.displayName || ''} › ${v.parentSectionGroup.displayName}` };
+  return { url: `/me/onenote/notebooks/${v.parentNotebook.id}/sections`, label: v.parentNotebook?.displayName || 'notitieblok' };
+}
+const htmlFactuur = (f, part) => `<p><b>${esc(f.lev)}</b> — factuur ${esc(f.nr)} — ${fmtDatum(f.datum)} — incl. BTW ${euro(f.incl)} — BTW ${euro(f.btw)}</p>
+<object data-attachment="${esc(pdfNaam(f))}" data="name:${part}a" type="application/pdf" />
+<img data-render-src="name:${part}b" alt="${esc(pdfNaam(f))}" />`;
+async function onenoteBijwerken(sectie, nieuwe) {
+  const paginas = await alles(`/me/onenote/sections/${sectie.id}/pages?$select=id,title&$top=100`);
+  const perLev = {};
+  nieuwe.forEach(f => (perLev[f.lev] = perLev[f.lev] || []).push(f));
+  for (const [lev, lijst] of Object.entries(perLev)) {
+    let pagina = paginas.find(p => LEV[lev].pagina.test(p.title || ''));
+    for (const f of lijst) {
+      const fd = new FormData();
+      const blob = new Blob([f.bytes], { type: 'application/pdf' });
+      if (!pagina) {
+        // nieuwe pagina met de eerste factuur
+        const html = `<!DOCTYPE html><html><head><title>${esc(LEV[lev].naam)}</title><meta name="created" content="${new Date().toISOString()}" /></head><body>${htmlFactuur(f, 'f')}</body></html>`;
+        fd.append('Presentation', new Blob([html], { type: 'text/html' }));
+        fd.append('fa', blob, pdfNaam(f)); fd.append('fb', blob, pdfNaam(f));
+        const p = await gjson(`/me/onenote/sections/${sectie.id}/pages`, { method: 'POST', body: fd });
+        pagina = { id: p.id, title: LEV[lev].naam };   // volgende facturen van deze leverancier gaan erachter
+        paginas.push(pagina);
+        log(`  OneNote: pagina "${LEV[lev].naam}" gemaakt met ${f.nr}`, 'ok');
+        continue;
+      }
+      const cmd = [{ target: 'body', action: 'append', content: htmlFactuur(f, 'f') }];
+      fd.append('Commands', new Blob([JSON.stringify(cmd)], { type: 'application/json' }));
+      fd.append('fa', blob, pdfNaam(f)); fd.append('fb', blob, pdfNaam(f));
+      const r = await graph(`/me/onenote/pages/${pagina.id}/content`, { method: 'PATCH', body: fd });
+      if (!r.ok) { let m = r.statusText; try { m = (await r.json()).error.message; } catch(e) {} throw new Error(`OneNote ${lev}: ${m}`); }
+      log(`  OneNote: ${f.nr} toegevoegd aan "${pagina.title}"`, 'ok');
+    }
+  }
+}
+
+/* ══════════ Excel ══════════ */
+async function excelBestanden() {
+  const map = await itemOpPad(BASISMAP);
+  if (!map) throw new Error(`Map "${BASISMAP}" niet gevonden in OneDrive.`);
+  const kids = await alles(`/me/drive/items/${map.id}/children?$select=id,name,file&$top=200`);
+  return { map, lijst: kids.filter(k => k.file && EXCEL_RE.test(k.name)).map(k => { const m = k.name.match(EXCEL_RE); return { ...k, q: +m[1], j: +m[2] }; }) };
+}
+async function vindExcel(maken) {
+  const { map, lijst } = await excelBestanden();
+  let doel = lijst.find(x => x.q === Q && x.j === J);
+  if (doel) return { item: doel, nieuw: false };
+  const vorige = lijst.filter(x => x.j * 10 + x.q < J * 10 + Q).sort((a, b) => (b.j * 10 + b.q) - (a.j * 10 + a.q))[0];
+  if (!maken) return { item: null, bron: vorige };
+  if (!vorige) throw new Error('Geen eerder Excel-bestand gevonden om te kopiëren.');
+  await graph(`/me/drive/items/${vorige.id}/copy`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ parentReference: { id: map.id }, name: excelNaam(Q, J) }) });
+  for (let i = 0; i < 40; i++) {   // kopiëren gaat op de achtergrond
+    await sleep(2000);
+    const it = await itemOpPad(`${BASISMAP}/${excelNaam(Q, J)}`);
+    if (it) { await sleep(1500); return { item: it, nieuw: true, bron: vorige }; }
+  }
+  throw new Error('Kopiëren van het Excel-bestand duurt te lang. Probeer het straks nog eens.');
+}
+const kolLetter = n => { let s = ''; n++; while (n) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
+function adresStart(adres) {   // "'blad'!A1:H24" → {kol, rij} (0-based)
+  const m = adres.split('!').pop().match(/([A-Z]+)(\d+)/);
+  let k = 0; for (const c of m[1]) k = k * 26 + (c.charCodeAt(0) - 64);
+  return { kol: k - 1, rij: +m[2] - 1 };
+}
+function indeling(waarden, formules, start) {
+  // zoekt de kopregels ("Opmerking") en de leveranciersregels in het tabblad
+  const T = (r, c) => String(waarden[r]?.[c] ?? '').trim();
+  const kopRijen = [];
+  waarden.forEach((rij, r) => { if (rij.some(v => /^opmerking$/i.test(String(v).trim()))) kopRijen.push(r); });
+  if (kopRijen.length < 1) throw new Error('Kon de kolomkoppen ("Opmerking") in het tabblad niet vinden.');
+  const kop = kopRijen[0];
+  const zoekKol = re => waarden[kop].findIndex(v => re.test(String(v).trim()));
+  const k = { nr: zoekKol(/^#$/), datum: zoekKol(/^datum$/i), factuur: zoekKol(/^factuur$/i), totaal: zoekKol(/totaal/i), btw: zoekKol(/^btw$/i), opm: zoekKol(/^opmerking$/i) };
+  if (k.totaal < 0 || k.btw < 0 || k.opm < 0) throw new Error('Kolommen Totaal / BTW / Opmerking niet gevonden.');
+  const opbrKop = waarden.findIndex((rij, r) => r > kop && rij.some(v => /opbrengsten/i.test(String(v))));
+  const eindKosten = opbrKop > 0 ? opbrKop : waarden.length;
+  const lev = {};
+  for (let r = kop + 1; r < eindKosten; r++) for (const [naam, v] of Object.entries(LEV)) if (v.re.test(T(r, k.opm)) && lev[naam] == null) lev[naam] = r;
+  const accon = (() => { for (let r = kop + 1; r < eindKosten; r++) if (/accon|flynth/i.test(T(r, k.opm))) return r; return -1; })();
+  const opbrHeader = kopRijen.find(r => r > opbrKop) ?? (opbrKop + 1);
+  const opbr = [];
+  for (let r = opbrHeader + 1; r < Math.min(waarden.length, opbrHeader + 8); r++) if (/^\d$/.test(T(r, k.nr))) opbr.push(r);
+  let kwartaalCel = null;
+  for (let r = 0; r < Math.min(3, waarden.length) && !kwartaalCel; r++) waarden[r].forEach((v, c) => { if (!kwartaalCel && /^Q\d[\s-]*\d{2,4}$/i.test(String(v).trim())) kwartaalCel = { r, c }; });
+  return { k, kop, lev, accon, opbr, kwartaalCel, eindKosten, start };
+}
+const celAdres = (lay, r, c) => kolLetter(lay.start.kol + c) + (lay.start.rij + r + 1);
+async function blad(itemId, id) { return `/me/drive/items/${itemId}/workbook/worksheets/${encodeURIComponent(id)}`; }
+async function zetCel(basis, adres, formule) {
+  await gjson(`${basis}/range(address='${adres}')`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ formulas: [[formule]] }) });
+}
+async function leesBlad(basis) {
+  const u = await gjson(`${basis}/usedRange?$select=address,values,formulas`);
+  return { u, lay: indeling(u.values, u.formulas, adresStart(u.address)) };
+}
+async function excelBijwerken(allesKwartaal, excel) {
+  const itemId = excel.item.id;
+  const bladen = await alles(`/me/drive/items/${itemId}/workbook/worksheets?$select=id,name,position`);
+  const doelNaam = tabNaam(Q, J);
+  let ws = bladen.find(b => b.name.trim().toLowerCase() === doelNaam.toLowerCase());
+  let nieuwTab = false;
+  if (!ws) {
+    const eerste = bladen.sort((a, b) => a.position - b.position)[0];
+    if (excel.nieuw) {
+      // het bestand is net gekopieerd: het bovenste tabblad wordt het nieuwe kwartaal (het origineel blijft in het vorige bestand)
+      await gjson(await blad(itemId, eerste.id), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: doelNaam }) });
+      ws = { ...eerste, name: doelNaam }; nieuwTab = true;
+      log(`  Excel: tabblad "${eerste.name}" in de kopie hernoemd naar "${doelNaam}"`, 'ok');
+    } else {
+      // bestand bestond al: nieuw tabblad vooraan, inhoud en formules overgenomen van het bovenste tabblad
+      const bron = await gjson(`${await blad(itemId, eerste.id)}/usedRange?$select=address,formulas,columnCount`);
+      const nw = await gjson(`/me/drive/items/${itemId}/workbook/worksheets/add`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: doelNaam }) });
+      await gjson(await blad(itemId, nw.id), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ position: 0 }) });
+      const adr = bron.address.split('!').pop();
+      await gjson(`${await blad(itemId, nw.id)}/range(address='${adr}')`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ formulas: bron.formulas }) });
+      try {   // opmaak: kolombreedtes, vet voor koppen, 2 decimalen voor bedragen
+        const st = adresStart(adr);
+        for (let c = 0; c < bron.columnCount; c++) {
+          const L = kolLetter(st.kol + c);
+          const fm = await gjson(`${await blad(itemId, eerste.id)}/range(address='${L}:${L}')/format?$select=columnWidth`);
+          await gjson(`${await blad(itemId, nw.id)}/range(address='${L}:${L}')/format`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ columnWidth: fm.columnWidth }) });
+        }
+      } catch(e) {}
+      ws = { id: nw.id, name: doelNaam }; nieuwTab = true;
+      log(`  Excel: nieuw tabblad "${doelNaam}" gemaakt op basis van "${eerste.name}" (opmaak eenvoudiger, inhoud gelijk)`, 'warn');
+    }
+  }
+  const basis = await blad(itemId, ws.id);
+  let { lay } = await leesBlad(basis);
+  const kwLabel = `Q${Q}-${String(J).slice(2)}`;
+
+  // Evides-regel toevoegen als die er nog niet is
+  if (allesKwartaal.some(f => f.lev === 'Evides') && lay.lev.Evides == null) {
+    const r = lay.accon >= 0 ? lay.accon : (Math.max(...Object.values(lay.lev)) + 1);
+    const rijNr = lay.start.rij + r + 1;
+    await gjson(`${basis}/range(address='${rijNr}:${rijNr}')/insert`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shift: 'Down' }) });
+    const vul = (c, v) => c >= 0 ? zetCel(basis, celAdres(lay, r, c), v) : null;
+    await vul(lay.k.nr, String(Object.keys(lay.lev).length + 1)); await vul(lay.k.datum, kwLabel);
+    await vul(lay.k.factuur, 'zie bijlage'); await vul(lay.k.opm, 'Evides');
+    log('  Excel: regel voor Evides toegevoegd', 'ok');
+    ({ lay } = await leesBlad(basis));
+  }
+
+  if (nieuwTab) {
+    if (lay.kwartaalCel) await zetCel(basis, celAdres(lay, lay.kwartaalCel.r, lay.kwartaalCel.c), kwLabel);
+    for (const r of Object.values(lay.lev)) {
+      if (lay.k.datum >= 0) await zetCel(basis, celAdres(lay, r, lay.k.datum), kwLabel);
+      await zetCel(basis, celAdres(lay, r, lay.k.totaal), ''); await zetCel(basis, celAdres(lay, r, lay.k.btw), '');
+    }
+    const maanden = MAANDEN.slice((Q - 1) * 3, Q * 3);
+    for (let i = 0; i < lay.opbr.length && i < 3; i++) {
+      const r = lay.opbr[i], D = celAdres(lay, r, lay.k.totaal);
+      if (lay.k.datum >= 0) await zetCel(basis, celAdres(lay, r, lay.k.datum), kwLabel);
+      if (lay.k.factuur >= 0) await zetCel(basis, celAdres(lay, r, lay.k.factuur), maanden[i]);
+      await zetCel(basis, D, '');
+      await zetCel(basis, celAdres(lay, r, lay.k.btw), `=IF(ISNUMBER(${D}),ROUND(${D}-${D}/1.21,2),"")`);
+      await zetCel(basis, celAdres(lay, r, lay.k.opm + 2), '');   // notitie naast de regel (bv. naam huurder)
+    }
+    log(`  Excel: kwartaal, maanden en opbrengsten klaargezet voor ${kwLabel} (opbrengsten vul je zelf in)`, 'ok');
+  }
+
+  // kosten: per leverancier de som van alle facturen van dit kwartaal
+  const fmt = n => String(r2(n));
+  for (const [lev, r] of Object.entries(lay.lev)) {
+    const lijst = allesKwartaal.filter(f => f.lev === lev);
+    if (!lijst.length) continue;
+    await zetCel(basis, celAdres(lay, r, lay.k.totaal), '=' + lijst.map(f => fmt(f.incl)).join('+'));
+    await zetCel(basis, celAdres(lay, r, lay.k.btw), '=' + lijst.map(f => fmt(f.btw)).join('+'));
+    log(`  Excel: ${lev} → incl. ${euro(r2(lijst.reduce((s, f) => s + f.incl, 0)))}, BTW ${euro(r2(lijst.reduce((s, f) => s + f.btw, 0)))} (${lijst.length} facturen)`, 'ok');
+  }
+  return ws.name;
+}
+
+/* ══════════ overzicht (stap 3) ══════════ */
+let doelenTeller = 0;
+async function doelenTonen() {
+  const mijn = ++doelenTeller;
+  const rij = (a, b) => `<div><span>${a}</span><span>${b}</span></div>`;
+  $('doelen').innerHTML = rij('OneDrive', 'zoeken…') + rij('OneNote', 'zoeken…') + rij('Excel', 'zoeken…');
+  const uit = { od: '', on: '', xl: '' };
+  try {
+    const map = await itemOpPad(pdfMap(Q, J));
+    let al = 0; if (map) { try { al = (await leesVerwerkt()).facturen.length; } catch(e) {} }
+    uit.od = `${esc(pdfMap(Q, J))} ${map ? `<span class="tag ok">bestaat · ${al} verwerkt</span>` : '<span class="tag warn">wordt gemaakt</span>'}`;
+  } catch(e) { uit.od = `<span class="tag err">${esc(e.message)}</span>`; }
+  try {
+    const s = await vindSectie(false);
+    uit.on = `${esc(sectieNaam(Q, J))} ${s.sectie ? `<span class="tag ok">bestaat</span>` : `<span class="tag warn">wordt gemaakt${s.waar ? ' in ' + esc(s.waar) : ''}</span>`}`;
+  } catch(e) { uit.on = `<span class="tag err">${esc(e.message)}</span>`; }
+  try {
+    const x = await vindExcel(false);
+    uit.xl = x.item ? `${esc(x.item.name)} <span class="tag ok">bestaat</span> › tabblad ${esc(tabNaam(Q, J))}`
+      : (x.bron ? `${esc(excelNaam(Q, J))} <span class="tag warn">wordt gekopieerd van ${esc(x.bron.name)}</span>` : '<span class="tag err">geen eerder bestand</span>');
+  } catch(e) { uit.xl = `<span class="tag err">${esc(e.message)}</span>`; }
+  if (mijn !== doelenTeller) return;
+  $('doelen').innerHTML = rij('OneDrive', uit.od) + rij('OneNote', uit.on) + rij('Excel', uit.xl);
+}
+
+/* ══════════ verwerken ══════════ */
+let bezig = false;
+$('b-verwerk').onclick = async () => {
+  bezig = true; knopStatus(); $('log').innerHTML = '';
+  const kwTekst = `Q${Q} ${J}`;
+  log(`Verwerken voor ${kwTekst}…`);
+  try {
+    const verwerkt = await leesVerwerkt();
+    const al = new Set(verwerkt.facturen.map(f => f.lev + '|' + f.nr));
+    const keuze = facturen.filter(f => f.aan);
+    const nieuwe = keuze.filter(f => !al.has(f.lev + '|' + f.nr));
+    keuze.filter(f => al.has(f.lev + '|' + f.nr)).forEach(f => log(`  ${f.lev} ${f.nr} was al verwerkt — overgeslagen`, 'warn'));
+
+    log('1. PDF\'s naar OneDrive');
+    for (const f of nieuwe) { await pdfNaarOneDrive(f); log(`  ${pdfNaam(f)}`, 'ok'); }
+
+    log('2. OneNote');
+    if (nieuwe.length) {
+      const { sectie, waar, nieuw } = await vindSectie(true);
+      if (nieuw) log(`  sectie "${sectieNaam(Q, J)}" gemaakt in ${waar}`, 'ok');
+      await onenoteBijwerken(sectie, nieuwe);
+    } else log('  niets nieuws');
+
+    // bijhouden wat er verwerkt is (ook als Excel straks misgaat)
+    nieuwe.forEach(f => verwerkt.facturen.push({ lev: f.lev, nr: f.nr, datum: fmtDatum(f.datum), incl: r2(f.incl), btw: r2(f.btw), bestand: pdfNaam(f) }));
+    verwerkt.bijgewerkt = new Date().toISOString();
+    await schrijfVerwerkt(verwerkt);
+
+    log('3. Excel');
+    const allesKwartaal = verwerkt.facturen.map(f => ({ ...f, incl: +f.incl, btw: +f.btw }));
+    const excel = await vindExcel(true);
+    if (excel.nieuw) log(`  ${excelNaam(Q, J)} gemaakt als kopie van ${excel.bron.name}`, 'ok');
+    const tab = await excelBijwerken(allesKwartaal, excel);
+    const totaal = r2(allesKwartaal.reduce((s, f) => s + f.btw, 0));
+    log(`Klaar. Voorbelasting ${kwTekst} tot nu toe: ${euro(totaal)} (${allesKwartaal.length} facturen) · tabblad "${tab}"`, 'ok');
+    facturen = facturen.filter(f => !f.aan); tekenTabel(); doelenTonen();
+  } catch (e) {
+    if (e.inlog) log('Inloggen nodig (of toestemming voor OneNote). Klik bovenaan op Account › Inloggen en probeer opnieuw.', 'err');
+    log('Gestopt: ' + e.message, 'err');
+  }
+  bezig = false; knopStatus();
+};
+
+/* ── start ── */
+$('b-login').onclick = () => VILogin.naarInlog();
+(async function start() {
+  if (!VILogin.ingelogd()) { $('login-screen').style.display = 'block'; return; }
+  try { await refresh(); }
+  catch (e) {
+    $('login-tekst').textContent = 'Deze tool heeft ook toegang tot OneNote nodig. Log één keer opnieuw in en geef toestemming.';
+    $('login-screen').style.display = 'block'; return;
+  }
+  $('who').textContent = VILogin.naam() || 'Visser Inspecties';
+  $('app-screen').style.display = 'block';
+  zetKwartaal(Q, J);
+})();
+</script>
+</body>
+</html>
