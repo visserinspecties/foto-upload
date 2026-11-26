@@ -50,6 +50,7 @@ tr.let td{background:#fdf6ea}
 .doelen div{padding:7px 0;border-bottom:1px solid var(--line);font-size:13.5px;display:flex;gap:10px}
 .doelen div:last-child{border-bottom:0}
 .doelen span:first-child{width:90px;color:var(--muted);flex:0 0 auto}
+.doelen span:last-child{flex:1}
 .btn{border:0;border-radius:12px;min-height:46px;padding:0 16px;font-weight:700;font-size:14.5px;cursor:pointer;background:var(--brand);color:#fff;display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;font-family:inherit}
 .btn:disabled{opacity:.45;cursor:default}
 .btn.sec{background:var(--lila-soft);color:var(--brand)}
@@ -62,6 +63,13 @@ tr.let td{background:#fdf6ea}
 #login-screen p{margin:10px 0 18px;color:var(--muted)}
 #app-screen{display:none}
 [hidden]{display:none!important}
+details.uitleg{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin-bottom:12px;box-shadow:var(--shadow)}
+details.uitleg summary{cursor:pointer;font-weight:700;color:var(--brand);font-size:14px}
+details.uitleg ol,details.uitleg ul{margin:8px 0 4px 20px;font-size:13.5px}
+details.uitleg li{margin:4px 0}
+details.uitleg h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-top:12px}
+details.uitleg p{font-size:13.5px;margin-top:6px}
+.al{font-size:12.5px;color:var(--muted);margin-top:4px}
 </style>
 <script src="assets/home-knop.js" defer></script>
 <script src="assets/login.js"></script>
@@ -81,6 +89,33 @@ tr.let td{background:#fdf6ea}
 
 <div id="app-screen">
 <main>
+  <details class="uitleg" id="uitleg">
+    <summary>Hoe werkt het?</summary>
+    <ol>
+      <li><b>Facturen ophalen.</b> Renewi, Greenchoice, Delta en Evides komen binnen op je iCloud-mail (vssr@me.com) of staan in hun klantportaal. Download de PDF's; ze komen in je map Downloads. Je kunt het ook aan Claude vragen: <i>"doe de BTW Noordstraat"</i>.</li>
+      <li><b>Erin slepen.</b> Sleep de PDF's in vak 2. De tool kiest zelf het kwartaal dat bij de facturen hoort; je kunt het in vak 1 nog veranderen.</li>
+      <li><b>Controleren.</b> Kijk of leverancier, nummer, datum en bedragen kloppen. Oranje = buiten het kwartaal, al verwerkt, of niet zeker gelezen. Alleen aangevinkte regels gaan mee.</li>
+      <li><b>Verwerken.</b> Klik op Verwerken. De tool doet dan drie dingen:
+        <ul>
+          <li>de PDF's naar OneDrive › Verhuur Noorderlicht › <i>BTW jaar Qn</i></li>
+          <li>in OneNote naar de sectie <i>jaar BTW Qn</i>, op de pagina van de leverancier (als afdruk, zoals "Bestandsafdruk invoegen")</li>
+          <li>in Excel (<i>Facturen tbv BTW noordstraat Qn jaar.xlsx</i>) de bedragen per leverancier op het tabblad van het kwartaal</li>
+        </ul></li>
+      <li><b>Opbrengsten</b> (verhuur) vul je zelf in Excel in.</li>
+    </ol>
+    <h3>Tussendoor</h3>
+    <p>Je kunt elke maand (of wanneer je wilt) de facturen die er al zijn verwerken. Wat al verwerkt is, slaat de tool over, en het Excel-tabblad wordt steeds opnieuw berekend uit álle facturen van dat kwartaal. Aan het eind van het kwartaal staat alles er dan al in. In vak 3 zie je wat er al in zit.</p>
+    <h3>Nieuw kwartaal</h3>
+    <p>Bestaat het Excel-bestand voor het kwartaal nog niet, dan kopieert de tool het vorige bestand en zet het bovenste tabblad klaar voor het nieuwe kwartaal (maanden ingevuld, bedragen leeg). Ook de OneNote-sectie wordt dan aangemaakt.</p>
+    <h3>Goed om te weten</h3>
+    <ul>
+      <li>Greenchoice: de BTW komt van de nota zelf; niet narekenen met 21% (vermindering energiebelasting valt buiten de BTW).</li>
+      <li>Evides (water) heeft 9% BTW.</li>
+      <li>Delta komt op je adres in Rhoon, maar is voor Noordstraat 6 — hoort erbij.</li>
+      <li>Eerste keer of foutmelding over inloggen: dashboard › Account › Uitloggen › Inloggen, en toestemming geven voor OneNote.</li>
+    </ul>
+  </details>
+
   <div class="card">
     <h2><span class="stap">1</span>Kwartaal</h2>
     <div class="chips" id="kwartalen">
@@ -202,8 +237,9 @@ function zetKwartaal(q, j) {
   facturen.forEach(f => { const kw = kwartaalVan(f.datum); f.aan = !!(kw && kw.q === q && kw.j === j); });
   tekenTabel(); doelenTonen();
 }
-$('kwartalen').querySelectorAll('.chip').forEach(c => c.onclick = () => zetKwartaal(+c.dataset.q, J));
-$('jaar').onchange = () => { const j = parseInt($('jaar').value, 10); if (j > 2000) zetKwartaal(Q, j); };
+let handmatig = false;   // heeft John zelf een kwartaal gekozen? dan niet meer automatisch wisselen
+$('kwartalen').querySelectorAll('.chip').forEach(c => c.onclick = () => { handmatig = true; zetKwartaal(+c.dataset.q, J); });
+$('jaar').onchange = () => { const j = parseInt($('jaar').value, 10); if (j > 2000) { handmatig = true; zetKwartaal(Q, j); } };
 
 /* ── PDF lezen ── */
 let facturen = [];   // {id, bestand, bytes, lev, nr, datum(Date), incl, btw, aan, zeker}
@@ -272,6 +308,7 @@ function leesFactuur(regels, bestandsnaam) {
   return r;
 }
 async function voegToe(files) {
+  const nieuw = [];
   for (const file of files) {
     if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') continue;
     const bytes = new Uint8Array(await file.arrayBuffer());
@@ -282,7 +319,14 @@ async function voegToe(files) {
     const kw = kwartaalVan(f.datum);
     f.aan = !!(kw && kw.q === Q && kw.j === J);
     if (facturen.some(x => x.nr && x.nr === f.nr && x.lev === f.lev)) continue;   // dubbel gesleept
-    facturen.push(f);
+    facturen.push(f); nieuw.push(f);
+  }
+  // kwartaal automatisch kiezen: het kwartaal waar de meeste nieuwe facturen in vallen
+  if (!handmatig && nieuw.length) {
+    const tel = {};
+    nieuw.forEach(f => { const kw = kwartaalVan(f.datum); if (kw) { const k = kw.j + '-' + kw.q; tel[k] = (tel[k] || 0) + 1; } });
+    const top = Object.entries(tel).sort((a, b) => b[1] - a[1])[0];
+    if (top) { const [j, q] = top[0].split('-').map(Number); if (q !== Q || j !== J) zetKwartaal(q, j); }
   }
   facturen.sort((a, b) => (a.lev || 'z').localeCompare(b.lev || 'z') || ((a.datum || 0) - (b.datum || 0)));
   tekenTabel();
@@ -294,9 +338,11 @@ function tekenTabel() {
   $('tabel').hidden = !facturen.length;
   $('rijen').innerHTML = facturen.map(f => {
     const kw = kwartaalVan(f.datum), buiten = !(kw && kw.q === Q && kw.j === J);
-    const tags = (buiten ? `<span class="tag warn">${kw ? 'Q' + kw.q + ' ' + kw.j : 'geen datum'}</span>` : '')
+    const al = verwerktSet.has(f.lev + '|' + f.nr);
+    const tags = (al ? '<span class="tag ok">al verwerkt</span>' : '')
+               + (buiten ? `<span class="tag warn">${kw ? 'Q' + kw.q + ' ' + kw.j : 'geen datum'}</span>` : '')
                + (f.twijfel.length ? `<span class="tag warn" title="Niet zeker: ${esc(f.twijfel.join(', '))}">controleer</span>` : '');
-    return `<tr data-id="${f.id}" class="${f.aan ? '' : 'uit'} ${(buiten || f.twijfel.length) ? 'let' : ''}">
+    return `<tr data-id="${f.id}" class="${f.aan ? '' : 'uit'} ${(buiten || al || f.twijfel.length) ? 'let' : ''}">
       <td><input type="checkbox" data-v="aan" ${f.aan ? 'checked' : ''} title="Meenemen"></td>
       <td><select data-v="lev"><option value=""></option>${Object.keys(LEV).map(k => `<option ${k === f.lev ? 'selected' : ''}>${k}</option>`).join('')}</select></td>
       <td><input type="text" data-v="nr" value="${esc(f.nr)}"></td>
@@ -572,15 +618,24 @@ async function excelBijwerken(allesKwartaal, excel) {
 
 /* ══════════ overzicht (stap 3) ══════════ */
 let doelenTeller = 0;
+let verwerktSet = new Set();
 async function doelenTonen() {
   const mijn = ++doelenTeller;
+  verwerktSet = new Set();
   const rij = (a, b) => `<div><span>${a}</span><span>${b}</span></div>`;
   $('doelen').innerHTML = rij('OneDrive', 'zoeken…') + rij('OneNote', 'zoeken…') + rij('Excel', 'zoeken…');
   const uit = { od: '', on: '', xl: '' };
   try {
     const map = await itemOpPad(pdfMap(Q, J));
-    let al = 0; if (map) { try { al = (await leesVerwerkt()).facturen.length; } catch(e) {} }
-    uit.od = `${esc(pdfMap(Q, J))} ${map ? `<span class="tag ok">bestaat · ${al} verwerkt</span>` : '<span class="tag warn">wordt gemaakt</span>'}`;
+    let lijst = []; if (map) { try { lijst = (await leesVerwerkt()).facturen || []; } catch(e) {} }
+    if (mijn === doelenTeller) { verwerktSet = new Set(lijst.map(f => f.lev + '|' + f.nr)); }
+    const per = {};
+    lijst.forEach(f => { (per[f.lev] = per[f.lev] || []).push(f); });
+    const overzicht = Object.entries(per).map(([lev, fs]) =>
+      `${esc(lev)}: ${fs.map(f => esc(String(f.datum).slice(0, 5))).join(', ')} (BTW ${euro(r2(fs.reduce((s, f) => s + (+f.btw || 0), 0)))})`).join(' · ');
+    const totaal = r2(lijst.reduce((s, f) => s + (+f.btw || 0), 0));
+    uit.od = `${esc(pdfMap(Q, J))} ${map ? `<span class="tag ok">${lijst.length} verwerkt</span>` : '<span class="tag warn">wordt gemaakt</span>'}`
+      + (lijst.length ? `<div class="al">Er staat al in: ${overzicht}<br>Voorbelasting tot nu toe: <b>${euro(totaal)}</b></div>` : '');
   } catch(e) { uit.od = `<span class="tag err">${esc(e.message)}</span>`; }
   try {
     const s = await vindSectie(false);
@@ -592,6 +647,7 @@ async function doelenTonen() {
       : (x.bron ? `${esc(excelNaam(Q, J))} <span class="tag warn">wordt gekopieerd van ${esc(x.bron.name)}</span>` : '<span class="tag err">geen eerder bestand</span>');
   } catch(e) { uit.xl = `<span class="tag err">${esc(e.message)}</span>`; }
   if (mijn !== doelenTeller) return;
+  tekenTabel();
   $('doelen').innerHTML = rij('OneDrive', uit.od) + rij('OneNote', uit.on) + rij('Excel', uit.xl);
 }
 
@@ -648,6 +704,7 @@ $('b-login').onclick = () => VILogin.naarInlog();
     $('login-screen').style.display = 'block'; return;
   }
   $('who').textContent = VILogin.naam() || 'Visser Inspecties';
+  try { if (!localStorage.getItem('btw_uitleg_gezien')) { $('uitleg').open = true; localStorage.setItem('btw_uitleg_gezien', '1'); } } catch(e) {}
   $('app-screen').style.display = 'block';
   zetKwartaal(Q, J);
 })();
