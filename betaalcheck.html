@@ -147,7 +147,8 @@ td a{color:var(--brand)}
       <li>Bij elke open, vervallen factuur staat een knop <i>Herinnering</i>. Je ziet de tekst eerst en kunt hem aanpassen; daarna komt hij als concept in Outlook. Handtekening voeg je daar zelf in.</li>
       <li>Is er al eerder herinnerd (EP-Sys op <i>Herinnerd</i>, of je vinkje <i>herinnerd</i>), dan wordt het een tweede herinnering.</li>
       <li>Het vinkje <i>herinnerd</i> zet de tool zelf aan zodra het concept klaar staat. Na 14 dagen schuift een nog onbetaalde factuur door naar <i>Aanmanen</i>.</li>
-      <li>E-mailadres: uit de relaties-export van EP-Sys, anders uit je factuur-tool, anders zoekt de tool in je Outlook. Telefoon en e-mail kun je per klant aanpassen (✎); dat onthoudt de tool.</li>
+      <li>Bij het openen zoekt de tool je oorspronkelijke factuurmail op (verzonden items). Daaruit komen de <b>betaallink</b> van EP-Sys (wordt een knop <i>Direct betalen met iDEAL of Bancontact</i>), je aanhef ("Geachte mevrouw …") en het e-mailadres. Onderwerp en tekst noemen het adres van het label.</li>
+      <li>E-mailadres: uit de relaties-export van EP-Sys, anders uit je factuurmail of je factuur-tool, anders zoekt de tool in je Outlook. Telefoon en e-mail kun je per klant aanpassen (✎); dat onthoudt de tool.</li>
     </ul>
     <h3>Privacy</h3>
     <p>De bestanden worden alleen in deze browser gelezen en onthouden. Alleen als je een herinnering in Outlook zet (of daar een e-mailadres laat zoeken) gaat die ene mail via Microsoft naar je eigen mailbox. Met <i>Alles wissen</i> haal je de bestanden weg.</p>
@@ -642,35 +643,68 @@ function bewerkContact(r) {
 /* ---------- Herinneringstekst ---------- */
 const BEDRIJF = { naam: 'Visserinspecties.nl', iban: 'NL30 KNAB 0409 0615 57' };
 const lang = d => d ? d.getDate() + ' ' + MAANDEN[d.getMonth()] + ' ' + d.getFullYear() : '';
-function aanhef(r) {
+/* adres en soort werk uit de factuuromschrijving: "Energielabel … voor adres 4525AD Retranchement, Markt 18 …" */
+function adresUit(oms) {
+  const m = (oms || '').match(/voor\s+(?:adres:?\s*)?(\d{4}\s?[A-Z]{2})\s+([^,]+),\s*(.+)$/i);
+  if (!m) return '';
+  const straat = (m[3].match(/^(.*?\d+)(\s?[A-Z](?=\s|$))?/) || [])[0] || m[3].split(/\s+(tot|kadastra|prijs|groter)/i)[0];
+  return `${straat.trim()}, ${m[2].trim()}`;
+}
+function dienstUit(oms) {
+  if (/maatwerk/i.test(oms)) return 'maatwerkadvies';
+  if (/energielabel|ep-?w|epa/i.test(oms)) return 'energielabel';
+  return '';
+}
+const hoofdletterEerste = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+function aanhef(r, orig) {
+  if (orig && orig.aanhef) return orig.aanhef;                       // zoals in de oorspronkelijke factuurmail
   const n = (r.persoon || r.bedrijf || r.klant || '').trim();
-  if (!n) return 'Geachte heer, mevrouw,';
+  if (!n) return 'Geachte heer/mevrouw,';
   if (/^fam(ilie|\.)?\s/i.test(n)) return 'Geachte familie ' + n.replace(/^fam(ilie|\.)?\s+/i, '') + ',';
-  if (/^(mevrouw|mevr\.?|heer|de heer|dhr\.?)\s/i.test(n)) return 'Geachte ' + n.replace(/^(mevr\.?)\s/i, 'mevrouw ').replace(/^(heer|dhr\.?)\s/i, 'heer ') + ',';
+  if (/^(mevrouw|mevr\.?|heer|de heer|dhr\.?)\s/i.test(n)) return 'Geachte ' + n.replace(/^(mevr\.?)\s/i, 'mevrouw ').replace(/^(de heer|heer|dhr\.?)\s/i, 'heer ') + ',';
+  // aanhef die de factuur-tool voor deze achternaam onthield (heer / mevrouw / familie)
+  let titels = {}; try { titels = JSON.parse(localStorage.getItem('fact_titel') || '{}') || {}; } catch (e) {}
+  const nn = normNaam(n);
+  const k = Object.keys(titels).filter(k => normNaam(k) && (nn === normNaam(k) || nn.endsWith(' ' + normNaam(k)))).sort((a, b) => b.length - a.length)[0];
+  if (k && titels[k]) return `Geachte ${titels[k]} ${hoofdletterEerste(n.slice(n.length - k.length))},`;
+  if (!r.bedrijf && n.split(/\s+/).length === 1) return `Geachte heer/mevrouw ${n},`;   // alleen een achternaam
   return 'Geachte ' + n + ',';
 }
 const isTweede = r => r.status === 'Herinnerd' || !!(st.keuzes.herinnerd && st.keuzes.herinnerd[r.nr]);
-function herinnerTekst(r) {
+const BETAALKNOP = '[betaalknop iDEAL / Bancontact]';
+function herinnerTekst(r, orig) {
   const tweede = isTweede(r);
   const dagen = r.dagen === 1 ? '1 dag' : r.dagen + ' dagen';
+  const adres = adresUit(r.oms), dienst = dienstUit(r.oms);
+  const waarvoor = dienst && adres ? ` voor het ${dienst} van ${adres.replace(/, ([^,]+)$/, ' in $1')}` : (dienst ? ` voor het ${dienst}` : (adres ? ` voor ${adres}` : ''));
   const eerder = st.keuzes.herinnerd && st.keuzes.herinnerd[r.nr] ? ` Op ${lang(new Date(st.keuzes.herinnerd[r.nr]))} stuurde ik u hierover een herinnering.` : (r.status === 'Herinnerd' ? ' U ontving hierover eerder een herinnering.' : '');
-  const p = [aanhef(r)];
-  if (!tweede) {
-    p.push(`Volgens mijn administratie is factuur ${r.nr} van ${lang(r.fdat)}, groot ${eur(r.bedrag)}, nog niet betaald. De betalingstermijn verliep op ${lang(r.verv)}; de factuur is daarmee ${dagen} over tijd.`);
-  } else {
-    p.push(`Factuur ${r.nr} van ${lang(r.fdat)}, groot ${eur(r.bedrag)}, staat nog open. De betalingstermijn verliep op ${lang(r.verv)}; de factuur is inmiddels ${dagen} over tijd.${eerder}`);
+  const link = orig && orig.link;
+  const p = [aanhef(r, orig)];
+  if (!tweede) p.push(`Volgens mijn administratie is factuur ${r.nr} van ${lang(r.fdat)}${waarvoor}, groot ${eur(r.bedrag)}, nog niet betaald. De betalingstermijn verliep op ${lang(r.verv)}; de factuur is daarmee ${dagen} over tijd.`);
+  else p.push(`Factuur ${r.nr} van ${lang(r.fdat)}${waarvoor}, groot ${eur(r.bedrag)}, staat nog open. De betalingstermijn verliep op ${lang(r.verv)}; de factuur is inmiddels ${dagen} over tijd.${eerder}`);
+  // andere facturen van dezelfde klant die wél betaald zijn: voorkomt verwarring (bv. twee labels, twee facturen)
+  const ander = (laatste ? laatste.rijen : []).filter(x => x.nr !== r.nr && x.klantId === r.klantId && x.cat === 'ok' && x.pays.length && (r.fdat - x.fdat) / 864e5 < 365 && (x.fdat - r.fdat) / 864e5 < 365).slice(0, 3);
+  if (ander.length) {
+    const delen = ander.map(x => x.nr + (adresUit(x.oms) ? ` (${adresUit(x.oms)})` : ''));
+    const lijst = delen.length > 1 ? delen.slice(0, -1).join('; ') + ' en ' + delen[delen.length - 1] : delen[0];
+    p.push(`${ander.length === 1 ? 'Factuur' : 'De facturen'} ${lijst} heeft u wel betaald; deze herinnering gaat alleen over ${r.nr}.`);
   }
   p.push('Mogelijk is er sprake van een vergissing, of heeft uw betaling dit bericht gekruist. In dat geval kunt u deze herinnering als niet verzonden beschouwen.');
-  p.push(`Staat de factuur nog open, dan verzoek ik u het bedrag per ommegaande over te maken naar ${BEDRIJF.iban} t.n.v. ${BEDRIJF.naam}, onder vermelding van factuurnummer ${r.nr}.`);
+  if (link) {
+    p.push(`Staat de factuur nog open, dan verzoek ik u deze per ommegaande te betalen. Dat kan direct online via de knop hieronder, of door ${eur(r.bedrag)} over te maken naar ${BEDRIJF.iban} t.n.v. ${BEDRIJF.naam}, onder vermelding van factuurnummer ${r.nr}.`);
+    p.push(BETAALKNOP);
+  } else p.push(`Staat de factuur nog open, dan verzoek ik u het bedrag per ommegaande over te maken naar ${BEDRIJF.iban} t.n.v. ${BEDRIJF.naam}, onder vermelding van factuurnummer ${r.nr}.`);
   p.push(tweede ? 'Is er iets met de factuur waardoor u nog niet heeft betaald? Neem dan contact met mij op, dan zoeken we samen een oplossing.'
                 : 'Heeft u vragen over de factuur, of heeft u hem niet ontvangen? Laat het mij gerust weten.');
   p.push('Met vriendelijke groet,');
-  return { onderwerp: `${tweede ? 'Tweede herinnering' : 'Herinnering'} factuur ${r.nr}`, tekst: p.join('\n\n') };
+  const ond = `${tweede ? 'Tweede herinnering' : 'Herinnering'} factuur ${r.nr}` + (adres ? ` – ${dienst ? dienst + ' ' : ''}${adres}` : '');
+  return { onderwerp: ond, tekst: p.join('\n\n') };
 }
 /* platte tekst → mail-HTML in dezelfde stijl als de factuurmails */
 const ST_MAIL = 'font-family:Cambria,Charter,Georgia,serif;font-variant-numeric:lining-nums;font-size:11pt;color:#000000;line-height:150%;margin:0 0 10pt 0';
-function tekstNaarHtml(t) {
+function tekstNaarHtml(t, link) {
   return t.split(/\n\s*\n/).map(alinea => {
+    if (alinea.trim() === BETAALKNOP) return link ? `<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 10pt 0"><tr><td style="background:#432d6a;border-radius:6px;padding:10px 20px"><a href="${esc(link)}" style="font-family:Cambria,Charter,Georgia,serif;font-variant-numeric:lining-nums;font-size:11pt;font-weight:bold;color:#ffffff;text-decoration:none">Direct betalen met iDEAL of Bancontact &rsaquo;</a></td></tr></table>` : '';
     let h = esc(alinea.trim()).replace(/\n/g, '<br>');
     // IBAN niet laten omzetten in een link of telefoonnummer door Outlook/iPhone
     h = h.replace(esc(BEDRIJF.iban), `<a name="vi" style="color:#000000;text-decoration:none;white-space:nowrap;font-weight:bold">${esc(BEDRIJF.iban)}</a>`);
@@ -699,10 +733,61 @@ async function graphJSON(pad, opts = {}, opnieuw = true) {
   if (!r.ok) throw new Error((d.error && d.error.message) || 'Microsoft-fout ' + r.status);
   return d;
 }
-async function maakConcept(aan, onderwerp, tekst) {
+async function maakConcept(aan, onderwerp, tekst, link) {
   return graphJSON('me/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-    subject: onderwerp, body: { contentType: 'HTML', content: `<div>${tekstNaarHtml(tekst)}</div>` },
+    subject: onderwerp, body: { contentType: 'HTML', content: `<div>${tekstNaarHtml(tekst, link)}</div>` },
     toRecipients: aan ? [{ emailAddress: { address: aan } }] : [] }) });
+}
+
+/* ---------- Oorspronkelijke factuurmail: betaallink, aanhef en e-mailadres ---------- */
+// De factuurmail die je destijds stuurde bevat de EP-Sys-betaallink (app.ep-sys.nl/factuur/online-betalen/…),
+// je aanhef ("Geachte mevrouw …") en het adres van de klant. Staat de link niet in de tekst, dan lezen we de QR-code
+// uit de bijgevoegde EP-Sys-pdf (<factuurnummer>.pdf).
+const LINK_RE = /https:\/\/app\.ep-sys\.nl\/factuur\/online-betalen\/[A-Za-z0-9\/_-]+/;
+function laadScript(src) { return new Promise((ok, fout) => { if (document.querySelector(`script[src="${src}"]`)) return ok(); const el = document.createElement('script'); el.src = src; el.onload = ok; el.onerror = () => fout(new Error('Laden mislukt: ' + src)); document.head.appendChild(el); }); }
+async function qrUitPdf(bytes) {
+  await laadScript('lib/pdf.min.js'); await laadScript('lib/jsQR.js');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
+  const pdf = await pdfjsLib.getDocument({ data: bytes }).promise; const page = await pdf.getPage(1);
+  for (const schaal of [3, 4.5]) {
+    const vp = page.getViewport({ scale: schaal }); const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
+    const ctx = c.getContext('2d'); await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    const img = ctx.getImageData(0, 0, c.width, c.height); const q = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
+    if (q && q.data) return q.data;
+  }
+  return '';
+}
+const htmlNaarTekst = h => { const d = new DOMParser().parseFromString((h || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|tr|li|h\d)>/gi, '\n$&'), 'text/html'); return (d.body.textContent || '').replace(/\u00a0/g, ' '); };
+async function zoekOrigineel(r, verversen) {
+  st.orig = st.orig || {};
+  if (!verversen && st.orig[r.nr] && st.orig[r.nr].gezocht) return st.orig[r.nr];
+  const eigen = /visserinspecties\.nl$/i;
+  const d = await graphJSON(`me/messages?$search=${encodeURIComponent('"' + r.nr + '"')}&$select=id,subject,from,toRecipients,body,sentDateTime,hasAttachments&$top=25`);
+  const kand = (d.value || []).filter(m => eigen.test(((m.from || {}).emailAddress || {}).address || '')
+      && (m.toRecipients || []).some(t => !eigen.test((t.emailAddress || {}).address || ''))
+      && !/herinnering|^\s*(re|fw|fwd|antw|doorst)\s*:/i.test(m.subject || ''))
+    .sort((a, b) => (a.sentDateTime || '').localeCompare(b.sentDateTime || ''));
+  const uit = { gezocht: new Date().toISOString().slice(0, 10), link: '', aanhef: '', mail: '', onderwerp: '' };
+  for (const m of kand) {
+    const tekst = htmlNaarTekst(m.body && m.body.content);
+    const link = ((m.body && m.body.content) || '').match(LINK_RE) || tekst.match(LINK_RE);
+    if (!uit.onderwerp) { uit.onderwerp = m.subject || ''; uit.mail = ((m.toRecipients || []).map(t => (t.emailAddress || {}).address || '').find(a => !eigen.test(a)) || '').toLowerCase();
+      const ah = tekst.split(/\n/).map(x => x.trim()).find(x => /^(geachte|beste)\s+\S/i.test(x));
+      if (ah && ah.length <= 70) uit.aanhef = ah.replace(/[,;:]?\s*$/, ',').replace(/^(geachte|beste)\s+(mevrouw|heer|familie)\b/i, (x, g, t) => g + ' ' + t.toLowerCase());
+    }
+    if (link) { uit.link = link[0]; break; }
+    if (m.hasAttachments && !uit.link) {
+      try {
+        const at = await graphJSON(`me/messages/${m.id}/attachments?$select=id,name,size`);
+        const pdf = (at.value || []).find(x => x.name && x.name.toLowerCase() === r.nr.toLowerCase() + '.pdf');
+        if (pdf) { const vol = await graphJSON(`me/messages/${m.id}/attachments/${pdf.id}`);
+          const q = await qrUitPdf(Uint8Array.from(atob(vol.contentBytes), c => c.charCodeAt(0)));
+          if (LINK_RE.test(q) || /^https:\/\//.test(q)) { uit.link = q; break; } }
+      } catch (e) { console.warn('QR uit pdf', e); }
+    }
+  }
+  st.orig[r.nr] = uit; bewaar();
+  return uit;
 }
 /* e-mailadres voorstellen uit eerdere mails in Outlook */
 async function zoekMailInOutlook(r) {
@@ -724,27 +809,42 @@ const geldigMail = m => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(m);
 /* ---------- Herinnering: voorbeeld + concept in Outlook ---------- */
 function openHerinnering(r) {
   if (!r) return;
-  const c = contactVan(r), t = herinnerTekst(r);
+  const c = contactVan(r); let orig = (st.orig || {})[r.nr] || null; let t = herinnerTekst(r, orig);
+  if (!c.mail && orig && orig.mail) c.mail = orig.mail;
   const d = venster(`<h3>${isTweede(r) ? 'Tweede herinnering' : 'Herinnering'} · ${esc(r.nr)} · ${esc(r.klant)}</h3>
-    <div class="hint" style="margin-top:0">${eur(r.bedrag)} · vervallen ${dstr(r.verv)} · ${r.dagen} dagen over tijd${c.tel ? ` · 📞 ${telLink(c.tel)}` : ''}</div>
+    <div class="hint" style="margin-top:0">${eur(r.bedrag)} · vervallen ${dstr(r.verv)} · ${r.dagen} dagen over tijd${adresUit(r.oms) ? ' · ' + esc(adresUit(r.oms)) : ''}${c.tel ? ` · 📞 ${telLink(c.tel)}` : ''}</div>
     <div class="twee"><div><label class="v">Aan (e-mail)</label><input type="email" id="h-aan" value="${esc(c.mail)}" placeholder="e-mailadres klant"><div class="sugg" id="h-sugg"></div></div>
     <div><label class="v">Telefoon</label><input type="tel" id="h-tel" value="${esc(c.tel)}"></div></div>
     <label class="v">Onderwerp</label><input type="text" id="h-ond" value="${esc(t.onderwerp)}">
     <label class="v">Tekst</label><textarea id="h-tekst">${esc(t.tekst)}</textarea>
+    <div class="hint" id="h-link"></div>
     <div class="melding">✍️ Het concept komt <b>zonder handtekening</b> in Outlook. Open het daar, kies <b>Invoegen → Handtekening → Visserinspecties</b> en verstuur.</div>
     <div id="h-status"></div>
     <div class="knoprij" style="justify-content:flex-end"><button class="btn sec" data-x>Annuleren</button><button class="btn" data-ok>Zet als concept in Outlook</button></div>`);
-  const status = (cls, html) => { $('h-status').innerHTML = `<div class="melding ${cls}">${html}</div>`; };
+  const status = (cls, html) => { $('h-status').innerHTML = cls === null ? '' : `<div class="melding ${cls}">${html}</div>`; };
+  const toonLink = () => { $('h-link').innerHTML = orig && orig.link ? `💳 Betaallink gevonden in je factuurmail${orig.onderwerp ? ' (“' + esc(orig.onderwerp.slice(0, 60)) + '”)' : ''} · <a href="${esc(orig.link)}" target="_blank" rel="noopener">testen</a>. In de mail wordt de regel <i>${esc(BETAALKNOP)}</i> een knop.` : (orig && orig.gezocht ? 'Geen betaallink gevonden in je verzonden mail; de herinnering noemt alleen het rekeningnummer.' : ''); };
+  let bewerkt = false;
+  ['h-tekst', 'h-ond'].forEach(id => $(id).addEventListener('input', () => { bewerkt = true; }));
   d.querySelector('[data-x]').onclick = sluitVenster;
+  toonLink();
   if (!isIngelogd()) status('err', inlogMelding());
-  else if (!c.mail) {
-    $('h-sugg').innerHTML = '<span class="hint" style="margin:0">Zoeken in Outlook…</span>';
-    zoekMailInOutlook(r).then(lijst => {
-      if (!$('h-sugg')) return;
-      $('h-sugg').innerHTML = lijst.length ? lijst.map(a => `<button class="chip" data-m="${esc(a)}">${esc(a)}</button>`).join('') : '<span class="hint" style="margin:0">Niets gevonden in Outlook.</span>';
-      if (lijst.length === 1 && !$('h-aan').value) $('h-aan').value = lijst[0];
-      $('h-sugg').querySelectorAll('[data-m]').forEach(b => b.onclick = () => { $('h-aan').value = b.dataset.m; });
-    }).catch(() => { if ($('h-sugg')) $('h-sugg').innerHTML = ''; });
+  else {
+    $('h-link').innerHTML = '<span class="hint" style="margin:0">Oorspronkelijke factuurmail zoeken (betaallink, aanhef, e-mail)…</span>';
+    zoekOrigineel(r).then(o => {
+      if (!$('h-tekst')) return;
+      orig = o; toonLink();
+      if (!bewerkt) { t = herinnerTekst(r, orig); $('h-tekst').value = t.tekst; $('h-ond').value = t.onderwerp; }
+      if (!$('h-aan').value && o.mail) { $('h-aan').value = o.mail; $('h-sugg').innerHTML = '<span class="hint" style="margin:0">uit je oorspronkelijke factuurmail</span>'; }
+      if (!$('h-aan').value) {
+        $('h-sugg').innerHTML = '<span class="hint" style="margin:0">Zoeken in Outlook…</span>';
+        zoekMailInOutlook(r).then(lijst => {
+          if (!$('h-sugg')) return;
+          $('h-sugg').innerHTML = lijst.length ? lijst.map(a => `<button class="chip" data-m="${esc(a)}">${esc(a)}</button>`).join('') : '<span class="hint" style="margin:0">Niets gevonden in Outlook.</span>';
+          if (lijst.length === 1 && !$('h-aan').value) $('h-aan').value = lijst[0];
+          $('h-sugg').querySelectorAll('[data-m]').forEach(b => b.onclick = () => { $('h-aan').value = b.dataset.m; });
+        }).catch(() => { if ($('h-sugg')) $('h-sugg').innerHTML = ''; });
+      }
+    }).catch(e => { if ($('h-link')) $('h-link').textContent = 'Factuurmail zoeken lukte niet: ' + e.message; });
   }
   d.querySelector('[data-ok]').onclick = async () => {
     const aan = $('h-aan').value.trim().toLowerCase();
@@ -752,7 +852,7 @@ function openHerinnering(r) {
     if (!isIngelogd()) { status('err', inlogMelding()); return; }
     const knop = d.querySelector('[data-ok]'); knop.disabled = true; status('', 'Concept maken…');
     try {
-      const m = await maakConcept(aan, $('h-ond').value.trim(), $('h-tekst').value);
+      const m = await maakConcept(aan, $('h-ond').value.trim(), $('h-tekst').value, orig && orig.link);
       bewaarContact(r, aan, $('h-tel').value.trim());
       zetHerinnerd(r.nr, true);
       status('ok', `✓ Concept staat in Outlook (Concepten)${aan ? '' : ', nog <b>zonder geadresseerde</b>'}.${m.webLink ? ` <a href="${esc(m.webLink)}" target="_blank" rel="noopener">Openen in Outlook</a>` : ''}<br>Vinkje <i>herinnerd</i> is gezet.`);
@@ -765,10 +865,10 @@ function openHerinnering(r) {
 /* alle herinneringen van een groep in één keer als concept */
 async function alleConcepten(lijst) {
   lijst = lijst.filter(r => !(st.keuzes.herinnerd && st.keuzes.herinnerd[r.nr] && (new Date() - new Date(st.keuzes.herinnerd[r.nr])) / 864e5 <= 14));
-  const zonder = lijst.filter(r => !contactVan(r).mail);
+  const zonder = lijst.filter(r => !contactVan(r).mail && !((st.orig || {})[r.nr] || {}).mail);
   const d = venster(`<h3>${lijst.length} herinnering${lijst.length === 1 ? '' : 'en'} als concept</h3>
     <p style="font-size:13.5px">Met de standaardtekst, elk als los concept in Outlook. Wil je een tekst aanpassen, gebruik dan de knop per factuur.</p>
-    ${zonder.length ? `<div class="melding err">Geen e-mailadres bij: ${zonder.map(r => esc(r.nr.slice(-4) + ' ' + r.klant)).join(', ')}. Die concepten komen zonder geadresseerde.</div>` : ''}
+    ${zonder.length ? `<div class="melding err">Geen e-mailadres bij: ${zonder.map(r => esc(r.nr.slice(-4) + ' ' + r.klant)).join(', ')}. De tool zoekt het adres nog in je oorspronkelijke factuurmail; lukt dat niet, dan komt het concept zonder geadresseerde.</div>` : ''}
     <div class="melding">✍️ Concepten komen <b>zonder handtekening</b>. Voeg in Outlook per concept je handtekening in.</div>
     <div id="a-status"></div>
     <div class="knoprij" style="justify-content:flex-end"><button class="btn sec" data-x>Annuleren</button><button class="btn" data-ok ${lijst.length ? '' : 'disabled'}>Maak ${lijst.length} concept${lijst.length === 1 ? '' : 'en'}</button></div>`);
@@ -781,7 +881,12 @@ async function alleConcepten(lijst) {
     const knop = d.querySelector('[data-ok]'); knop.disabled = true; let ok = 0; const fout = [];
     for (const r of lijst) {
       status('', `Concept ${ok + fout.length + 1} van ${lijst.length}…`);
-      try { const t = herinnerTekst(r); await maakConcept(contactVan(r).mail, t.onderwerp, t.tekst); zetHerinnerd(r.nr, true); ok++; }
+      try {
+        let o = null; try { o = await zoekOrigineel(r); } catch (e) {}
+        const t = herinnerTekst(r, o); const aan = contactVan(r).mail || (o && o.mail) || '';
+        await maakConcept(aan, t.onderwerp, t.tekst, o && o.link); if (aan && !contactVan(r).mail) bewaarContact(r, aan, contactVan(r).tel);
+        zetHerinnerd(r.nr, true); ok++;
+      }
       catch (e) { fout.push(r.nr + ': ' + e.message); }
     }
     status(fout.length ? 'err' : 'ok', `✓ ${ok} concept${ok === 1 ? '' : 'en'} in Outlook (Concepten).${fout.length ? '<br>Mislukt: ' + fout.map(esc).join('<br>') : ''}`);
@@ -795,7 +900,7 @@ inp.onchange = () => { voegToe([...inp.files]); inp.value = ''; };
 ['dragenter', 'dragover'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add('over'); }));
 ['dragleave', 'drop'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove('over'); }));
 drop.addEventListener('drop', ev => voegToe([...ev.dataTransfer.files]));
-$('b-wis').onclick = () => { if (confirm('Alle geladen bestanden én je koppel-/negeerkeuzes wissen?')) { st = { bestanden: [], keuzes: { koppel: {}, negeer: {}, negeerAfzender: {}, herinnerd: st.keuzes.herinnerd || {} }, contact: st.contact || {} }; bewaar(); teken(); } };   // herinnerd-vinkjes en eigen telefoon/e-mail blijven staan
+$('b-wis').onclick = () => { if (confirm('Alle geladen bestanden én je koppel-/negeerkeuzes wissen?')) { st = { bestanden: [], keuzes: { koppel: {}, negeer: {}, negeerAfzender: {}, herinnerd: st.keuzes.herinnerd || {} }, contact: st.contact || {}, orig: st.orig || {} }; bewaar(); teken(); } };   // herinnerd-vinkjes en eigen telefoon/e-mail blijven staan
 $('zoek').oninput = tekenTabel;
 $('b-csv').onclick = downloadCSV;
 document.querySelectorAll('th[data-s]').forEach(th => th.onclick = () => { sorteer = { k: th.dataset.s, r: sorteer.k === th.dataset.s ? -sorteer.r : 1 }; tekenTabel(); });
