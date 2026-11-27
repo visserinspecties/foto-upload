@@ -90,9 +90,29 @@ a.kort .kt{font-size:13.5px}a.kort small{color:var(--muted);font-size:12px}
 .actie h3 .kopieer{margin-left:auto}
 .actie{scroll-margin-top:70px}
 [hidden]{display:none!important}
-@media (max-width:600px){.regel .knoppen{padding-left:0}.regel .x2{width:auto}}
+.regel .k .ctx{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+.regel .k .ctx a{color:var(--brand)}
+.hv{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);margin-left:8px;cursor:pointer;white-space:nowrap;text-decoration:none!important}
+.hv input{width:15px;height:15px;accent-color:var(--brand)}
+.hv.aan{color:var(--ok);font-weight:700}
+.regel.gedaan .hv{text-decoration:none}
+.linkknop{background:none;border:0;padding:0;color:var(--brand);font:inherit;font-size:12px;cursor:pointer;text-decoration:underline}
+td .hv{margin-left:0}
+td a{color:var(--brand)}
+.scrim{position:fixed;inset:0;background:rgba(20,10,35,.45);z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:24px 12px;overflow-y:auto}
+.sheet{background:#fff;border-radius:14px;max-width:640px;width:100%;padding:18px 20px;box-shadow:0 10px 40px rgba(0,0,0,.3)}
+.sheet h3{color:var(--brand);font-size:16px;margin-bottom:10px}
+.sheet label.v{display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:10px 0 3px}
+.sheet input[type=text],.sheet input[type=email],.sheet input[type=tel],.sheet textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:13.5px;color:var(--ink);background:var(--bg)}
+.sheet textarea{min-height:300px;line-height:1.5;resize:vertical}
+.sheet .twee{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sheet .melding{font-size:12.5px;border-radius:9px;padding:8px 10px;margin-top:10px;background:var(--lila-soft)}
+.sheet .melding.err{background:#fde7e5;color:var(--err)}.sheet .melding.ok{background:var(--c-ok);color:var(--ok)}
+.sheet .sugg{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+@media (max-width:600px){.regel .knoppen{padding-left:0}.regel .x2{width:auto}.sheet .twee{grid-template-columns:1fr}}
 </style>
 <script src="assets/home-knop.js" defer></script>
+<script src="assets/login.js"></script>
 </head>
 <body>
 <div class="band">
@@ -110,6 +130,7 @@ a.kort .kt{font-size:13.5px}a.kort small{color:var(--muted);font-size:12px}
           <li><b>EP-Sys</b> › Facturen › exporteren (het bestand <i>facturen-dd-mm-jjjj.csv</i>).</li>
           <li><b>Mollie</b> › Rapporten › Balans rapport › Export › tabblad CSV › per maand <i>Download</i>. Mollie vraagt soms om bevestiging in de Mollie-app.</li>
           <li><b>Knab</b> › Transactieoverzicht › exporteren als CSV, periode vanaf 1 januari.</li>
+          <li><i>Voor telefoon en e-mail:</i> <b>EP-Sys</b> › Relaties › Alle › <i>Resultaat exporteren</i> (icoontje rechtsboven de lijst) › ophalen bij Mijn exports. De factuurexport van EP-Sys bevat die gegevens niet.</li>
         </ul></li>
       <li><b>Erin slepen.</b> Sleep alles tegelijk in vak 1. De tool herkent zelf welk bestand wat is. Je kunt later losse bestanden toevoegen (bv. een nieuwe Mollie-maand); dubbele regels telt hij niet dubbel.</li>
       <li><b>Lezen.</b> Bovenaan zie je de samenvatting, daaronder <i>Wat te doen</i>. Onderaan staat elke factuur; klik op een tegel om alleen die groep te zien.</li>
@@ -121,13 +142,20 @@ a.kort .kt{font-size:13.5px}a.kort small{color:var(--muted);font-size:12px}
       <li>Geen factuurnummer bij een bankbetaling? Dan staat hij onder <i>Ontvangsten zonder factuur</i>. Zie je een voorstel, klik dan <i>Koppel</i>, of kies zelf een factuur. Hoort het niet bij een factuur (bv. Interpolis), klik <i>Negeer</i> of <i>Negeer afzender</i>. Die keuzes onthoudt de tool.</li>
       <li>Is er voor een maand nog geen Mollie-export (lopende maand)? Dan telt een betaaldatum in EP-Sys met een tijdstip (Mollie zet die automatisch) als <i>betaald via Mollie (volgens EP-Sys)</i>.</li>
     </ul>
+    <h3>Herinneringen</h3>
+    <ul>
+      <li>Bij elke open, vervallen factuur staat een knop <i>Herinnering</i>. Je ziet de tekst eerst en kunt hem aanpassen; daarna komt hij als concept in Outlook. Handtekening voeg je daar zelf in.</li>
+      <li>Is er al eerder herinnerd (EP-Sys op <i>Herinnerd</i>, of je vinkje <i>herinnerd</i>), dan wordt het een tweede herinnering.</li>
+      <li>Het vinkje <i>herinnerd</i> zet de tool zelf aan zodra het concept klaar staat. Na 14 dagen schuift een nog onbetaalde factuur door naar <i>Aanmanen</i>.</li>
+      <li>E-mailadres: uit de relaties-export van EP-Sys, anders uit je factuur-tool, anders zoekt de tool in je Outlook. Telefoon en e-mail kun je per klant aanpassen (✎); dat onthoudt de tool.</li>
+    </ul>
     <h3>Privacy</h3>
-    <p>Alles blijft op deze computer: de bestanden worden alleen in deze browser gelezen en onthouden, er gaat niets naar internet. Met <i>Alles wissen</i> haal je ze weg.</p>
+    <p>De bestanden worden alleen in deze browser gelezen en onthouden. Alleen als je een herinnering in Outlook zet (of daar een e-mailadres laat zoeken) gaat die ene mail via Microsoft naar je eigen mailbox. Met <i>Alles wissen</i> haal je de bestanden weg.</p>
   </details>
 
   <div class="card">
     <h2><span class="stap">1</span>Bestanden</h2>
-    <div class="drop" id="drop">Sleep hier de CSV's van EP-Sys, Mollie en Knab<br><small>of klik om ze te kiezen</small></div>
+    <div class="drop" id="drop">Sleep hier de CSV's van EP-Sys (facturen en relaties), Mollie en Knab<br><small>of klik om ze te kiezen</small></div>
     <input type="file" id="bestanden" accept=".csv,text/csv" multiple hidden>
     <div class="bronnen" id="bronnen"></div>
     <div class="knoprij">
@@ -155,7 +183,7 @@ a.kort .kt{font-size:13.5px}a.kort small{color:var(--muted);font-size:12px}
       </div>
       <div class="tabelwrap"><table>
         <thead><tr>
-          <th data-s="nr">Factuur</th><th data-s="fdat">Datum</th><th data-s="verv">Vervalt</th><th data-s="klant">Klant</th>
+          <th data-s="nr">Factuur</th><th data-s="fdat">Datum</th><th data-s="verv">Vervalt</th><th data-s="klant">Klant</th><th>Herinnerd</th><th>Telefoon</th>
           <th data-s="bedrag" class="r">Bedrag</th><th data-s="status">EP-Sys</th><th data-s="via">Betaald via</th>
           <th data-s="bdat">Betaald op</th><th data-s="got" class="r">Ontvangen</th><th data-s="concl">Conclusie</th>
         </tr></thead>
@@ -220,8 +248,38 @@ function soortBestand(tekst) {
   if (/Factuurnummer/.test(kop) && /Totaal incl\. BTW/.test(kop)) return 'epsys';
   if (/Transactie type/.test(kop) && /Uitbetalingsbedrag/.test(kop)) return 'mollie';
   if (/Rekeningnummer;Transactiedatum/.test(kop) && /CreditDebet/.test(kop)) return 'knab';
+  // relaties-export van EP-Sys (of een andere klantenlijst): kolommen met e-mail én telefoon
+  const kopregel = kop.replace(/^﻿/, '').replace(/^sep=.*\r?\n/, '').split(/\r?\n/)[0];
+  if (/e-?mail/i.test(kopregel) && /telefoon|mobiel|phone|gsm/i.test(kopregel) && !/Factuurnummer|Transactie/.test(kopregel)) return 'relaties';
   return null;
 }
+
+const normNaam = s => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+const naamWoorden = s => normNaam(s).split(' ').filter(w => w.length > 2 && !['familie', 'fam', 'heer', 'mevrouw', 'van', 'der', 'den', 'het', 'bv', 'b v'].includes(w));
+function leesRelaties(tekst) {
+  tekst = tekst.replace(/^﻿/, ''); if (/^sep=/.test(tekst)) tekst = tekst.slice(tekst.indexOf('\n') + 1);
+  const eerste = tekst.split(/\r?\n/)[0];
+  const sep = (eerste.match(/;/g) || []).length >= (eerste.match(/,/g) || []).length ? ';' : ',';
+  const rr = alsObjecten(leesCSV(tekst, sep)); if (!rr.length) return [];
+  const kols = Object.keys(rr[0]);
+  const kol = re => kols.find(k => re.test(k));
+  const kId = kols.find(k => /^(klant|relatie)?[\s_-]*id$/i.test(k));
+  const kMail = kols.filter(k => /e-?mail/i.test(k));
+  const kTel = kols.filter(k => /telefoon|mobiel|phone|gsm/i.test(k));
+  const kVoor = kol(/voornaam/i), kAchter = kol(/achternaam/i), kBedrijf = kol(/bedrijf|organisatie/i);
+  const kNaam = kols.find(k => /^(volledige |relatie|klant)?\s*naam$/i.test(k)) || kol(/naam/i);
+  return rr.map(r => {
+    const persoon = [r[kVoor], r[kAchter]].filter(Boolean).join(' ');
+    const namen = [r[kNaam], persoon, r[kAchter], r[kBedrijf]].filter(Boolean);
+    return {
+      id: kId ? String(r[kId]).trim() : '', namen,
+      mail: (kMail.map(k => r[k]).find(v => /@/.test(v || '')) || '').trim().toLowerCase(),
+      tel: (kTel.map(k => r[k]).find(v => (v || '').replace(/\D/g, '').length >= 8) || '').trim()
+    };
+  }).filter(p => p.mail || p.tel);
+}
+/* past de relatie bij deze klantnaam? (minstens één betekenisvol woord gemeen) */
+const naamPast = (klant, rel) => { const w = naamWoorden(klant); const r = new Set(rel.namen.flatMap(naamWoorden)); return w.some(x => r.has(x)); };
 
 function leesEpsys(tekst) {
   if (tekst.startsWith('﻿')) tekst = tekst.slice(1);
@@ -231,7 +289,7 @@ function leesEpsys(tekst) {
     const persoon = (r['Klant (contact)persoon'] || '').replace(/\s+/g, ' ').trim();
     return {
       id: r.Id, nr: r.Factuurnummer.trim(), status: r.Status.trim(), klantId: r['Klant id'],
-      klant: bedrijf && persoon ? `${bedrijf} (${persoon})` : (bedrijf || persoon),
+      klant: bedrijf && persoon ? `${bedrijf} (${persoon})` : (bedrijf || persoon), persoon, bedrijf,
       bedrag: nlGetal(r['Totaal incl. BTW']), oms: (r.Omschrijving || '').replace(/\s+/g, ' ').trim(),
       fdat: nlDatum(r.Factuur), verv: nlDatum(r.Vervalt), betaald: nlDatum(r.Betaald)
     };
@@ -258,10 +316,11 @@ const bankSleutel = b => b.ref || `${+b.dt}|${b.bedrag}|${b.naam}`;
 function analyseer(bestanden, keuzes, vandaag) {
   keuzes = keuzes || {}; const koppel = keuzes.koppel || {}, negeer = keuzes.negeer || {}, negeerAfz = keuzes.negeerAfzender || {};
   vandaag = vandaag || new Date();
-  let facturen = [], epsysBestand = null; const mol = new Map(), bank = new Map(); const bron = { epsys: null, mollie: [], knab: [] };
+  let facturen = [], epsysBestand = null, relaties = []; const mol = new Map(), bank = new Map(); const bron = { epsys: null, mollie: [], knab: [], relaties: null };
   for (const b of bestanden) {
     const s = soortBestand(b.tekst);
     if (s === 'epsys') { facturen = leesEpsys(b.tekst); epsysBestand = b.naam; }
+    else if (s === 'relaties') { relaties = leesRelaties(b.tekst); bron.relaties = { naam: b.naam, n: relaties.length }; }
     else if (s === 'mollie') { const rr = leesMollie(b.tekst); rr.forEach(r => mol.set(r.ref && r.type === 'betaling' ? r.ref : `${+r.dt}|${r.type}|${r.bedrag}|${r.oms}`, r)); bron.mollie.push({ naam: b.naam, n: rr.length, maand: rr.find(r => r.type === 'factuur')?.dt || rr[0]?.dt }); }
     else if (s === 'knab') { const rr = leesKnab(b.tekst); rr.forEach(r => bank.set(bankSleutel(r), r)); bron.knab.push({ naam: b.naam, n: rr.length, van: rr.reduce((a, r) => !a || r.dt < a ? r.dt : a, null), tot: rr.reduce((a, r) => !a || r.dt > a ? r.dt : a, null) }); }
   }
@@ -297,6 +356,9 @@ function analyseer(bestanden, keuzes, vandaag) {
     if (o) { gecrediteerd[o.nr] = c.nr; gecrediteerd[c.nr] = o.nr; }
   }
 
+  const relPerId = new Map(), relPerNaam = new Map();
+  for (const p of relaties) { if (p.id) relPerId.set(p.id, p); for (const n of p.namen) if (normNaam(n)) relPerNaam.set(normNaam(n), p); }
+
   const rijen = facturen.map(f => {
     let pays = perNr[f.nr] || [];
     // geen Mollie-export voor die maand? dan EP-Sys-betaaldatum met tijdstip als Mollie tellen
@@ -318,7 +380,11 @@ function analyseer(bestanden, keuzes, vandaag) {
     else if (f.verv && dagen > 0) { cat = 'open'; concl = `Open, ${dagen} dagen over de vervaldatum → herinneren`; }
     else { cat = 'notdue'; concl = 'Open, nog niet vervallen'; }
     const viaSet = [...new Set(pays.map(p => p.via))];
-    return { ...f, pays, got: pays.length ? got : null, via: viaSet.join(' + '), bdat: pays.length ? pays.map(p => p.dt).sort((a, b) => a - b)[0] : null, cat, concl, dagen };
+    // contactgegevens: eerst op klant-id (mits de naam klopt), anders op naam
+    let rel = relPerId.get(String(f.klantId).trim());
+    if (rel && !naamPast(f.klant, rel)) rel = null;
+    if (!rel) rel = relPerNaam.get(normNaam(f.persoon)) || relPerNaam.get(normNaam(f.bedrijf)) || null;
+    return { ...f, mail: rel ? rel.mail : '', tel: rel ? rel.tel : '', pays, got: pays.length ? got : null, via: viaSet.join(' + '), bdat: pays.length ? pays.map(p => p.dt).sort((a, b) => a - b)[0] : null, cat, concl, dagen };
   });
 
   // voorstellen voor losse bankbetalingen: precies één open factuur met hetzelfde bedrag
@@ -358,8 +424,8 @@ async function voegToe(files) {
   for (const f of files) {
     const tekst = await f.text();
     const s = soortBestand(tekst);
-    if (!s) { alert(`"${f.name}" herken ik niet als export van EP-Sys, Mollie of Knab.`); continue; }
-    if (s === 'epsys') st.bestanden = st.bestanden.filter(b => soortBestand(b.tekst) !== 'epsys');   // nieuwste EP-Sys-export vervangt de vorige
+    if (!s) { alert(`"${f.name}" herken ik niet als export van EP-Sys (facturen of relaties), Mollie of Knab.`); continue; }
+    if (s === 'epsys' || s === 'relaties') st.bestanden = st.bestanden.filter(b => soortBestand(b.tekst) !== s);   // nieuwste EP-Sys-export vervangt de vorige
     st.bestanden = st.bestanden.filter(b => b.naam !== f.name);
     st.bestanden.push({ naam: f.name, tekst });
   }
@@ -383,7 +449,8 @@ function teken() {
   $('bronnen').innerHTML = `
     <div class="bron ${a.bron.epsys ? '' : 'leeg'}"><b>EP-Sys</b>${a.bron.epsys ? `<span class="ok">✓</span> ${a.bron.epsys.n} facturen<br><small>${esc(a.bron.epsys.naam)}</small>` : '<span class="warn">nog niet geladen</span>'}</div>
     <div class="bron ${m.length ? '' : 'leeg'}"><b>Mollie</b>${m.length ? `<span class="ok">✓</span> ${m.length} maand${m.length > 1 ? 'en' : ''}<br><small>${m.map(x => mstr(x.maand)).join(', ')}</small>${ontbreekt.length ? `<br><small class="warn">Ontbreekt: ${ontbreekt.map(mnaam).join(', ')} — daarvoor telt de betaaldatum uit EP-Sys</small>` : ''}` : '<span class="warn">nog niet geladen</span>'}</div>
-    <div class="bron ${k.length ? '' : 'leeg'}"><b>Knab</b>${k.length ? `<span class="ok">✓</span> ${dstr(knabVan)} t/m ${dstr(knabTot)}` : '<span class="warn">nog niet geladen</span>'}</div>`;
+    <div class="bron ${k.length ? '' : 'leeg'}"><b>Knab</b>${k.length ? `<span class="ok">✓</span> ${dstr(knabVan)} t/m ${dstr(knabTot)}` : '<span class="warn">nog niet geladen</span>'}</div>
+    <div class="bron ${a.bron.relaties ? '' : 'leeg'}"><b>Relaties <small>(telefoon/e-mail)</small></b>${a.bron.relaties ? `<span class="ok">✓</span> ${a.bron.relaties.n} relaties<br><small>${esc(a.bron.relaties.naam)} · ${a.rijen.filter(r => r.mail || r.tel).length} facturen gekoppeld</small>` : '<span class="warn">niet geladen</span><br><small>EP-Sys › Relaties › Resultaat exporteren</small>'}</div>`;
   if (!a.bron.epsys) { $('resultaat').hidden = true; return; }
   $('resultaat').hidden = false;
   if (!st.bestanden.length) $('uitleg').open = true;
@@ -404,6 +471,9 @@ function teken() {
   // recente facturen (vanaf de laatst geladen Mollie-maand) kunnen betaald zijn in een maand waarvan de export nog ontbreekt
   const mollieOntbreekt = r => ontbreekt.length > 0 && maandIdx(r.fdat) >= laatsteMollie;
   const openRR = per('open').sort((x, y) => y.dagen - x.dagen);
+  st.keuzes.herinnerd = st.keuzes.herinnerd || {};
+  // al herinnerd = EP-Sys zegt Herinnerd, of zelf herinnerd meer dan 14 dagen geleden (binnen 14 dagen blijft hij in zijn groep staan)
+  const alHerinnerd = r => r.status === 'Herinnerd' || (st.keuzes.herinnerd[r.nr] && (new Date() - new Date(st.keuzes.herinnerd[r.nr])) / 864e5 > 14);
   const groepen = [
     { id: 'zet', titel: 'In EP-Sys op Betaald zetten', kleur: 'c-fix',
       uitleg: 'Het geld is binnen, maar EP-Sys staat nog op Verlopen of Verstuurd. Zet ze op Betaald, anders gaan er onterecht herinneringen uit.',
@@ -413,13 +483,13 @@ function teken() {
       items: per('check'), extra: r => esc(r.concl.replace(/ →.*/, '')) },
     { id: 'mollie', titel: 'Eerst in Mollie nakijken', kleur: 'c-open',
       uitleg: 'Recente facturen die open staan, terwijl de Mollie-export van de maand daarna nog ontbreekt. Misschien al via Mollie betaald (EP-Sys loopt soms achter): kijk in Mollie › Betalingen voordat je herinnert.',
-      items: openRR.filter(mollieOntbreekt), extra: r => `${r.dagen} dagen te laat` },
+      items: openRR.filter(mollieOntbreekt), extra: r => `${r.dagen} dagen te laat`, herinner: true },
     { id: 'aanmaning', titel: 'Aanmanen (al herinnerd of meer dan 60 dagen te laat)', kleur: 'c-open',
       uitleg: 'Al een herinnering gehad of lang over tijd: tweede herinnering of aanmaning, eventueel bellen.',
-      items: openRR.filter(r => !mollieOntbreekt(r) && (r.status === 'Herinnerd' || r.dagen > 60)), extra: r => `${r.dagen} dagen te laat${r.status === 'Herinnerd' ? ' · al herinnerd' : ''}` },
+      items: openRR.filter(r => !mollieOntbreekt(r) && (alHerinnerd(r) || r.dagen > 60)), extra: r => `${r.dagen} dagen te laat${r.status === 'Herinnerd' ? ' · al herinnerd' : ''}`, herinner: true },
     { id: 'herinner', titel: 'Eerste herinnering sturen', kleur: 'c-open',
       uitleg: 'Over de vervaldatum, nog geen herinnering gehad.',
-      items: openRR.filter(r => !mollieOntbreekt(r) && r.status !== 'Herinnerd' && r.dagen <= 60), extra: r => `${r.dagen} dagen te laat` },
+      items: openRR.filter(r => !mollieOntbreekt(r) && !alHerinnerd(r) && r.dagen <= 60), extra: r => `${r.dagen} dagen te laat`, herinner: true },
   ];
   const kortNaam = k => { k = k.replace(/\s*\(.*\)\s*$/, ''); return k.length > 24 ? k.slice(0, 23) + '…' : k; };
   const isGedaan = (g, r) => !!gedaan[g.id + ':' + r.nr];
@@ -434,8 +504,10 @@ function teken() {
 
   // wat te doen: per groep met afvinken en kopiëren
   const regel = (g, r) => { const k = g.id + ':' + r.nr, d = !!gedaan[k];
-    return `<div class="regel ${d ? 'gedaan' : ''}"><label class="vink"><input type="checkbox" data-gedaan="${esc(k)}" ${d ? 'checked' : ''}><span class="nr">${esc(r.nr)}</span></label><span class="k">${esc(r.klant)}</span><span class="bd">${eur(r.bedrag)}</span><span class="x2">${g.extra(r)}</span></div>`; };
-  const blokG = g => `<div class="actie" id="g-${g.id}"><h3>${g.titel}<span class="tel">${g.open.length}</span>${g.items.length ? `<button class="btn sec klein kopieer" data-kopieer="${g.id}">Kopieer lijst</button>` : ''}</h3><p class="uit">${g.uitleg}</p>` +
+    const extraK = g.herinner ? `${herinnerdVink(r)}<span class="ctx">${contactRegel(r)}</span>` : '';
+    const knop = g.herinner ? `<button class="btn klein" data-herinner="${esc(r.nr)}">✉ Herinnering</button>` : '';
+    return `<div class="regel ${d ? 'gedaan' : ''}"><label class="vink"><input type="checkbox" data-gedaan="${esc(k)}" ${d ? 'checked' : ''} title="Afvinken: klaar met deze actie"><span class="nr">${esc(r.nr)}</span></label><span class="k">${esc(r.klant)}${extraK}</span><span class="bd">${eur(r.bedrag)}</span><span class="x2">${g.extra(r)}</span>${knop}</div>`; };
+  const blokG = g => `<div class="actie" id="g-${g.id}"><h3>${g.titel}<span class="tel">${g.open.length}</span>${g.herinner && g.open.length > 1 ? `<button class="btn klein" data-alle="${g.id}" style="margin-left:auto">✉ Concepten voor alle ${g.open.length}</button>` : ''}${g.items.length ? `<button class="btn sec klein kopieer" data-kopieer="${g.id}"${g.herinner && g.open.length > 1 ? ' style="margin-left:0"' : ''}>Kopieer lijst</button>` : ''}</h3><p class="uit">${g.uitleg}</p>` +
     (g.items.length ? [...g.open, ...g.klaar].map(r => regel(g, r)).join('') + (g.klaar.length ? `<div class="hint">${g.klaar.length} afgevinkt</div>` : '') : '<div class="leeg-ok">✓ Niets.</div>') + '</div>';
   const blok = (id, titel, uitleg, items, leegTekst) => `<div class="actie" id="g-${id}"><h3>${titel}<span class="tel">${items.length}</span></h3><p class="uit">${uitleg}</p>${items.length ? items.join('') : `<div class="leeg-ok">✓ ${leegTekst}</div>`}</div>`;
   const opties = nr => a.rijen.filter(r => !r.pays.length && r.cat !== 'ok').sort((x, y) => x.nr < y.nr ? 1 : -1)
@@ -463,6 +535,9 @@ function teken() {
   document.querySelectorAll('select[data-s]').forEach(s => s.onchange = () => { if (s.value) { st.keuzes.koppel[s.dataset.s] = s.value; bewaar(); teken(); } });
   document.querySelectorAll('[data-negeer]').forEach(b => b.onclick = () => { st.keuzes.negeer[b.dataset.negeer] = 1; bewaar(); teken(); });
   document.querySelectorAll('[data-negeerafz]').forEach(b => b.onclick = () => { if (confirm(`Alle ontvangsten van "${b.dataset.negeerafz}" voortaan negeren?`)) { st.keuzes.negeerAfzender[b.dataset.negeerafz] = 1; bewaar(); teken(); } });
+  koppelContactKnoppen(document.getElementById('acties'));
+  document.querySelectorAll('[data-herinner]').forEach(b => b.onclick = () => openHerinnering(laatste.rijen.find(r => r.nr === b.dataset.herinner)));
+  document.querySelectorAll('[data-alle]').forEach(b => b.onclick = () => alleConcepten(groepen.find(x => x.id === b.dataset.alle).open));
   const bk = $('b-keuzes'); if (bk) bk.onclick = e => { e.preventDefault(); if (confirm('Alle koppelingen en genegeerde ontvangsten vergeten?')) { st.keuzes = { koppel: {}, negeer: {}, negeerAfzender: {}, gedaan: st.keuzes.gedaan || {} }; bewaar(); teken(); } };
 
   tekenTabel();
@@ -476,20 +551,242 @@ function tekenTabel() {
   rr.sort((x, y) => { const p = x[k] ?? '', q = y[k] ?? ''; return (p > q ? 1 : p < q ? -1 : 0) * richting; });
   $('rijen').innerHTML = rr.map(r => `<tr class="cat-${r.cat}" title="${esc(r.oms)}">
     <td class="d"><b>${esc(r.nr)}</b></td><td class="d">${dstr(r.fdat)}</td><td class="d">${dstr(r.verv)}</td><td>${esc(r.klant)}</td>
+    <td class="d">${r.cat === 'open' ? herinnerdVink(r) + ` <button class="linkknop" data-herinner="${esc(r.nr)}">✉</button>` : (r.cat === 'notdue' && st.keuzes.herinnerd && st.keuzes.herinnerd[r.nr] ? herinnerdVink(r) : '')}</td>
+    <td class="d">${telLink(contactVan(r).tel)}</td>
     <td class="r">${eur(r.bedrag)}</td><td>${esc(r.status)}</td><td>${esc(r.via)}</td><td class="d">${dstr(r.bdat)}</td>
     <td class="r">${r.got == null ? '' : eur(r.got)}</td><td>${esc(r.concl)}</td></tr>`).join('');
+  koppelContactKnoppen($('rijen'));
+  $('rijen').querySelectorAll('[data-herinner]').forEach(b => b.onclick = () => openHerinnering(a.rijen.find(r => r.nr === b.dataset.herinner)));
   $('telling').textContent = `${rr.length} van ${a.rijen.length} facturen` + (filterCat ? ` · filter: ${CAT[filterCat].l} (klik nogmaals op de tegel om alles te zien)` : '');
 }
 
 function downloadCSV() {
   const a = laatste; if (!a) return;
-  const kop = ['Factuurnummer', 'Factuurdatum', 'Vervaldatum', 'Klant', 'Bedrag incl. BTW', 'Status EP-Sys', 'Betaald via', 'Betaaldatum', 'Ontvangen', 'Categorie', 'Conclusie', 'Omschrijving'];
+  const kop = ['Factuurnummer', 'Factuurdatum', 'Vervaldatum', 'Klant', 'Telefoon', 'E-mail', 'Herinnerd (eigen vinkje)', 'Bedrag incl. BTW', 'Status EP-Sys', 'Betaald via', 'Betaaldatum', 'Ontvangen', 'Categorie', 'Conclusie', 'Omschrijving'];
   const n = x => x == null ? '' : x.toFixed(2).replace('.', ',');
   const q = s => '"' + String(s ?? '').replace(/"/g, '""') + '"';
-  const regels = a.rijen.map(r => [r.nr, dstr(r.fdat), dstr(r.verv), r.klant, n(r.bedrag), r.status, r.via, dstr(r.bdat), n(r.got), CAT[r.cat].l, r.concl, r.oms].map(q).join(';'));
+  const hd = nr => st.keuzes.herinnerd && st.keuzes.herinnerd[nr] ? dstr(new Date(st.keuzes.herinnerd[nr])) : '';
+  const regels = a.rijen.map(r => [r.nr, dstr(r.fdat), dstr(r.verv), r.klant, contactVan(r).tel, contactVan(r).mail, hd(r.nr), n(r.bedrag), r.status, r.via, dstr(r.bdat), n(r.got), CAT[r.cat].l, r.concl, r.oms].map(q).join(';'));
   const blob = new Blob(['﻿sep=;\r\n' + [kop.map(q).join(';'), ...regels].join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const el = document.createElement('a'); el.href = URL.createObjectURL(blob);
   el.download = `Betaalcheck facturen ${new Date().toISOString().slice(0, 10)}.csv`; el.click(); URL.revokeObjectURL(el.href);
+}
+
+/* ---------- Contactgegevens (telefoon/e-mail) ---------- */
+// volgorde: eigen aanpassing (✎) → relaties-export EP-Sys → e-mail uit de factuur-tool (zelfde website)
+const contactSleutel = r => r.klantId ? 'id:' + r.klantId : 'naam:' + normNaam(r.klant);
+function factuurToolMail(r) {
+  let m = {}; try { m = JSON.parse(localStorage.getItem('fact_klantmail') || '{}') || {}; } catch (e) {}
+  const kl = normNaam(r.klant); let best = '';
+  for (const k of Object.keys(m)) { const nk = normNaam(k); if (nk.length >= 3 && (' ' + kl + ' ').includes(' ' + nk + ' ') && nk.length > best.length) best = k; }
+  return best ? m[best] : '';
+}
+function contactVan(r) {
+  const eigen = (st.contact || {})[contactSleutel(r)] || {};
+  const mail = eigen.mail != null ? eigen.mail : (r.mail || factuurToolMail(r));
+  const tel = eigen.tel != null ? eigen.tel : r.tel;
+  return { mail: mail || '', tel: tel || '' };
+}
+const telHref = t => { let d = (t || '').replace(/[^\d+]/g, ''); if (d.startsWith('00')) d = '+' + d.slice(2); return d; };
+const telLink = t => t ? `<a href="tel:${esc(telHref(t))}">${esc(t)}</a>` : '';
+function contactRegel(r) {
+  const c = contactVan(r);
+  const delen = [c.tel ? '📞 ' + telLink(c.tel) : '', c.mail ? esc(c.mail) : ''].filter(Boolean);
+  return (delen.length ? delen.join(' · ') + ' ' : '<i>geen telefoon/e-mail</i> ') + `<button class="linkknop" data-contact="${esc(r.nr)}" title="Telefoon en e-mail aanpassen">✎</button>`;
+}
+function herinnerdVink(r) {
+  const d = st.keuzes.herinnerd && st.keuzes.herinnerd[r.nr];
+  return `<label class="hv ${d ? 'aan' : ''}" title="Herinnering verstuurd"><input type="checkbox" data-hv="${esc(r.nr)}" ${d ? 'checked' : ''}>${d ? 'herinnerd ' + new Date(d).toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit' }) : 'herinnerd'}</label>`;
+}
+function zetHerinnerd(nr, aan) {
+  st.keuzes.herinnerd = st.keuzes.herinnerd || {};
+  if (aan) st.keuzes.herinnerd[nr] = new Date().toISOString().slice(0, 10); else delete st.keuzes.herinnerd[nr];
+  bewaar();
+}
+function koppelContactKnoppen(el) {
+  el.querySelectorAll('[data-hv]').forEach(c => c.onchange = () => { zetHerinnerd(c.dataset.hv, c.checked); teken(); });
+  el.querySelectorAll('[data-contact]').forEach(b => b.onclick = () => bewerkContact(laatste.rijen.find(r => r.nr === b.dataset.contact)));
+}
+function bewaarContact(r, mail, tel) {
+  const c = contactVan(r); st.contact = st.contact || {};
+  const oud = st.contact[contactSleutel(r)] || {};
+  if (mail !== c.mail) oud.mail = mail; if (tel !== c.tel) oud.tel = tel;
+  if (Object.keys(oud).length) st.contact[contactSleutel(r)] = oud;
+  bewaar();
+}
+
+/* ---------- Venstertje ---------- */
+function venster(html) {
+  sluitVenster();
+  const d = document.createElement('div'); d.className = 'scrim'; d.id = 'scrim';
+  d.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${html}</div>`;
+  d.addEventListener('click', e => { if (e.target === d) sluitVenster(); });
+  document.body.appendChild(d); document.addEventListener('keydown', escSluit);
+  return d;
+}
+function sluitVenster() { const d = $('scrim'); if (d) d.remove(); document.removeEventListener('keydown', escSluit); }
+const escSluit = e => { if (e.key === 'Escape') sluitVenster(); };
+
+function bewerkContact(r) {
+  const c = contactVan(r);
+  const d = venster(`<h3>${esc(r.klant)}</h3>
+    <div class="twee"><div><label class="v">Telefoon</label><input type="tel" id="c-tel" value="${esc(c.tel)}"></div>
+    <div><label class="v">E-mail</label><input type="email" id="c-mail" value="${esc(c.mail)}"></div></div>
+    <div class="hint">Wordt onthouden voor deze klant (in deze browser).</div>
+    <div class="knoprij" style="justify-content:flex-end"><button class="btn sec" data-x>Annuleren</button><button class="btn" data-ok>Bewaren</button></div>`);
+  d.querySelector('[data-x]').onclick = sluitVenster;
+  d.querySelector('[data-ok]').onclick = () => { bewaarContact(r, $('c-mail').value.trim().toLowerCase(), $('c-tel').value.trim()); sluitVenster(); teken(); };
+  $('c-tel').focus();
+}
+
+/* ---------- Herinneringstekst ---------- */
+const BEDRIJF = { naam: 'Visserinspecties.nl', iban: 'NL30 KNAB 0409 0615 57' };
+const lang = d => d ? d.getDate() + ' ' + MAANDEN[d.getMonth()] + ' ' + d.getFullYear() : '';
+function aanhef(r) {
+  const n = (r.persoon || r.bedrijf || r.klant || '').trim();
+  if (!n) return 'Geachte heer, mevrouw,';
+  if (/^fam(ilie|\.)?\s/i.test(n)) return 'Geachte familie ' + n.replace(/^fam(ilie|\.)?\s+/i, '') + ',';
+  if (/^(mevrouw|mevr\.?|heer|de heer|dhr\.?)\s/i.test(n)) return 'Geachte ' + n.replace(/^(mevr\.?)\s/i, 'mevrouw ').replace(/^(heer|dhr\.?)\s/i, 'heer ') + ',';
+  return 'Geachte ' + n + ',';
+}
+const isTweede = r => r.status === 'Herinnerd' || !!(st.keuzes.herinnerd && st.keuzes.herinnerd[r.nr]);
+function herinnerTekst(r) {
+  const tweede = isTweede(r);
+  const dagen = r.dagen === 1 ? '1 dag' : r.dagen + ' dagen';
+  const eerder = st.keuzes.herinnerd && st.keuzes.herinnerd[r.nr] ? ` Op ${lang(new Date(st.keuzes.herinnerd[r.nr]))} stuurde ik u hierover een herinnering.` : (r.status === 'Herinnerd' ? ' U ontving hierover eerder een herinnering.' : '');
+  const p = [aanhef(r)];
+  if (!tweede) {
+    p.push(`Volgens mijn administratie is factuur ${r.nr} van ${lang(r.fdat)}, groot ${eur(r.bedrag)}, nog niet betaald. De betalingstermijn verliep op ${lang(r.verv)}; de factuur is daarmee ${dagen} over tijd.`);
+  } else {
+    p.push(`Factuur ${r.nr} van ${lang(r.fdat)}, groot ${eur(r.bedrag)}, staat nog open. De betalingstermijn verliep op ${lang(r.verv)}; de factuur is inmiddels ${dagen} over tijd.${eerder}`);
+  }
+  p.push('Mogelijk is er sprake van een vergissing, of heeft uw betaling dit bericht gekruist. In dat geval kunt u deze herinnering als niet verzonden beschouwen.');
+  p.push(`Staat de factuur nog open, dan verzoek ik u het bedrag per ommegaande over te maken naar ${BEDRIJF.iban} t.n.v. ${BEDRIJF.naam}, onder vermelding van factuurnummer ${r.nr}.`);
+  p.push(tweede ? 'Is er iets met de factuur waardoor u nog niet heeft betaald? Neem dan contact met mij op, dan zoeken we samen een oplossing.'
+                : 'Heeft u vragen over de factuur, of heeft u hem niet ontvangen? Laat het mij gerust weten.');
+  p.push('Met vriendelijke groet,');
+  return { onderwerp: `${tweede ? 'Tweede herinnering' : 'Herinnering'} factuur ${r.nr}`, tekst: p.join('\n\n') };
+}
+/* platte tekst → mail-HTML in dezelfde stijl als de factuurmails */
+const ST_MAIL = 'font-family:Cambria,Charter,Georgia,serif;font-variant-numeric:lining-nums;font-size:11pt;color:#000000;line-height:150%;margin:0 0 10pt 0';
+function tekstNaarHtml(t) {
+  return t.split(/\n\s*\n/).map(alinea => {
+    let h = esc(alinea.trim()).replace(/\n/g, '<br>');
+    // IBAN niet laten omzetten in een link of telefoonnummer door Outlook/iPhone
+    h = h.replace(esc(BEDRIJF.iban), `<a name="vi" style="color:#000000;text-decoration:none;white-space:nowrap;font-weight:bold">${esc(BEDRIJF.iban)}</a>`);
+    return `<p style="${ST_MAIL}">${h}</p>`;
+  }).join('');
+}
+
+/* ---------- Microsoft (centrale inlog van het dashboard) ---------- */
+const MS = { client: 'fdf237c9-bf46-47fa-ab3d-a8834a73e284', tenant: '984fd1fb-3d68-4c94-aff2-47f699fb5dae',
+  scope: 'https://graph.microsoft.com/Files.ReadWrite https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/User.Read offline_access' };
+let msToken = null;
+const isIngelogd = () => { try { return !!localStorage.getItem('rt'); } catch (e) { return false; } };
+async function msVernieuw() {
+  const rt = localStorage.getItem('rt'); if (!rt) throw new Error('Niet ingelogd');
+  const r = await fetch(`https://login.microsoftonline.com/${MS.tenant}/oauth2/v2.0/token`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ client_id: MS.client, scope: MS.scope, grant_type: 'refresh_token', refresh_token: rt }) });
+  const d = await r.json();
+  if (!d.access_token) { if (d.error === 'invalid_grant' || d.error === 'interaction_required') localStorage.removeItem('rt'); throw new Error(d.error_description || 'Inloggen mislukt'); }
+  msToken = d.access_token; if (d.refresh_token) localStorage.setItem('rt', d.refresh_token);
+}
+async function graphJSON(pad, opts = {}, opnieuw = true) {
+  if (!msToken) await msVernieuw();
+  const r = await fetch('https://graph.microsoft.com/v1.0/' + pad, { ...opts, headers: { ...(opts.headers || {}), Authorization: 'Bearer ' + msToken } });
+  if (r.status === 401 && opnieuw) { msToken = null; await msVernieuw(); return graphJSON(pad, opts, false); }
+  let d = {}; try { d = await r.json(); } catch (e) {}
+  if (!r.ok) throw new Error((d.error && d.error.message) || 'Microsoft-fout ' + r.status);
+  return d;
+}
+async function maakConcept(aan, onderwerp, tekst) {
+  return graphJSON('me/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+    subject: onderwerp, body: { contentType: 'HTML', content: `<div>${tekstNaarHtml(tekst)}</div>` },
+    toRecipients: aan ? [{ emailAddress: { address: aan } }] : [] }) });
+}
+/* e-mailadres voorstellen uit eerdere mails in Outlook */
+async function zoekMailInOutlook(r) {
+  const woorden = naamWoorden(r.persoon || r.bedrijf || r.klant); if (!woorden.length) return [];
+  const zoek = (r.persoon || r.bedrijf || r.klant).replace(/["\\]/g, '');
+  const d = await graphJSON(`me/messages?$search=${encodeURIComponent('"' + zoek + '"')}&$select=toRecipients,ccRecipients,from&$top=25`);
+  const tel = {}; const eigen = /visserinspecties\.nl$|erkend-energielabel\.nl$/i;
+  (d.value || []).forEach(m => [...(m.toRecipients || []), ...(m.ccRecipients || []), m.from].filter(Boolean).forEach(x => {
+    const a = ((x.emailAddress || {}).address || '').toLowerCase(), n = normNaam((x.emailAddress || {}).name || '');
+    if (!a || eigen.test(a)) return;
+    if (!woorden.some(w => a.includes(w) || n.split(' ').includes(w))) return;
+    tel[a] = (tel[a] || 0) + 1;
+  }));
+  return Object.entries(tel).sort((x, y) => y[1] - x[1]).slice(0, 4).map(e => e[0]);
+}
+const inlogMelding = () => `Je bent niet ingelogd bij Microsoft. ${window.VILogin ? VILogin.inlogLink('Log in via het dashboard') : '<a href="inloggen.html">Log in via het dashboard</a>'} en kom daarna hier terug; je gegevens blijven staan.`;
+const geldigMail = m => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(m);
+
+/* ---------- Herinnering: voorbeeld + concept in Outlook ---------- */
+function openHerinnering(r) {
+  if (!r) return;
+  const c = contactVan(r), t = herinnerTekst(r);
+  const d = venster(`<h3>${isTweede(r) ? 'Tweede herinnering' : 'Herinnering'} · ${esc(r.nr)} · ${esc(r.klant)}</h3>
+    <div class="hint" style="margin-top:0">${eur(r.bedrag)} · vervallen ${dstr(r.verv)} · ${r.dagen} dagen over tijd${c.tel ? ` · 📞 ${telLink(c.tel)}` : ''}</div>
+    <div class="twee"><div><label class="v">Aan (e-mail)</label><input type="email" id="h-aan" value="${esc(c.mail)}" placeholder="e-mailadres klant"><div class="sugg" id="h-sugg"></div></div>
+    <div><label class="v">Telefoon</label><input type="tel" id="h-tel" value="${esc(c.tel)}"></div></div>
+    <label class="v">Onderwerp</label><input type="text" id="h-ond" value="${esc(t.onderwerp)}">
+    <label class="v">Tekst</label><textarea id="h-tekst">${esc(t.tekst)}</textarea>
+    <div class="melding">✍️ Het concept komt <b>zonder handtekening</b> in Outlook. Open het daar, kies <b>Invoegen → Handtekening → Visserinspecties</b> en verstuur.</div>
+    <div id="h-status"></div>
+    <div class="knoprij" style="justify-content:flex-end"><button class="btn sec" data-x>Annuleren</button><button class="btn" data-ok>Zet als concept in Outlook</button></div>`);
+  const status = (cls, html) => { $('h-status').innerHTML = `<div class="melding ${cls}">${html}</div>`; };
+  d.querySelector('[data-x]').onclick = sluitVenster;
+  if (!isIngelogd()) status('err', inlogMelding());
+  else if (!c.mail) {
+    $('h-sugg').innerHTML = '<span class="hint" style="margin:0">Zoeken in Outlook…</span>';
+    zoekMailInOutlook(r).then(lijst => {
+      if (!$('h-sugg')) return;
+      $('h-sugg').innerHTML = lijst.length ? lijst.map(a => `<button class="chip" data-m="${esc(a)}">${esc(a)}</button>`).join('') : '<span class="hint" style="margin:0">Niets gevonden in Outlook.</span>';
+      if (lijst.length === 1 && !$('h-aan').value) $('h-aan').value = lijst[0];
+      $('h-sugg').querySelectorAll('[data-m]').forEach(b => b.onclick = () => { $('h-aan').value = b.dataset.m; });
+    }).catch(() => { if ($('h-sugg')) $('h-sugg').innerHTML = ''; });
+  }
+  d.querySelector('[data-ok]').onclick = async () => {
+    const aan = $('h-aan').value.trim().toLowerCase();
+    if (aan && !geldigMail(aan)) { status('err', 'Dat e-mailadres klopt niet.'); return; }
+    if (!isIngelogd()) { status('err', inlogMelding()); return; }
+    const knop = d.querySelector('[data-ok]'); knop.disabled = true; status('', 'Concept maken…');
+    try {
+      const m = await maakConcept(aan, $('h-ond').value.trim(), $('h-tekst').value);
+      bewaarContact(r, aan, $('h-tel').value.trim());
+      zetHerinnerd(r.nr, true);
+      status('ok', `✓ Concept staat in Outlook (Concepten)${aan ? '' : ', nog <b>zonder geadresseerde</b>'}.${m.webLink ? ` <a href="${esc(m.webLink)}" target="_blank" rel="noopener">Openen in Outlook</a>` : ''}<br>Vinkje <i>herinnerd</i> is gezet.`);
+      d.querySelector('[data-x]').textContent = 'Sluiten'; knop.hidden = true;
+      d.querySelector('[data-x]').onclick = () => { sluitVenster(); teken(); };
+    } catch (e) { status('err', 'Mislukt: ' + esc(e.message)); knop.disabled = false; }
+  };
+}
+
+/* alle herinneringen van een groep in één keer als concept */
+async function alleConcepten(lijst) {
+  lijst = lijst.filter(r => !(st.keuzes.herinnerd && st.keuzes.herinnerd[r.nr] && (new Date() - new Date(st.keuzes.herinnerd[r.nr])) / 864e5 <= 14));
+  const zonder = lijst.filter(r => !contactVan(r).mail);
+  const d = venster(`<h3>${lijst.length} herinnering${lijst.length === 1 ? '' : 'en'} als concept</h3>
+    <p style="font-size:13.5px">Met de standaardtekst, elk als los concept in Outlook. Wil je een tekst aanpassen, gebruik dan de knop per factuur.</p>
+    ${zonder.length ? `<div class="melding err">Geen e-mailadres bij: ${zonder.map(r => esc(r.nr.slice(-4) + ' ' + r.klant)).join(', ')}. Die concepten komen zonder geadresseerde.</div>` : ''}
+    <div class="melding">✍️ Concepten komen <b>zonder handtekening</b>. Voeg in Outlook per concept je handtekening in.</div>
+    <div id="a-status"></div>
+    <div class="knoprij" style="justify-content:flex-end"><button class="btn sec" data-x>Annuleren</button><button class="btn" data-ok ${lijst.length ? '' : 'disabled'}>Maak ${lijst.length} concept${lijst.length === 1 ? '' : 'en'}</button></div>`);
+  const status = (cls, html) => { $('a-status').innerHTML = `<div class="melding ${cls}">${html}</div>`; };
+  d.querySelector('[data-x]').onclick = sluitVenster;
+  if (!lijst.length) status('', 'Alles in deze groep is de afgelopen 14 dagen al herinnerd.');
+  if (!isIngelogd()) status('err', inlogMelding());
+  d.querySelector('[data-ok]').onclick = async () => {
+    if (!isIngelogd()) { status('err', inlogMelding()); return; }
+    const knop = d.querySelector('[data-ok]'); knop.disabled = true; let ok = 0; const fout = [];
+    for (const r of lijst) {
+      status('', `Concept ${ok + fout.length + 1} van ${lijst.length}…`);
+      try { const t = herinnerTekst(r); await maakConcept(contactVan(r).mail, t.onderwerp, t.tekst); zetHerinnerd(r.nr, true); ok++; }
+      catch (e) { fout.push(r.nr + ': ' + e.message); }
+    }
+    status(fout.length ? 'err' : 'ok', `✓ ${ok} concept${ok === 1 ? '' : 'en'} in Outlook (Concepten).${fout.length ? '<br>Mislukt: ' + fout.map(esc).join('<br>') : ''}`);
+    knop.hidden = true; d.querySelector('[data-x]').textContent = 'Sluiten'; d.querySelector('[data-x]').onclick = () => { sluitVenster(); teken(); };
+  };
 }
 
 const drop = $('drop'), inp = $('bestanden');
@@ -498,7 +795,7 @@ inp.onchange = () => { voegToe([...inp.files]); inp.value = ''; };
 ['dragenter', 'dragover'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add('over'); }));
 ['dragleave', 'drop'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove('over'); }));
 drop.addEventListener('drop', ev => voegToe([...ev.dataTransfer.files]));
-$('b-wis').onclick = () => { if (confirm('Alle geladen bestanden én je koppel-/negeerkeuzes wissen?')) { st = { bestanden: [], keuzes: { koppel: {}, negeer: {}, negeerAfzender: {} } }; bewaar(); teken(); } };
+$('b-wis').onclick = () => { if (confirm('Alle geladen bestanden én je koppel-/negeerkeuzes wissen?')) { st = { bestanden: [], keuzes: { koppel: {}, negeer: {}, negeerAfzender: {}, herinnerd: st.keuzes.herinnerd || {} }, contact: st.contact || {} }; bewaar(); teken(); } };   // herinnerd-vinkjes en eigen telefoon/e-mail blijven staan
 $('zoek').oninput = tekenTabel;
 $('b-csv').onclick = downloadCSV;
 document.querySelectorAll('th[data-s]').forEach(th => th.onclick = () => { sorteer = { k: th.dataset.s, r: sorteer.k === th.dataset.s ? -sorteer.r : 1 }; tekenTabel(); });
