@@ -58,6 +58,10 @@ tr.let td{background:#fdf6ea}
 .msg{padding:10px 12px;border-radius:10px;font-size:13.5px;margin-top:10px}
 .msg.ok{background:#e3f3e9;color:var(--ok)}.msg.err{background:#fbe6e4;color:var(--err)}.msg.warn{background:#fdf0e1;color:var(--warn)}
 .log{margin-top:10px;font-size:13px;font-family:ui-monospace,Consolas,monospace;background:var(--bg);border-radius:10px;padding:10px;max-height:300px;overflow:auto;white-space:pre-wrap}
+.links{margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px}
+.links a{display:inline-block;background:var(--brand);color:#fff;text-decoration:none;border-radius:9px;padding:7px 12px}
+.links a.licht{background:var(--lila-soft);color:var(--brand)}
+.doelen .links{margin-top:6px}
 .log .ok{color:var(--ok)}.log .err{color:var(--err)}.log .warn{color:var(--warn)}
 #login-screen{display:none;max-width:420px;margin:60px auto;padding:0 14px;text-align:center}
 #login-screen p{margin:10px 0 18px;color:var(--muted)}
@@ -148,6 +152,7 @@ details.uitleg p{font-size:13.5px;margin-top:6px}
     <h2><span class="stap">4</span>Verwerken</h2>
     <button class="btn" id="b-verwerk" disabled>Verwerken</button>
     <div class="log" id="log" hidden></div>
+    <div class="links" id="klaar-links" hidden></div>
   </div>
 </main>
 </div>
@@ -426,7 +431,7 @@ async function pdfNaarOneDrive(f) {
 let onenoteCache = null;
 async function vindSectie(maken) {
   if (!onenoteCache) {
-    onenoteCache = await alles(`/me/onenote/sections?$select=id,displayName,lastModifiedDateTime&$expand=parentNotebook($select=id,displayName),parentSectionGroup($select=id,displayName)&$top=100`);
+    onenoteCache = await alles(`/me/onenote/sections?$select=id,displayName,lastModifiedDateTime,links&$expand=parentNotebook($select=id,displayName),parentSectionGroup($select=id,displayName)&$top=100`);
   }
   const doel = sectieNaam(Q, J).toLowerCase();
   let s = onenoteCache.find(x => (x.displayName || '').trim().toLowerCase() === doel);
@@ -462,16 +467,30 @@ async function onenoteBijwerken(sectie, nieuwe) {
         fd.append('Presentation', new Blob([html], { type: 'text/html' }));
         fd.append('fa', blob, pdfNaam(f)); fd.append('fb', blob, pdfNaam(f));
         const p = await gjson(`/me/onenote/sections/${sectie.id}/pages`, { method: 'POST', body: fd });
-        pagina = { id: p.id, title: LEV[lev].naam };   // volgende facturen van deze leverancier gaan erachter
+        pagina = { id: p.id, title: LEV[lev].naam, nieuw: true };   // volgende facturen van deze leverancier gaan erachter
         paginas.push(pagina);
+        await sleep(3000);
         log(`  OneNote: pagina "${LEV[lev].naam}" gemaakt met ${f.nr}`, 'ok');
         continue;
       }
+      // staat deze factuur al op de pagina (bv. na een eerder afgebroken verwerking)? dan niet nog een keer
+      if (!pagina.nieuw) {
+        if (pagina.inhoud == null) { try { const rc = await graph(`/me/onenote/pages/${pagina.id}/content`); pagina.inhoud = rc.ok ? await rc.text() : ''; } catch(e) { pagina.inhoud = ''; } }
+        if (f.nr && pagina.inhoud.includes(String(f.nr))) { log(`  OneNote: ${f.nr} stond al op "${pagina.title}" — overgeslagen`, 'warn'); continue; }
+      }
       const cmd = [{ target: 'body', action: 'append', content: htmlFactuur(f, 'f') }];
-      fd.append('Commands', new Blob([JSON.stringify(cmd)], { type: 'application/json' }));
-      fd.append('fa', blob, pdfNaam(f)); fd.append('fb', blob, pdfNaam(f));
-      const r = await graph(`/me/onenote/pages/${pagina.id}/content`, { method: 'PATCH', body: fd });
-      if (!r.ok) { let m = r.statusText; try { m = (await r.json()).error.message; } catch(e) {} throw new Error(`OneNote ${lev}: ${m}`); }
+      let r, m = '';
+      for (let poging = 0; poging < 6; poging++) {   // een net gemaakte pagina is soms nog niet meteen aan te vullen
+        const fd2 = new FormData();
+        fd2.append('Commands', new Blob([JSON.stringify(cmd)], { type: 'application/json' }));
+        fd2.append('fa', blob, pdfNaam(f)); fd2.append('fb', blob, pdfNaam(f));
+        r = await graph(`/me/onenote/pages/${pagina.id}/content`, { method: 'PATCH', body: fd2 });
+        if (r.ok) break;
+        m = r.statusText; try { m = (await r.json()).error.message; } catch(e) {}
+        if (r.status !== 404) break;
+        await sleep(3000 + poging * 2000);
+      }
+      if (!r.ok) throw new Error(`OneNote ${lev}: ${m}`);
       log(`  OneNote: ${f.nr} toegevoegd aan "${pagina.title}"`, 'ok');
     }
   }
@@ -481,7 +500,7 @@ async function onenoteBijwerken(sectie, nieuwe) {
 async function excelBestanden() {
   const map = await itemOpPad(BASISMAP);
   if (!map) throw new Error(`Map "${BASISMAP}" niet gevonden in OneDrive.`);
-  const kids = await alles(`/me/drive/items/${map.id}/children?$select=id,name,file&$top=200`);
+  const kids = await alles(`/me/drive/items/${map.id}/children?$select=id,name,file,webUrl&$top=200`);
   return { map, lijst: kids.filter(k => k.file && EXCEL_RE.test(k.name)).map(k => { const m = k.name.match(EXCEL_RE); return { ...k, q: +m[1], j: +m[2] }; }) };
 }
 async function vindExcel(maken) {
@@ -616,6 +635,20 @@ async function excelBijwerken(allesKwartaal, excel) {
   return ws.name;
 }
 
+/* ══════════ links naar OneDrive / OneNote / Excel ══════════ */
+function linksHtml({ map, sectie, excel }) {
+  const a = (url, tekst, licht) => url ? `<a href="${esc(url)}" target="_blank" rel="noopener"${licht ? ' class="licht"' : ''}>${tekst}</a>` : '';
+  const on = sectie?.links || {};
+  const xl = excel?.webUrl;
+  return [
+    a(on.oneNoteClientUrl?.href, 'OneNote openen'),
+    a(on.oneNoteWebUrl?.href, 'OneNote (web)', true),
+    a(xl ? 'ms-excel:ofe|u|' + xl : '', 'Excel openen'),
+    a(xl, 'Excel (web)', true),
+    a(map?.webUrl, 'OneDrive-map', true),
+  ].join('');
+}
+
 /* ══════════ overzicht (stap 3) ══════════ */
 let doelenTeller = 0;
 let verwerktSet = new Set();
@@ -625,8 +658,9 @@ async function doelenTonen() {
   const rij = (a, b) => `<div><span>${a}</span><span>${b}</span></div>`;
   $('doelen').innerHTML = rij('OneDrive', 'zoeken…') + rij('OneNote', 'zoeken…') + rij('Excel', 'zoeken…');
   const uit = { od: '', on: '', xl: '' };
+  const gevonden = {};
   try {
-    const map = await itemOpPad(pdfMap(Q, J));
+    const map = gevonden.map = await itemOpPad(pdfMap(Q, J));
     let lijst = []; if (map) { try { lijst = (await leesVerwerkt()).facturen || []; } catch(e) {} }
     if (mijn === doelenTeller) { verwerktSet = new Set(lijst.map(f => f.lev + '|' + f.nr)); }
     const per = {};
@@ -639,22 +673,25 @@ async function doelenTonen() {
   } catch(e) { uit.od = `<span class="tag err">${esc(e.message)}</span>`; }
   try {
     const s = await vindSectie(false);
+    gevonden.sectie = s.sectie;
     uit.on = `${esc(sectieNaam(Q, J))} ${s.sectie ? `<span class="tag ok">bestaat</span>` : `<span class="tag warn">wordt gemaakt${s.waar ? ' in ' + esc(s.waar) : ''}</span>`}`;
   } catch(e) { uit.on = `<span class="tag err">${esc(e.message)}</span>`; }
   try {
     const x = await vindExcel(false);
+    gevonden.excel = x.item;
     uit.xl = x.item ? `${esc(x.item.name)} <span class="tag ok">bestaat</span> › tabblad ${esc(tabNaam(Q, J))}`
       : (x.bron ? `${esc(excelNaam(Q, J))} <span class="tag warn">wordt gekopieerd van ${esc(x.bron.name)}</span>` : '<span class="tag err">geen eerder bestand</span>');
   } catch(e) { uit.xl = `<span class="tag err">${esc(e.message)}</span>`; }
   if (mijn !== doelenTeller) return;
   tekenTabel();
-  $('doelen').innerHTML = rij('OneDrive', uit.od) + rij('OneNote', uit.on) + rij('Excel', uit.xl);
+  const ln = linksHtml(gevonden);
+  $('doelen').innerHTML = rij('OneDrive', uit.od) + rij('OneNote', uit.on) + rij('Excel', uit.xl) + (ln ? `<div class="links">${ln}</div>` : '');
 }
 
 /* ══════════ verwerken ══════════ */
 let bezig = false;
 $('b-verwerk').onclick = async () => {
-  bezig = true; knopStatus(); $('log').innerHTML = '';
+  bezig = true; knopStatus(); $('log').innerHTML = ''; $('klaar-links').hidden = true;
   const kwTekst = `Q${Q} ${J}`;
   log(`Verwerken voor ${kwTekst}…`);
   try {
@@ -667,9 +704,11 @@ $('b-verwerk').onclick = async () => {
     log('1. PDF\'s naar OneDrive');
     for (const f of nieuwe) { await pdfNaarOneDrive(f); log(`  ${pdfNaam(f)}`, 'ok'); }
 
+    const doel = {};
     log('2. OneNote');
     if (nieuwe.length) {
       const { sectie, waar, nieuw } = await vindSectie(true);
+      doel.sectie = sectie;
       if (nieuw) log(`  sectie "${sectieNaam(Q, J)}" gemaakt in ${waar}`, 'ok');
       await onenoteBijwerken(sectie, nieuwe);
     } else log('  niets nieuws');
@@ -683,9 +722,17 @@ $('b-verwerk').onclick = async () => {
     const allesKwartaal = verwerkt.facturen.map(f => ({ ...f, incl: +f.incl, btw: +f.btw }));
     const excel = await vindExcel(true);
     if (excel.nieuw) log(`  ${excelNaam(Q, J)} gemaakt als kopie van ${excel.bron.name}`, 'ok');
+    doel.excel = excel.item;
     const tab = await excelBijwerken(allesKwartaal, excel);
     const totaal = r2(allesKwartaal.reduce((s, f) => s + f.btw, 0));
     log(`Klaar. Voorbelasting ${kwTekst} tot nu toe: ${euro(totaal)} (${allesKwartaal.length} facturen) · tabblad "${tab}"`, 'ok');
+    try {
+      if (!doel.sectie) doel.sectie = (await vindSectie(false)).sectie;
+      doel.map = await itemOpPad(pdfMap(Q, J));
+      if (doel.excel && !doel.excel.webUrl) doel.excel = await itemOpPad(`${BASISMAP}/${excelNaam(Q, J)}`);
+    } catch(e) {}
+    const ln = linksHtml(doel);
+    if (ln) { $('klaar-links').innerHTML = '<b>Bekijken:</b> ' + ln; $('klaar-links').hidden = false; }
     facturen = facturen.filter(f => !f.aan); tekenTabel(); doelenTonen();
   } catch (e) {
     if (e.inlog) log('Inloggen nodig (of toestemming voor OneNote). Klik bovenaan op Account › Inloggen en probeer opnieuw.', 'err');
