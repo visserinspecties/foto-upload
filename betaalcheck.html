@@ -54,6 +54,7 @@ main{max-width:1000px;margin:0 auto;padding:22px 14px 40px}
 .regel .bd{width:96px;text-align:right;flex:0 0 auto;font-variant-numeric:tabular-nums}
 .regel .x2{font-size:12px;color:var(--muted);width:150px;flex:0 0 auto}
 .regel .knoppen{display:flex;gap:6px;flex-wrap:wrap;width:100%;padding-left:96px}
+.regel .vink + .k{min-width:150px}
 .regel select{min-height:30px;font-size:12.5px;font-family:inherit;border:1px solid var(--line);border-radius:8px;background:var(--card);max-width:100%}
 .leeg-ok{font-size:13px;color:var(--ok)}
 .chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
@@ -78,6 +79,16 @@ details.uitleg ol,details.uitleg ul{margin:8px 0 4px 20px;font-size:13.5px}
 details.uitleg li{margin:4px 0}
 details.uitleg h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-top:12px}
 details.uitleg p{font-size:13.5px;margin-top:6px}
+.kortkop{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:14px 0 6px}
+.nogbedrag{font-size:13.5px}.nogbedrag b{font-size:15px}
+a.kort{display:flex;gap:12px;align-items:flex-start;text-decoration:none;color:var(--ink);border-radius:10px;padding:8px 12px;margin-bottom:6px}
+a.kort .kn{font-size:20px;font-weight:700;min-width:28px;text-align:right;line-height:1.2}
+a.kort .kt{font-size:13.5px}a.kort small{color:var(--muted);font-size:12px}
+.vink{display:flex;align-items:center;gap:8px;width:110px;flex:0 0 auto;cursor:pointer}
+.vink input{width:18px;height:18px;accent-color:var(--brand);flex:0 0 auto}
+.regel.gedaan{opacity:.45}.regel.gedaan .k,.regel.gedaan .nr{text-decoration:line-through}
+.actie h3 .kopieer{margin-left:auto}
+.actie{scroll-margin-top:70px}
 [hidden]{display:none!important}
 @media (max-width:600px){.regel .knoppen{padding-left:0}.regel .x2{width:auto}}
 </style>
@@ -383,15 +394,50 @@ function teken() {
     const rr = per(c); return `<div class="tegel ${v.c} ${filterCat === c ? 'on' : ''}" data-c="${c}"><div class="n">${rr.length}</div><div class="b">${eur(rr.reduce((s, r) => s + r.bedrag, 0))}</div><div class="l">${v.l}</div></div>`;
   }).join('');
   const nog = [...per('check'), ...per('open'), ...per('notdue')].reduce((s, r) => s + r.bedrag, 0);
-  $('nog').innerHTML = `Nog te ontvangen (open + te controleren): <b>${eur(nog)}</b>` + (a.bankLos.length ? ` · <span style="color:var(--warn)">${a.bankLos.length} ontvangst${a.bankLos.length > 1 ? 'en' : ''} op Knab nog niet gekoppeld</span>` : '');
   document.querySelectorAll('.tegel').forEach(t => t.onclick = () => { filterCat = filterCat === t.dataset.c ? null : t.dataset.c; teken(); });
 
-  // acties
-  const regel = (r, extra) => `<div class="regel"><span class="nr">${esc(r.nr)}</span><span class="k">${esc(r.klant)}</span><span class="bd">${eur(r.bedrag)}</span><span class="x2">${extra || ''}</span></div>`;
-  const blok = (titel, uitleg, items, leegTekst) => `<div class="actie"><h3>${titel}<span class="tel">${items.length}</span></h3><p class="uit">${uitleg}</p>${items.length ? items.join('') : `<div class="leeg-ok">✓ ${leegTekst}</div>`}</div>`;
-  const fix = per('fix').map(r => regel(r, `${esc(r.via)}, ${dstr(r.bdat)}`));
-  const check = per('check').map(r => regel(r, esc(r.concl.replace(/ →.*/, ''))));
-  const open = per('open').sort((x, y) => y.dagen - x.dagen).map(r => regel(r, `${r.dagen} dagen te laat${r.status === 'Herinnerd' ? ' · al herinnerd' : ''}`));
+  // ---- acties, gegroepeerd ----
+  st.keuzes.gedaan = st.keuzes.gedaan || {};
+  const gedaan = st.keuzes.gedaan;
+  const maandIdx = d => d ? d.getFullYear() * 12 + d.getMonth() : 0;
+  const laatsteMollie = a.molMaanden.length ? Math.max(...a.molMaanden) : -1;
+  // recente facturen (vanaf de laatst geladen Mollie-maand) kunnen betaald zijn in een maand waarvan de export nog ontbreekt
+  const mollieOntbreekt = r => ontbreekt.length > 0 && maandIdx(r.fdat) >= laatsteMollie;
+  const openRR = per('open').sort((x, y) => y.dagen - x.dagen);
+  const groepen = [
+    { id: 'zet', titel: 'In EP-Sys op Betaald zetten', kleur: 'c-fix',
+      uitleg: 'Het geld is binnen, maar EP-Sys staat nog op Verlopen of Verstuurd. Zet ze op Betaald, anders gaan er onterecht herinneringen uit.',
+      items: per('fix'), extra: r => `${esc(r.via)}, ${dstr(r.bdat)}` },
+    { id: 'check', titel: 'Controleren', kleur: 'c-check',
+      uitleg: 'EP-Sys zegt Betaald zonder dat er geld te vinden is, of het ontvangen bedrag wijkt af. Contant? Andere rekening? Per ongeluk op Betaald gezet?',
+      items: per('check'), extra: r => esc(r.concl.replace(/ →.*/, '')) },
+    { id: 'mollie', titel: 'Eerst in Mollie nakijken', kleur: 'c-open',
+      uitleg: 'Recente facturen die open staan, terwijl de Mollie-export van de maand daarna nog ontbreekt. Misschien al via Mollie betaald (EP-Sys loopt soms achter): kijk in Mollie › Betalingen voordat je herinnert.',
+      items: openRR.filter(mollieOntbreekt), extra: r => `${r.dagen} dagen te laat` },
+    { id: 'aanmaning', titel: 'Aanmanen (al herinnerd of meer dan 60 dagen te laat)', kleur: 'c-open',
+      uitleg: 'Al een herinnering gehad of lang over tijd: tweede herinnering of aanmaning, eventueel bellen.',
+      items: openRR.filter(r => !mollieOntbreekt(r) && (r.status === 'Herinnerd' || r.dagen > 60)), extra: r => `${r.dagen} dagen te laat${r.status === 'Herinnerd' ? ' · al herinnerd' : ''}` },
+    { id: 'herinner', titel: 'Eerste herinnering sturen', kleur: 'c-open',
+      uitleg: 'Over de vervaldatum, nog geen herinnering gehad.',
+      items: openRR.filter(r => !mollieOntbreekt(r) && r.status !== 'Herinnerd' && r.dagen <= 60), extra: r => `${r.dagen} dagen te laat` },
+  ];
+  const kortNaam = k => { k = k.replace(/\s*\(.*\)\s*$/, ''); return k.length > 24 ? k.slice(0, 23) + '…' : k; };
+  const isGedaan = (g, r) => !!gedaan[g.id + ':' + r.nr];
+  groepen.forEach(g => { g.open = g.items.filter(r => !isGedaan(g, r)); g.klaar = g.items.filter(r => isGedaan(g, r)); });
+
+  // samenvatting: acties in het kort
+  const kortRegels = groepen.filter(g => g.open.length).map(g =>
+    `<a class="kort ${g.kleur}" href="#g-${g.id}"><span class="kn">${g.open.length}</span><span class="kt"><b>${g.titel}</b> · ${eur(g.open.reduce((s, r) => s + r.bedrag, 0))}<br><small>${g.open.map(r => `${esc(r.nr.slice(-4))} ${esc(kortNaam(r.klant))}`).join(', ')}</small></span></a>`);
+  if (a.bankLos.length) kortRegels.push(`<a class="kort c-notdue" href="#g-los"><span class="kn">${a.bankLos.length}</span><span class="kt"><b>Ontvangsten op Knab koppelen of negeren</b><br><small>${a.bankLos.slice(0, 6).map(b => esc(b.naam)).join(', ')}${a.bankLos.length > 6 ? ', …' : ''}</small></span></a>`);
+  $('nog').innerHTML = `<div class="nogbedrag">Nog te ontvangen (open + te controleren): <b>${eur(nog)}</b></div>` +
+    `<h3 class="kortkop">Acties in het kort</h3>` + (kortRegels.length ? kortRegels.join('') : '<div class="leeg-ok">✓ Niets te doen.</div>');
+
+  // wat te doen: per groep met afvinken en kopiëren
+  const regel = (g, r) => { const k = g.id + ':' + r.nr, d = !!gedaan[k];
+    return `<div class="regel ${d ? 'gedaan' : ''}"><label class="vink"><input type="checkbox" data-gedaan="${esc(k)}" ${d ? 'checked' : ''}><span class="nr">${esc(r.nr)}</span></label><span class="k">${esc(r.klant)}</span><span class="bd">${eur(r.bedrag)}</span><span class="x2">${g.extra(r)}</span></div>`; };
+  const blokG = g => `<div class="actie" id="g-${g.id}"><h3>${g.titel}<span class="tel">${g.open.length}</span>${g.items.length ? `<button class="btn sec klein kopieer" data-kopieer="${g.id}">Kopieer lijst</button>` : ''}</h3><p class="uit">${g.uitleg}</p>` +
+    (g.items.length ? [...g.open, ...g.klaar].map(r => regel(g, r)).join('') + (g.klaar.length ? `<div class="hint">${g.klaar.length} afgevinkt</div>` : '') : '<div class="leeg-ok">✓ Niets.</div>') + '</div>';
+  const blok = (id, titel, uitleg, items, leegTekst) => `<div class="actie" id="g-${id}"><h3>${titel}<span class="tel">${items.length}</span></h3><p class="uit">${uitleg}</p>${items.length ? items.join('') : `<div class="leeg-ok">✓ ${leegTekst}</div>`}</div>`;
   const opties = nr => a.rijen.filter(r => !r.pays.length && r.cat !== 'ok').sort((x, y) => x.nr < y.nr ? 1 : -1)
     .map(r => `<option value="${esc(r.nr)}" ${r.nr === nr ? 'selected' : ''}>${esc(r.nr)} · ${esc(r.klant).slice(0, 34)} · ${eur(r.bedrag)}</option>`).join('');
   const los = a.bankLos.sort((x, y) => y.dt - x.dt).map(b => `<div class="regel"><span class="nr">${dstr(b.dt)}</span><span class="k">${esc(b.naam)}<br><small style="color:var(--muted)">${esc(b.oms).slice(0, 90)}</small></span><span class="bd">${eur(b.bedrag)}</span>
@@ -403,18 +449,21 @@ function teken() {
         <button class="btn sec klein" data-negeerafz="${esc(b.naam)}">Negeer afzender</button>
       </div></div>`);
   const aantalKeuzes = Object.keys(st.keuzes.koppel).length + Object.keys(st.keuzes.negeer).length + Object.keys(st.keuzes.negeerAfzender).length;
-  $('acties').innerHTML =
-    blok('In EP-Sys op Betaald zetten', 'Het geld is binnen, maar EP-Sys staat nog op Verlopen of Verstuurd. Zet ze op Betaald, anders gaan er onterecht herinneringen uit.', fix, 'Niets aan te passen.') +
-    blok('Controleren', 'EP-Sys zegt Betaald zonder dat er geld te vinden is, of het ontvangen bedrag wijkt af. Contant betaald? Andere rekening? Per ongeluk op Betaald gezet?', check, 'Niets te controleren.') +
-    blok('Herinnering sturen', 'Open en over de vervaldatum, oudste bovenaan.', open, 'Geen achterstallige facturen.') +
-    blok('Ontvangsten op Knab zonder factuur', 'Bijschrijvingen zonder (bekend) factuurnummer. Koppel ze aan een factuur, of negeer ze als ze niet bij een factuur horen.', los, 'Alle ontvangsten zijn gekoppeld.') +
-    (a.molLos.length ? blok('Mollie-betalingen zonder bekende factuur', 'Betaling in Mollie met een omschrijving die niet in de EP-Sys-export staat.', a.molLos.map(r => `<div class="regel"><span class="nr">${dstr(r.dt)}</span><span class="k">${esc(r.naam)} · ${esc(r.oms)}</span><span class="bd">${eur(r.bedrag)}</span></div>`), '') : '') +
+  $('acties').innerHTML = groepen.map(blokG).join('') +
+    blok('los', 'Ontvangsten op Knab zonder factuur', 'Bijschrijvingen zonder (bekend) factuurnummer. Koppel ze aan een factuur, of negeer ze als ze niet bij een factuur horen.', los, 'Alle ontvangsten zijn gekoppeld.') +
+    (a.molLos.length ? blok('mollos', 'Mollie-betalingen zonder bekende factuur', 'Betaling in Mollie met een omschrijving die niet in de EP-Sys-export staat.', a.molLos.map(r => `<div class="regel"><span class="nr">${dstr(r.dt)}</span><span class="k">${esc(r.naam)} · ${esc(r.oms)}</span><span class="bd">${eur(r.bedrag)}</span></div>`), '') : '') +
     (aantalKeuzes ? `<div class="hint">${aantalKeuzes} eigen keuze${aantalKeuzes > 1 ? 's' : ''} (koppelen/negeren) onthouden. <a href="#" id="b-keuzes">Keuzes wissen</a></div>` : '');
+  document.querySelectorAll('[data-gedaan]').forEach(c => c.onchange = () => { if (c.checked) gedaan[c.dataset.gedaan] = new Date().toISOString().slice(0, 10); else delete gedaan[c.dataset.gedaan]; bewaar(); teken(); });
+  document.querySelectorAll('[data-kopieer]').forEach(b => b.onclick = () => {
+    const g = groepen.find(x => x.id === b.dataset.kopieer);
+    const tekst = g.titel + '\n' + g.open.map(r => `${r.nr}\t${r.klant}\t${eur(r.bedrag)}`).join('\n');
+    navigator.clipboard.writeText(tekst).then(() => { b.textContent = 'Gekopieerd ✓'; setTimeout(() => b.textContent = 'Kopieer lijst', 1500); });
+  });
   document.querySelectorAll('[data-koppel]').forEach(b => b.onclick = () => { st.keuzes.koppel[b.dataset.koppel] = b.dataset.nr; bewaar(); teken(); });
   document.querySelectorAll('select[data-s]').forEach(s => s.onchange = () => { if (s.value) { st.keuzes.koppel[s.dataset.s] = s.value; bewaar(); teken(); } });
   document.querySelectorAll('[data-negeer]').forEach(b => b.onclick = () => { st.keuzes.negeer[b.dataset.negeer] = 1; bewaar(); teken(); });
   document.querySelectorAll('[data-negeerafz]').forEach(b => b.onclick = () => { if (confirm(`Alle ontvangsten van "${b.dataset.negeerafz}" voortaan negeren?`)) { st.keuzes.negeerAfzender[b.dataset.negeerafz] = 1; bewaar(); teken(); } });
-  const bk = $('b-keuzes'); if (bk) bk.onclick = e => { e.preventDefault(); if (confirm('Alle koppelingen en genegeerde ontvangsten vergeten?')) { st.keuzes = { koppel: {}, negeer: {}, negeerAfzender: {} }; bewaar(); teken(); } };
+  const bk = $('b-keuzes'); if (bk) bk.onclick = e => { e.preventDefault(); if (confirm('Alle koppelingen en genegeerde ontvangsten vergeten?')) { st.keuzes = { koppel: {}, negeer: {}, negeerAfzender: {}, gedaan: st.keuzes.gedaan || {} }; bewaar(); teken(); } };
 
   tekenTabel();
 }
