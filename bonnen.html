@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Bonnenbak</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Bonnen">
+<meta name="theme-color" content="#432d6a">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --brand:#432d6a; --lila:#8e81a6; --lila-soft:#e8e6ed;
+  --bg:#f4f2f6; --card:#fff; --ink:#1d1833; --muted:#6b6584; --line:#d9d5e1;
+  --ok:#1f7a45; --warn:#b05a00; --err:#b3261e;
+  --r:14px; --shadow:0 1px 3px rgba(67,45,106,.10);
+  --serif:'Merriweather',Georgia,'Times New Roman',serif;
+}
+*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
+body{font-family:var(--serif);background:var(--bg);color:var(--ink);font-size:15px;line-height:1.45;min-height:100vh;
+  padding:0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+.band{background:var(--brand);color:#fff;padding:calc(env(safe-area-inset-top) + 10px) 16px 10px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:20}
+.band::after{content:"";position:absolute;left:0;right:0;bottom:-5px;height:5px;background:linear-gradient(90deg,#019541 0 16.6%,#54ae32 0 33.3%,#c6d500 0 50%,#ffee02 0 66.6%,#faba00 0 83.3%,#ec670a 0)}
+.band .titel{font-weight:700;font-size:16px}
+.band .who{margin-left:auto;text-align:right;font-size:11.5px;color:#cfc8e6}
+.band a{color:#fff;text-decoration:none;background:rgba(255,255,255,.14);border-radius:10px;padding:9px 13px;font-size:14px}
+main{max-width:640px;margin:0 auto;padding:22px 14px 40px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:12px;box-shadow:var(--shadow)}
+.card h2{font-weight:700;font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.stap{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--brand);color:#fff;font-size:11px;letter-spacing:0}
+.btn{border:0;border-radius:12px;min-height:52px;padding:0 16px;font-weight:700;font-size:15px;cursor:pointer;background:var(--brand);color:#fff;
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;font-family:inherit}
+.btn.sec{background:var(--lila-soft);color:var(--brand)}
+.btn.klein{min-height:36px;font-size:13px;padding:0 12px;border-radius:10px}
+.btn:disabled{opacity:.4;cursor:default}
+.twee{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.drop{border:2px dashed var(--lila);border-radius:12px;padding:16px;text-align:center;color:var(--muted);margin-top:10px;font-size:13.5px;cursor:pointer;background:var(--bg)}
+.drop.over{background:var(--lila-soft);border-color:var(--brand);color:var(--brand)}
+@media (hover:none){.drop{display:none}}
+.gekozen{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.gekozen:empty{display:none}
+.duim{position:relative;width:76px;height:96px;border-radius:10px;overflow:hidden;background:var(--lila-soft);display:flex;align-items:center;justify-content:center;
+  font-size:11px;color:var(--brand);text-align:center;padding:4px;border:1px solid var(--line)}
+.duim img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
+.duim .pdf{font-size:26px;display:block}
+.duim .weg{position:absolute;top:3px;right:3px;width:26px;height:26px;border-radius:50%;border:0;background:rgba(29,24,51,.75);color:#fff;font-size:15px;line-height:26px;cursor:pointer;padding:0;z-index:2}
+.chips{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.chip{border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:8px 10px;font-size:14px;cursor:pointer;min-height:48px;font-family:inherit;color:var(--ink);
+  text-align:left;display:flex;align-items:center;gap:8px}
+.chip .i{font-size:19px;flex:none}
+.chip.on{background:var(--brand);border-color:var(--brand);color:#fff}
+label.v{display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:14px 0 5px}
+select,input[type=text],input[type=date]{width:100%;min-height:48px;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);
+  font-size:16px;font-family:inherit;color:var(--ink)}
+.schakel{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.schakel button{border:0;background:var(--bg);min-height:48px;font-family:inherit;font-size:14px;color:var(--ink);cursor:pointer}
+.schakel button.on{background:var(--brand);color:#fff;font-weight:700}
+.hint{font-size:12.5px;color:var(--muted);margin-top:6px}
+.groot{width:100%;margin-top:4px;min-height:58px;font-size:16.5px}
+.melding{border-radius:12px;padding:10px 12px;font-size:14px;margin-bottom:12px}
+.melding.ok{background:#e3f3e9;color:var(--ok)}.melding.err{background:#fbe6e4;color:var(--err)}.melding.info{background:var(--lila-soft);color:var(--brand)}
+.wacht{display:flex;align-items:center;gap:10px;font-size:13.5px}
+.wacht .btn{margin-left:auto}
+.filter{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center}
+.filter button{border:1px solid var(--line);background:var(--bg);border-radius:99px;padding:6px 14px;font-size:13px;cursor:pointer;min-height:36px;font-family:inherit;color:var(--ink)}
+.filter button.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.filter .ver{margin-left:auto}
+.bon{display:flex;gap:12px;align-items:center;padding:10px 4px;border-top:1px solid var(--line);cursor:pointer}
+.bon:first-child{border-top:0}
+.bon .tn{width:48px;height:60px;flex:none;border-radius:8px;background:var(--lila-soft);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:22px}
+.bon .tn img{width:100%;height:100%;object-fit:cover}
+.bon .tx{flex:1;min-width:0}
+.bon .nm{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bon .sub{font-size:12.5px;color:var(--muted);margin-top:2px}
+.bon .pen{color:var(--lila);font-size:18px;flex:none}
+.badge{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-radius:99px;padding:2px 8px;margin-right:4px;vertical-align:1px}
+.badge.geen{background:#fff2cc;color:var(--warn)}.badge.prive{background:#fce4d6;color:#8a3b00}
+.leeg{font-size:13.5px;color:var(--muted);padding:6px 2px}
+details.uitleg{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin-bottom:12px;box-shadow:var(--shadow)}
+details.uitleg summary{cursor:pointer;font-weight:700;color:var(--brand);font-size:14px}
+details.uitleg ol,details.uitleg ul{margin:8px 0 4px 20px;font-size:13.5px}
+details.uitleg li{margin:5px 0}
+details.uitleg p{font-size:13.5px;margin-top:8px}
+.scrim{position:fixed;inset:0;background:rgba(20,10,35,.45);z-index:50;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--card);border-radius:16px 16px 0 0;max-width:640px;width:100%;max-height:92vh;overflow-y:auto;padding:16px 16px calc(env(safe-area-inset-bottom) + 16px)}
+.sheet h3{color:var(--brand);font-size:16px;margin-bottom:4px;word-break:break-word}
+.sheet .open{font-size:13px;color:var(--brand)}
+.sheet .knoppen{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.spin{display:inline-block;width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-3px}
+@keyframes sp{to{transform:rotate(360deg)}}
+[hidden]{display:none!important}
+@media (prefers-color-scheme:dark){:root{--bg:#14112a;--card:#1e1a3a;--ink:#efeaff;--muted:#a79fc4;--line:#352f58;--lila-soft:#2a2450}}
+</style>
+<script src="assets/home-knop.js" defer></script>
+<script src="assets/login.js"></script>
+</head>
+<body>
+<div class="band">
+  <span class="titel">Bonnenbak</span>
+  <div class="who" id="who">Visser Inspecties</div>
+  <a href="index.html" aria-label="Terug naar het dashboard">⌂</a>
+</div>
+
+<main>
+  <div class="card" id="niet-ingelogd" hidden>
+    <h2>Inloggen</h2>
+    <p style="font-size:14px;margin-bottom:12px">Log in met je Microsoft-account van Visser Inspecties, dan gaan de bonnen naar OneDrive. Bonnen die je nu al toevoegt blijven op dit toestel bewaard tot je ingelogd bent.</p>
+    <a class="btn" id="b-inlog" href="inloggen.html" style="text-decoration:none;width:100%">Inloggen met Microsoft</a>
+  </div>
+
+  <div id="melding" hidden></div>
+
+  <div class="card">
+    <h2><span class="stap">1</span>Bon of factuur</h2>
+    <div class="twee">
+      <button class="btn" id="b-foto">📷 Foto maken</button>
+      <button class="btn sec" id="b-bestand">📎 Bestand kiezen</button>
+    </div>
+    <input type="file" id="in-foto" accept="image/*" capture="environment" hidden>
+    <input type="file" id="in-bestand" accept="image/*,application/pdf" multiple hidden>
+    <div class="drop" id="drop">of sleep PDF's en foto's hierheen</div>
+    <div class="gekozen" id="gekozen"></div>
+  </div>
+
+  <div class="card">
+    <h2><span class="stap">2</span>Waarvoor</h2>
+    <div class="chips" id="soorten"></div>
+    <label class="v" for="project">Project <span style="text-transform:none;letter-spacing:0">(mag leeg)</span></label>
+    <select id="project"><option value="">— geen project —</option></select>
+    <label class="v" for="notitie">Notitie</label>
+    <input type="text" id="notitie" placeholder="bv. lunch onderweg, inspectie Dordrecht" autocomplete="off" enterkeyhint="done">
+    <div class="hint">Inspreken kan met het microfoontje op je toetsenbord.</div>
+    <label class="v">Betaald met</label>
+    <div class="schakel" id="betaald">
+      <button data-v="zakelijk" class="on">Knab-pas (zakelijk)</button>
+      <button data-v="prive">Privé-pas</button>
+    </div>
+    <label class="v" for="datum">Datum</label>
+    <input type="date" id="datum">
+  </div>
+
+  <button class="btn groot" id="b-bak" disabled>In de bak</button>
+  <div class="hint" id="bak-hint" style="text-align:center;margin:8px 0 14px">Kies eerst een foto of bestand.</div>
+
+  <div class="card" id="wachtkaart" hidden>
+    <div class="wacht"><span id="wacht-tekst"></span><button class="btn klein sec" id="b-verstuur">Nu versturen</button></div>
+  </div>
+
+  <div class="card">
+    <h2>In de bak</h2>
+    <div class="filter">
+      <button data-f="alles" class="on">Alles</button>
+      <button data-f="geen">Zonder notitie</button>
+      <button class="ver" id="b-ververs" aria-label="Vernieuwen">↻</button>
+    </div>
+    <div id="lijst"><div class="leeg">Nog niet geladen.</div></div>
+  </div>
+
+  <details class="uitleg">
+    <summary>Hoe werkt het?</summary>
+    <ol>
+      <li><b>Foto of bestand.</b> Maak een foto van de bon, of kies een PDF. Op de pc kun je ook slepen.</li>
+      <li><b>Waarvoor.</b> Tik op wat het is, kies eventueel het project en zet er een korte notitie bij. Een zinnetje als "lunch onderweg, inspectie Dordrecht" is genoeg.</li>
+      <li><b>In de bak.</b> De bon gaat naar OneDrive › Visserinspecties Finance › <b>Bonnen</b>. Geen bereik? Dan wacht hij op dit toestel en gaat hij vanzelf mee zodra er weer verbinding is.</li>
+    </ol>
+    <p><b>Factuur in je mail op de iPhone?</b> Tik op de PDF › Deel-knop › OneDrive › kies de map Bonnen. Of sleep hem op de pc in Verkenner naar die map. Hij verschijnt hier dan met <i>Zonder notitie</i>; tik erop om alsnog aan te geven waarvoor hij is.</p>
+    <p><b>Privé-pas</b> gebruikt voor iets zakelijks? Zet dan "Betaald met" op Privé. Die bon ziet de bankkoppeling niet, dus je boekhouder moet hem als privé-storting boeken.</p>
+    <p><b>Eten en drinken</b> in een restaurant: de btw daarop is niet aftrekbaar, en de kosten zijn maar deels aftrekbaar. Daarom krijgen ze een eigen soort.</p>
+    <p>Jaaroverzichten (beleggingen, verzekeringen) horen niet hier maar in Visserinspecties Finance › <b>Voor de boekhouder</b>.</p>
+    <p style="color:var(--muted)">Later: bonnen automatisch uitlezen en koppelen aan de afschrijving in e-Boekhouden.</p>
+  </details>
+</main>
+
+<div class="scrim" id="scrim" hidden><div class="sheet" id="sheet"></div></div>
+
+<script>
+/* ───────── Instellingen ───────── */
+const MAP   = 'epa/adviseur ep/Visserinspecties Finance/Bonnen';
+const NOTES = MAP + '/_notities';          // per bon een .json met soort, project, notitie, betaald met
+const PROJ  = '0_In Behandeling';          // projectmappen voor de keuzelijst
+const SOORTEN = [
+  { id:'eten',      l:'Eten/drinken onderweg',   f:'Eten onderweg', i:'🍔' },
+  { id:'parkeren',  l:'Parkeren',                f:'Parkeren',      i:'🅿️' },
+  { id:'brandstof', l:'Brandstof',               f:'Brandstof',     i:'⛽' },
+  { id:'ov',        l:'OV / trein',              f:'OV',            i:'🚆' },
+  { id:'materiaal', l:'Materiaal / gereedschap', f:'Materiaal',     i:'🧰' },
+  { id:'kantoor',   l:'Kantoor',                 f:'Kantoor',       i:'🖇️' },
+  { id:'software',  l:'Software / abonnement',   f:'Software',      i:'💻' },
+  { id:'overig',    l:'Overig',                  f:'Overig',        i:'📄' }
+];
+const MS = { client:'fdf237c9-bf46-47fa-ab3d-a8834a73e284', tenant:'984fd1fb-3d68-4c94-aff2-47f699fb5dae',
+  scope:'https://graph.microsoft.com/Files.ReadWrite https://graph.microsoft.com/User.Read offline_access' };
+
+/* ───────── Hulpjes ───────── */
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const LS = { get:(k,d)=>{try{const v=localStorage.getItem(k);return v===null?d:v}catch(e){return d}},
+             set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}} };
+const ENC = p => p.split('/').map(encodeURIComponent).join('/');
+const pad2 = n => String(n).padStart(2,'0');
+const vandaag = () => { const d=new Date(); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; };
+const soortVan = id => SOORTEN.find(s => s.id === id);
+const datumNL = iso => { const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(iso||''); return m ? `${+m[3]}-${+m[2]}-${m[1]}` : ''; };
+function schoon(s){ return String(s||'').replace(/[\\/:*?"<>|#%\u0000-\u001f]/g,' ').replace(/\s+/g,' ').trim(); }
+function melding(soort, tekst){ const m=$('melding'); m.className='melding '+soort; m.innerHTML=tekst; m.hidden=false;
+  clearTimeout(melding.t); if(soort==='ok') melding.t=setTimeout(()=>{m.hidden=true},6000); }
+const ingelogd = () => VILogin.ingelogd();
+
+/* ───────── Microsoft ───────── */
+let msToken = null;
+async function msVernieuw(){
+  const rt = LS.get('rt',''); if(!rt) { const e=new Error('Niet ingelogd'); e.login=true; throw e; }
+  const r = await fetch(`https://login.microsoftonline.com/${MS.tenant}/oauth2/v2.0/token`, { method:'POST',
+    headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:new URLSearchParams({ client_id:MS.client, scope:MS.scope, grant_type:'refresh_token', refresh_token:rt }) });
+  const d = await r.json();
+  if(!d.access_token){
+    if(d.error==='invalid_grant'||d.error==='interaction_required') try{localStorage.removeItem('rt')}catch(e){}
+    const e=new Error(d.error_description||'Inloggen mislukt'); e.login=true; throw e;
+  }
+  msToken = d.access_token; if(d.refresh_token) LS.set('rt', d.refresh_token);
+}
+async function graph(pad, opts={}, opnieuw=true){
+  if(!msToken) await msVernieuw();
+  const r = await fetch('https://graph.microsoft.com/v1.0/' + pad, { ...opts, headers:{ ...(opts.headers||{}), Authorization:'Bearer '+msToken } });
+  if(r.status===401 && opnieuw){ msToken=null; await msVernieuw(); return graph(pad, opts, false); }
+  return r;
+}
+async function graphJSON(pad, opts={}){
+  const r = await graph(pad, opts);
+  let d = {}; try { d = await r.json(); } catch(e) {}
+  if(!r.ok){ const e=new Error((d.error&&d.error.message)||'Microsoft-fout '+r.status); e.status=r.status; throw e; }
+  return d;
+}
+const padUrl = p => 'me/drive/root:/' + ENC(p) + ':';
+
+let notesMapKlaar = false;
+async function zorgVoorNotesMap(){
+  if(notesMapKlaar) return;
+  try { await graphJSON(padUrl(NOTES)); }
+  catch(e){
+    if(e.status!==404) throw e;
+    await graphJSON(padUrl(MAP)+'/children', { method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ name:'_notities', folder:{}, '@microsoft.graph.conflictBehavior':'fail' }) })
+      .catch(e2=>{ if(e2.status!==409) throw e2; });   // 409 = bestaat al
+  }
+  notesMapKlaar = true;
+}
+async function schrijfNotitie(bestand, meta){
+  await zorgVoorNotesMap();
+  await graphJSON(padUrl(NOTES + '/' + bestand + '.json') + '/content?@microsoft.graph.conflictBehavior=replace',
+    { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(meta, null, 2) });
+}
+async function leesNotitie(bestand){
+  const r = await graph(padUrl(NOTES + '/' + bestand + '.json') + '/content');
+  if(!r.ok) return null;
+  try { return await r.json(); } catch(e) { return null; }
+}
+
+/* ───────── Wachtrij op het toestel (IndexedDB) ───────── */
+let _db = null;
+function db(){ if(_db) return Promise.resolve(_db);
+  return new Promise((res,rej)=>{ const q=indexedDB.open('bonnenDB',1);
+    q.onupgradeneeded=e=>{ const d=e.target.result; if(!d.objectStoreNames.contains('wacht')) d.createObjectStore('wacht',{keyPath:'id',autoIncrement:true}); };
+    q.onsuccess=e=>{ _db=e.target.result; res(_db); }; q.onerror=e=>rej(e.target.error); }); }
+async function tx(mode, fn){ const d=await db(); return new Promise((res,rej)=>{ const t=d.transaction('wacht',mode), s=t.objectStore('wacht');
+  let out; const r=fn(s); if(r) r.onsuccess=()=>{ out=r.result; }; t.oncomplete=()=>res(out); t.onerror=e=>rej(e.target.error); t.onabort=e=>rej(e.target.error); }); }
+const wachtAlle = () => tx('readonly', s=>s.getAll()).then(a=>a||[]);
+const wachtErbij = rec => tx('readwrite', s=>s.add(rec));
+const wachtWeg = id => tx('readwrite', s=>s.delete(id));
+const wachtZet = rec => tx('readwrite', s=>s.put(rec));
+
+/* ───────── Gekozen bestanden ───────── */
+let gekozen = [];   // {blob, naam, type, url}
+async function verklein(blob){
+  try{
+    const bm = await createImageBitmap(blob, { imageOrientation:'from-image' });
+    const k = Math.min(1, 2400 / Math.max(bm.width, bm.height));
+    if(k===1 && blob.type==='image/jpeg' && blob.size<2.5e6) return blob;
+    const c = document.createElement('canvas'); c.width=Math.round(bm.width*k); c.height=Math.round(bm.height*k);
+    c.getContext('2d').drawImage(bm, 0, 0, c.width, c.height);
+    return (await new Promise(r=>c.toBlob(r,'image/jpeg',.85))) || blob;
+  }catch(e){ return blob; }   // bv. HEIC op de pc: dan het origineel
+}
+async function voegToe(files){
+  for(const f of files){
+    const isPdf = f.type==='application/pdf' || /\.pdf$/i.test(f.name||'');
+    const isImg = /^image\//.test(f.type) || /\.(jpe?g|png|heic|heif|webp)$/i.test(f.name||'');
+    if(!isPdf && !isImg){ melding('err', `${esc(f.name)} is geen foto of PDF.`); continue; }
+    const blob = isPdf ? f : await verklein(f);
+    const type = isPdf ? 'application/pdf' : (blob.type || 'image/jpeg');
+    gekozen.push({ blob, naam:f.name||'', type, url: isPdf ? null : URL.createObjectURL(blob) });
+  }
+  toonGekozen();
+}
+function toonGekozen(){
+  $('gekozen').innerHTML = gekozen.map((g,i)=>`<div class="duim">${g.url?`<img src="${g.url}" alt="">`:`<div><span class="pdf">📄</span>${esc((g.naam||'PDF').slice(0,22))}</div>`}
+    <button class="weg" data-i="${i}" aria-label="Weghalen">×</button></div>`).join('');
+  $('gekozen').querySelectorAll('.weg').forEach(b=>b.onclick=()=>{ const g=gekozen.splice(+b.dataset.i,1)[0]; if(g&&g.url) URL.revokeObjectURL(g.url); toonGekozen(); });
+  const n = gekozen.length;
+  $('b-bak').disabled = !n;
+  $('b-bak').textContent = n>1 ? `${n} bonnen in de bak` : 'In de bak';
+  $('bak-hint').textContent = n ? (soort ? '' : 'Tip: tik nog aan waarvoor het is.') : 'Kies eerst een foto of bestand.';
+}
+
+/* ───────── Formulier ───────── */
+let soort = '', betaald = 'zakelijk';
+function toonSoorten(doel, gekozenId, klik){
+  doel.innerHTML = SOORTEN.map(s=>`<button type="button" class="chip${s.id===gekozenId?' on':''}" data-id="${s.id}"><span class="i">${s.i}</span>${esc(s.l)}</button>`).join('');
+  doel.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{ const id = b.dataset.id===gekozenId ? '' : b.dataset.id; gekozenId=id;
+    doel.querySelectorAll('.chip').forEach(x=>x.classList.toggle('on', x.dataset.id===id)); klik(id); });
+}
+function schakel(doel, waarde, klik){
+  doel.querySelectorAll('button').forEach(b=>{ b.classList.toggle('on', b.dataset.v===waarde);
+    b.onclick=()=>{ doel.querySelectorAll('button').forEach(x=>x.classList.toggle('on', x===b)); klik(b.dataset.v); }; });
+}
+let projecten = JSON.parse(LS.get('bon_projecten','[]') || '[]');
+function vulProjecten(sel, waarde){
+  const lijst = projecten.slice();
+  if(waarde && !lijst.includes(waarde)) lijst.unshift(waarde);
+  sel.innerHTML = '<option value="">— geen project —</option>' + lijst.map(p=>`<option${p===waarde?' selected':''}>${esc(p)}</option>`).join('');
+}
+async function laadProjecten(){
+  try{
+    let url = padUrl(PROJ) + '/children?$select=name,folder,lastModifiedDateTime&$top=200', uit=[];
+    while(url){
+      const d = await graphJSON(url.replace('https://graph.microsoft.com/v1.0/',''));
+      (d.value||[]).forEach(i=>{ if(i.folder) uit.push(i); });
+      url = d['@odata.nextLink'] || null;
+    }
+    uit.sort((a,b)=> (b.lastModifiedDateTime||'').localeCompare(a.lastModifiedDateTime||''));   // laatst gewijzigd bovenaan
+    projecten = uit.map(i=>i.name);
+    LS.set('bon_projecten', JSON.stringify(projecten));
+    vulProjecten($('project'), $('project').value);
+  }catch(e){ /* geen verbinding: de laatst bekende lijst blijft staan */ }
+}
+
+/* ───────── In de bak ───────── */
+function bestandsnaam(meta, ext, volg){
+  const s = soortVan(meta.soort);
+  const delen = [meta.datum, s ? s.f : 'Bon'];
+  if(meta.project) delen.push(meta.project);
+  if(meta.notitie) delen.push(meta.notitie);
+  let naam = schoon(delen.join(' - ')).replace(/^(\d{4}-\d{2}-\d{2}) - /, '$1 ');
+  if(naam.length > 90) naam = naam.slice(0, 90).trim();
+  return naam + (volg ? ` (${volg})` : '') + '.' + ext;
+}
+$('b-bak').onclick = async () => {
+  if(!gekozen.length) return;
+  const meta = { versie:1, datum: $('datum').value || vandaag(), soort, project: $('project').value,
+    notitie: $('notitie').value.trim(), betaaldMet: betaald };
+  const meer = gekozen.length > 1;
+  for(let i=0; i<gekozen.length; i++){
+    const g = gekozen[i];
+    const ext = g.type==='application/pdf' ? 'pdf' : /png/.test(g.type) ? 'png' : /hei[cf]/.test(g.type) ? 'heic' : 'jpg';
+    await wachtErbij({ blob:g.blob, type:g.type, naam: bestandsnaam(meta, ext, meer ? i+1 : 0),
+      meta: { ...meta, origineleNaam: g.naam || '', toegevoegd: new Date().toISOString() }, ts: Date.now() });
+    if(g.url) URL.revokeObjectURL(g.url);
+  }
+  const n = gekozen.length;
+  gekozen = []; soort = ''; toonSoorten($('soorten'), '', id=>{ soort=id; toonGekozen(); });
+  $('notitie').value = ''; betaald = 'zakelijk'; schakel($('betaald'), 'zakelijk', v=>{ betaald=v; });
+  toonGekozen();
+  melding('info', `<span class="spin"></span> ${n>1?n+' bonnen':'Bon'} in de bak — versturen…`);
+  await verstuur(true);
+};
+
+let bezig = false;
+async function verstuur(naToevoegen){
+  if(bezig) return; bezig = true;
+  let gelukt = 0, fout = null;
+  try{
+    const alle = await wachtAlle();
+    if(alle.length && ingelogd() && navigator.onLine){
+      for(const rec of alle){
+        try{
+          const item = await graphJSON(padUrl(MAP + '/' + rec.naam) + '/content?@microsoft.graph.conflictBehavior=rename',
+            { method:'PUT', headers:{'Content-Type':rec.type}, body:rec.blob });
+          await schrijfNotitie(item.name, { ...rec.meta, bestand:item.name });
+          await wachtWeg(rec.id); gelukt++;
+        }catch(e){ fout = e; rec.err = String(e.message||e); await wachtZet(rec); if(e.login) break; }
+      }
+    }
+  } finally { bezig = false; }
+  await toonWacht();
+  const rest = (await wachtAlle()).length;
+  if(fout && fout.login){ toonInlog(); melding('err', 'Je inlog is verlopen. Log opnieuw in; de bonnen blijven bewaard tot dan.'); }
+  else if(fout) melding('err', `Versturen lukte niet: ${esc(fout.message)}. De bon blijft bewaard en gaat later mee.`);
+  else if(gelukt) { melding('ok', `✓ ${gelukt>1?gelukt+' bonnen':'Bon'} in OneDrive › Bonnen${rest?`, ${rest} wacht nog`:''}.`); laadLijst(); }
+  else if(naToevoegen && rest) melding('info', !ingelogd() ? '📥 Bewaard op dit toestel. Log in om te versturen.' : '📥 Geen verbinding: bewaard op dit toestel, gaat vanzelf mee zodra er bereik is.');
+}
+async function toonWacht(){
+  const n = (await wachtAlle()).length;
+  $('wachtkaart').hidden = !n;
+  $('wacht-tekst').textContent = n===1 ? '1 bon wacht op dit toestel.' : `${n} bonnen wachten op dit toestel.`;
+}
+$('b-verstuur').onclick = () => verstuur(false);
+addEventListener('online', () => verstuur(false));
+
+/* ───────── Overzicht ───────── */
+let bonnen = [], filter = 'alles';
+const notitieCache = {};
+async function laadLijst(){
+  if(!ingelogd()) { $('lijst').innerHTML = '<div class="leeg">Log in om de bak te zien.</div>'; return; }
+  $('lijst').innerHTML = '<div class="leeg"><span class="spin"></span> Laden…</div>';
+  try{
+    let url = padUrl(MAP) + '/children?$top=200&$expand=thumbnails', items = [];
+    while(url){
+      const d = await graphJSON(url.replace('https://graph.microsoft.com/v1.0/',''));
+      (d.value||[]).forEach(i=>{ if(i.file) items.push(i); });
+      url = d['@odata.nextLink'] || null;
+    }
+    let namen = new Set();
+    try{
+      let u2 = padUrl(NOTES) + '/children?$select=name&$top=999';
+      while(u2){ const d = await graphJSON(u2.replace('https://graph.microsoft.com/v1.0/',''));
+        (d.value||[]).forEach(i=>namen.add(i.name)); u2 = d['@odata.nextLink'] || null; }
+      notesMapKlaar = true;
+    }catch(e){ if(e.status!==404) throw e; }
+    items.sort((a,b)=> b.name.localeCompare(a.name, 'nl', { numeric:true }) || (b.createdDateTime||'').localeCompare(a.createdDateTime||''));
+    bonnen = items.map(i=>({ id:i.id, naam:i.name, url:i.webUrl, pdf:/\.pdf$/i.test(i.name),
+      thumb: i.thumbnails && i.thumbnails[0] && (i.thumbnails[0].medium||i.thumbnails[0].small||{}).url,
+      heeftNotitie: namen.has(i.name + '.json'), meta: notitieCache[i.name] || null }));
+    toonLijst();
+    // notities ophalen van de eerste 40 (nieuwste) bonnen
+    const ophalen = bonnen.filter(b=>b.heeftNotitie && !b.meta).slice(0, 40);
+    for(let i=0; i<ophalen.length; i+=6){
+      await Promise.all(ophalen.slice(i, i+6).map(async b=>{ b.meta = await leesNotitie(b.naam); if(b.meta) notitieCache[b.naam]=b.meta; }));
+      toonLijst();
+    }
+  }catch(e){
+    if(e.login){ toonInlog(); $('lijst').innerHTML = '<div class="leeg">Log in om de bak te zien.</div>'; return; }
+    if(e.status===404){ $('lijst').innerHTML = '<div class="leeg">De map Bonnen bestaat nog niet; hij wordt gemaakt bij de eerste bon.</div>'; return; }
+    $('lijst').innerHTML = `<div class="leeg">Laden lukte niet: ${esc(e.message)}</div>`;
+  }
+}
+function toonLijst(){
+  const zicht = bonnen.filter(b => filter==='alles' || !b.heeftNotitie);
+  if(!zicht.length){ $('lijst').innerHTML = `<div class="leeg">${filter==='geen' ? 'Alle bonnen hebben een notitie. 👍' : 'De bak is nog leeg.'}</div>`; return; }
+  $('lijst').innerHTML = zicht.slice(0, 150).map(b=>{
+    const m = b.meta, s = m && soortVan(m.soort);
+    const sub = !b.heeftNotitie ? '<span class="badge geen">zonder notitie</span>Tik om aan te geven waarvoor'
+      : m ? [ m.betaaldMet==='prive' ? '<span class="badge prive">privé betaald</span>' : '', esc(datumNL(m.datum)), s ? esc(s.l) : '', esc(m.project||''), esc(m.notitie||'') ].filter(Boolean).join(' · ')
+      : '…';
+    return `<div class="bon" data-id="${esc(b.id)}"><div class="tn">${b.thumb ? `<img src="${esc(b.thumb)}" alt="" loading="lazy">` : (b.pdf?'📄':'🧾')}</div>
+      <div class="tx"><div class="nm">${esc(b.naam)}</div><div class="sub">${sub}</div></div><div class="pen">✎</div></div>`;
+  }).join('');
+  $('lijst').querySelectorAll('.bon').forEach(el=>el.onclick=()=>bewerk(bonnen.find(b=>b.id===el.dataset.id)));
+}
+document.querySelectorAll('.filter button[data-f]').forEach(b=>b.onclick=()=>{ filter=b.dataset.f;
+  document.querySelectorAll('.filter button[data-f]').forEach(x=>x.classList.toggle('on', x===b)); toonLijst(); });
+$('b-ververs').onclick = () => laadLijst();
+
+/* ───────── Notitie bewerken ───────── */
+async function bewerk(b){
+  if(!b) return;
+  if(b.heeftNotitie && !b.meta){ b.meta = await leesNotitie(b.naam); if(b.meta) notitieCache[b.naam]=b.meta; }
+  const m = b.meta || {};
+  const datumUitNaam = (/^(\d{4}-\d{2}-\d{2})/.exec(b.naam)||[])[1];
+  let eSoort = m.soort || '', eBetaald = m.betaaldMet || 'zakelijk';
+  $('sheet').innerHTML = `<h3>${esc(b.naam)}</h3><a class="open" href="${esc(b.url)}" target="_blank" rel="noopener">Bekijken in OneDrive ↗</a>
+    <label class="v">Waarvoor</label><div class="chips" id="e-soorten"></div>
+    <label class="v" for="e-project">Project</label><select id="e-project"></select>
+    <label class="v" for="e-notitie">Notitie</label><input type="text" id="e-notitie" value="${esc(m.notitie||'')}" placeholder="bv. lunch onderweg, inspectie Dordrecht" autocomplete="off">
+    <label class="v">Betaald met</label><div class="schakel" id="e-betaald"><button data-v="zakelijk">Knab-pas (zakelijk)</button><button data-v="prive">Privé-pas</button></div>
+    <label class="v" for="e-datum">Datum</label><input type="date" id="e-datum" value="${esc(m.datum || datumUitNaam || vandaag())}">
+    <div class="knoppen"><button class="btn sec" id="e-annuleer">Annuleren</button><button class="btn" id="e-opslaan">Opslaan</button></div>
+    <div id="e-melding"></div>`;
+  toonSoorten($('e-soorten'), eSoort, id=>{ eSoort=id; });
+  vulProjecten($('e-project'), m.project||'');
+  schakel($('e-betaald'), eBetaald, v=>{ eBetaald=v; });
+  $('scrim').hidden = false;
+  $('e-annuleer').onclick = sluit;
+  $('e-opslaan').onclick = async () => {
+    const nieuw = { versie:1, ...m, bestand:b.naam, datum:$('e-datum').value || vandaag(), soort:eSoort, project:$('e-project').value,
+      notitie:$('e-notitie').value.trim(), betaaldMet:eBetaald, bijgewerkt:new Date().toISOString() };
+    if(!nieuw.toegevoegd) nieuw.toegevoegd = nieuw.bijgewerkt;
+    $('e-opslaan').disabled = true; $('e-opslaan').innerHTML = '<span class="spin"></span>';
+    try{
+      await schrijfNotitie(b.naam, nieuw);
+      b.meta = nieuw; b.heeftNotitie = true; notitieCache[b.naam] = nieuw;
+      sluit(); toonLijst(); melding('ok', '✓ Notitie opgeslagen.');
+    }catch(e){
+      $('e-opslaan').disabled = false; $('e-opslaan').textContent = 'Opslaan';
+      $('e-melding').innerHTML = `<div class="melding err" style="margin:12px 0 0">${esc(e.message)}</div>`;
+      if(e.login) toonInlog();
+    }
+  };
+}
+function sluit(){ $('scrim').hidden = true; $('sheet').innerHTML = ''; }
+$('scrim').addEventListener('click', e=>{ if(e.target===$('scrim')) sluit(); });
+
+/* ───────── Kiezen en slepen ───────── */
+$('b-foto').onclick = () => $('in-foto').click();
+$('b-bestand').onclick = () => $('in-bestand').click();
+$('in-foto').onchange = e => { const f=[...e.target.files]; e.target.value=''; voegToe(f); };
+$('in-bestand').onchange = e => { const f=[...e.target.files]; e.target.value=''; voegToe(f); };
+$('drop').onclick = () => $('in-bestand').click();
+['dragenter','dragover'].forEach(t=>document.addEventListener(t, e=>{ e.preventDefault(); $('drop').classList.add('over'); }));
+['dragleave','drop'].forEach(t=>document.addEventListener(t, e=>{ e.preventDefault(); if(t==='drop'||!e.relatedTarget) $('drop').classList.remove('over'); }));
+document.addEventListener('drop', e=>{ const f=[...(e.dataTransfer&&e.dataTransfer.files||[])]; if(f.length) voegToe(f); });
+
+/* ───────── Start ───────── */
+function toonInlog(){ $('niet-ingelogd').hidden = false; $('b-inlog').href = VILogin.inlogUrl(); }
+(async function start(){
+  $('datum').value = vandaag();
+  toonSoorten($('soorten'), '', id=>{ soort=id; toonGekozen(); });
+  schakel($('betaald'), 'zakelijk', v=>{ betaald=v; });
+  vulProjecten($('project'), '');
+  toonGekozen();
+  await toonWacht();
+  if(!ingelogd()){ toonInlog(); $('lijst').innerHTML = '<div class="leeg">Log in om de bak te zien.</div>'; return; }
+  const naam = VILogin.naam(); if(naam) $('who').textContent = naam;
+  laadProjecten();
+  await verstuur(false);
+  laadLijst();
+})();
+if('serviceWorker' in navigator){ addEventListener('load', ()=>navigator.serviceWorker.register('sw.js').catch(()=>{})); }
+</script>
+</body>
+</html>
