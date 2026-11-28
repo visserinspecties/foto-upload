@@ -114,8 +114,12 @@ details.uitleg p{font-size:13.5px;margin-top:8px}
   </div>
 
   <div class="card" id="beginscherm" hidden>
-    <div class="wacht"><span style="font-size:13.5px">Als losse app op je beginscherm? Kopieer de link, plak hem in <b>Safari</b> en kies daar Deel › Zet op beginscherm.</span>
-    <button class="btn klein sec" id="b-kopieer">Kopieer link</button></div>
+    <div style="font-size:13.5px;margin-bottom:10px">Als losse app op je beginscherm: open hem in <b>Safari</b> en tik daar op Deel › <b>Zet op beginscherm</b>.</div>
+    <div class="twee">
+      <a class="btn klein" id="b-safari" href="x-safari-https://visserinspecties.github.io/foto-upload/bonnen.html" style="text-decoration:none">Open in Safari</a>
+      <button class="btn klein sec" id="b-kopieer">Kopieer link</button>
+    </div>
+    <button class="linkje" id="b-beginscherm-weg" style="margin-top:10px;background:none;border:0;color:var(--muted);font:inherit;font-size:12.5px;text-decoration:underline;cursor:pointer">Niet meer tonen</button>
   </div>
 
   <div id="melding" hidden></div>
@@ -514,13 +518,13 @@ document.addEventListener('drop', e=>{ const f=[...(e.dataTransfer&&e.dataTransf
 function toonInlog(){ $('niet-ingelogd').hidden = false; $('b-inlog').href = VILogin.inlogUrl(); }
 // geopend vanuit de dashboard-app op het beginscherm: daar is geen deelknop van Safari
 if(navigator.standalone === true || matchMedia('(display-mode: standalone)').matches){
+  const LINK = 'https://visserinspecties.github.io/foto-upload/bonnen.html';
   $('beginscherm').hidden = LS.get('bon_beginscherm_weg','') === '1';
   $('b-kopieer').onclick = async () => {
-    const link = 'https://visserinspecties.github.io/foto-upload/bonnen.html';
-    try { await navigator.clipboard.writeText(link); $('b-kopieer').textContent = '✓ Gekopieerd'; }
-    catch(e) { prompt('Kopieer deze link:', link); }
-    LS.set('bon_beginscherm_weg','1');
+    try { await navigator.clipboard.writeText(LINK); $('b-kopieer').textContent = '✓ Gekopieerd'; }
+    catch(e) { prompt('Kopieer deze link:', LINK); }
   };
+  $('b-beginscherm-weg').onclick = () => { LS.set('bon_beginscherm_weg','1'); $('beginscherm').hidden = true; };
 }
 (async function start(){
   $('datum').value = vandaag();
