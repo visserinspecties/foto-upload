@@ -113,6 +113,11 @@ details.uitleg p{font-size:13.5px;margin-top:8px}
     <a class="btn" id="b-inlog" href="inloggen.html" style="text-decoration:none;width:100%">Inloggen met Microsoft</a>
   </div>
 
+  <div class="card" id="beginscherm" hidden>
+    <div class="wacht"><span style="font-size:13.5px">Als losse app op je beginscherm? Kopieer de link, plak hem in <b>Safari</b> en kies daar Deel › Zet op beginscherm.</span>
+    <button class="btn klein sec" id="b-kopieer">Kopieer link</button></div>
+  </div>
+
   <div id="melding" hidden></div>
 
   <div class="card">
@@ -507,6 +512,16 @@ document.addEventListener('drop', e=>{ const f=[...(e.dataTransfer&&e.dataTransf
 
 /* ───────── Start ───────── */
 function toonInlog(){ $('niet-ingelogd').hidden = false; $('b-inlog').href = VILogin.inlogUrl(); }
+// geopend vanuit de dashboard-app op het beginscherm: daar is geen deelknop van Safari
+if(navigator.standalone === true || matchMedia('(display-mode: standalone)').matches){
+  $('beginscherm').hidden = LS.get('bon_beginscherm_weg','') === '1';
+  $('b-kopieer').onclick = async () => {
+    const link = 'https://visserinspecties.github.io/foto-upload/bonnen.html';
+    try { await navigator.clipboard.writeText(link); $('b-kopieer').textContent = '✓ Gekopieerd'; }
+    catch(e) { prompt('Kopieer deze link:', link); }
+    LS.set('bon_beginscherm_weg','1');
+  };
+}
 (async function start(){
   $('datum').value = vandaag();
   toonSoorten($('soorten'), '', id=>{ soort=id; toonGekozen(); });
